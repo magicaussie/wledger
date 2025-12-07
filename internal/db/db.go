@@ -30,6 +30,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.countUsersStmt, err = db.PrepareContext(ctx, countUsers); err != nil {
 		return nil, fmt.Errorf("error preparing query CountUsers: %w", err)
 	}
+	if q.createAuditLogStmt, err = db.PrepareContext(ctx, createAuditLog); err != nil {
+		return nil, fmt.Errorf("error preparing query CreateAuditLog: %w", err)
+	}
 	if q.createSessionStmt, err = db.PrepareContext(ctx, createSession); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateSession: %w", err)
 	}
@@ -70,6 +73,11 @@ func (q *Queries) Close() error {
 	if q.countUsersStmt != nil {
 		if cerr := q.countUsersStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing countUsersStmt: %w", cerr)
+		}
+	}
+	if q.createAuditLogStmt != nil {
+		if cerr := q.createAuditLogStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing createAuditLogStmt: %w", cerr)
 		}
 	}
 	if q.createSessionStmt != nil {
@@ -158,6 +166,7 @@ type Queries struct {
 	tx                  *sql.Tx
 	cleanupSessionsStmt *sql.Stmt
 	countUsersStmt      *sql.Stmt
+	createAuditLogStmt  *sql.Stmt
 	createSessionStmt   *sql.Stmt
 	createUserStmt      *sql.Stmt
 	deleteSessionStmt   *sql.Stmt
@@ -175,6 +184,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		tx:                  tx,
 		cleanupSessionsStmt: q.cleanupSessionsStmt,
 		countUsersStmt:      q.countUsersStmt,
+		createAuditLogStmt:  q.createAuditLogStmt,
 		createSessionStmt:   q.createSessionStmt,
 		createUserStmt:      q.createUserStmt,
 		deleteSessionStmt:   q.deleteSessionStmt,

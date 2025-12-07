@@ -2,7 +2,7 @@
 PRAGMA foreign_keys = ON;
 
 -- Users & Auth
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     email TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
@@ -11,15 +11,15 @@ CREATE TABLE users (
 );
 
 -- Sessions (Required for SCS with SQLite)
-CREATE TABLE sessions (
+CREATE TABLE IF NOT EXISTS sessions (
     token TEXT PRIMARY KEY,
     data BLOB NOT NULL,
     expiry REAL NOT NULL
 );
-CREATE INDEX sessions_expiry_idx ON sessions(expiry);
+CREATE INDEX IF NOT EXISTS sessions_expiry_idx ON sessions(expiry);
 
 -- App Settings (Singleton Row)
-CREATE TABLE settings (
+CREATE TABLE IF NOT EXISTS settings (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     require_auth_for_read BOOLEAN DEFAULT 1,
     locate_timeout_seconds INTEGER DEFAULT 10, -- Default 10 seconds
@@ -36,7 +36,7 @@ CREATE TABLE settings (
 );
 
 -- WLED Controllers
-CREATE TABLE controllers (
+CREATE TABLE IF NOT EXISTS controllers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     ip_address TEXT NOT NULL,
@@ -48,7 +48,7 @@ CREATE TABLE controllers (
 );
 
 -- Bins (Physical Locations)
-CREATE TABLE bins (
+CREATE TABLE IF NOT EXISTS bins (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL, -- e.g., "A1", "B2"
     controller_id INTEGER,
@@ -60,7 +60,7 @@ CREATE TABLE bins (
 );
 
 -- Parts (Inventory Items)
-CREATE TABLE parts (
+CREATE TABLE IF NOT EXISTS parts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     description TEXT,
@@ -78,7 +78,7 @@ CREATE TABLE parts (
 );
 
 -- FTS5 Virtual Table for High-Performance Search
-CREATE VIRTUAL TABLE parts_fts USING fts5(
+CREATE VIRTUAL TABLE IF NOT EXISTS parts_fts USING fts5(
     name,
     description,
     part_number,
@@ -90,7 +90,7 @@ CREATE VIRTUAL TABLE parts_fts USING fts5(
 );
 
 -- AI/Inspiration (LLM Cache)
-CREATE TABLE part_ai_prompts (
+CREATE TABLE IF NOT EXISTS part_ai_prompts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     part_id INTEGER NOT NULL,
     prompt_text TEXT NOT NULL,
@@ -101,7 +101,7 @@ CREATE TABLE part_ai_prompts (
 );
 
 -- External Links
-CREATE TABLE part_links (
+CREATE TABLE IF NOT EXISTS part_links (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     part_id INTEGER NOT NULL,
     url TEXT NOT NULL,
@@ -110,7 +110,7 @@ CREATE TABLE part_links (
 );
 
 -- Part Documents (Datasheets)
-CREATE TABLE part_docs (
+CREATE TABLE IF NOT EXISTS part_docs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     part_id INTEGER NOT NULL,
     file_path TEXT NOT NULL,
@@ -120,7 +120,7 @@ CREATE TABLE part_docs (
 
 -- Assignments (Many-to-Many: Parts in Bins)
 -- This is the Source of truth for part quantity
-CREATE TABLE part_assignments (
+CREATE TABLE IF NOT EXISTS part_assignments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     part_id INTEGER NOT NULL,
     bin_id INTEGER NOT NULL,
@@ -131,8 +131,8 @@ CREATE TABLE part_assignments (
 );
 
 -- Tags
-CREATE TABLE tags (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE NOT NULL);
-CREATE TABLE part_tags (
+CREATE TABLE IF NOT EXISTS tags (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE NOT NULL);
+CREATE TABLE IF NOT EXISTS part_tags (
     part_id INTEGER NOT NULL, tag_id INTEGER NOT NULL,
     PRIMARY KEY(part_id, tag_id),
     FOREIGN KEY(part_id) REFERENCES parts(id) ON DELETE CASCADE,
@@ -140,7 +140,7 @@ CREATE TABLE part_tags (
 );
 
 -- Audit Logs (Business Logic Log)
-CREATE TABLE audit_logs (
+CREATE TABLE IF NOT EXISTS audit_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER,
     action_type TEXT NOT NULL, -- e.g., 'CREATE', 'UPDATE', 'DELETE', 'ADJUST_STOCK'

@@ -3,6 +3,9 @@
 /bin
 main
 
+# Local Database
+/data/*
+
 # OS
 .DS_Store
 

@@ -11,6 +11,7 @@ import (
 type Querier interface {
 	CleanupSessions(ctx context.Context, expiry float64) error
 	CountUsers(ctx context.Context) (int64, error)
+	CreateAuditLog(ctx context.Context, arg CreateAuditLogParams) error
 	CreateSession(ctx context.Context, arg CreateSessionParams) error
 	CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error)
 	DeleteSession(ctx context.Context, token string) error

@@ -1,0 +1,32 @@
+package pages
+
+import "github.com/tuxedocurly/wledger/web/layouts"
+
+templ Setup() {
+	@layouts.Base("Setup") {
+		<div class="flex items-center justify-center min-h-[80vh]">
+			<div class="card w-96 bg-base-200 shadow-xl border-2 border-primary">
+				<div class="card-body">
+					<h2 class="card-title justify-center text-2xl">Welcome to WLEDger!</h2>
+					<p class="text-center text-sm opacity-70 mb-4">Create your admin account to get started.</p>
+
+					<form method="POST" action="/setup" hx-boost="false">
+						<div class="form-control w-full">
+							<label class="label"><span class="label-text">Admin Email</span></label>
+							<input type="email" name="email" required class="input input-bordered w-full" />
+						</div>
+
+						<div class="form-control w-full mt-4">
+							<label class="label"><span class="label-text">Password</span></label>
+							<input type="password" name="password" required minlength="8" class="input input-bordered w-full" />
+						</div>
+
+						<div class="card-actions justify-end mt-6">
+							<button class="btn btn-primary w-full">Create Admin & Start</button>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
+	}
+}

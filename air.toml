@@ -2,14 +2,18 @@ root = "."
 tmp_dir = "tmp"
 
 [build]
-  # The crucial build command
-  cmd = "go build -o ./tmp/main ./cmd/server/main.go"
+  # Build the server directory
+  cmd = "go build -tags fts5 -o ./tmp/main ./cmd/server"
+  
   # The binary to run
   bin = "./tmp/main"
+  
   # Ignore these to prevent loops
   exclude_dir = ["assets", "tmp", "vendor", "node_modules", "web/static", ".git"]
+  
   # Watch these extensions
   include_ext = ["go", "templ", "html"]
+  
   # Don't let build errors kill the process
   stop_on_error = true
 
