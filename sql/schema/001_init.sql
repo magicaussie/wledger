@@ -1,0 +1,154 @@
+-- Enable Foreign Keys
+PRAGMA foreign_keys = ON;
+
+-- Users & Auth
+CREATE TABLE users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    role TEXT CHECK(role IN ('admin', 'editor', 'viewer')) NOT NULL DEFAULT 'viewer',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Sessions (Required for SCS with SQLite)
+CREATE TABLE sessions (
+    token TEXT PRIMARY KEY,
+    data BLOB NOT NULL,
+    expiry REAL NOT NULL
+);
+CREATE INDEX sessions_expiry_idx ON sessions(expiry);
+
+-- App Settings (Singleton Row)
+CREATE TABLE settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    require_auth_for_read BOOLEAN DEFAULT 1,
+    locate_timeout_seconds INTEGER DEFAULT 10, -- Default 10 seconds
+    enable_locate_timeout BOOLEAN DEFAULT 0,    -- Default off (indefinite)
+    
+    -- Global Colors
+    color_locate TEXT DEFAULT '#0000FF',       -- Blue
+    color_stock_ok TEXT DEFAULT '#00FF00',     -- Green
+    color_stock_low TEXT DEFAULT '#FFFF00',    -- Yellow
+    color_stock_critical TEXT DEFAULT '#FF0000', -- Red
+
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- WLED Controllers
+CREATE TABLE controllers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    ip_address TEXT NOT NULL,
+    port INTEGER DEFAULT 80,
+    mac_address TEXT,
+    is_online BOOLEAN DEFAULT 0,
+    led_count INTEGER NOT NULL DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Bins (Physical Locations)
+CREATE TABLE bins (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL, -- e.g., "A1", "B2"
+    controller_id INTEGER,
+    led_index INTEGER, -- The specific LED start index (0-based) on the strip
+    width INTEGER DEFAULT 1, -- How many LEDs wide is this bin?
+    grid_x INTEGER, -- Visual representation X
+    grid_y INTEGER, -- Visual representation Y
+    FOREIGN KEY(controller_id) REFERENCES controllers(id) ON DELETE SET NULL
+);
+
+-- Parts (Inventory Items)
+CREATE TABLE parts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    description TEXT,
+    part_number TEXT,
+    manufacturer TEXT,
+    supplier TEXT,
+    unit_cost REAL DEFAULT 0.00,
+    reorder_level INTEGER DEFAULT 0,
+    min_stock_threshold INTEGER DEFAULT 0,
+    barcode_data TEXT UNIQUE, -- Unique constraint ensures no part barcode overlap
+    image_path TEXT, -- Local path relative to /app/uploads
+    is_favorite BOOLEAN DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- FTS5 Virtual Table for High-Performance Search
+CREATE VIRTUAL TABLE parts_fts USING fts5(
+    name,
+    description,
+    part_number,
+    manufacturer,
+    supplier,
+    barcode_data,
+    content='parts',
+    content_rowid='id'
+);
+
+-- AI/Inspiration (LLM Cache)
+CREATE TABLE part_ai_prompts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    part_id INTEGER NOT NULL,
+    prompt_text TEXT NOT NULL,
+    ai_response TEXT,
+    model_used TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(part_id) REFERENCES parts(id) ON DELETE CASCADE
+);
+
+-- External Links
+CREATE TABLE part_links (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    part_id INTEGER NOT NULL,
+    url TEXT NOT NULL,
+    label TEXT,
+    FOREIGN KEY(part_id) REFERENCES parts(id) ON DELETE CASCADE
+);
+
+-- Part Documents (Datasheets)
+CREATE TABLE part_docs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    part_id INTEGER NOT NULL,
+    file_path TEXT NOT NULL,
+    file_name TEXT NOT NULL,
+    FOREIGN KEY(part_id) REFERENCES parts(id) ON DELETE CASCADE
+);
+
+-- Assignments (Many-to-Many: Parts in Bins)
+-- This is the Source of truth for part quantity
+CREATE TABLE part_assignments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    part_id INTEGER NOT NULL,
+    bin_id INTEGER NOT NULL,
+    quantity INTEGER NOT NULL DEFAULT 1 CHECK (quantity >= 0),
+    FOREIGN KEY(part_id) REFERENCES parts(id) ON DELETE CASCADE,
+    FOREIGN KEY(bin_id) REFERENCES bins(id) ON DELETE CASCADE,
+    UNIQUE(part_id, bin_id)
+);
+
+-- Tags
+CREATE TABLE tags (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE NOT NULL);
+CREATE TABLE part_tags (
+    part_id INTEGER NOT NULL, tag_id INTEGER NOT NULL,
+    PRIMARY KEY(part_id, tag_id),
+    FOREIGN KEY(part_id) REFERENCES parts(id) ON DELETE CASCADE,
+    FOREIGN KEY(tag_id) REFERENCES tags(id) ON DELETE CASCADE
+);
+
+-- Audit Logs (Business Logic Log)
+CREATE TABLE audit_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    action_type TEXT NOT NULL, -- e.g., 'CREATE', 'UPDATE', 'DELETE', 'ADJUST_STOCK'
+    entity_type TEXT NOT NULL, -- e.g., 'PART', 'BIN'
+    entity_id INTEGER NOT NULL,
+    details TEXT, -- Human readable summary
+    old_value JSON, -- Snapshot of data before change
+    new_value JSON, -- Snapshot of data after change
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE SET NULL
+);

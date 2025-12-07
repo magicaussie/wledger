@@ -1,0 +1,31 @@
+{
+  "name": "wledger",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tuxedocurly/wledger.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/tuxedocurly/wledger/issues"
+  },
+  "homepage": "https://github.com/tuxedocurly/wledger#readme",
+  "devDependencies": {
+    "daisyui": "^5.5.8",
+    "tailwindcss": "^4.1.17"
+  },
+  "dependencies": {
+    "@tailwindcss/cli": "^4.1.17"
+  }
+}
