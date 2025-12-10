@@ -6,20 +6,43 @@ package db
 
 import (
 	"context"
+	"database/sql"
 )
 
 type Querier interface {
 	CleanupSessions(ctx context.Context, expiry float64) error
+	CountParts(ctx context.Context) (int64, error)
 	CountUsers(ctx context.Context) (int64, error)
 	CreateAuditLog(ctx context.Context, arg CreateAuditLogParams) error
+	CreateBin(ctx context.Context, arg CreateBinParams) (int64, error)
+	CreateController(ctx context.Context, arg CreateControllerParams) (CreateControllerRow, error)
+	CreatePart(ctx context.Context, arg CreatePartParams) (int64, error)
+	CreatePartAssignment(ctx context.Context, arg CreatePartAssignmentParams) error
 	CreateSession(ctx context.Context, arg CreateSessionParams) error
 	CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error)
+	DeleteBinsByController(ctx context.Context, controllerID sql.NullInt64) error
+	DeleteController(ctx context.Context, id int64) error
+	DeletePart(ctx context.Context, id int64) error
 	DeleteSession(ctx context.Context, token string) error
+	GetAssignmentID(ctx context.Context, arg GetAssignmentIDParams) (int64, error)
+	GetBinsByController(ctx context.Context, controllerID sql.NullInt64) ([]Bin, error)
+	GetController(ctx context.Context, id int64) (Controller, error)
+	GetControllers(ctx context.Context) ([]Controller, error)
+	GetDashboardStats(ctx context.Context) (GetDashboardStatsRow, error)
+	GetPart(ctx context.Context, id int64) (Part, error)
+	GetPartAssignments(ctx context.Context, partID int64) ([]GetPartAssignmentsRow, error)
 	GetSession(ctx context.Context, token string) (Session, error)
 	GetSettings(ctx context.Context) (Setting, error)
+	GetTotalStock(ctx context.Context, partID int64) (interface{}, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	InitSettings(ctx context.Context) error
+	ListParts(ctx context.Context, arg ListPartsParams) ([]ListPartsRow, error)
+	SearchParts(ctx context.Context, partsFts sql.NullString) ([]SearchPartsRow, error)
+	UpdateBinQuantity(ctx context.Context, arg UpdateBinQuantityParams) error
 	UpdateColors(ctx context.Context, arg UpdateColorsParams) error
+	UpdateControllerStatus(ctx context.Context, arg UpdateControllerStatusParams) error
+	UpdatePart(ctx context.Context, arg UpdatePartParams) error
+	UpdatePartAssignmentQuantity(ctx context.Context, arg UpdatePartAssignmentQuantityParams) error
 	UpdateSettings(ctx context.Context, arg UpdateSettingsParams) error
 }
 

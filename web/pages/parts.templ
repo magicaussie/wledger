@@ -1,0 +1,93 @@
+package pages
+
+import (
+	"database/sql"
+	"fmt"
+	"github.com/tuxedocurly/wledger/web/layouts"
+)
+
+type PartView struct {
+	ID          int64
+	Name        string
+	Description sql.NullString
+	PartNumber  sql.NullString
+	ImagePath   sql.NullString
+	IsFavorite  sql.NullBool
+	UnitCost    sql.NullFloat64
+	TotalStock  any
+}
+
+templ PartsList(parts []PartView, search string, page int) {
+	@layouts.Base("Inventory") {
+		<div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+			<h1 class="text-3xl font-bold">Inventory</h1>
+			<div class="flex gap-2 w-full md:w-auto">
+				<form action="/parts" method="GET" class="join w-full md:w-auto">
+					<input
+						type="text"
+						name="q"
+						value={ search }
+						class="input input-bordered join-item w-full md:w-64"
+						placeholder="Search parts..."
+						hx-get="/parts"
+						hx-trigger="keyup changed delay:500ms"
+						hx-target="#parts-grid"
+						hx-select="#parts-grid"
+						hx-push-url="true"
+					/>
+					<button class="btn join-item">Search</button>
+				</form>
+				<a href="/parts/new" class="btn btn-primary">
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+					Add Part
+				</a>
+			</div>
+		</div>
+		<div id="parts-grid">
+			if len(parts) == 0 {
+				<div class="text-center opacity-50 mt-20">
+					<div class="text-6xl mb-4">📦</div>
+					<p class="text-xl">No parts found.</p>
+				</div>
+			} else {
+				<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+					for _, p := range parts {
+						<a href={ templ.SafeURL(fmt.Sprintf("/parts/%d", p.ID)) } class="card bg-base-200 shadow-xl hover:shadow-2xl transition-shadow cursor-pointer h-full block">
+							<figure class="h-48 bg-base-300 relative">
+								if p.ImagePath.Valid && p.ImagePath.String != "" {
+									<img src={ "/uploads/" + p.ImagePath.String } alt={ p.Name } class="object-cover w-full h-full"/>
+								} else {
+									<div class="flex items-center justify-center w-full h-full text-4xl opacity-20">📷</div>
+								}
+							</figure>
+							<div class="card-body p-4">
+								<h2 class="card-title text-base">
+									{ p.Name }
+									if p.IsFavorite.Bool {
+										<span class="text-warning text-xs">★</span>
+									}
+								</h2>
+								<p class="text-xs opacity-70 truncate">{ p.Description.String }</p>
+								<div class="flex justify-between items-end mt-4">
+									<div class="flex flex-col">
+										<span class="text-xs font-mono opacity-50"># { p.PartNumber.String }</span>
+										<span class="badge badge-sm badge-neutral mt-1">Stock: { fmt.Sprintf("%v", p.TotalStock) }</span>
+									</div>
+									<button class="btn btn-sm btn-ghost">Edit</button>
+								</div>
+							</div>
+						</a>
+					}
+				</div>
+				<div class="join grid grid-cols-2 mt-8 w-64 mx-auto">
+					if page > 1 {
+						<a href={ templ.SafeURL(fmt.Sprintf("/parts?page=%d&q=%s", page-1, search)) } class="join-item btn btn-outline">Previous</a>
+					} else {
+						<button class="join-item btn btn-outline btn-disabled">Previous</button>
+					}
+					<a href={ templ.SafeURL(fmt.Sprintf("/parts?page=%d&q=%s", page+1, search)) } class="join-item btn btn-outline">Next</a>
+				</div>
+			}
+		</div>
+	}
+}

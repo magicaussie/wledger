@@ -27,11 +27,26 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.cleanupSessionsStmt, err = db.PrepareContext(ctx, cleanupSessions); err != nil {
 		return nil, fmt.Errorf("error preparing query CleanupSessions: %w", err)
 	}
+	if q.countPartsStmt, err = db.PrepareContext(ctx, countParts); err != nil {
+		return nil, fmt.Errorf("error preparing query CountParts: %w", err)
+	}
 	if q.countUsersStmt, err = db.PrepareContext(ctx, countUsers); err != nil {
 		return nil, fmt.Errorf("error preparing query CountUsers: %w", err)
 	}
 	if q.createAuditLogStmt, err = db.PrepareContext(ctx, createAuditLog); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateAuditLog: %w", err)
+	}
+	if q.createBinStmt, err = db.PrepareContext(ctx, createBin); err != nil {
+		return nil, fmt.Errorf("error preparing query CreateBin: %w", err)
+	}
+	if q.createControllerStmt, err = db.PrepareContext(ctx, createController); err != nil {
+		return nil, fmt.Errorf("error preparing query CreateController: %w", err)
+	}
+	if q.createPartStmt, err = db.PrepareContext(ctx, createPart); err != nil {
+		return nil, fmt.Errorf("error preparing query CreatePart: %w", err)
+	}
+	if q.createPartAssignmentStmt, err = db.PrepareContext(ctx, createPartAssignment); err != nil {
+		return nil, fmt.Errorf("error preparing query CreatePartAssignment: %w", err)
 	}
 	if q.createSessionStmt, err = db.PrepareContext(ctx, createSession); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateSession: %w", err)
@@ -39,8 +54,38 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.createUserStmt, err = db.PrepareContext(ctx, createUser); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateUser: %w", err)
 	}
+	if q.deleteBinsByControllerStmt, err = db.PrepareContext(ctx, deleteBinsByController); err != nil {
+		return nil, fmt.Errorf("error preparing query DeleteBinsByController: %w", err)
+	}
+	if q.deleteControllerStmt, err = db.PrepareContext(ctx, deleteController); err != nil {
+		return nil, fmt.Errorf("error preparing query DeleteController: %w", err)
+	}
+	if q.deletePartStmt, err = db.PrepareContext(ctx, deletePart); err != nil {
+		return nil, fmt.Errorf("error preparing query DeletePart: %w", err)
+	}
 	if q.deleteSessionStmt, err = db.PrepareContext(ctx, deleteSession); err != nil {
 		return nil, fmt.Errorf("error preparing query DeleteSession: %w", err)
+	}
+	if q.getAssignmentIDStmt, err = db.PrepareContext(ctx, getAssignmentID); err != nil {
+		return nil, fmt.Errorf("error preparing query GetAssignmentID: %w", err)
+	}
+	if q.getBinsByControllerStmt, err = db.PrepareContext(ctx, getBinsByController); err != nil {
+		return nil, fmt.Errorf("error preparing query GetBinsByController: %w", err)
+	}
+	if q.getControllerStmt, err = db.PrepareContext(ctx, getController); err != nil {
+		return nil, fmt.Errorf("error preparing query GetController: %w", err)
+	}
+	if q.getControllersStmt, err = db.PrepareContext(ctx, getControllers); err != nil {
+		return nil, fmt.Errorf("error preparing query GetControllers: %w", err)
+	}
+	if q.getDashboardStatsStmt, err = db.PrepareContext(ctx, getDashboardStats); err != nil {
+		return nil, fmt.Errorf("error preparing query GetDashboardStats: %w", err)
+	}
+	if q.getPartStmt, err = db.PrepareContext(ctx, getPart); err != nil {
+		return nil, fmt.Errorf("error preparing query GetPart: %w", err)
+	}
+	if q.getPartAssignmentsStmt, err = db.PrepareContext(ctx, getPartAssignments); err != nil {
+		return nil, fmt.Errorf("error preparing query GetPartAssignments: %w", err)
 	}
 	if q.getSessionStmt, err = db.PrepareContext(ctx, getSession); err != nil {
 		return nil, fmt.Errorf("error preparing query GetSession: %w", err)
@@ -48,14 +93,35 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.getSettingsStmt, err = db.PrepareContext(ctx, getSettings); err != nil {
 		return nil, fmt.Errorf("error preparing query GetSettings: %w", err)
 	}
+	if q.getTotalStockStmt, err = db.PrepareContext(ctx, getTotalStock); err != nil {
+		return nil, fmt.Errorf("error preparing query GetTotalStock: %w", err)
+	}
 	if q.getUserByEmailStmt, err = db.PrepareContext(ctx, getUserByEmail); err != nil {
 		return nil, fmt.Errorf("error preparing query GetUserByEmail: %w", err)
 	}
 	if q.initSettingsStmt, err = db.PrepareContext(ctx, initSettings); err != nil {
 		return nil, fmt.Errorf("error preparing query InitSettings: %w", err)
 	}
+	if q.listPartsStmt, err = db.PrepareContext(ctx, listParts); err != nil {
+		return nil, fmt.Errorf("error preparing query ListParts: %w", err)
+	}
+	if q.searchPartsStmt, err = db.PrepareContext(ctx, searchParts); err != nil {
+		return nil, fmt.Errorf("error preparing query SearchParts: %w", err)
+	}
+	if q.updateBinQuantityStmt, err = db.PrepareContext(ctx, updateBinQuantity); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateBinQuantity: %w", err)
+	}
 	if q.updateColorsStmt, err = db.PrepareContext(ctx, updateColors); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateColors: %w", err)
+	}
+	if q.updateControllerStatusStmt, err = db.PrepareContext(ctx, updateControllerStatus); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateControllerStatus: %w", err)
+	}
+	if q.updatePartStmt, err = db.PrepareContext(ctx, updatePart); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdatePart: %w", err)
+	}
+	if q.updatePartAssignmentQuantityStmt, err = db.PrepareContext(ctx, updatePartAssignmentQuantity); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdatePartAssignmentQuantity: %w", err)
 	}
 	if q.updateSettingsStmt, err = db.PrepareContext(ctx, updateSettings); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateSettings: %w", err)
@@ -70,6 +136,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing cleanupSessionsStmt: %w", cerr)
 		}
 	}
+	if q.countPartsStmt != nil {
+		if cerr := q.countPartsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing countPartsStmt: %w", cerr)
+		}
+	}
 	if q.countUsersStmt != nil {
 		if cerr := q.countUsersStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing countUsersStmt: %w", cerr)
@@ -78,6 +149,26 @@ func (q *Queries) Close() error {
 	if q.createAuditLogStmt != nil {
 		if cerr := q.createAuditLogStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing createAuditLogStmt: %w", cerr)
+		}
+	}
+	if q.createBinStmt != nil {
+		if cerr := q.createBinStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing createBinStmt: %w", cerr)
+		}
+	}
+	if q.createControllerStmt != nil {
+		if cerr := q.createControllerStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing createControllerStmt: %w", cerr)
+		}
+	}
+	if q.createPartStmt != nil {
+		if cerr := q.createPartStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing createPartStmt: %w", cerr)
+		}
+	}
+	if q.createPartAssignmentStmt != nil {
+		if cerr := q.createPartAssignmentStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing createPartAssignmentStmt: %w", cerr)
 		}
 	}
 	if q.createSessionStmt != nil {
@@ -90,9 +181,59 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing createUserStmt: %w", cerr)
 		}
 	}
+	if q.deleteBinsByControllerStmt != nil {
+		if cerr := q.deleteBinsByControllerStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing deleteBinsByControllerStmt: %w", cerr)
+		}
+	}
+	if q.deleteControllerStmt != nil {
+		if cerr := q.deleteControllerStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing deleteControllerStmt: %w", cerr)
+		}
+	}
+	if q.deletePartStmt != nil {
+		if cerr := q.deletePartStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing deletePartStmt: %w", cerr)
+		}
+	}
 	if q.deleteSessionStmt != nil {
 		if cerr := q.deleteSessionStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing deleteSessionStmt: %w", cerr)
+		}
+	}
+	if q.getAssignmentIDStmt != nil {
+		if cerr := q.getAssignmentIDStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getAssignmentIDStmt: %w", cerr)
+		}
+	}
+	if q.getBinsByControllerStmt != nil {
+		if cerr := q.getBinsByControllerStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getBinsByControllerStmt: %w", cerr)
+		}
+	}
+	if q.getControllerStmt != nil {
+		if cerr := q.getControllerStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getControllerStmt: %w", cerr)
+		}
+	}
+	if q.getControllersStmt != nil {
+		if cerr := q.getControllersStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getControllersStmt: %w", cerr)
+		}
+	}
+	if q.getDashboardStatsStmt != nil {
+		if cerr := q.getDashboardStatsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getDashboardStatsStmt: %w", cerr)
+		}
+	}
+	if q.getPartStmt != nil {
+		if cerr := q.getPartStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getPartStmt: %w", cerr)
+		}
+	}
+	if q.getPartAssignmentsStmt != nil {
+		if cerr := q.getPartAssignmentsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getPartAssignmentsStmt: %w", cerr)
 		}
 	}
 	if q.getSessionStmt != nil {
@@ -105,6 +246,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing getSettingsStmt: %w", cerr)
 		}
 	}
+	if q.getTotalStockStmt != nil {
+		if cerr := q.getTotalStockStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getTotalStockStmt: %w", cerr)
+		}
+	}
 	if q.getUserByEmailStmt != nil {
 		if cerr := q.getUserByEmailStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getUserByEmailStmt: %w", cerr)
@@ -115,9 +261,39 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing initSettingsStmt: %w", cerr)
 		}
 	}
+	if q.listPartsStmt != nil {
+		if cerr := q.listPartsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listPartsStmt: %w", cerr)
+		}
+	}
+	if q.searchPartsStmt != nil {
+		if cerr := q.searchPartsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing searchPartsStmt: %w", cerr)
+		}
+	}
+	if q.updateBinQuantityStmt != nil {
+		if cerr := q.updateBinQuantityStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateBinQuantityStmt: %w", cerr)
+		}
+	}
 	if q.updateColorsStmt != nil {
 		if cerr := q.updateColorsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing updateColorsStmt: %w", cerr)
+		}
+	}
+	if q.updateControllerStatusStmt != nil {
+		if cerr := q.updateControllerStatusStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateControllerStatusStmt: %w", cerr)
+		}
+	}
+	if q.updatePartStmt != nil {
+		if cerr := q.updatePartStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updatePartStmt: %w", cerr)
+		}
+	}
+	if q.updatePartAssignmentQuantityStmt != nil {
+		if cerr := q.updatePartAssignmentQuantityStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updatePartAssignmentQuantityStmt: %w", cerr)
 		}
 	}
 	if q.updateSettingsStmt != nil {
@@ -162,37 +338,81 @@ func (q *Queries) queryRow(ctx context.Context, stmt *sql.Stmt, query string, ar
 }
 
 type Queries struct {
-	db                  DBTX
-	tx                  *sql.Tx
-	cleanupSessionsStmt *sql.Stmt
-	countUsersStmt      *sql.Stmt
-	createAuditLogStmt  *sql.Stmt
-	createSessionStmt   *sql.Stmt
-	createUserStmt      *sql.Stmt
-	deleteSessionStmt   *sql.Stmt
-	getSessionStmt      *sql.Stmt
-	getSettingsStmt     *sql.Stmt
-	getUserByEmailStmt  *sql.Stmt
-	initSettingsStmt    *sql.Stmt
-	updateColorsStmt    *sql.Stmt
-	updateSettingsStmt  *sql.Stmt
+	db                               DBTX
+	tx                               *sql.Tx
+	cleanupSessionsStmt              *sql.Stmt
+	countPartsStmt                   *sql.Stmt
+	countUsersStmt                   *sql.Stmt
+	createAuditLogStmt               *sql.Stmt
+	createBinStmt                    *sql.Stmt
+	createControllerStmt             *sql.Stmt
+	createPartStmt                   *sql.Stmt
+	createPartAssignmentStmt         *sql.Stmt
+	createSessionStmt                *sql.Stmt
+	createUserStmt                   *sql.Stmt
+	deleteBinsByControllerStmt       *sql.Stmt
+	deleteControllerStmt             *sql.Stmt
+	deletePartStmt                   *sql.Stmt
+	deleteSessionStmt                *sql.Stmt
+	getAssignmentIDStmt              *sql.Stmt
+	getBinsByControllerStmt          *sql.Stmt
+	getControllerStmt                *sql.Stmt
+	getControllersStmt               *sql.Stmt
+	getDashboardStatsStmt            *sql.Stmt
+	getPartStmt                      *sql.Stmt
+	getPartAssignmentsStmt           *sql.Stmt
+	getSessionStmt                   *sql.Stmt
+	getSettingsStmt                  *sql.Stmt
+	getTotalStockStmt                *sql.Stmt
+	getUserByEmailStmt               *sql.Stmt
+	initSettingsStmt                 *sql.Stmt
+	listPartsStmt                    *sql.Stmt
+	searchPartsStmt                  *sql.Stmt
+	updateBinQuantityStmt            *sql.Stmt
+	updateColorsStmt                 *sql.Stmt
+	updateControllerStatusStmt       *sql.Stmt
+	updatePartStmt                   *sql.Stmt
+	updatePartAssignmentQuantityStmt *sql.Stmt
+	updateSettingsStmt               *sql.Stmt
 }
 
 func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 	return &Queries{
-		db:                  tx,
-		tx:                  tx,
-		cleanupSessionsStmt: q.cleanupSessionsStmt,
-		countUsersStmt:      q.countUsersStmt,
-		createAuditLogStmt:  q.createAuditLogStmt,
-		createSessionStmt:   q.createSessionStmt,
-		createUserStmt:      q.createUserStmt,
-		deleteSessionStmt:   q.deleteSessionStmt,
-		getSessionStmt:      q.getSessionStmt,
-		getSettingsStmt:     q.getSettingsStmt,
-		getUserByEmailStmt:  q.getUserByEmailStmt,
-		initSettingsStmt:    q.initSettingsStmt,
-		updateColorsStmt:    q.updateColorsStmt,
-		updateSettingsStmt:  q.updateSettingsStmt,
+		db:                               tx,
+		tx:                               tx,
+		cleanupSessionsStmt:              q.cleanupSessionsStmt,
+		countPartsStmt:                   q.countPartsStmt,
+		countUsersStmt:                   q.countUsersStmt,
+		createAuditLogStmt:               q.createAuditLogStmt,
+		createBinStmt:                    q.createBinStmt,
+		createControllerStmt:             q.createControllerStmt,
+		createPartStmt:                   q.createPartStmt,
+		createPartAssignmentStmt:         q.createPartAssignmentStmt,
+		createSessionStmt:                q.createSessionStmt,
+		createUserStmt:                   q.createUserStmt,
+		deleteBinsByControllerStmt:       q.deleteBinsByControllerStmt,
+		deleteControllerStmt:             q.deleteControllerStmt,
+		deletePartStmt:                   q.deletePartStmt,
+		deleteSessionStmt:                q.deleteSessionStmt,
+		getAssignmentIDStmt:              q.getAssignmentIDStmt,
+		getBinsByControllerStmt:          q.getBinsByControllerStmt,
+		getControllerStmt:                q.getControllerStmt,
+		getControllersStmt:               q.getControllersStmt,
+		getDashboardStatsStmt:            q.getDashboardStatsStmt,
+		getPartStmt:                      q.getPartStmt,
+		getPartAssignmentsStmt:           q.getPartAssignmentsStmt,
+		getSessionStmt:                   q.getSessionStmt,
+		getSettingsStmt:                  q.getSettingsStmt,
+		getTotalStockStmt:                q.getTotalStockStmt,
+		getUserByEmailStmt:               q.getUserByEmailStmt,
+		initSettingsStmt:                 q.initSettingsStmt,
+		listPartsStmt:                    q.listPartsStmt,
+		searchPartsStmt:                  q.searchPartsStmt,
+		updateBinQuantityStmt:            q.updateBinQuantityStmt,
+		updateColorsStmt:                 q.updateColorsStmt,
+		updateControllerStatusStmt:       q.updateControllerStatusStmt,
+		updatePartStmt:                   q.updatePartStmt,
+		updatePartAssignmentQuantityStmt: q.updatePartAssignmentQuantityStmt,
+		updateSettingsStmt:               q.updateSettingsStmt,
 	}
 }

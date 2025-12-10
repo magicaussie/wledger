@@ -1,0 +1,65 @@
+package pages
+
+import "github.com/tuxedocurly/wledger/web/layouts"
+
+templ PartCreate() {
+	@layouts.Base("Add Part") {
+		<div class="max-w-2xl mx-auto">
+			<div class="mb-6">
+				<a href="/parts" class="btn btn-sm btn-ghost gap-2 pl-0">
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+					Back to Inventory
+				</a>
+				<h1 class="text-3xl font-bold mt-2">Add New Part</h1>
+			</div>
+
+			<div class="card bg-base-200 shadow-xl">
+				<div class="card-body">
+					<form action="/parts" method="POST" enctype="multipart/form-data" class="space-y-4" hx-boost="false">
+						
+						<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+							<div class="form-control w-full">
+								<label class="label"><span class="label-text">Part Name *</span></label>
+								<input type="text" name="name" class="input input-bordered w-full" required placeholder="e.g. ESP32-WROOM-32" />
+							</div>
+							<div class="form-control w-full">
+								<label class="label"><span class="label-text">Part Number</span></label>
+								<input type="text" name="part_number" class="input input-bordered w-full" placeholder="Manufacturer MPN" />
+							</div>
+						</div>
+
+						<div class="form-control w-full">
+							<label class="label"><span class="label-text">Description</span></label>
+							<textarea name="description" class="textarea textarea-bordered h-24" placeholder="Brief details..."></textarea>
+						</div>
+
+						<div class="form-control w-full">
+							<label class="label"><span class="label-text">Image</span></label>
+							<input type="file" name="image" class="file-input file-input-bordered w-full" accept="image/png, image/jpeg" />
+						</div>
+
+						<div class="grid grid-cols-1 md:grid-cols-3 gap-4 border-t border-base-300 pt-4 mt-4">
+							<div class="form-control w-full">
+								<label class="label"><span class="label-text">Unit Cost ($)</span></label>
+								<input type="number" name="unit_cost" step="0.01" class="input input-bordered w-full" placeholder="0.00" />
+							</div>
+							<div class="form-control w-full">
+								<label class="label"><span class="label-text">Min. Stock</span></label>
+								<input type="number" name="min_stock" class="input input-bordered w-full" value="0" />
+								<label class="label"><span class="label-text-alt opacity-50">Alert when below this</span></label>
+							</div>
+							<div class="form-control w-full">
+								<label class="label"><span class="label-text">Reorder Level</span></label>
+								<input type="number" name="reorder_level" class="input input-bordered w-full" value="0" />
+							</div>
+						</div>
+
+						<div class="card-actions justify-end mt-6">
+							<button class="btn btn-primary px-8">Create Part</button>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
+	}
+}

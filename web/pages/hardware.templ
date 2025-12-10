@@ -1,0 +1,81 @@
+package pages
+
+import (
+	"fmt"
+	"github.com/tuxedocurly/wledger/internal/db"
+	"github.com/tuxedocurly/wledger/web/layouts"
+)
+
+templ Hardware(controllers []db.Controller) {
+	@layouts.Base("Hardware") {
+		<div class="flex justify-between items-center mb-6">
+			<h1 class="text-3xl font-bold">WLED Controllers</h1>
+			<button onclick="add_modal.showModal()" class="btn btn-primary">
+				<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+				Add Controller
+			</button>
+		</div>
+		if len(controllers) == 0 {
+			<div class="text-center opacity-50 mt-20">
+				<div class="text-6xl mb-4">🔌</div>
+				<p class="text-xl">No controllers found.</p>
+				<p class="text-sm">Add your first WLED device to get started.</p>
+			</div>
+		} else {
+			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+				for _, c := range controllers {
+					<div class="card bg-base-200 shadow-xl">
+						<div class="card-body">
+							<div class="flex justify-between items-start">
+								<h2 class="card-title">{ c.Name }</h2>
+								<div
+									hx-get={ fmt.Sprintf("/hardware/%d/status", c.ID) }
+									hx-trigger="load, every 10s"
+									hx-swap="innerHTML"
+								>
+									if c.IsOnline.Bool {
+										<div class="badge badge-success gap-2">Online</div>
+									} else {
+										<div class="badge badge-ghost gap-2">Checking...</div>
+									}
+								</div>
+							</div>
+							<p class="font-mono text-sm opacity-70">{ c.IpAddress }</p>
+							<div class="card-actions justify-end mt-4">
+								<a
+									href={ templ.SafeURL(fmt.Sprintf("/hardware/%d/grid", c.ID)) }
+									class="btn btn-sm btn-outline"
+									hx-boost="false"
+								>
+									Configure Grid
+								</a>
+								<form action={ templ.SafeURL(fmt.Sprintf("/hardware/%d/delete", c.ID)) } method="POST" onsubmit="return confirm('Are you sure?');">
+									<button class="btn btn-sm btn-ghost text-error">Delete</button>
+								</form>
+							</div>
+						</div>
+					</div>
+				}
+			</div>
+		}
+		<dialog id="add_modal" class="modal">
+			<div class="modal-box">
+				<h3 class="font-bold text-lg">Add WLED Controller</h3>
+				<form action="/hardware" method="POST" class="py-4">
+					<div class="form-control w-full">
+						<label class="label"><span class="label-text">Name</span></label>
+						<input type="text" name="name" placeholder="e.g. Shelf A" class="input input-bordered w-full" required/>
+					</div>
+					<div class="form-control w-full mt-4">
+						<label class="label"><span class="label-text">IP Address</span></label>
+						<input type="text" name="ip" placeholder="192.168.1.x" class="input input-bordered w-full" required/>
+					</div>
+					<div class="modal-action">
+						<button type="button" class="btn" onclick="add_modal.close()">Cancel</button>
+						<button class="btn btn-primary">Save</button>
+					</div>
+				</form>
+			</div>
+		</dialog>
+	}
+}

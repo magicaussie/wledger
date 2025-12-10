@@ -1,0 +1,170 @@
+package pages
+
+import (
+	"fmt"
+	"github.com/tuxedocurly/wledger/internal/db"
+	"github.com/tuxedocurly/wledger/web/layouts"
+)
+
+// PartDetailRow is a helper struct for this view
+// Populated in the handler
+type PartAssignmentView struct {
+	AssignmentID   int64
+	BinName        string
+	ControllerName string
+	Quantity       int64
+}
+
+templ PartDetail(p db.Part, stock []db.GetPartAssignmentsRow, controllers []db.Controller) {
+	@layouts.Base(p.Name) {
+		<div class="max-w-4xl mx-auto">
+			<div class="mb-6">
+				<a href="/parts" class="btn btn-sm btn-ghost gap-2 pl-0">
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+					Back to Inventory
+				</a>
+			</div>
+			<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+				<div class="md:col-span-1 space-y-6">
+					<div class="card bg-base-200 shadow-xl overflow-hidden">
+						<figure class="aspect-square bg-base-300 relative">
+							if p.ImagePath.Valid && p.ImagePath.String != "" {
+								<img src={ "/uploads/" + p.ImagePath.String } alt={ p.Name } class="object-cover w-full h-full"/>
+							} else {
+								<div class="flex items-center justify-center w-full h-full text-6xl opacity-20">📦</div>
+							}
+						</figure>
+						<div class="card-body p-4">
+							<h1 class="text-2xl font-bold">{ p.Name }</h1>
+							<p class="opacity-70 text-sm">{ p.Description.String }</p>
+							<div class="divider my-2"></div>
+							<div class="text-xs space-y-2">
+								<div class="flex justify-between">
+									<span class="opacity-50">MPN:</span>
+									<span class="font-mono">{ p.PartNumber.String }</span>
+								</div>
+								<div class="flex justify-between">
+									<span class="opacity-50">Cost:</span>
+									<span>${ fmt.Sprintf("%.2f", p.UnitCost.Float64) }</span>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+				<div class="md:col-span-2 space-y-6">
+					<div class="card bg-base-100 shadow-xl border border-base-300">
+						<div class="card-body">
+							<h2 class="card-title text-lg mb-4">Stock Locations</h2>
+							if len(stock) == 0 {
+								<div class="alert alert-warning text-sm">
+									<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+									<span>No stock assigned yet.</span>
+								</div>
+							} else {
+								<div class="overflow-x-auto">
+									<table class="table">
+										<thead>
+											<tr>
+												<th>Controller</th>
+												<th>Bin</th>
+												<th>Qty</th>
+												<th>Actions</th>
+											</tr>
+										</thead>
+										<tbody>
+											for _, s := range stock {
+												<tr>
+													<td>
+														if s.ControllerName.Valid {
+															{ s.ControllerName.String }
+														} else {
+															<span class="opacity-50">Unassigned</span>
+														}
+													</td>
+													<td>
+														<span class="badge badge-neutral font-mono">{ s.BinName }</span>
+													</td>
+													<td class="font-bold text-lg">{ fmt.Sprintf("%d", s.Quantity) }</td>
+													<td>
+														<div class="join">
+															if s.ControllerID.Valid {
+																<button
+																	hx-post={ fmt.Sprintf("/hardware/%d/preview?bin_id=%d", s.ControllerID.Int64, s.BinID) }
+																	hx-swap="none"
+																	class="btn btn-xs join-item btn-info"
+																>
+																	Locate
+																</button>
+															}
+															<button class="btn btn-xs join-item btn-ghost text-error">Remove</button>
+														</div>
+													</td>
+												</tr>
+											}
+										</tbody>
+									</table>
+								</div>
+							}
+						</div>
+					</div>
+					<div class="card bg-base-200 shadow-xl">
+						<div class="card-body">
+							<h3 class="font-bold text-lg">Add Stock</h3>
+							<form action={ templ.SafeURL(fmt.Sprintf("/parts/%d/assign", p.ID)) } method="POST" class="flex flex-col gap-4">
+								<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+									<div class="form-control">
+										<label class="label"><span class="label-text">Controller</span></label>
+										<select
+											name="controller_id"
+											class="select select-bordered"
+											hx-get="/parts/bins_options"
+											hx-target="#bin-select"
+											hx-swap="outerHTML"
+											hx-trigger="change"
+										>
+											<option disabled selected>Select Controller</option>
+											for _, c := range controllers {
+												<option value={ fmt.Sprintf("%d", c.ID) }>{ c.Name }</option>
+											}
+										</select>
+									</div>
+									<div class="form-control">
+										<label class="label"><span class="label-text">Bin</span></label>
+										<select id="bin-select" name="bin_id" class="select select-bordered" disabled>
+											<option>Select Controller First</option>
+										</select>
+									</div>
+								</div>
+								<div class="form-control">
+									<label class="label"><span class="label-text">Quantity to Add</span></label>
+									<div class="join">
+										<button type="button" class="btn join-item" onclick="this.nextElementSibling.stepDown()">-</button>
+										<input type="number" name="quantity" class="input input-bordered join-item w-full" value="1" min="1"/>
+										<button type="button" class="btn join-item" onclick="this.previousElementSibling.stepUp()">+</button>
+									</div>
+								</div>
+								<div class="card-actions justify-end mt-2">
+									<button class="btn btn-primary">Assign Stock</button>
+								</div>
+							</form>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	}
+}
+
+// Helper template for HTMX Bin Options
+templ BinOptions(bins []db.Bin) {
+	<select id="bin-select" name="bin_id" class="select select-bordered">
+		if len(bins) == 0 {
+			<option disabled selected>No bins available</option>
+		} else {
+			<option disabled selected>Select Bin</option>
+			for _, b := range bins {
+				<option value={ fmt.Sprintf("%d", b.ID) }>{ b.Name }</option>
+			}
+		}
+	</select>
+}

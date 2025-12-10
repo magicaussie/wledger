@@ -1,0 +1,36 @@
+package pages
+
+import (
+	"fmt"
+	"github.com/tuxedocurly/wledger/internal/db"
+	"github.com/tuxedocurly/wledger/web/layouts"
+)
+
+templ Dashboard(stats db.GetDashboardStatsRow) {
+	@layouts.Base("Dashboard") {
+		<div class="mb-8">
+			<h1 class="text-3xl font-bold">Dashboard</h1>
+		</div>
+
+		<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+			<div class="stats shadow bg-base-200">
+				<div class="stat">
+					<div class="stat-title">Unique Parts</div>
+					<div class="stat-value text-primary">{ fmt.Sprintf("%d", stats.TotalParts) }</div>
+				</div>
+			</div>
+			<div class="stats shadow bg-base-200">
+				<div class="stat">
+					<div class="stat-title">Total Stock</div>
+					<div class="stat-value text-secondary">{ fmt.Sprintf("%d", int64(stats.TotalItemsInStock)) }</div>
+				</div>
+			</div>
+            <div class="stats shadow bg-base-200">
+				<div class="stat">
+					<div class="stat-title">Controllers</div>
+					<div class="stat-value text-accent">{ fmt.Sprintf("%d", stats.OnlineControllers) } / { fmt.Sprintf("%d", stats.TotalControllers) }</div>
+				</div>
+			</div>
+		</div>
+	}
+}

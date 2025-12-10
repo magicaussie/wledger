@@ -29,6 +29,11 @@ func Migrate(db *sql.DB) error {
 			continue
 		}
 
+		// Skip the sqlc workaround file
+		if file.Name() == "999_sqlc.sql" {
+			continue
+		}
+
 		slog.Info("applying migration", "file", file.Name())
 		path := filepath.Join(schemaDir, file.Name())
 

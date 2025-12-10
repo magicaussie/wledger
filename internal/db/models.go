@@ -95,12 +95,15 @@ type PartTag struct {
 }
 
 type PartsFt struct {
-	Name         string `json:"name"`
-	Description  string `json:"description"`
-	PartNumber   string `json:"part_number"`
-	Manufacturer string `json:"manufacturer"`
-	Supplier     string `json:"supplier"`
-	BarcodeData  string `json:"barcode_data"`
+	Name         sql.NullString  `json:"name"`
+	Description  sql.NullString  `json:"description"`
+	PartNumber   sql.NullString  `json:"part_number"`
+	Manufacturer sql.NullString  `json:"manufacturer"`
+	Supplier     sql.NullString  `json:"supplier"`
+	BarcodeData  sql.NullString  `json:"barcode_data"`
+	PartsFts     sql.NullString  `json:"parts_fts"`
+	Rowid        sql.NullInt64   `json:"rowid"`
+	Rank         sql.NullFloat64 `json:"rank"`
 }
 
 type Session struct {
