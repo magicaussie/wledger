@@ -48,6 +48,25 @@ func (q *Queries) DeleteBinsByController(ctx context.Context, controllerID sql.N
 	return err
 }
 
+const getBin = `-- name: GetBin :one
+SELECT id, name, controller_id, led_index, width, grid_x, grid_y FROM bins WHERE id = ?
+`
+
+func (q *Queries) GetBin(ctx context.Context, id int64) (Bin, error) {
+	row := q.queryRow(ctx, q.getBinStmt, getBin, id)
+	var i Bin
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.ControllerID,
+		&i.LedIndex,
+		&i.Width,
+		&i.GridX,
+		&i.GridY,
+	)
+	return i, err
+}
+
 const getBinsByController = `-- name: GetBinsByController :many
 SELECT id, name, controller_id, led_index, width, grid_x, grid_y FROM bins WHERE controller_id = ?
 `

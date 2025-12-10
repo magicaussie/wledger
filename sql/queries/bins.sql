@@ -6,5 +6,8 @@ RETURNING id;
 -- name: GetBinsByController :many
 SELECT * FROM bins WHERE controller_id = ?;
 
+-- name: GetBin :one
+SELECT * FROM bins WHERE id = ?;
+
 -- name: DeleteBinsByController :exec
 DELETE FROM bins WHERE controller_id = ?;

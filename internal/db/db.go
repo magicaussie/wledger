@@ -69,6 +69,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.getAssignmentIDStmt, err = db.PrepareContext(ctx, getAssignmentID); err != nil {
 		return nil, fmt.Errorf("error preparing query GetAssignmentID: %w", err)
 	}
+	if q.getBinStmt, err = db.PrepareContext(ctx, getBin); err != nil {
+		return nil, fmt.Errorf("error preparing query GetBin: %w", err)
+	}
 	if q.getBinsByControllerStmt, err = db.PrepareContext(ctx, getBinsByController); err != nil {
 		return nil, fmt.Errorf("error preparing query GetBinsByController: %w", err)
 	}
@@ -204,6 +207,11 @@ func (q *Queries) Close() error {
 	if q.getAssignmentIDStmt != nil {
 		if cerr := q.getAssignmentIDStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getAssignmentIDStmt: %w", cerr)
+		}
+	}
+	if q.getBinStmt != nil {
+		if cerr := q.getBinStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getBinStmt: %w", cerr)
 		}
 	}
 	if q.getBinsByControllerStmt != nil {
@@ -355,6 +363,7 @@ type Queries struct {
 	deletePartStmt                   *sql.Stmt
 	deleteSessionStmt                *sql.Stmt
 	getAssignmentIDStmt              *sql.Stmt
+	getBinStmt                       *sql.Stmt
 	getBinsByControllerStmt          *sql.Stmt
 	getControllerStmt                *sql.Stmt
 	getControllersStmt               *sql.Stmt
@@ -395,6 +404,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		deletePartStmt:                   q.deletePartStmt,
 		deleteSessionStmt:                q.deleteSessionStmt,
 		getAssignmentIDStmt:              q.getAssignmentIDStmt,
+		getBinStmt:                       q.getBinStmt,
 		getBinsByControllerStmt:          q.getBinsByControllerStmt,
 		getControllerStmt:                q.getControllerStmt,
 		getControllersStmt:               q.getControllersStmt,

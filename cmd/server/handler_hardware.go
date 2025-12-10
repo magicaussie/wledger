@@ -161,41 +161,6 @@ func (app *application) handleHardwareGridSave(w http.ResponseWriter, r *http.Re
 
 	qtx := app.queries.WithTx(tx)
 
-	// 1. Detach all existing bins for this controller
-	// (We don't delete them to preserve history, just unmap them)
-	// Wait, for this "Grid Mode", if we change the grid, the old bins are likely invalid.
-	// But deleting them might break part assignments.
-	// Strategy: We will UPSERT based on the Name? No, names change.
-	// Strategy: Delete existing bins for this controller and recreate.
-	// Risk: PartAssignments link to BinID. If we delete BinID, we lose stock locations.
-
-	// Better Strategy:
-	// We need to keep Bins stable.
-	// 1. Unmap all bins (controller_id = NULL)
-	// 2. Loop through new cells.
-	// 3. Check if a bin with "Name" already exists (globally? or just reuse?).
-	// Actually, simplicity for V2:
-	// We will DELETE bins that are empty.
-	// But for now, let's just wipe and recreate.
-	// *Critical*: We added ON DELETE CASCADE to part_assignments?
-	// Check schema: FOREIGN KEY(bin_id) REFERENCES bins(id) ON DELETE CASCADE
-	// YES. So if we delete the bin, we delete the inventory record! DANGEROUS.
-
-	// Safe Strategy:
-	// 1. Fetch all current bins for controller.
-	// 2. For each cell in payload:
-	//    Check if we can update an existing bin (match by grid_x/y or name?).
-	//    If not, create new.
-	// 3. Delete bins that are no longer in the grid?
-
-	// Simplest Safe Implementation for V2 Phase 4:
-	// We will DELETE bins for this controller.
-	// WARNING: This clears assignments.
-	// User must know this. The UI says "Overwrite configuration".
-
-	// Let's implement the "Wipe and Recreate" for now, but in Phase 5 (Inventory)
-	// we must warn user if stock exists.
-
 	err = qtx.DeleteBinsByController(r.Context(), sql.NullInt64{Int64: int64(id), Valid: true})
 	if err != nil {
 		http.Error(w, "Failed to clear old bins", http.StatusInternalServerError)

@@ -133,6 +133,10 @@ func main() {
 		r.Get("/parts/{id}", app.handlePartDetail)
 		r.Post("/parts/{id}/assign", app.handlePartAssign)
 		r.Get("/parts/bins_options", app.handleBinOptions)
+		// Edit & Delete Routes
+		r.Get("/parts/{id}/edit", app.handlePartEdit)
+		r.Post("/parts/{id}/edit", app.handlePartUpdate)
+		r.Post("/parts/{id}/delete", app.handlePartDelete)
 
 		// Placeholders for future implementation
 		r.Get("/settings", func(w http.ResponseWriter, r *http.Request) {
