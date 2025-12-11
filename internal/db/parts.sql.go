@@ -88,6 +88,21 @@ func (q *Queries) DeletePart(ctx context.Context, id int64) error {
 	return err
 }
 
+const deletePartAssignment = `-- name: DeletePartAssignment :exec
+DELETE FROM part_assignments 
+WHERE part_id = ? AND bin_id = ?
+`
+
+type DeletePartAssignmentParams struct {
+	PartID int64 `json:"part_id"`
+	BinID  int64 `json:"bin_id"`
+}
+
+func (q *Queries) DeletePartAssignment(ctx context.Context, arg DeletePartAssignmentParams) error {
+	_, err := q.exec(ctx, q.deletePartAssignmentStmt, deletePartAssignment, arg.PartID, arg.BinID)
+	return err
+}
+
 const getAssignmentID = `-- name: GetAssignmentID :one
 SELECT id FROM part_assignments 
 WHERE part_id = ? AND bin_id = ?
@@ -136,7 +151,8 @@ SELECT
     pa.id, pa.quantity, pa.bin_id,
     b.name as bin_name,
     c.name as controller_name,
-    c.id as controller_id
+    c.id as controller_id,
+    c.ip_address as controller_ip
 FROM part_assignments pa
 JOIN bins b ON pa.bin_id = b.id
 LEFT JOIN controllers c ON b.controller_id = c.id
@@ -151,6 +167,7 @@ type GetPartAssignmentsRow struct {
 	BinName        string         `json:"bin_name"`
 	ControllerName sql.NullString `json:"controller_name"`
 	ControllerID   sql.NullInt64  `json:"controller_id"`
+	ControllerIp   sql.NullString `json:"controller_ip"`
 }
 
 func (q *Queries) GetPartAssignments(ctx context.Context, partID int64) ([]GetPartAssignmentsRow, error) {
@@ -169,6 +186,7 @@ func (q *Queries) GetPartAssignments(ctx context.Context, partID int64) ([]GetPa
 			&i.BinName,
 			&i.ControllerName,
 			&i.ControllerID,
+			&i.ControllerIp,
 		); err != nil {
 			return nil, err
 		}

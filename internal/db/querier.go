@@ -23,6 +23,7 @@ type Querier interface {
 	DeleteBinsByController(ctx context.Context, controllerID sql.NullInt64) error
 	DeleteController(ctx context.Context, id int64) error
 	DeletePart(ctx context.Context, id int64) error
+	DeletePartAssignment(ctx context.Context, arg DeletePartAssignmentParams) error
 	DeleteSession(ctx context.Context, token string) error
 	GetAssignmentID(ctx context.Context, arg GetAssignmentIDParams) (int64, error)
 	GetBin(ctx context.Context, id int64) (Bin, error)

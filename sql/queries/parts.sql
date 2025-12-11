@@ -64,7 +64,8 @@ SELECT
     pa.id, pa.quantity, pa.bin_id,
     b.name as bin_name,
     c.name as controller_name,
-    c.id as controller_id
+    c.id as controller_id,
+    c.ip_address as controller_ip
 FROM part_assignments pa
 JOIN bins b ON pa.bin_id = b.id
 LEFT JOIN controllers c ON b.controller_id = c.id
@@ -75,3 +76,7 @@ ORDER BY c.name, b.name;
 SELECT COALESCE(SUM(quantity), 0) 
 FROM part_assignments 
 WHERE part_id = ?;
+
+-- name: DeletePartAssignment :exec
+DELETE FROM part_assignments 
+WHERE part_id = ? AND bin_id = ?;

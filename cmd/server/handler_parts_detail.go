@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -97,4 +98,27 @@ func (app *application) handlePartAssign(w http.ResponseWriter, r *http.Request)
 	audit.Log(r.Context(), app.queries, "STOCK_ADD", "PART", int64(partID), "Added stock", nil, map[string]int{"qty": qty, "bin": binID})
 
 	http.Redirect(w, r, "/parts/"+idStr, http.StatusSeeOther)
+}
+
+// POST /parts/{id}/stock/{bin_id}/delete
+func (app *application) handlePartStockRemove(w http.ResponseWriter, r *http.Request) {
+	partID, _ := strconv.Atoi(chi.URLParam(r, "id"))
+	binID, _ := strconv.Atoi(chi.URLParam(r, "bin_id"))
+
+	err := app.queries.DeletePartAssignment(r.Context(), db.DeletePartAssignmentParams{
+		PartID: int64(partID),
+		BinID:  int64(binID),
+	})
+
+	if err != nil {
+		app.logger.Error("failed to remove stock assignment", "error", err)
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+
+	// Audit Log
+	audit.Log(r.Context(), app.queries, "STOCK_REMOVE", "PART", int64(partID), "Removed bin assignment", nil, map[string]int{"bin": binID})
+
+	// Redirect to refresh total stock counts
+	http.Redirect(w, r, fmt.Sprintf("/parts/%d", partID), http.StatusSeeOther)
 }

@@ -125,6 +125,10 @@ func main() {
 		r.Get("/hardware/{id}/status", app.handleHardwareStatus)
 		r.Get("/hardware/{id}/grid", app.handleHardwareGrid)      // grid painter
 		r.Post("/hardware/{id}/grid", app.handleHardwareGridSave) // grid painter
+		// Locate Route
+		r.Post("/hardware/{id}/locate", app.handleHardwareLocate)
+		// Global OFF Route
+		r.Post("/hardware/off", app.handleGlobalOff)
 
 		// Parts Routes
 		r.Get("/parts", app.handlePartsList)
@@ -137,6 +141,8 @@ func main() {
 		r.Get("/parts/{id}/edit", app.handlePartEdit)
 		r.Post("/parts/{id}/edit", app.handlePartUpdate)
 		r.Post("/parts/{id}/delete", app.handlePartDelete)
+		// Remove Stock Route
+		r.Post("/parts/{id}/stock/{bin_id}/delete", app.handlePartStockRemove)
 
 		// Placeholders for future implementation
 		r.Get("/settings", func(w http.ResponseWriter, r *http.Request) {
