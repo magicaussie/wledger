@@ -2,11 +2,12 @@
 SELECT * FROM settings WHERE id = 1;
 
 -- name: InitSettings :exec
-INSERT OR IGNORE INTO settings (id) VALUES (1);
+INSERT OR IGNORE INTO settings (id, require_auth_for_read, color_locate, color_stock_ok, color_stock_low, color_stock_critical, locate_timeout_seconds, enable_locate_timeout)
+VALUES (1, 1, '#0000FF', '#00FF00', '#FFFF00', '#FF0000', 10, 1);
 
--- name: UpdateSettings :exec
+-- name: UpdateGeneralSettings :exec
 UPDATE settings 
-SET locate_timeout_seconds = ?, enable_locate_timeout = ?, updated_at = CURRENT_TIMESTAMP
+SET require_auth_for_read = ?, locate_timeout_seconds = ?, enable_locate_timeout = ?, updated_at = CURRENT_TIMESTAMP
 WHERE id = 1;
 
 -- name: UpdateColors :exec

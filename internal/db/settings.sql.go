@@ -33,7 +33,8 @@ func (q *Queries) GetSettings(ctx context.Context) (Setting, error) {
 }
 
 const initSettings = `-- name: InitSettings :exec
-INSERT OR IGNORE INTO settings (id) VALUES (1)
+INSERT OR IGNORE INTO settings (id, require_auth_for_read, color_locate, color_stock_ok, color_stock_low, color_stock_critical, locate_timeout_seconds, enable_locate_timeout)
+VALUES (1, 1, '#0000FF', '#00FF00', '#FFFF00', '#FF0000', 10, 1)
 `
 
 func (q *Queries) InitSettings(ctx context.Context) error {
@@ -64,18 +65,19 @@ func (q *Queries) UpdateColors(ctx context.Context, arg UpdateColorsParams) erro
 	return err
 }
 
-const updateSettings = `-- name: UpdateSettings :exec
+const updateGeneralSettings = `-- name: UpdateGeneralSettings :exec
 UPDATE settings 
-SET locate_timeout_seconds = ?, enable_locate_timeout = ?, updated_at = CURRENT_TIMESTAMP
+SET require_auth_for_read = ?, locate_timeout_seconds = ?, enable_locate_timeout = ?, updated_at = CURRENT_TIMESTAMP
 WHERE id = 1
 `
 
-type UpdateSettingsParams struct {
+type UpdateGeneralSettingsParams struct {
+	RequireAuthForRead   sql.NullBool  `json:"require_auth_for_read"`
 	LocateTimeoutSeconds sql.NullInt64 `json:"locate_timeout_seconds"`
 	EnableLocateTimeout  sql.NullBool  `json:"enable_locate_timeout"`
 }
 
-func (q *Queries) UpdateSettings(ctx context.Context, arg UpdateSettingsParams) error {
-	_, err := q.exec(ctx, q.updateSettingsStmt, updateSettings, arg.LocateTimeoutSeconds, arg.EnableLocateTimeout)
+func (q *Queries) UpdateGeneralSettings(ctx context.Context, arg UpdateGeneralSettingsParams) error {
+	_, err := q.exec(ctx, q.updateGeneralSettingsStmt, updateGeneralSettings, arg.RequireAuthForRead, arg.LocateTimeoutSeconds, arg.EnableLocateTimeout)
 	return err
 }

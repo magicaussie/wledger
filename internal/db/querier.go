@@ -20,6 +20,7 @@ type Querier interface {
 	CreatePartAssignment(ctx context.Context, arg CreatePartAssignmentParams) error
 	CreateSession(ctx context.Context, arg CreateSessionParams) error
 	CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error)
+	DeleteBinByLed(ctx context.Context, arg DeleteBinByLedParams) error
 	DeleteBinsByController(ctx context.Context, controllerID sql.NullInt64) error
 	DeleteController(ctx context.Context, id int64) error
 	DeletePart(ctx context.Context, id int64) error
@@ -43,9 +44,10 @@ type Querier interface {
 	UpdateBinQuantity(ctx context.Context, arg UpdateBinQuantityParams) error
 	UpdateColors(ctx context.Context, arg UpdateColorsParams) error
 	UpdateControllerStatus(ctx context.Context, arg UpdateControllerStatusParams) error
+	UpdateGeneralSettings(ctx context.Context, arg UpdateGeneralSettingsParams) error
 	UpdatePart(ctx context.Context, arg UpdatePartParams) error
 	UpdatePartAssignmentQuantity(ctx context.Context, arg UpdatePartAssignmentQuantityParams) error
-	UpdateSettings(ctx context.Context, arg UpdateSettingsParams) error
+	UpsertBin(ctx context.Context, arg UpsertBinParams) error
 }
 
 var _ Querier = (*Queries)(nil)

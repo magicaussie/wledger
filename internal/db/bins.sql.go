@@ -39,6 +39,21 @@ func (q *Queries) CreateBin(ctx context.Context, arg CreateBinParams) (int64, er
 	return id, err
 }
 
+const deleteBinByLed = `-- name: DeleteBinByLed :exec
+DELETE FROM bins 
+WHERE controller_id = ? AND led_index = ?
+`
+
+type DeleteBinByLedParams struct {
+	ControllerID sql.NullInt64 `json:"controller_id"`
+	LedIndex     sql.NullInt64 `json:"led_index"`
+}
+
+func (q *Queries) DeleteBinByLed(ctx context.Context, arg DeleteBinByLedParams) error {
+	_, err := q.exec(ctx, q.deleteBinByLedStmt, deleteBinByLed, arg.ControllerID, arg.LedIndex)
+	return err
+}
+
 const deleteBinsByController = `-- name: DeleteBinsByController :exec
 DELETE FROM bins WHERE controller_id = ?
 `
@@ -68,7 +83,9 @@ func (q *Queries) GetBin(ctx context.Context, id int64) (Bin, error) {
 }
 
 const getBinsByController = `-- name: GetBinsByController :many
-SELECT id, name, controller_id, led_index, width, grid_x, grid_y FROM bins WHERE controller_id = ?
+SELECT id, name, controller_id, led_index, width, grid_x, grid_y FROM bins 
+WHERE controller_id = ? 
+ORDER BY led_index ASC
 `
 
 func (q *Queries) GetBinsByController(ctx context.Context, controllerID sql.NullInt64) ([]Bin, error) {
@@ -100,4 +117,29 @@ func (q *Queries) GetBinsByController(ctx context.Context, controllerID sql.Null
 		return nil, err
 	}
 	return items, nil
+}
+
+const upsertBin = `-- name: UpsertBin :exec
+INSERT INTO bins (name, controller_id, led_index, width)
+VALUES (?, ?, ?, ?)
+ON CONFLICT(controller_id, led_index) DO UPDATE SET
+    name = excluded.name,
+    width = excluded.width
+`
+
+type UpsertBinParams struct {
+	Name         string        `json:"name"`
+	ControllerID sql.NullInt64 `json:"controller_id"`
+	LedIndex     sql.NullInt64 `json:"led_index"`
+	Width        sql.NullInt64 `json:"width"`
+}
+
+func (q *Queries) UpsertBin(ctx context.Context, arg UpsertBinParams) error {
+	_, err := q.exec(ctx, q.upsertBinStmt, upsertBin,
+		arg.Name,
+		arg.ControllerID,
+		arg.LedIndex,
+		arg.Width,
+	)
+	return err
 }

@@ -11,14 +11,13 @@ import (
 
 	"github.com/alexedwards/scs/v2"
 	"github.com/go-chi/chi/v5"
-	chimiddleware "github.com/go-chi/chi/v5/middleware" // Renamed to avoid collision
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/images"
 	"github.com/tuxedocurly/wledger/internal/logger"
 	"github.com/tuxedocurly/wledger/internal/middleware"
 	"github.com/tuxedocurly/wledger/internal/wled"
-	"github.com/tuxedocurly/wledger/web/layouts"
 )
 
 // application holds shared dependencies
@@ -36,7 +35,6 @@ func main() {
 	log.Info("Starting WLEDger V2...")
 
 	// Database
-	// Ensure the /app/data directory exists (will map in Docker later, local now)
 	os.MkdirAll("./data", 0755)
 	database, err := db.Open("./data/wledger.db")
 	if err != nil {
@@ -60,7 +58,7 @@ func main() {
 	sessionManager.Lifetime = 24 * time.Hour
 	sessionManager.Cookie.Persist = true
 	sessionManager.Cookie.SameSite = http.SameSiteLaxMode
-	sessionManager.Cookie.Secure = false // TODO: Set to true in prod (HTTPS), potentially make configurable in Docker
+	sessionManager.Cookie.Secure = false // TODO: Set to true in prod
 
 	// WLED client
 	wledClient := wled.New()
@@ -84,9 +82,9 @@ func main() {
 	r.Use(chimiddleware.RequestID)
 	r.Use(chimiddleware.RealIP)
 	r.Use(chimiddleware.Recoverer)
-	r.Use(mw.RequestLogger)           // custom logger
-	r.Use(sessionManager.LoadAndSave) // load session for every request
-	r.Use(mw.FirstRunCheck)           // redirect to /setup if needed, e.g. no users
+	r.Use(mw.RequestLogger)
+	r.Use(sessionManager.LoadAndSave)
+	r.Use(mw.FirstRunCheck)
 
 	// Initialize Image Processor
 	if err := images.Init(); err != nil {
@@ -99,55 +97,65 @@ func main() {
 	filesDir := http.Dir(workDir + "/web/static")
 	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(filesDir)))
 
-	// Maps /uploads/filename.jpg -> ./app/uploads/filename.jpg
-	workDir, _ = os.Getwd()
 	uploadsDir := http.Dir(workDir + "/app/uploads")
 	r.Handle("/uploads/*", http.StripPrefix("/uploads/", http.FileServer(uploadsDir)))
 
-	// Public Routes
+	// Auth Routes (Always Public)
 	r.Get("/setup", app.handleSetup)
 	r.Post("/setup", app.handleSetupPost)
 	r.Get("/login", app.handleLogin)
 	r.Post("/login", app.handleLoginPost)
 	r.Post("/logout", app.handleLogout)
 
-	// Protected Routes (Require Auth)
+	// READ-ONLY GROUP
+	// These routes check the "Require Login for Read" setting.
+	// If setting is OFF, guests can view them. If ON, guests are redirected.
+	r.Group(func(r chi.Router) {
+		r.Use(mw.RequireReadAuth)
+
+		// Dashboard
+		r.Get("/", app.handleDashboard)
+
+		// Parts (View Only)
+		r.Get("/parts", app.handlePartsList)
+		r.Get("/parts/{id}", app.handlePartDetail)
+		r.Get("/parts/bins_options", app.handleBinOptions)
+
+		// Hardware Write (for locate)
+		r.Post("/hardware/{id}/locate", app.handleHardwareLocate)
+
+	})
+
+	// WRITE / PROTECTED GROUP
+	// These routes ALWAYS require a logged-in user
 	r.Group(func(r chi.Router) {
 		r.Use(mw.RequireAuth)
 
-		// Dashboard Routes
-		r.Get("/", app.handleDashboard)
-
-		// Hardware Routes
-		r.Get("/hardware", app.handleHardwareList)
-		r.Post("/hardware", app.handleHardwareCreate)
-		r.Post("/hardware/{id}/delete", app.handleHardwareDelete)
-		r.Get("/hardware/{id}/status", app.handleHardwareStatus)
-		r.Get("/hardware/{id}/grid", app.handleHardwareGrid)      // grid painter
-		r.Post("/hardware/{id}/grid", app.handleHardwareGridSave) // grid painter
-		// Locate Route
-		r.Post("/hardware/{id}/locate", app.handleHardwareLocate)
-		// Global OFF Route
-		r.Post("/hardware/off", app.handleGlobalOff)
-
-		// Parts Routes
-		r.Get("/parts", app.handlePartsList)
+		// Parts Write
 		r.Get("/parts/new", app.handlePartsNew)
 		r.Post("/parts", app.handlePartsCreate)
-		r.Get("/parts/{id}", app.handlePartDetail)
-		r.Post("/parts/{id}/assign", app.handlePartAssign)
-		r.Get("/parts/bins_options", app.handleBinOptions)
-		// Edit & Delete Routes
+		// Edit
 		r.Get("/parts/{id}/edit", app.handlePartEdit)
 		r.Post("/parts/{id}/edit", app.handlePartUpdate)
+		// Actions
 		r.Post("/parts/{id}/delete", app.handlePartDelete)
-		// Remove Stock Route
+		r.Post("/parts/{id}/assign", app.handlePartAssign)
 		r.Post("/parts/{id}/stock/{bin_id}/delete", app.handlePartStockRemove)
 
-		// Placeholders for future implementation
-		r.Get("/settings", func(w http.ResponseWriter, r *http.Request) {
-			layouts.Base("Settings").Render(r.Context(), w)
-		})
+		// Hardware Write
+		r.Post("/hardware", app.handleHardwareCreate)
+		r.Post("/hardware/{id}/delete", app.handleHardwareDelete)
+		r.Post("/hardware/{id}/grid", app.handleHardwareGridSave)
+		r.Post("/hardware/off", app.handleGlobalOff)
+
+		// Hardware Read
+		r.Get("/hardware", app.handleHardwareList)
+		r.Get("/hardware/{id}/status", app.handleHardwareStatus)
+		r.Get("/hardware/{id}/grid", app.handleHardwareGrid)
+
+		// Settings Read/Write
+		r.Get("/settings", app.handleSettings)
+		r.Post("/settings", app.handleSettingsUpdate)
 	})
 
 	// Start Server

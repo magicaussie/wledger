@@ -11,7 +11,6 @@ import (
 	"github.com/tuxedocurly/wledger/internal/db"
 )
 
-// ContextKey is a custom type to prevent context key collisions
 type ContextKey string
 
 const (
@@ -32,16 +31,11 @@ func New(q *db.Queries, sm *scs.SessionManager, l *slog.Logger) *Manager {
 	}
 }
 
-// ReuqestLogger logs every request with method, path, and duration
 func (m *Manager) RequestLogger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-
-		// wrapper to capture the status code
 		ww := &statusWriter{ResponseWriter: w, status: http.StatusOK}
-
 		next.ServeHTTP(ww, r)
-
 		m.Logger.Info(
 			"http_request",
 			"method", r.Method,
@@ -50,46 +44,69 @@ func (m *Manager) RequestLogger(next http.Handler) http.Handler {
 			"duration", time.Since(start),
 			"ip", r.RemoteAddr,
 		)
-
 	})
 }
 
-// RequireAuth checks if a user is logged in. If not, redirects to /login
+// RequireAuth forces a login for WRITE/Protected operations
 func (m *Manager) RequireAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// check session for user_id
+		// Use GetInt to match how Login stores user_id
 		userID := m.Session.GetInt(r.Context(), "user_id")
 		if userID == 0 {
-			// Not logged in -> Redirect
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
 			return
 		}
 
-		// Add user_id to context for handlers to use
-		ctx := context.WithValue(r.Context(), UserContextKey, userID)
+		// Cast to int64 for DB compatibility
+		ctx := context.WithValue(r.Context(), UserContextKey, int64(userID))
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
-// FirstRunCheck detects if the system has NO users and forces a redirect to /setup
+// RequireReadAuth checks the DB setting. If "Require Auth" is ON, it behaves like RequireAuth.
+func (m *Manager) RequireReadAuth(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// If user is already logged in, allow access
+		userID := m.Session.GetInt(r.Context(), "user_id")
+		if userID > 0 {
+			ctx := context.WithValue(r.Context(), UserContextKey, int64(userID))
+			next.ServeHTTP(w, r.WithContext(ctx))
+			return
+		}
+
+		// If not logged in, check DB settings
+		s, err := m.Queries.GetSettings(r.Context())
+		if err != nil {
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+
+		// If Settings say "Require Auth", redirect guest
+		if s.RequireAuthForRead.Bool {
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+
+		// Otherwise, public access is allowed
+		next.ServeHTTP(w, r)
+	})
+}
+
 func (m *Manager) FirstRunCheck(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Allow list paths that MUST work without users
 		path := r.URL.Path
 		if path == "/setup" || strings.HasPrefix(path, "/static/") || path == "/health" {
 			next.ServeHTTP(w, r)
 			return
 		}
 
-		// Check user count
 		count, err := m.Queries.CountUsers(r.Context())
 		if err != nil {
 			m.Logger.Error("failed to count users", "error", err)
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			next.ServeHTTP(w, r)
 			return
 		}
 
-		// If no users redirect to /setup
 		if count == 0 {
 			http.Redirect(w, r, "/setup", http.StatusSeeOther)
 			return
@@ -99,16 +116,6 @@ func (m *Manager) FirstRunCheck(next http.Handler) http.Handler {
 	})
 }
 
-// InjectColors inserts global color settings into the HTML for every request
-// TODO: implement this fully later. Stubbing it for now to prevent errors
-func (m *Manager) InjectColors(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Placeholder for now
-		next.ServeHTTP(w, r)
-	})
-}
-
-// statusWriter captures the HTTP status code
 type statusWriter struct {
 	http.ResponseWriter
 	status int

@@ -54,6 +54,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.createUserStmt, err = db.PrepareContext(ctx, createUser); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateUser: %w", err)
 	}
+	if q.deleteBinByLedStmt, err = db.PrepareContext(ctx, deleteBinByLed); err != nil {
+		return nil, fmt.Errorf("error preparing query DeleteBinByLed: %w", err)
+	}
 	if q.deleteBinsByControllerStmt, err = db.PrepareContext(ctx, deleteBinsByController); err != nil {
 		return nil, fmt.Errorf("error preparing query DeleteBinsByController: %w", err)
 	}
@@ -123,14 +126,17 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.updateControllerStatusStmt, err = db.PrepareContext(ctx, updateControllerStatus); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateControllerStatus: %w", err)
 	}
+	if q.updateGeneralSettingsStmt, err = db.PrepareContext(ctx, updateGeneralSettings); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateGeneralSettings: %w", err)
+	}
 	if q.updatePartStmt, err = db.PrepareContext(ctx, updatePart); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdatePart: %w", err)
 	}
 	if q.updatePartAssignmentQuantityStmt, err = db.PrepareContext(ctx, updatePartAssignmentQuantity); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdatePartAssignmentQuantity: %w", err)
 	}
-	if q.updateSettingsStmt, err = db.PrepareContext(ctx, updateSettings); err != nil {
-		return nil, fmt.Errorf("error preparing query UpdateSettings: %w", err)
+	if q.upsertBinStmt, err = db.PrepareContext(ctx, upsertBin); err != nil {
+		return nil, fmt.Errorf("error preparing query UpsertBin: %w", err)
 	}
 	return &q, nil
 }
@@ -185,6 +191,11 @@ func (q *Queries) Close() error {
 	if q.createUserStmt != nil {
 		if cerr := q.createUserStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing createUserStmt: %w", cerr)
+		}
+	}
+	if q.deleteBinByLedStmt != nil {
+		if cerr := q.deleteBinByLedStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing deleteBinByLedStmt: %w", cerr)
 		}
 	}
 	if q.deleteBinsByControllerStmt != nil {
@@ -302,6 +313,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing updateControllerStatusStmt: %w", cerr)
 		}
 	}
+	if q.updateGeneralSettingsStmt != nil {
+		if cerr := q.updateGeneralSettingsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateGeneralSettingsStmt: %w", cerr)
+		}
+	}
 	if q.updatePartStmt != nil {
 		if cerr := q.updatePartStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing updatePartStmt: %w", cerr)
@@ -312,9 +328,9 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing updatePartAssignmentQuantityStmt: %w", cerr)
 		}
 	}
-	if q.updateSettingsStmt != nil {
-		if cerr := q.updateSettingsStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing updateSettingsStmt: %w", cerr)
+	if q.upsertBinStmt != nil {
+		if cerr := q.upsertBinStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing upsertBinStmt: %w", cerr)
 		}
 	}
 	return err
@@ -366,6 +382,7 @@ type Queries struct {
 	createPartAssignmentStmt         *sql.Stmt
 	createSessionStmt                *sql.Stmt
 	createUserStmt                   *sql.Stmt
+	deleteBinByLedStmt               *sql.Stmt
 	deleteBinsByControllerStmt       *sql.Stmt
 	deleteControllerStmt             *sql.Stmt
 	deletePartStmt                   *sql.Stmt
@@ -389,9 +406,10 @@ type Queries struct {
 	updateBinQuantityStmt            *sql.Stmt
 	updateColorsStmt                 *sql.Stmt
 	updateControllerStatusStmt       *sql.Stmt
+	updateGeneralSettingsStmt        *sql.Stmt
 	updatePartStmt                   *sql.Stmt
 	updatePartAssignmentQuantityStmt *sql.Stmt
-	updateSettingsStmt               *sql.Stmt
+	upsertBinStmt                    *sql.Stmt
 }
 
 func (q *Queries) WithTx(tx *sql.Tx) *Queries {
@@ -408,6 +426,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		createPartAssignmentStmt:         q.createPartAssignmentStmt,
 		createSessionStmt:                q.createSessionStmt,
 		createUserStmt:                   q.createUserStmt,
+		deleteBinByLedStmt:               q.deleteBinByLedStmt,
 		deleteBinsByControllerStmt:       q.deleteBinsByControllerStmt,
 		deleteControllerStmt:             q.deleteControllerStmt,
 		deletePartStmt:                   q.deletePartStmt,
@@ -431,8 +450,9 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		updateBinQuantityStmt:            q.updateBinQuantityStmt,
 		updateColorsStmt:                 q.updateColorsStmt,
 		updateControllerStatusStmt:       q.updateControllerStatusStmt,
+		updateGeneralSettingsStmt:        q.updateGeneralSettingsStmt,
 		updatePartStmt:                   q.updatePartStmt,
 		updatePartAssignmentQuantityStmt: q.updatePartAssignmentQuantityStmt,
-		updateSettingsStmt:               q.updateSettingsStmt,
+		upsertBinStmt:                    q.upsertBinStmt,
 	}
 }
