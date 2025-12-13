@@ -7,7 +7,7 @@ templ Base(title string) {
             <meta charset="UTF-8"/>
             <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
             <title>{ title } | WLEDger</title>
-            <link href="/static/css/output.css" rel="stylesheet"/>
+            <link href="../static/css/output.css" rel="stylesheet"/>
             <script src="https://unpkg.com/htmx.org@2.0.4"></script>
             <script src="https://unpkg.com/alpinejs@3.14.8/dist/cdn.min.js" defer></script>
             <style id="dynamic-colors">
@@ -37,7 +37,7 @@ templ Base(title string) {
                                    class="input input-sm input-bordered w-full"
                                    @keydown.window.meta.k.prevent="$el.focus()"
                                    @keydown.window.ctrl.k.prevent="$el.focus()"
-                                   hx-get="/parts?q=" 
+                                   hx-get="/parts" 
                                    name="q"
                                    hx-select="#parts-grid"
                                    hx-target="#main-content" 

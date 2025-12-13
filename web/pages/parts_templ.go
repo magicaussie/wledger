@@ -71,7 +71,7 @@ func PartsList(parts []PartView, search string, page int) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\" class=\"input input-bordered join-item w-full md:w-64\" placeholder=\"Search parts...\" hx-get=\"/parts\" hx-trigger=\"keyup changed delay:500ms\" hx-target=\"#parts-grid\" hx-select=\"#parts-grid\" hx-push-url=\"true\"> <button class=\"btn join-item\">Search</button></form><a href=\"/parts/new\" class=\"btn btn-primary\"><svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-5 w-5 mr-2\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M12 4v16m8-8H4\"></path></svg> Add Part</a></div></div><div id=\"parts-grid\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\" class=\"input input-bordered join-item w-full md:w-64\" placeholder=\"Search parts...\" hx-get=\"/parts\" hx-trigger=\"keyup changed delay:250ms\" hx-target=\"#parts-grid\" hx-select=\"#parts-grid\" hx-push-url=\"true\"> <button class=\"btn join-item\">Search</button></form><a href=\"/parts/new\" class=\"btn btn-primary\"><svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-5 w-5 mr-2\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M12 4v16m8-8H4\"></path></svg> Add Part</a></div></div><div id=\"parts-grid\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

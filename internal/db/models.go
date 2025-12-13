@@ -131,9 +131,10 @@ type Tag struct {
 }
 
 type User struct {
-	ID           int64        `json:"id"`
-	Email        string       `json:"email"`
-	PasswordHash string       `json:"password_hash"`
-	Role         string       `json:"role"`
-	CreatedAt    sql.NullTime `json:"created_at"`
+	ID                     int64        `json:"id"`
+	Email                  string       `json:"email"`
+	PasswordHash           string       `json:"password_hash"`
+	Role                   string       `json:"role"`
+	ChangePasswordRequired sql.NullBool `json:"change_password_required"`
+	CreatedAt              sql.NullTime `json:"created_at"`
 }

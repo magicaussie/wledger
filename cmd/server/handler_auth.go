@@ -6,6 +6,7 @@ import (
 	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/web/pages"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // GET /login
@@ -45,7 +46,7 @@ func (app *application) handleLoginPost(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// store user.ID in session
-	app.session.Put(r.Context(), "user_id", int(user.ID))
+	app.session.Put(r.Context(), "user_id", int64(user.ID))
 
 	// redirect home
 	http.Redirect(w, r, "/", http.StatusSeeOther)
@@ -103,4 +104,54 @@ func (app *application) handleSetupPost(w http.ResponseWriter, r *http.Request) 
 
 	// redirect to /login
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
+}
+
+// GET /force-reset
+func (app *application) handleForceReset(w http.ResponseWriter, r *http.Request) {
+	// Double check they actually need this, otherwise send to dashboard
+	// (Prevents people from manually visiting this URL later)
+	userID := app.session.GetInt64(r.Context(), "user_id")
+	user, err := app.queries.GetUser(r.Context(), userID)
+
+	if err != nil || !user.ChangePasswordRequired.Bool {
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+
+	pages.ForceReset().Render(r.Context(), w)
+}
+
+// POST /force-reset
+func (app *application) handleForceResetPost(w http.ResponseWriter, r *http.Request) {
+	userID := app.session.GetInt64(r.Context(), "user_id")
+
+	newPw := r.FormValue("new_password")
+	confirmPw := r.FormValue("confirm_password")
+
+	if newPw != confirmPw {
+		// ideally flash error
+		pages.ForceReset().Render(r.Context(), w)
+		return
+	}
+
+	hashedBytes, err := bcrypt.GenerateFromPassword([]byte(newPw), bcrypt.DefaultCost)
+	if err != nil {
+		http.Error(w, "Server error", http.StatusInternalServerError)
+		return
+	}
+
+	// Update password AND clear the requirement flag
+	err = app.queries.UpdateUserPassword(r.Context(), db.UpdateUserPasswordParams{
+		PasswordHash: string(hashedBytes),
+		ID:           userID,
+	})
+
+	if err != nil {
+		app.logger.Error("failed to update password", "error", err)
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+
+	app.logger.Info("user completed forced password reset", "user_id", userID)
+	http.Redirect(w, r, "/", http.StatusSeeOther)
 }

@@ -72,6 +72,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.deleteSessionStmt, err = db.PrepareContext(ctx, deleteSession); err != nil {
 		return nil, fmt.Errorf("error preparing query DeleteSession: %w", err)
 	}
+	if q.deleteUserStmt, err = db.PrepareContext(ctx, deleteUser); err != nil {
+		return nil, fmt.Errorf("error preparing query DeleteUser: %w", err)
+	}
 	if q.getAssignmentIDStmt, err = db.PrepareContext(ctx, getAssignmentID); err != nil {
 		return nil, fmt.Errorf("error preparing query GetAssignmentID: %w", err)
 	}
@@ -105,6 +108,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.getTotalStockStmt, err = db.PrepareContext(ctx, getTotalStock); err != nil {
 		return nil, fmt.Errorf("error preparing query GetTotalStock: %w", err)
 	}
+	if q.getUserStmt, err = db.PrepareContext(ctx, getUser); err != nil {
+		return nil, fmt.Errorf("error preparing query GetUser: %w", err)
+	}
 	if q.getUserByEmailStmt, err = db.PrepareContext(ctx, getUserByEmail); err != nil {
 		return nil, fmt.Errorf("error preparing query GetUserByEmail: %w", err)
 	}
@@ -113,6 +119,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.listPartsStmt, err = db.PrepareContext(ctx, listParts); err != nil {
 		return nil, fmt.Errorf("error preparing query ListParts: %w", err)
+	}
+	if q.listUsersStmt, err = db.PrepareContext(ctx, listUsers); err != nil {
+		return nil, fmt.Errorf("error preparing query ListUsers: %w", err)
 	}
 	if q.searchPartsStmt, err = db.PrepareContext(ctx, searchParts); err != nil {
 		return nil, fmt.Errorf("error preparing query SearchParts: %w", err)
@@ -134,6 +143,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.updatePartAssignmentQuantityStmt, err = db.PrepareContext(ctx, updatePartAssignmentQuantity); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdatePartAssignmentQuantity: %w", err)
+	}
+	if q.updateUserPasswordStmt, err = db.PrepareContext(ctx, updateUserPassword); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateUserPassword: %w", err)
 	}
 	if q.upsertBinStmt, err = db.PrepareContext(ctx, upsertBin); err != nil {
 		return nil, fmt.Errorf("error preparing query UpsertBin: %w", err)
@@ -223,6 +235,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing deleteSessionStmt: %w", cerr)
 		}
 	}
+	if q.deleteUserStmt != nil {
+		if cerr := q.deleteUserStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing deleteUserStmt: %w", cerr)
+		}
+	}
 	if q.getAssignmentIDStmt != nil {
 		if cerr := q.getAssignmentIDStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getAssignmentIDStmt: %w", cerr)
@@ -278,6 +295,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing getTotalStockStmt: %w", cerr)
 		}
 	}
+	if q.getUserStmt != nil {
+		if cerr := q.getUserStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getUserStmt: %w", cerr)
+		}
+	}
 	if q.getUserByEmailStmt != nil {
 		if cerr := q.getUserByEmailStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getUserByEmailStmt: %w", cerr)
@@ -291,6 +313,11 @@ func (q *Queries) Close() error {
 	if q.listPartsStmt != nil {
 		if cerr := q.listPartsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing listPartsStmt: %w", cerr)
+		}
+	}
+	if q.listUsersStmt != nil {
+		if cerr := q.listUsersStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listUsersStmt: %w", cerr)
 		}
 	}
 	if q.searchPartsStmt != nil {
@@ -326,6 +353,11 @@ func (q *Queries) Close() error {
 	if q.updatePartAssignmentQuantityStmt != nil {
 		if cerr := q.updatePartAssignmentQuantityStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing updatePartAssignmentQuantityStmt: %w", cerr)
+		}
+	}
+	if q.updateUserPasswordStmt != nil {
+		if cerr := q.updateUserPasswordStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateUserPasswordStmt: %w", cerr)
 		}
 	}
 	if q.upsertBinStmt != nil {
@@ -388,6 +420,7 @@ type Queries struct {
 	deletePartStmt                   *sql.Stmt
 	deletePartAssignmentStmt         *sql.Stmt
 	deleteSessionStmt                *sql.Stmt
+	deleteUserStmt                   *sql.Stmt
 	getAssignmentIDStmt              *sql.Stmt
 	getBinStmt                       *sql.Stmt
 	getBinsByControllerStmt          *sql.Stmt
@@ -399,9 +432,11 @@ type Queries struct {
 	getSessionStmt                   *sql.Stmt
 	getSettingsStmt                  *sql.Stmt
 	getTotalStockStmt                *sql.Stmt
+	getUserStmt                      *sql.Stmt
 	getUserByEmailStmt               *sql.Stmt
 	initSettingsStmt                 *sql.Stmt
 	listPartsStmt                    *sql.Stmt
+	listUsersStmt                    *sql.Stmt
 	searchPartsStmt                  *sql.Stmt
 	updateBinQuantityStmt            *sql.Stmt
 	updateColorsStmt                 *sql.Stmt
@@ -409,6 +444,7 @@ type Queries struct {
 	updateGeneralSettingsStmt        *sql.Stmt
 	updatePartStmt                   *sql.Stmt
 	updatePartAssignmentQuantityStmt *sql.Stmt
+	updateUserPasswordStmt           *sql.Stmt
 	upsertBinStmt                    *sql.Stmt
 }
 
@@ -432,6 +468,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		deletePartStmt:                   q.deletePartStmt,
 		deletePartAssignmentStmt:         q.deletePartAssignmentStmt,
 		deleteSessionStmt:                q.deleteSessionStmt,
+		deleteUserStmt:                   q.deleteUserStmt,
 		getAssignmentIDStmt:              q.getAssignmentIDStmt,
 		getBinStmt:                       q.getBinStmt,
 		getBinsByControllerStmt:          q.getBinsByControllerStmt,
@@ -443,9 +480,11 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		getSessionStmt:                   q.getSessionStmt,
 		getSettingsStmt:                  q.getSettingsStmt,
 		getTotalStockStmt:                q.getTotalStockStmt,
+		getUserStmt:                      q.getUserStmt,
 		getUserByEmailStmt:               q.getUserByEmailStmt,
 		initSettingsStmt:                 q.initSettingsStmt,
 		listPartsStmt:                    q.listPartsStmt,
+		listUsersStmt:                    q.listUsersStmt,
 		searchPartsStmt:                  q.searchPartsStmt,
 		updateBinQuantityStmt:            q.updateBinQuantityStmt,
 		updateColorsStmt:                 q.updateColorsStmt,
@@ -453,6 +492,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		updateGeneralSettingsStmt:        q.updateGeneralSettingsStmt,
 		updatePartStmt:                   q.updatePartStmt,
 		updatePartAssignmentQuantityStmt: q.updatePartAssignmentQuantityStmt,
+		updateUserPasswordStmt:           q.updateUserPasswordStmt,
 		upsertBinStmt:                    q.upsertBinStmt,
 	}
 }

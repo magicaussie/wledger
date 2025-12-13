@@ -100,62 +100,94 @@ func main() {
 	uploadsDir := http.Dir(workDir + "/app/uploads")
 	r.Handle("/uploads/*", http.StripPrefix("/uploads/", http.FileServer(uploadsDir)))
 
-	// Auth Routes (Always Public)
+	// -------------------------------------------------------------------------
+	// PUBLIC ROUTES
+	// -------------------------------------------------------------------------
 	r.Get("/setup", app.handleSetup)
 	r.Post("/setup", app.handleSetupPost)
 	r.Get("/login", app.handleLogin)
 	r.Post("/login", app.handleLoginPost)
 	r.Post("/logout", app.handleLogout)
 
-	// READ-ONLY GROUP
-	// These routes check the "Require Login for Read" setting.
-	// If setting is OFF, guests can view them. If ON, guests are redirected.
+	// -------------------------------------------------------------------------
+	// READ-ONLY GROUP ROUTES (Protected by RequireReadAuth + RequirePasswordChange)
+	// -------------------------------------------------------------------------
+	// These routes respect the "Require Login for Read" setting.
 	r.Group(func(r chi.Router) {
 		r.Use(mw.RequireReadAuth)
+		r.Use(mw.RequirePasswordChange)
 
 		// Dashboard
 		r.Get("/", app.handleDashboard)
 
-		// Parts (View Only)
+		// Parts (Read)
 		r.Get("/parts", app.handlePartsList)
 		r.Get("/parts/{id}", app.handlePartDetail)
 		r.Get("/parts/bins_options", app.handleBinOptions)
 
-		// Hardware Write (for locate)
-		r.Post("/hardware/{id}/locate", app.handleHardwareLocate)
-
-	})
-
-	// WRITE / PROTECTED GROUP
-	// These routes ALWAYS require a logged-in user
-	r.Group(func(r chi.Router) {
-		r.Use(mw.RequireAuth)
-
-		// Parts Write
-		r.Get("/parts/new", app.handlePartsNew)
-		r.Post("/parts", app.handlePartsCreate)
-		// Edit
-		r.Get("/parts/{id}/edit", app.handlePartEdit)
-		r.Post("/parts/{id}/edit", app.handlePartUpdate)
-		// Actions
-		r.Post("/parts/{id}/delete", app.handlePartDelete)
-		r.Post("/parts/{id}/assign", app.handlePartAssign)
-		r.Post("/parts/{id}/stock/{bin_id}/delete", app.handlePartStockRemove)
-
-		// Hardware Write
-		r.Post("/hardware", app.handleHardwareCreate)
-		r.Post("/hardware/{id}/delete", app.handleHardwareDelete)
-		r.Post("/hardware/{id}/grid", app.handleHardwareGridSave)
-		r.Post("/hardware/off", app.handleGlobalOff)
-
-		// Hardware Read
+		// Hardware (Read)
 		r.Get("/hardware", app.handleHardwareList)
 		r.Get("/hardware/{id}/status", app.handleHardwareStatus)
 		r.Get("/hardware/{id}/grid", app.handleHardwareGrid)
+	})
 
-		// Settings Read/Write
+	// -------------------------------------------------------------------------
+	// WRITE / PROTECTED GROUP ROUTES
+	// -------------------------------------------------------------------------
+	// These routes ALWAYS require a logged-in user
+	r.Group(func(r chi.Router) {
+		// Base Gates
+		r.Use(mw.RequireAuth)           // Must be logged in
+		r.Use(mw.RequirePasswordChange) // Must not have pending reset
+
+		// OPEN ROUTES (Any logged-in user)
+		// -----------------------------------------------------------
+		// Force Reset
+		r.Get("/force-reset", app.handleForceReset)
+		r.Post("/force-reset", app.handleForceResetPost)
+
+		// Settings View (Needed so users can access "Change Password")
 		r.Get("/settings", app.handleSettings)
-		r.Post("/settings", app.handleSettingsUpdate)
+
+		// Self-Service Password Change
+		r.Post("/settings/password", app.handleSettingsPassword)
+
+		// INVENTORY MANAGEMENT ROUTES (Editors & Admins)
+		// -----------------------------------------------------------
+		r.Group(func(r chi.Router) {
+			r.Use(mw.RequireRole("editor", "admin"))
+
+			// Parts CRUD
+			r.Get("/parts/new", app.handlePartsNew)
+			r.Post("/parts", app.handlePartsCreate)
+			r.Get("/parts/{id}/edit", app.handlePartEdit)
+			r.Post("/parts/{id}/edit", app.handlePartUpdate)
+			r.Post("/parts/{id}/delete", app.handlePartDelete)
+			r.Post("/parts/{id}/assign", app.handlePartAssign)
+			r.Post("/parts/{id}/stock/{bin_id}/delete", app.handlePartStockRemove)
+
+			// Locate (Editors need to light up bins to find parts)
+			r.Post("/hardware/{id}/locate", app.handleHardwareLocate)
+		})
+
+		// SYSTEM ADMINISTRATION ROUTES (Admins Only)
+		// -----------------------------------------------------------
+		r.Group(func(r chi.Router) {
+			r.Use(mw.RequireRole("admin"))
+
+			// Hardware Configuration
+			r.Post("/hardware", app.handleHardwareCreate)
+			r.Post("/hardware/{id}/delete", app.handleHardwareDelete)
+			r.Post("/hardware/{id}/grid", app.handleHardwareGridSave)
+			r.Post("/hardware/off", app.handleGlobalOff)
+
+			// System Settings Update
+			r.Post("/settings", app.handleSettingsUpdate)
+
+			// User Management
+			r.Post("/settings/users", app.handleUserCreate)
+			r.Post("/settings/users/{id}/delete", app.handleUserDelete)
+		})
 	})
 
 	// Start Server

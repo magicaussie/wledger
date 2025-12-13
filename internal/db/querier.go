@@ -26,6 +26,7 @@ type Querier interface {
 	DeletePart(ctx context.Context, id int64) error
 	DeletePartAssignment(ctx context.Context, arg DeletePartAssignmentParams) error
 	DeleteSession(ctx context.Context, token string) error
+	DeleteUser(ctx context.Context, id int64) error
 	GetAssignmentID(ctx context.Context, arg GetAssignmentIDParams) (int64, error)
 	GetBin(ctx context.Context, id int64) (Bin, error)
 	GetBinsByController(ctx context.Context, controllerID sql.NullInt64) ([]Bin, error)
@@ -34,12 +35,15 @@ type Querier interface {
 	GetDashboardStats(ctx context.Context) (GetDashboardStatsRow, error)
 	GetPart(ctx context.Context, id int64) (Part, error)
 	GetPartAssignments(ctx context.Context, partID int64) ([]GetPartAssignmentsRow, error)
+	// SESSION QUERIES (Keep existing)
 	GetSession(ctx context.Context, token string) (Session, error)
 	GetSettings(ctx context.Context) (Setting, error)
 	GetTotalStock(ctx context.Context, partID int64) (interface{}, error)
+	GetUser(ctx context.Context, id int64) (User, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	InitSettings(ctx context.Context) error
 	ListParts(ctx context.Context, arg ListPartsParams) ([]ListPartsRow, error)
+	ListUsers(ctx context.Context) ([]ListUsersRow, error)
 	SearchParts(ctx context.Context, partsFts sql.NullString) ([]SearchPartsRow, error)
 	UpdateBinQuantity(ctx context.Context, arg UpdateBinQuantityParams) error
 	UpdateColors(ctx context.Context, arg UpdateColorsParams) error
@@ -47,6 +51,7 @@ type Querier interface {
 	UpdateGeneralSettings(ctx context.Context, arg UpdateGeneralSettingsParams) error
 	UpdatePart(ctx context.Context, arg UpdatePartParams) error
 	UpdatePartAssignmentQuantity(ctx context.Context, arg UpdatePartAssignmentQuantityParams) error
+	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error
 	UpsertBin(ctx context.Context, arg UpsertBinParams) error
 }
 

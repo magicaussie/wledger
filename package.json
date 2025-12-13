@@ -7,7 +7,8 @@
     "doc": "docs"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build:css": "npx @tailwindcss/cli -i ./web/static/css/input.css -o ./web/static/css/input.css"
   },
   "repository": {
     "type": "git",
@@ -22,7 +23,7 @@
   },
   "homepage": "https://github.com/tuxedocurly/wledger#readme",
   "devDependencies": {
-    "daisyui": "^5.5.8",
+    "daisyui": "^5.5.13",
     "tailwindcss": "^4.1.17"
   },
   "dependencies": {

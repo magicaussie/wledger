@@ -11,8 +11,7 @@ import (
 )
 
 const cleanupSessions = `-- name: CleanupSessions :exec
-DELETE FROM sessions 
-WHERE expiry < ?
+DELETE FROM sessions WHERE expiry < ?
 `
 
 func (q *Queries) CleanupSessions(ctx context.Context, expiry float64) error {
@@ -32,8 +31,7 @@ func (q *Queries) CountUsers(ctx context.Context) (int64, error) {
 }
 
 const createSession = `-- name: CreateSession :exec
-INSERT INTO sessions (token, data, expiry) 
-VALUES (?, ?, ?)
+INSERT INTO sessions (token, data, expiry) VALUES (?, ?, ?)
 `
 
 type CreateSessionParams struct {
@@ -48,15 +46,16 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) er
 }
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (email, password_hash, role) 
-VALUES (?, ?, ?)
+INSERT INTO users (email, password_hash, role, change_password_required) 
+VALUES (?, ?, ?, ?)
 RETURNING id, email, role, created_at
 `
 
 type CreateUserParams struct {
-	Email        string `json:"email"`
-	PasswordHash string `json:"password_hash"`
-	Role         string `json:"role"`
+	Email                  string       `json:"email"`
+	PasswordHash           string       `json:"password_hash"`
+	Role                   string       `json:"role"`
+	ChangePasswordRequired sql.NullBool `json:"change_password_required"`
 }
 
 type CreateUserRow struct {
@@ -67,7 +66,12 @@ type CreateUserRow struct {
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error) {
-	row := q.queryRow(ctx, q.createUserStmt, createUser, arg.Email, arg.PasswordHash, arg.Role)
+	row := q.queryRow(ctx, q.createUserStmt, createUser,
+		arg.Email,
+		arg.PasswordHash,
+		arg.Role,
+		arg.ChangePasswordRequired,
+	)
 	var i CreateUserRow
 	err := row.Scan(
 		&i.ID,
@@ -79,8 +83,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateU
 }
 
 const deleteSession = `-- name: DeleteSession :exec
-DELETE FROM sessions 
-WHERE token = ?
+DELETE FROM sessions WHERE token = ?
 `
 
 func (q *Queries) DeleteSession(ctx context.Context, token string) error {
@@ -88,12 +91,20 @@ func (q *Queries) DeleteSession(ctx context.Context, token string) error {
 	return err
 }
 
-const getSession = `-- name: GetSession :one
-SELECT token, data, expiry 
-FROM sessions 
-WHERE token = ?
+const deleteUser = `-- name: DeleteUser :exec
+DELETE FROM users WHERE id = ?
 `
 
+func (q *Queries) DeleteUser(ctx context.Context, id int64) error {
+	_, err := q.exec(ctx, q.deleteUserStmt, deleteUser, id)
+	return err
+}
+
+const getSession = `-- name: GetSession :one
+SELECT token, data, expiry FROM sessions WHERE token = ?
+`
+
+// SESSION QUERIES (Keep existing)
 func (q *Queries) GetSession(ctx context.Context, token string) (Session, error) {
 	row := q.queryRow(ctx, q.getSessionStmt, getSession, token)
 	var i Session
@@ -101,8 +112,26 @@ func (q *Queries) GetSession(ctx context.Context, token string) (Session, error)
 	return i, err
 }
 
+const getUser = `-- name: GetUser :one
+SELECT id, email, password_hash, role, change_password_required, created_at FROM users WHERE id = ? LIMIT 1
+`
+
+func (q *Queries) GetUser(ctx context.Context, id int64) (User, error) {
+	row := q.queryRow(ctx, q.getUserStmt, getUser, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.Role,
+		&i.ChangePasswordRequired,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, password_hash, role, created_at 
+SELECT id, email, password_hash, role, change_password_required, created_at 
 FROM users 
 WHERE email = ? LIMIT 1
 `
@@ -115,7 +144,67 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.Email,
 		&i.PasswordHash,
 		&i.Role,
+		&i.ChangePasswordRequired,
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const listUsers = `-- name: ListUsers :many
+SELECT id, email, role, change_password_required, created_at 
+FROM users 
+ORDER BY created_at DESC
+`
+
+type ListUsersRow struct {
+	ID                     int64        `json:"id"`
+	Email                  string       `json:"email"`
+	Role                   string       `json:"role"`
+	ChangePasswordRequired sql.NullBool `json:"change_password_required"`
+	CreatedAt              sql.NullTime `json:"created_at"`
+}
+
+func (q *Queries) ListUsers(ctx context.Context) ([]ListUsersRow, error) {
+	rows, err := q.query(ctx, q.listUsersStmt, listUsers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListUsersRow
+	for rows.Next() {
+		var i ListUsersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.Role,
+			&i.ChangePasswordRequired,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateUserPassword = `-- name: UpdateUserPassword :exec
+UPDATE users 
+SET password_hash = ?, change_password_required = 0 
+WHERE id = ?
+`
+
+type UpdateUserPasswordParams struct {
+	PasswordHash string `json:"password_hash"`
+	ID           int64  `json:"id"`
+}
+
+func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error {
+	_, err := q.exec(ctx, q.updateUserPasswordStmt, updateUserPassword, arg.PasswordHash, arg.ID)
+	return err
 }

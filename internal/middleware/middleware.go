@@ -51,7 +51,7 @@ func (m *Manager) RequestLogger(next http.Handler) http.Handler {
 func (m *Manager) RequireAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Use GetInt to match how Login stores user_id
-		userID := m.Session.GetInt(r.Context(), "user_id")
+		userID := m.Session.GetInt64(r.Context(), "user_id")
 		if userID == 0 {
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
 			return
@@ -63,11 +63,11 @@ func (m *Manager) RequireAuth(next http.Handler) http.Handler {
 	})
 }
 
-// RequireReadAuth checks the DB setting. If "Require Auth" is ON, it behaves like RequireAuth.
+// RequireReadAuth checks the DB setting. If "Require Auth" is ON, it behaves like RequireAuth
 func (m *Manager) RequireReadAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// If user is already logged in, allow access
-		userID := m.Session.GetInt(r.Context(), "user_id")
+		userID := m.Session.GetInt64(r.Context(), "user_id")
 		if userID > 0 {
 			ctx := context.WithValue(r.Context(), UserContextKey, int64(userID))
 			next.ServeHTTP(w, r.WithContext(ctx))
@@ -114,6 +114,95 @@ func (m *Manager) FirstRunCheck(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+// RequirePasswordChange checks if the user is flagged to change their password.
+func (m *Manager) RequirePasswordChange(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Skip checks for the reset page itself, logout, and static files
+		path := r.URL.Path
+		if path == "/force-reset" || path == "/logout" || strings.HasPrefix(path, "/static/") {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// Retrieve User ID
+		// First, check the Context (populated by RequireAuth/RequireReadAuth)
+		userID, ok := r.Context().Value(UserContextKey).(int64)
+
+		// If not in context, try Session directly (fallback)
+		if !ok || userID == 0 {
+			userID = m.Session.GetInt64(r.Context(), "user_id")
+		}
+
+		// If still 0, user is definitely not logged in
+		// If this is a public route, let user pass. If protected, RequireAuth will catch user
+		if userID == 0 {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// Check DB for require password change Flag
+		user, err := m.Queries.GetUser(r.Context(), userID)
+		if err != nil {
+			m.Logger.Error("RequirePasswordChange: Failed to fetch user", "error", err, "user_id", userID)
+			// if it can't be verified, force login to be safe
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+
+		if user.ChangePasswordRequired.Bool {
+			m.Logger.Info("RequirePasswordChange: Redirecting to force-reset", "user_id", userID)
+			http.Redirect(w, r, "/force-reset", http.StatusSeeOther)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+// RequireRole enforces role-based access.
+// acceptedRoles: A list of roles allowed to access the route ("admin", "editor", "viewer")
+func (m *Manager) RequireRole(acceptedRoles ...string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Get User ID (Check Context first, then Session)
+			userID, ok := r.Context().Value(UserContextKey).(int64)
+			if !ok || userID == 0 {
+				userID = m.Session.GetInt64(r.Context(), "user_id")
+			}
+
+			if userID == 0 {
+				http.Redirect(w, r, "/login", http.StatusSeeOther)
+				return
+			}
+
+			// Fetch User to get Role
+			user, err := m.Queries.GetUser(r.Context(), userID)
+			if err != nil {
+				m.Logger.Error("RequireRole: failed to fetch user", "error", err)
+				http.Error(w, "Server Error", http.StatusInternalServerError)
+				return
+			}
+
+			// Check if user's role is in the allowed list
+			allowed := false
+			for _, role := range acceptedRoles {
+				if user.Role == role {
+					allowed = true
+					break
+				}
+			}
+
+			if !allowed {
+				m.Logger.Warn("Access denied: insufficient role", "user_id", userID, "role", user.Role, "required", acceptedRoles)
+				http.Error(w, "Forbidden: Insufficient Permissions", http.StatusForbidden)
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 type statusWriter struct {
