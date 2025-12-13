@@ -3,18 +3,23 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/tuxedocurly/wledger/internal/audit"
+	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/web/pages"
 )
 
 // GET /hardware
 func (app *application) handleHardwareList(w http.ResponseWriter, r *http.Request) {
+	// Get User
+	user := auth.GetUserFromRequest(r)
+
 	controllers, err := app.queries.GetControllers(r.Context())
 	if err != nil {
 		app.logger.Error("failed to fetch hardware", "error", err)
@@ -22,13 +27,22 @@ func (app *application) handleHardwareList(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	pages.Hardware(controllers).Render(r.Context(), w)
+	// Pass User to Template
+	pages.Hardware(user, controllers).Render(r.Context(), w)
 }
 
 // POST /hardware
 func (app *application) handleHardwareCreate(w http.ResponseWriter, r *http.Request) {
 	name := r.FormValue("name")
 	ip := r.FormValue("ip_address")
+
+	// Ensure IP is not empty
+	if ip == "" {
+		app.logger.Error("attempted to create controller with empty IP")
+		http.Error(w, "IP Address is required", http.StatusBadRequest)
+		return
+	}
+
 	portStr := r.FormValue("port")
 	port, _ := strconv.Atoi(portStr)
 	if port == 0 {
@@ -96,6 +110,9 @@ func (app *application) handleHardwareStatus(w http.ResponseWriter, r *http.Requ
 
 // GET /hardware/{id}/grid
 func (app *application) handleHardwareGrid(w http.ResponseWriter, r *http.Request) {
+	// Get User
+	user := auth.GetUserFromRequest(r)
+
 	idStr := chi.URLParam(r, "id")
 	id, _ := strconv.Atoi(idStr)
 
@@ -105,43 +122,50 @@ func (app *application) handleHardwareGrid(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Use sql.NullInt64 for ID
 	bins, err := app.queries.GetBinsByController(r.Context(), sql.NullInt64{Int64: int64(id), Valid: true})
-
-	// Explicitly define 'bins' as a slice of db.Bin
 	if err != nil {
 		bins = []db.Bin{}
 	}
 
-	pages.HardwareGrid(c, bins).Render(r.Context(), w)
+	// Pass User to Template
+	pages.HardwareGrid(user, c, bins).Render(r.Context(), w)
+}
+
+// Struct to parse the JSON from GridPainter
+type gridCellData struct {
+	X        int    `json:"x"`
+	Y        int    `json:"y"`
+	LedIndex int    `json:"led_index"`
+	Name     string `json:"name"`
 }
 
 // POST /hardware/{id}/grid
 func (app *application) handleHardwareGridSave(w http.ResponseWriter, r *http.Request) {
 	controllerID, _ := strconv.Atoi(chi.URLParam(r, "id"))
-	r.ParseForm()
 
-	for key, values := range r.Form {
-		if len(values) > 0 && len(key) > 4 && key[:4] == "bin_" {
-			ledIndex, _ := strconv.Atoi(key[4:])
-			binName := values[0]
-
-			if binName == "" {
-				app.queries.DeleteBinByLed(r.Context(), db.DeleteBinByLedParams{
-					ControllerID: sql.NullInt64{Int64: int64(controllerID), Valid: true},
-					LedIndex:     sql.NullInt64{Int64: int64(ledIndex), Valid: true},
-				})
-			} else {
-				app.queries.UpsertBin(r.Context(), db.UpsertBinParams{
-					Name:         binName,
-					ControllerID: sql.NullInt64{Int64: int64(controllerID), Valid: true},
-					LedIndex:     sql.NullInt64{Int64: int64(ledIndex), Valid: true},
-					Width:        sql.NullInt64{Int64: 1, Valid: true},
-				})
-			}
-		}
+	// Parse the JSON blob
+	gridDataJSON := r.FormValue("grid_data")
+	var cells []gridCellData
+	if err := json.Unmarshal([]byte(gridDataJSON), &cells); err != nil {
+		app.logger.Error("failed to parse grid json", "error", err)
+		http.Error(w, "Invalid JSON data", http.StatusBadRequest)
+		return
 	}
 
+	// Upsert new/updated bins
+	ctx := r.Context()
+	for _, cell := range cells {
+		app.queries.UpsertBin(ctx, db.UpsertBinParams{
+			Name:         cell.Name,
+			ControllerID: sql.NullInt64{Int64: int64(controllerID), Valid: true},
+			LedIndex:     sql.NullInt64{Int64: int64(cell.LedIndex), Valid: true},
+			Width:        sql.NullInt64{Int64: 1, Valid: true},
+			GridX:        sql.NullInt64{Int64: int64(cell.X), Valid: true},
+			GridY:        sql.NullInt64{Int64: int64(cell.Y), Valid: true},
+		})
+	}
+
+	audit.Log(ctx, app.queries, "UPDATE", "HARDWARE", int64(controllerID), "Updated LED Grid Layout", nil, nil)
 	http.Redirect(w, r, "/hardware", http.StatusSeeOther)
 }
 

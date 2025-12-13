@@ -27,7 +27,7 @@ UPDATE users
 SET password_hash = ?, change_password_required = 0 
 WHERE id = ?;
 
--- SESSION QUERIES (Keep existing)
+-- SESSION QUERIES
 -- name: GetSession :one
 SELECT token, data, expiry FROM sessions WHERE token = ?;
 -- name: CreateSession :exec

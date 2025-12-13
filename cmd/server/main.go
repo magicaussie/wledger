@@ -84,6 +84,7 @@ func main() {
 	r.Use(chimiddleware.Recoverer)
 	r.Use(mw.RequestLogger)
 	r.Use(sessionManager.LoadAndSave)
+	r.Use(mw.Authenticate)
 	r.Use(mw.FirstRunCheck)
 
 	// Initialize Image Processor
@@ -140,6 +141,7 @@ func main() {
 		r.Use(mw.RequireAuth)           // Must be logged in
 		r.Use(mw.RequirePasswordChange) // Must not have pending reset
 
+		// -----------------------------------------------------------
 		// OPEN ROUTES (Any logged-in user)
 		// -----------------------------------------------------------
 		// Force Reset
@@ -152,6 +154,7 @@ func main() {
 		// Self-Service Password Change
 		r.Post("/settings/password", app.handleSettingsPassword)
 
+		// -----------------------------------------------------------
 		// INVENTORY MANAGEMENT ROUTES (Editors & Admins)
 		// -----------------------------------------------------------
 		r.Group(func(r chi.Router) {
@@ -170,6 +173,7 @@ func main() {
 			r.Post("/hardware/{id}/locate", app.handleHardwareLocate)
 		})
 
+		// -----------------------------------------------------------
 		// SYSTEM ADMINISTRATION ROUTES (Admins Only)
 		// -----------------------------------------------------------
 		r.Group(func(r chi.Router) {

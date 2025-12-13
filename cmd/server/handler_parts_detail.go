@@ -8,12 +8,16 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/tuxedocurly/wledger/internal/audit"
+	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/web/pages"
 )
 
 // GET /parts/{id}
 func (app *application) handlePartDetail(w http.ResponseWriter, r *http.Request) {
+	// Get User (Requires 'auth' import)
+	user := auth.GetUserFromRequest(r)
+
 	idStr := chi.URLParam(r, "id")
 	id, _ := strconv.Atoi(idStr)
 
@@ -35,7 +39,8 @@ func (app *application) handlePartDetail(w http.ResponseWriter, r *http.Request)
 	// Get Controllers (for the Add form)
 	controllers, _ := app.queries.GetControllers(r.Context())
 
-	pages.PartDetail(p, stock, controllers).Render(r.Context(), w)
+	// Pass User to Template
+	pages.PartDetail(user, p, stock, controllers).Render(r.Context(), w)
 }
 
 // GET /parts/bins_options?controller_id=X
@@ -74,7 +79,7 @@ func (app *application) handlePartAssign(w http.ResponseWriter, r *http.Request)
 	})
 
 	if err == nil {
-		// 2Update Existing
+		// Update Existing
 		err = app.queries.UpdatePartAssignmentQuantity(r.Context(), db.UpdatePartAssignmentQuantityParams{
 			Quantity: int64(qty),
 			PartID:   int64(partID),

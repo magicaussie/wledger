@@ -2,12 +2,13 @@ package pages
 
 import (
 	"fmt"
+	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/web/layouts"
 )
 
-templ PartDetail(p db.Part, stock []db.GetPartAssignmentsRow, controllers []db.Controller) {
-	@layouts.Base(p.Name) {
+templ PartDetail(user auth.User, p db.Part, stock []db.GetPartAssignmentsRow, controllers []db.Controller) {
+	@layouts.Base(p.Name, user) {
 		<div class="max-w-6xl mx-auto w-full">
 			<div class="text-sm breadcrumbs mb-4 opacity-70">
 				<ul>
@@ -57,22 +58,26 @@ templ PartDetail(p db.Part, stock []db.GetPartAssignmentsRow, controllers []db.C
 									</div>
 								</div>
 							</div>
-							<div class="card-actions justify-end mt-6 pt-4 border-t border-base-content/10 gap-2">
-								<a href={ templ.SafeURL(fmt.Sprintf("/parts/%d/edit", p.ID)) } class="btn btn-sm btn-outline gap-2">
-									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
-									Edit
-								</a>
-								<form action={ templ.SafeURL(fmt.Sprintf("/parts/%d/delete", p.ID)) } method="POST" hx-boost="false">
-									<button
-										type="submit"
-										class="btn btn-sm btn-outline btn-error gap-2"
-										onclick="if(!confirm('Are you sure you want to delete this part? This cannot be undone.')){ return false; }"
-									>
-										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-										Delete
-									</button>
-								</form>
-							</div>
+							if user.CanWrite() {
+								<div class="card-actions justify-end mt-6 pt-4 border-t border-base-content/10 gap-2">
+									<a href={ templ.SafeURL(fmt.Sprintf("/parts/%d/edit", p.ID)) } class="btn btn-sm btn-outline gap-2">
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+										Edit
+									</a>
+									if user.CanDelete() {
+										<form action={ templ.SafeURL(fmt.Sprintf("/parts/%d/delete", p.ID)) } method="POST" hx-boost="false">
+											<button
+												type="submit"
+												class="btn btn-sm btn-outline btn-error gap-2"
+												onclick="if(!confirm('Are you sure you want to delete this part? This cannot be undone.')){ return false; }"
+											>
+												<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+												Delete
+											</button>
+										</form>
+									}
+								</div>
+							}
 						</div>
 					</div>
 				</div>
@@ -119,34 +124,38 @@ templ PartDetail(p db.Part, stock []db.GetPartAssignmentsRow, controllers []db.C
 													<td class="text-right font-bold text-lg font-mono">{ fmt.Sprintf("%d", s.Quantity) }</td>
 													<td class="text-right">
 														<div class="flex items-center justify-end gap-2">
-															if s.ControllerID.Valid {
-																<button
-																	type="button"
-																	hx-post={ fmt.Sprintf("/hardware/%d/locate?bin_id=%d", s.ControllerID.Int64, s.BinID) }
-																	hx-trigger="click"
-																	hx-swap="none"
-																	class="btn btn-xs btn-primary text-white shadow-sm border-none"
-																	title="Locate LED"
-																>
-																	<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
-																	<span class="hidden sm:inline">Locate</span>
-																</button>
+															if user.CanWrite() {
+																if s.ControllerID.Valid {
+																	<button
+																		type="button"
+																		hx-post={ fmt.Sprintf("/hardware/%d/locate?bin_id=%d", s.ControllerID.Int64, s.BinID) }
+																		hx-trigger="click"
+																		hx-swap="none"
+																		class="btn btn-xs btn-primary text-white shadow-sm border-none"
+																		title="Locate LED"
+																	>
+																		<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
+																		<span class="hidden sm:inline">Locate</span>
+																	</button>
+																}
 															}
-															<form
-																action={ templ.SafeURL(fmt.Sprintf("/parts/%d/stock/%d/delete", p.ID, s.BinID)) }
-																method="POST"
-																hx-boost="false"
-																style="display:inline;"
-															>
-																<button
-																	type="submit"
-																	class="btn btn-xs btn-outline btn-error shadow-sm"
-																	onclick="return confirm('Remove this stock assignment?');"
-																	title="Remove Stock"
+															if user.CanDelete() {
+																<form
+																	action={ templ.SafeURL(fmt.Sprintf("/parts/%d/stock/%d/delete", p.ID, s.BinID)) }
+																	method="POST"
+																	hx-boost="false"
+																	style="display:inline;"
 																>
-																	<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-																</button>
-															</form>
+																	<button
+																		type="submit"
+																		class="btn btn-xs btn-outline btn-error shadow-sm"
+																		onclick="return confirm('Remove this stock assignment?');"
+																		title="Remove Stock"
+																	>
+																		<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+																	</button>
+																</form>
+															}
 														</div>
 													</td>
 												</tr>
@@ -157,60 +166,61 @@ templ PartDetail(p db.Part, stock []db.GetPartAssignmentsRow, controllers []db.C
 							}
 						</div>
 					</div>
-					<div class="card bg-base-200 shadow-xl">
-						<div class="card-body">
-							<h3 class="font-bold text-lg flex items-center gap-2">
-								<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
-								Add Stock
-							</h3>
-							<form action={ templ.SafeURL(fmt.Sprintf("/parts/%d/assign", p.ID)) } method="POST" class="flex flex-col gap-4">
-								<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-									<div class="form-control">
-										<label class="label"><span class="label-text">Controller</span></label>
-										<select
-											name="controller_id"
-											class="select select-bordered w-full"
-											hx-get="/parts/bins_options"
-											hx-target="#bin-select"
-											hx-swap="outerHTML"
-											hx-trigger="change"
-										>
-											<option disabled selected>Select Controller</option>
-											for _, c := range controllers {
-												<option value={ fmt.Sprintf("%d", c.ID) }>{ c.Name }</option>
-											}
-										</select>
-									</div>
-									<div class="form-control">
-										<label class="label"><span class="label-text">Bin</span></label>
-										<select id="bin-select" name="bin_id" class="select select-bordered w-full" disabled>
-											<option>Select Controller First</option>
-										</select>
-									</div>
-								</div>
-								<div class="form-control">
-									<label class="label"><span class="label-text">Quantity</span></label>
-									<div class="flex items-center gap-4">
-										<div class="join">
-											<button type="button" class="btn join-item" onclick="this.parentNode.querySelector('input[type=number]').stepDown()">-</button>
-											<input type="number" name="quantity" class="input input-bordered join-item w-20 text-center" value="1" min="1"/>
-											<button type="button" class="btn join-item" onclick="this.parentNode.querySelector('input[type=number]').stepUp()">+</button>
+					if user.CanWrite() {
+						<div class="card bg-base-200 shadow-xl">
+							<div class="card-body">
+								<h3 class="font-bold text-lg flex items-center gap-2">
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+									Add Stock
+								</h3>
+								<form action={ templ.SafeURL(fmt.Sprintf("/parts/%d/assign", p.ID)) } method="POST" class="flex flex-col gap-4">
+									<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+										<div class="form-control">
+											<label class="label"><span class="label-text">Controller</span></label>
+											<select
+												name="controller_id"
+												class="select select-bordered w-full"
+												hx-get="/parts/bins_options"
+												hx-target="#bin-select"
+												hx-swap="outerHTML"
+												hx-trigger="change"
+											>
+												<option disabled selected>Select Controller</option>
+												for _, c := range controllers {
+													<option value={ fmt.Sprintf("%d", c.ID) }>{ c.Name }</option>
+												}
+											</select>
 										</div>
-										<button class="btn btn-primary flex-1">
-											Assign Stock
-										</button>
+										<div class="form-control">
+											<label class="label"><span class="label-text">Bin</span></label>
+											<select id="bin-select" name="bin_id" class="select select-bordered w-full" disabled>
+												<option>Select Controller First</option>
+											</select>
+										</div>
 									</div>
-								</div>
-							</form>
+									<div class="form-control">
+										<label class="label"><span class="label-text">Quantity</span></label>
+										<div class="flex items-center gap-4">
+											<div class="join">
+												<button type="button" class="btn join-item" onclick="this.parentNode.querySelector('input[type=number]').stepDown()">-</button>
+												<input type="number" name="quantity" class="input input-bordered join-item w-20 text-center" value="1" min="1"/>
+												<button type="button" class="btn join-item" onclick="this.parentNode.querySelector('input[type=number]').stepUp()">+</button>
+											</div>
+											<button class="btn btn-primary flex-1">
+												Assign Stock
+											</button>
+										</div>
+									</div>
+								</form>
+							</div>
 						</div>
-					</div>
+					}
 				</div>
 			</div>
 		</div>
 	}
 }
 
-// Helper to calculate stock total from the slice
 func calculateTotal(stock []db.GetPartAssignmentsRow) int64 {
 	var t int64 = 0
 	for _, s := range stock {

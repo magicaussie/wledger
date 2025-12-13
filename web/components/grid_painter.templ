@@ -7,208 +7,217 @@ import (
 )
 
 // GridPainter renders the interactive LED mapping tool.
-templ GridPainter(controller db.Controller, bins []db.Bin) {
-	<div x-data={ fmt.Sprintf(`gridPainter(%d, %d, %d, %s)`, controller.ID, 16, 16, utils.JSON(bins)) } class="w-full">
-		
-		<div class="flex flex-wrap gap-4 mb-6 p-4 bg-base-200 rounded-lg items-end">
-			<div class="form-control w-24">
-				<label class="label"><span class="label-text">Rows</span></label>
-				<input type="number" x-model.number="rows" class="input input-bordered input-sm" min="1" max="64" />
+templ GridPainter(controller db.Controller, bins []db.Bin, canEdit bool) {
+	<div x-data={ fmt.Sprintf(`gridPainter(%d, %d, %d, %s, %t)`, controller.ID, 16, 16, utils.JSON(bins), canEdit) } class="w-full">
+		if canEdit {
+			<div class="flex flex-wrap gap-4 mb-6 p-4 bg-base-200 rounded-lg items-end">
+				<div class="form-control w-24">
+					<label class="label"><span class="label-text">Rows</span></label>
+					<input type="number" x-model.number="rows" class="input input-bordered input-sm" min="1" max="64"/>
+				</div>
+				<div class="form-control w-24">
+					<label class="label"><span class="label-text">Cols</span></label>
+					<input type="number" x-model.number="cols" class="input input-bordered input-sm" min="1" max="64"/>
+				</div>
+				<div class="divider divider-horizontal"></div>
+				<button @click="autoFill('linear')" class="btn btn-sm btn-outline">
+					Auto Fill (Linear)
+				</button>
+				<button @click="autoFill('serpentine')" class="btn btn-sm btn-outline">
+					Auto Fill (Serpentine)
+				</button>
+				<button @click="clearGrid()" class="btn btn-sm btn-ghost text-error">
+					Clear
+				</button>
 			</div>
-			<div class="form-control w-24">
-				<label class="label"><span class="label-text">Cols</span></label>
-				<input type="number" x-model.number="cols" class="input input-bordered input-sm" min="1" max="64" />
+		} else {
+			<div class="alert alert-info shadow-sm mb-6">
+				<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+				<span>You are in read-only mode.</span>
 			</div>
-			
-			<div class="divider divider-horizontal"></div>
-
-			<button @click="autoFill('linear')" class="btn btn-sm btn-outline">
-				Auto Fill (Linear)
-			</button>
-			<button @click="autoFill('serpentine')" class="btn btn-sm btn-outline">
-				Auto Fill (Serpentine)
-			</button>
-			<button @click="clearGrid()" class="btn btn-sm btn-ghost text-error">
-				Clear
-			</button>
-		</div>
-
+		}
 		<div class="overflow-x-auto pb-4">
-			<div class="grid gap-1 select-none"
-				 :style="`grid-template-columns: repeat(${cols}, minmax(2rem, 1fr)); width: fit-content; min-width: 100%;`">
-				
+			<div
+				class="grid gap-1 select-none"
+				:style="`grid-template-columns: repeat(${cols}, minmax(2rem, 1fr)); width: fit-content; min-width: 100%;`"
+			>
 				<template x-for="i in (rows * cols)">
-					<div class="aspect-square border border-base-300 rounded cursor-pointer flex items-center justify-center text-xs hover:border-primary transition-colors relative"
-						 :class="getCellClass(i-1)"
-						 @click="toggleCell(i-1)"
-						 @mouseenter="hoverCell(i-1)">
-						
+					<div
+						class="aspect-square border border-base-300 rounded flex items-center justify-center text-xs transition-colors relative"
+						:class="[getCellClass(i-1), canEdit ? 'cursor-pointer hover:border-primary' : 'cursor-default']"
+						@click="toggleCell(i-1)"
+						@mouseenter="hoverCell(i-1)"
+					>
 						<span x-text="getLedIndex(i-1)" class="font-bold"></span>
-						
-						<div x-show="getBinName(i-1)" x-text="getBinName(i-1)" 
-							 class="absolute -top-6 bg-black text-white text-[10px] px-1 rounded z-10 whitespace-nowrap pointer-events-none">
-						</div>
+						<div
+							x-show="getBinName(i-1)"
+							x-text="getBinName(i-1)"
+							class="absolute -top-6 bg-black text-white text-[10px] px-1 rounded z-10 whitespace-nowrap pointer-events-none"
+						></div>
 					</div>
 				</template>
 			</div>
 		</div>
-
-		<form method="POST" action={ templ.SafeURL(fmt.Sprintf("/hardware/%d/grid", controller.ID)) } class="mt-8 border-t border-base-300 pt-6">
-			<h3 class="font-bold text-lg mb-2">Save Configuration</h3>
-			<p class="text-sm opacity-70 mb-4">This will overwrite the current LED mapping for this controller.</p>
-			
-			<input type="hidden" name="grid_data" :value="JSON.stringify(exportData())" />
-			
-			<div class="flex justify-end gap-2">
-				<a href="/hardware" class="btn btn-ghost">Cancel</a>
-				<button class="btn btn-primary">Save Grid</button>
-			</div>
-		</form>
-
+		if canEdit {
+			<form method="POST" action={ templ.SafeURL(fmt.Sprintf("/hardware/%d/grid", controller.ID)) } class="mt-8 border-t border-base-300 pt-6">
+				<h3 class="font-bold text-lg mb-2">Save Configuration</h3>
+				<p class="text-sm opacity-70 mb-4">This will overwrite the current LED mapping for this controller.</p>
+				<input type="hidden" name="grid_data" :value="JSON.stringify(exportData())"/>
+				<div class="flex justify-end gap-2">
+					<a href="/hardware" class="btn btn-ghost">Cancel</a>
+					<button class="btn btn-primary">Save Grid</button>
+				</div>
+			</form>
+		}
 	</div>
-
 	<script>
-		document.addEventListener('alpine:init', () => {
-			Alpine.data('gridPainter', (ctrlId, initRows, initCols, existingBins) => ({
-				controllerId: ctrlId,
-				rows: initRows,
-				cols: initCols,
-				cells: {}, 
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('gridPainter', (ctrlId, initRows, initCols, existingBins, canEdit) => ({
+                controllerId: ctrlId,
+                rows: initRows,
+                cols: initCols,
+                canEdit: canEdit,
+                cells: {}, 
 
-				init() {
-					const val = (v) => {
-						if (v !== null && typeof v === 'object' && 'Int64' in v) {
-							return v.Valid ? v.Int64 : null;
-						}
-						return v;
-					};
+                init() {
+                    const val = (v) => {
+                        if (v !== null && typeof v === 'object' && 'Int64' in v) {
+                            return v.Valid ? v.Int64 : null;
+                        }
+                        return v;
+                    };
 
-					if (existingBins) {
-						let maxX = 0;
-						let maxY = 0;
-						
-						existingBins.forEach(b => {
-							const gx = val(b.grid_x);
-							const gy = val(b.grid_y);
-							const li = val(b.led_index);
-							
-							if (gx === null || gy === null) return;
-							
-							const key = `${gx},${gy}`;
-							this.cells[key] = {
-								led_index: li,
-								name: b.name
-							};
-							
-							if (gx >= maxX) maxX = gx + 1;
-							if (gy >= maxY) maxY = gy + 1;
-						});
+                    if (existingBins) {
+                        let maxX = 0;
+                        let maxY = 0;
+                        
+                        existingBins.forEach(b => {
+                            const gx = val(b.grid_x);
+                            const gy = val(b.grid_y);
+                            const li = val(b.led_index);
+                            
+                            if (gx === null || gy === null) return;
+                            
+                            const key = `${gx},${gy}`;
+                            this.cells[key] = {
+                                led_index: li,
+                                name: b.name
+                            };
+                            
+                            if (gx >= maxX) maxX = gx + 1;
+                            if (gy >= maxY) maxY = gy + 1;
+                        });
 
-						if (maxX > 0) this.cols = maxX;
-						if (maxY > 0) this.rows = maxY;
-					}
-				},
+                        if (maxX > 0) this.cols = maxX;
+                        if (maxY > 0) this.rows = maxY;
+                    }
+                },
 
-				getXY(index) {
-					const x = index % this.cols;
-					const y = Math.floor(index / this.cols);
-					return { x, y };
-				},
+                getXY(index) {
+                    const x = index % this.cols;
+                    const y = Math.floor(index / this.cols);
+                    return { x, y };
+                },
 
-				getCellClass(index) {
-					const { x, y } = this.getXY(index);
-					const key = `${x},${y}`;
-					if (this.cells[key]) {
-						return 'bg-primary text-primary-content border-primary';
-					}
-					return 'bg-base-100 text-base-content/20';
-				},
+                getCellClass(index) {
+                    const { x, y } = this.getXY(index);
+                    const key = `${x},${y}`;
+                    if (this.cells[key]) {
+                        return 'bg-primary text-primary-content border-primary';
+                    }
+                    return 'bg-base-100 text-base-content/20';
+                },
 
-				getLedIndex(index) {
-					const { x, y } = this.getXY(index);
-					const cell = this.cells[`${x},${y}`];
-					return cell ? cell.led_index : '';
-				},
+                getLedIndex(index) {
+                    const { x, y } = this.getXY(index);
+                    const cell = this.cells[`${x},${y}`];
+                    return cell ? cell.led_index : '';
+                },
 
-				getBinName(index) {
-					const { x, y } = this.getXY(index);
-					const cell = this.cells[`${x},${y}`];
-					return cell ? cell.name : null;
-				},
+                getBinName(index) {
+                    const { x, y } = this.getXY(index);
+                    const cell = this.cells[`${x},${y}`];
+                    return cell ? cell.name : null;
+                },
 
-				toggleCell(index) {
-					const { x, y } = this.getXY(index);
-					const key = `${x},${y}`;
+                toggleCell(index) {
+                    // GATE: Stop interaction if not editable
+                    if (!this.canEdit) return;
 
-					if (this.cells[key]) {
-						delete this.cells[key];
-					} else {
-						const nextIndex = this.getNextAvailableIndex();
-						this.cells[key] = {
-							led_index: nextIndex,
-							name: this.generateName(x, y)
-						};
-					}
-				},
+                    const { x, y } = this.getXY(index);
+                    const key = `${x},${y}`;
 
-				getNextAvailableIndex() {
-					const used = new Set();
-					Object.entries(this.cells).forEach(([key, val]) => {
-						const [x, y] = key.split(',').map(Number);
-						if (x < this.cols && y < this.rows) {
-							used.add(val.led_index);
-						}
-					});
-					let i = 0;
-					while (true) {
-						if (!used.has(i)) return i;
-						i++;
-					}
-				},
+                    if (this.cells[key]) {
+                        delete this.cells[key];
+                    } else {
+                        const nextIndex = this.getNextAvailableIndex();
+                        this.cells[key] = {
+                            led_index: nextIndex,
+                            name: this.generateName(x, y)
+                        };
+                    }
+                },
 
-				generateName(x, y) {
-					const colLetter = String.fromCharCode(65 + x); 
-					return `${colLetter}${y + 1}`;
-				},
+                getNextAvailableIndex() {
+                    const used = new Set();
+                    Object.entries(this.cells).forEach(([key, val]) => {
+                        const [x, y] = key.split(',').map(Number);
+                        if (x < this.cols && y < this.rows) {
+                            used.add(val.led_index);
+                        }
+                    });
+                    let i = 0;
+                    while (true) {
+                        if (!used.has(i)) return i;
+                        i++;
+                    }
+                },
 
-				autoFill(mode) {
-					this.cells = {}; 
-					let counter = 0;
-					for (let y = 0; y < this.rows; y++) {
-						for (let x = 0; x < this.cols; x++) {
-							let targetX = x;
-							if (mode === 'serpentine' && y % 2 !== 0) targetX = (this.cols - 1) - x;
-							
-							const key = `${targetX},${y}`;
-							this.cells[key] = {
-								led_index: counter,
-								name: this.generateName(targetX, y)
-							};
-							counter++;
-						}
-					}
-				},
+                generateName(x, y) {
+                    const colLetter = String.fromCharCode(65 + x); 
+                    return `${colLetter}${y + 1}`;
+                },
 
-				clearGrid() {
-					if(confirm('Clear all mapped pixels?')) {
-						this.cells = {};
-					}
-				},
-				
-				hoverCell(index) {},
+                autoFill(mode) {
+                    if (!this.canEdit) return;
+                    this.cells = {}; 
+                    let counter = 0;
+                    for (let y = 0; y < this.rows; y++) {
+                        for (let x = 0; x < this.cols; x++) {
+                            let targetX = x;
+                            if (mode === 'serpentine' && y % 2 !== 0) targetX = (this.cols - 1) - x;
+                            
+                            const key = `${targetX},${y}`;
+                            this.cells[key] = {
+                                led_index: counter,
+                                name: this.generateName(targetX, y)
+                            };
+                            counter++;
+                        }
+                    }
+                },
 
-				exportData() {
-					return Object.entries(this.cells)
-						.filter(([key, val]) => {
-							const [x, y] = key.split(',').map(Number);
-							return x < this.cols && y < this.rows;
-						})
-						.map(([key, val]) => {
-							const [x, y] = key.split(',').map(Number);
-							return { x: x, y: y, led_index: val.led_index, name: val.name };
-						});
-				}
-			}));
-		});
-	</script>
+                clearGrid() {
+                    if (!this.canEdit) return;
+                    if(confirm('Clear all mapped pixels?')) {
+                        this.cells = {};
+                    }
+                },
+                
+                hoverCell(index) {},
+
+                exportData() {
+                    return Object.entries(this.cells)
+                        .filter(([key, val]) => {
+                            const [x, y] = key.split(',').map(Number);
+                            return x < this.cols && y < this.rows;
+                        })
+                        .map(([key, val]) => {
+                            const [x, y] = key.split(',').map(Number);
+                            return { x: x, y: y, led_index: val.led_index, name: val.name };
+                        });
+                }
+            }));
+        });
+    </script>
 }

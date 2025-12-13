@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/alexedwards/scs/v2"
+	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/internal/db"
 )
 
@@ -203,6 +204,48 @@ func (m *Manager) RequireRole(acceptedRoles ...string) func(http.Handler) http.H
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// Authenticate is a middleware that populates the context with the auth.User.
+// It acts as the bridge between the Session (Cookie) and the Context (Application).
+func (m *Manager) Authenticate(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// 1. Check Session for ID
+		// We use GetInt64 because we fixed the casting issue earlier
+		userID := m.Session.GetInt64(r.Context(), "user_id")
+
+		// If no ID in session, they are a Guest
+		if userID == 0 {
+			ctx := auth.WithUser(r.Context(), auth.Guest())
+			next.ServeHTTP(w, r.WithContext(ctx))
+			return
+		}
+
+		// Fetch user from DB
+		// Role is needed to construct the full auth.User
+		dbUser, err := m.Queries.GetUser(r.Context(), userID)
+		if err != nil {
+			// If DB fails (e.g., user deleted but session remains), downgrade to Guest
+			// log it as info/warn, not error, to avoid log spam on stale sessions
+			m.Logger.Warn("Authenticate: failed to fetch user for session", "user_id", userID, "error", err)
+			ctx := auth.WithUser(r.Context(), auth.Guest())
+			next.ServeHTTP(w, r.WithContext(ctx))
+			return
+		}
+
+		// Construct the UI User
+		uiUser := auth.User{
+			ID:      dbUser.ID,
+			Email:   dbUser.Email,
+			Role:    dbUser.Role,
+			IsGuest: false,
+		}
+
+		// Update Context
+		// Now every handler downstream can call auth.GetUser(r.Context())
+		ctx := auth.WithUser(r.Context(), uiUser)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
 type statusWriter struct {

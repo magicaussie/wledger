@@ -8,8 +8,6 @@ package pages
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-import "github.com/tuxedocurly/wledger/web/layouts"
-
 func Setup() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -31,25 +29,7 @@ func Setup() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Var2 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
-			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
-			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
-			if !templ_7745c5c3_IsBuffer {
-				defer func() {
-					templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
-					if templ_7745c5c3_Err == nil {
-						templ_7745c5c3_Err = templ_7745c5c3_BufErr
-					}
-				}()
-			}
-			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"flex items-center justify-center min-h-[80vh]\"><div class=\"card w-96 bg-base-200 shadow-xl border-2 border-primary\"><div class=\"card-body\"><h2 class=\"card-title justify-center text-2xl\">Welcome to WLEDger!</h2><p class=\"text-center text-sm opacity-70 mb-4\">Create your admin account to get started.</p><form method=\"POST\" action=\"/setup\" hx-boost=\"false\"><div class=\"form-control w-full\"><label class=\"label\"><span class=\"label-text\">Admin Email</span></label> <input type=\"email\" name=\"email\" required class=\"input input-bordered w-full\"></div><div class=\"form-control w-full mt-4\"><label class=\"label\"><span class=\"label-text\">Password</span></label> <input type=\"password\" name=\"password\" required minlength=\"8\" class=\"input input-bordered w-full\"></div><div class=\"card-actions justify-end mt-6\"><button class=\"btn btn-primary w-full\">Create Admin & Start</button></div></form></div></div></div>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			return nil
-		})
-		templ_7745c5c3_Err = layouts.Base("Setup").Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<!doctype html><html data-theme=\"dark\"><head><title>WLEDger - Setup</title><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><link rel=\"icon\" href=\"/static/img/favicon.ico\"><link href=\"/static/css/output.css\" rel=\"stylesheet\"></head><body class=\"bg-base-300 min-h-screen flex items-center justify-center p-4\"><div class=\"card w-full max-w-md bg-base-100 shadow-2xl border-2 border-primary\"><div class=\"card-body p-8\"><div class=\"text-center mb-8\"><div class=\"flex justify-center mb-6\"><img src=\"/static/img/wledger-name-rainbow.png\" alt=\"WLEDger\" class=\"h-14 w-auto object-contain\"></div><h2 class=\"text-3xl font-extrabold\">Welcome!</h2><p class=\"text-base opacity-70 mt-2\">Create your admin account to get started.</p></div><form method=\"POST\" action=\"/setup\" class=\"space-y-6\"><div class=\"form-control w-full\"><label class=\"label py-2\"><span class=\"label-text font-semibold text-base\">Admin Email</span></label> <input type=\"email\" name=\"email\" placeholder=\"admin@example.com\" class=\"input input-bordered w-full validator text-base h-12\" required><p class=\"validator-hint text-sm text-error mt-2 font-medium\">Please enter a valid email address</p></div><div class=\"form-control w-full\"><label class=\"label py-2\"><span class=\"label-text font-semibold text-base\">Password</span></label> <input type=\"password\" name=\"password\" placeholder=\"••••••••\" class=\"input input-bordered w-full validator text-base h-12\" required minlength=\"8\" pattern=\".{8,}\" title=\"Must be at least 8 characters\"><p class=\"validator-hint text-sm text-error mt-2 font-medium\">Must be at least 8 characters long</p></div><div class=\"pt-6\"><button class=\"btn btn-primary w-full text-lg font-bold min-h-[3.5rem]\">Create Admin & Start</button></div></form></div></div></body></html>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/tuxedocurly/wledger/internal/audit"
+	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/images"
 	"github.com/tuxedocurly/wledger/web/pages"
@@ -14,6 +15,7 @@ import (
 
 // GET /parts
 func (app *application) handlePartsList(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUserFromRequest(r)
 	search := r.URL.Query().Get("q")
 	pageStr := r.URL.Query().Get("page")
 	page, _ := strconv.Atoi(pageStr)
@@ -29,7 +31,7 @@ func (app *application) handlePartsList(w http.ResponseWriter, r *http.Request) 
 	if search != "" {
 		// FTS5 Search
 		query := search + "*"
-		// Use a specific return variables to avoid shadowing 'err'
+		// Use specific return variables to avoid shadowing 'err'
 		rows, searchErr := app.queries.SearchParts(r.Context(), sql.NullString{String: query, Valid: true})
 		if searchErr != nil {
 			err = searchErr
@@ -78,17 +80,20 @@ func (app *application) handlePartsList(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	pages.PartsList(viewParts, search, page).Render(r.Context(), w)
+	pages.PartsList(user, viewParts, search, page).Render(r.Context(), w)
 }
 
 // GET /parts/new
 func (app *application) handlePartsNew(w http.ResponseWriter, r *http.Request) {
-	pages.PartCreate().Render(r.Context(), w)
+	user := auth.GetUserFromRequest(r)
+	pages.PartCreate(user).Render(r.Context(), w)
 }
 
 // POST /parts
 func (app *application) handlePartsCreate(w http.ResponseWriter, r *http.Request) {
 	// parse Multipart Form (10MB limit)
+	// TODO: test the size limit. Potentially add client side validation
+	// to improve UX
 	err := r.ParseMultipartForm(10 << 20)
 	if err != nil {
 		http.Error(w, "File too large", http.StatusBadRequest)

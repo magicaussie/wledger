@@ -104,7 +104,7 @@ const getSession = `-- name: GetSession :one
 SELECT token, data, expiry FROM sessions WHERE token = ?
 `
 
-// SESSION QUERIES (Keep existing)
+// SESSION QUERIES
 func (q *Queries) GetSession(ctx context.Context, token string) (Session, error) {
 	row := q.queryRow(ctx, q.getSessionStmt, getSession, token)
 	var i Session

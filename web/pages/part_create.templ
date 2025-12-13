@@ -1,9 +1,12 @@
 package pages
 
-import "github.com/tuxedocurly/wledger/web/layouts"
+import (
+	"github.com/tuxedocurly/wledger/internal/auth"
+	"github.com/tuxedocurly/wledger/web/layouts"
+)
 
-templ PartCreate() {
-	@layouts.Base("Add Part") {
+templ PartCreate(user auth.User) {
+	@layouts.Base("Add Part", user) {
 		<div class="max-w-4xl mx-auto w-full">
 			<div class="text-sm breadcrumbs mb-4 opacity-70">
 				<ul>

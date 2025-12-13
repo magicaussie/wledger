@@ -58,7 +58,8 @@ CREATE TABLE IF NOT EXISTS bins (
     width INTEGER DEFAULT 1, -- How many LEDs wide is this bin?
     grid_x INTEGER, -- Visual representation X
     grid_y INTEGER, -- Visual representation Y
-    FOREIGN KEY(controller_id) REFERENCES controllers(id) ON DELETE SET NULL
+    FOREIGN KEY(controller_id) REFERENCES controllers(id) ON DELETE SET NULL,
+    UNIQUE(controller_id, led_index)
 );
 
 -- Parts (Inventory Items)

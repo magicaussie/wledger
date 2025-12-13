@@ -11,7 +11,6 @@ import (
 // SQLCStore implements the scs.Store interface using sqlc queries from /internal/sql/queries
 type SQLCStore struct {
 	queries *db.Queries
-	db      *sql.DB // Needed for transactions
 }
 
 func NewStore(q *db.Queries) *SQLCStore {

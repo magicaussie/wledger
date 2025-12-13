@@ -2,12 +2,13 @@ package pages
 
 import (
 	"fmt"
+	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/web/layouts"
 )
 
-templ PartEdit(p db.Part) {
-	@layouts.Base("Edit Part") {
+templ PartEdit(user auth.User, p db.Part) {
+	@layouts.Base(fmt.Sprintf("Edit %s", p.Name), user) {
 		<div class="max-w-4xl mx-auto w-full">
 			<div class="text-sm breadcrumbs mb-4 opacity-70">
 				<ul>
@@ -18,94 +19,76 @@ templ PartEdit(p db.Part) {
 			</div>
 			<div class="card bg-base-200 shadow-xl border border-base-300">
 				<div class="card-body p-6 md:p-8">
-					<div class="flex items-center gap-3 mb-6 pb-4 border-b border-base-content/10">
-						<div class="p-3 bg-primary/10 text-primary rounded-xl">
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
-						</div>
+					<div class="flex items-center justify-between mb-6 pb-4 border-b border-base-content/10">
 						<div>
 							<h1 class="text-2xl font-bold">Edit Part</h1>
 							<p class="text-sm opacity-60">Update details for { p.Name }</p>
 						</div>
+						<form action={ templ.SafeURL(fmt.Sprintf("/parts/%d/delete", p.ID)) } method="POST" hx-boost="false">
+							<button
+								class="btn btn-sm btn-outline btn-error gap-2"
+								onclick="return confirm('Are you sure? This cannot be undone.')"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+								Delete Part
+							</button>
+						</form>
 					</div>
 					<form action={ templ.SafeURL(fmt.Sprintf("/parts/%d/edit", p.ID)) } method="POST" enctype="multipart/form-data" class="space-y-8" hx-boost="false">
+						<input type="hidden" name="id" value={ fmt.Sprintf("%d", p.ID) }/>
 						<div class="space-y-4">
-							<h3 class="font-bold text-sm uppercase tracking-wider opacity-50 flex items-center gap-2">
-								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-								Core Details
-							</h3>
+							<h3 class="font-bold text-sm uppercase tracking-wider opacity-50 flex items-center gap-2">Core Details</h3>
 							<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 								<div class="form-control w-full">
-									<label class="label"><span class="label-text font-medium">Part Name <span class="text-error">*</span></span></label>
-									<input type="text" name="name" value={ p.Name } class="input input-bordered w-full focus:input-primary" required/>
+									<label class="label"><span class="label-text font-medium">Part Name</span></label>
+									<input type="text" name="name" value={ p.Name } class="input input-bordered w-full" required/>
 								</div>
 								<div class="form-control w-full">
-									<label class="label"><span class="label-text font-medium">Part Number / MPN</span></label>
-									<input type="text" name="part_number" value={ p.PartNumber.String } class="input input-bordered w-full focus:input-primary font-mono text-sm"/>
+									<label class="label"><span class="label-text font-medium">Part Number</span></label>
+									<input type="text" name="part_number" value={ p.PartNumber.String } class="input input-bordered w-full font-mono text-sm"/>
 								</div>
 							</div>
-							<div class="form-control w-full flex flex-col">
+							<div class="form-control w-full">
 								<label class="label"><span class="label-text font-medium">Description</span></label>
-								<textarea name="description" class="textarea textarea-bordered h-24 w-full focus:textarea-primary">{ p.Description.String }</textarea>
+								<textarea name="description" class="textarea textarea-bordered h-24 w-full">{ p.Description.String }</textarea>
 							</div>
 						</div>
 						<div class="space-y-4">
-							<h3 class="font-bold text-sm uppercase tracking-wider opacity-50 flex items-center gap-2 border-t border-base-content/5 pt-6">
-								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-								Visuals
-							</h3>
-							<div class="form-control w-full">
-								<label class="label"><span class="label-text font-medium">Image</span></label>
+							<h3 class="font-bold text-sm uppercase tracking-wider opacity-50 flex items-center gap-2 border-t border-base-content/5 pt-6">Visuals</h3>
+							<div class="flex gap-6 items-start">
 								if p.ImagePath.Valid && p.ImagePath.String != "" {
-									<div class="flex items-center gap-4 mb-3 p-3 bg-base-100 rounded-lg border border-base-300 w-fit">
-										<div class="avatar">
-											<div class="w-12 h-12 rounded">
-												<img src={ "/uploads/" + p.ImagePath.String } alt="Current"/>
-											</div>
-										</div>
-										<div class="text-xs opacity-60">
-											<span class="block font-bold">Current Image</span>
-											<span>Will remain unless you upload a new one.</span>
+									<div class="avatar">
+										<div class="w-24 rounded border border-base-content/20">
+											<img src={ "/uploads/" + p.ImagePath.String }/>
 										</div>
 									</div>
 								}
-								<input type="file" name="image" class="file-input file-input-bordered w-full focus:file-input-primary" accept="image/png, image/jpeg"/>
-								<label class="label"><span class="label-text-alt opacity-50">Upload to replace (Max 10MB)</span></label>
+								<div class="form-control w-full">
+									<label class="label"><span class="label-text font-medium">Update Image</span></label>
+									<input type="file" name="image" class="file-input file-input-bordered w-full" accept="image/png, image/jpeg"/>
+								</div>
 							</div>
 						</div>
 						<div class="space-y-4">
-							<h3 class="font-bold text-sm uppercase tracking-wider opacity-50 flex items-center gap-2 border-t border-base-content/5 pt-6">
-								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
-								Stock Logic
-							</h3>
+							<h3 class="font-bold text-sm uppercase tracking-wider opacity-50 flex items-center gap-2 border-t border-base-content/5 pt-6">Stock Logic</h3>
 							<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
 								<div class="form-control w-full">
 									<label class="label"><span class="label-text font-medium">Unit Cost ($)</span></label>
-									<div class="relative">
-										<span class="absolute left-3 top-3 opacity-50">$</span>
-										<input type="number" name="unit_cost" value={ fmt.Sprintf("%.2f", p.UnitCost.Float64) } step="0.01" class="input input-bordered w-full pl-8 font-mono focus:input-primary"/>
-									</div>
+									<input type="number" name="unit_cost" step="0.01" value={ fmt.Sprintf("%.2f", p.UnitCost.Float64) } class="input input-bordered w-full font-mono"/>
 								</div>
 								<div class="form-control w-full">
 									<label class="label"><span class="label-text font-medium">Min. Stock</span></label>
-									<input type="number" name="min_stock" value={ fmt.Sprintf("%d", p.MinStockThreshold.Int64) } class="input input-bordered w-full font-mono focus:input-primary"/>
-									<label class="label"><span class="label-text-alt opacity-50">Low stock alert threshold</span></label>
+									<input type="number" name="min_stock" value={ fmt.Sprintf("%d", p.MinStockThreshold.Int64) } class="input input-bordered w-full font-mono"/>
 								</div>
 								<div class="form-control w-full">
 									<label class="label"><span class="label-text font-medium">Reorder Level</span></label>
-									<input type="number" name="reorder_level" value={ fmt.Sprintf("%d", p.ReorderLevel.Int64) } class="input input-bordered w-full font-mono focus:input-primary"/>
-									<label class="label"><span class="label-text-alt opacity-50">Target quantity to maintain</span></label>
+									<input type="number" name="reorder_level" value={ fmt.Sprintf("%d", p.ReorderLevel.Int64) } class="input input-bordered w-full font-mono"/>
 								</div>
-							</div>
-							<div class="form-control w-full mt-4">
-								<label class="label"><span class="label-text font-medium">Barcode Data</span></label>
-								<input type="text" name="barcode_data" value={ p.BarcodeData.String } class="input input-bordered w-full font-mono focus:input-primary" placeholder="Scanned code..."/>
 							</div>
 						</div>
 						<div class="card-actions justify-end mt-8 pt-6 border-t border-base-content/10 gap-3">
 							<a href={ templ.SafeURL(fmt.Sprintf("/parts/%d", p.ID)) } class="btn btn-ghost">Cancel</a>
-							<button class="btn btn-primary px-8 gap-2">
-								Save Changes
-							</button>
+							<button class="btn btn-primary px-8">Save Changes</button>
 						</div>
 					</form>
 				</div>

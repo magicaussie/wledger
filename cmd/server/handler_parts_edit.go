@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/tuxedocurly/wledger/internal/audit"
+	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/images"
 	"github.com/tuxedocurly/wledger/web/pages"
@@ -14,6 +15,7 @@ import (
 
 // GET /parts/{id}/edit
 func (app *application) handlePartEdit(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUserFromRequest(r)
 	idStr := chi.URLParam(r, "id")
 	id, _ := strconv.Atoi(idStr)
 
@@ -23,7 +25,7 @@ func (app *application) handlePartEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pages.PartEdit(p).Render(r.Context(), w)
+	pages.PartEdit(user, p).Render(r.Context(), w)
 }
 
 // POST /parts/{id}/edit

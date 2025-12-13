@@ -35,7 +35,7 @@ type Querier interface {
 	GetDashboardStats(ctx context.Context) (GetDashboardStatsRow, error)
 	GetPart(ctx context.Context, id int64) (Part, error)
 	GetPartAssignments(ctx context.Context, partID int64) ([]GetPartAssignmentsRow, error)
-	// SESSION QUERIES (Keep existing)
+	// SESSION QUERIES
 	GetSession(ctx context.Context, token string) (Session, error)
 	GetSettings(ctx context.Context) (Setting, error)
 	GetTotalStock(ctx context.Context, partID int64) (interface{}, error)

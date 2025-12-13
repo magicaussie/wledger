@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/web/pages"
 	"golang.org/x/crypto/bcrypt"
@@ -13,24 +14,36 @@ import (
 
 // GET /settings
 func (app *application) handleSettings(w http.ResponseWriter, r *http.Request) {
-	// 1. Fetch Settings
-	s, err := app.queries.GetSettings(r.Context())
-	if err != nil {
-		app.logger.Error("failed to get settings", "error", err)
-		http.Error(w, "Database error", http.StatusInternalServerError)
-		return
-	}
+	// Get User
+	user := auth.GetUserFromRequest(r)
 
-	// Fetch Users (for the management table)
-	users, err := app.queries.ListUsers(r.Context())
-	if err != nil {
-		app.logger.Error("failed to list users", "error", err)
-		// render settings, just with empty users list
+	var settings db.Setting
+	var users []db.ListUsersRow
+	var err error
+
+	// Fetch Admin Data (Only if User is Admin)
+	// Viewers/Editors don't need this data since the template hides those sections.
+	if user.IsAdmin() {
+		settings, err = app.queries.GetSettings(r.Context())
+		if err != nil {
+			app.logger.Error("failed to get settings", "error", err)
+			// If settings table is empty/broken, consider handling it gracefully,
+			// but for now, log it
+			// TODO: implement graceful handling
+		}
+
+		users, err = app.queries.ListUsers(r.Context())
+		if err != nil {
+			app.logger.Error("failed to list users", "error", err)
+			users = []db.ListUsersRow{}
+		}
+	} else {
+		// Initialize empty for non-admins to satisfy signature
 		users = []db.ListUsersRow{}
 	}
 
-	// Render
-	pages.Settings(s, users).Render(r.Context(), w)
+	// Render with User object
+	pages.Settings(user, settings, users).Render(r.Context(), w)
 }
 
 // POST /settings

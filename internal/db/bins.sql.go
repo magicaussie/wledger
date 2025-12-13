@@ -120,11 +120,13 @@ func (q *Queries) GetBinsByController(ctx context.Context, controllerID sql.Null
 }
 
 const upsertBin = `-- name: UpsertBin :exec
-INSERT INTO bins (name, controller_id, led_index, width)
-VALUES (?, ?, ?, ?)
+INSERT INTO bins (name, controller_id, led_index, width, grid_x, grid_y)
+VALUES (?, ?, ?, ?, ?, ?)
 ON CONFLICT(controller_id, led_index) DO UPDATE SET
     name = excluded.name,
-    width = excluded.width
+    width = excluded.width,
+    grid_x = excluded.grid_x,
+    grid_y = excluded.grid_y
 `
 
 type UpsertBinParams struct {
@@ -132,6 +134,8 @@ type UpsertBinParams struct {
 	ControllerID sql.NullInt64 `json:"controller_id"`
 	LedIndex     sql.NullInt64 `json:"led_index"`
 	Width        sql.NullInt64 `json:"width"`
+	GridX        sql.NullInt64 `json:"grid_x"`
+	GridY        sql.NullInt64 `json:"grid_y"`
 }
 
 func (q *Queries) UpsertBin(ctx context.Context, arg UpsertBinParams) error {
@@ -140,6 +144,8 @@ func (q *Queries) UpsertBin(ctx context.Context, arg UpsertBinParams) error {
 		arg.ControllerID,
 		arg.LedIndex,
 		arg.Width,
+		arg.GridX,
+		arg.GridY,
 	)
 	return err
 }
