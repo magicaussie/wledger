@@ -210,8 +210,7 @@ func (m *Manager) RequireRole(acceptedRoles ...string) func(http.Handler) http.H
 // It acts as the bridge between the Session (Cookie) and the Context (Application).
 func (m *Manager) Authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// 1. Check Session for ID
-		// We use GetInt64 because we fixed the casting issue earlier
+		// Check Session for ID
 		userID := m.Session.GetInt64(r.Context(), "user_id")
 
 		// If no ID in session, they are a Guest
@@ -225,8 +224,9 @@ func (m *Manager) Authenticate(next http.Handler) http.Handler {
 		// Role is needed to construct the full auth.User
 		dbUser, err := m.Queries.GetUser(r.Context(), userID)
 		if err != nil {
-			// If DB fails (e.g., user deleted but session remains), downgrade to Guest
-			// log it as info/warn, not error, to avoid log spam on stale sessions
+			// If DB fails (e.g., user deleted but session remains), destroy session,
+			// downgrade to Guest, log it as info/warn, not error, to avoid log spam on stale sessions
+			_ = m.Session.Destroy(r.Context())
 			m.Logger.Warn("Authenticate: failed to fetch user for session", "user_id", userID, "error", err)
 			ctx := auth.WithUser(r.Context(), auth.Guest())
 			next.ServeHTTP(w, r.WithContext(ctx))

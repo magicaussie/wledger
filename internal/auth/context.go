@@ -24,7 +24,7 @@ func GetUser(ctx context.Context) User {
 	return Guest()
 }
 
-// GetUserFromRequest is a syntactic sugar helper for handlers.
+// GetUserFromRequest is a helper for handlers.
 func GetUserFromRequest(r *http.Request) User {
 	return GetUser(r.Context())
 }

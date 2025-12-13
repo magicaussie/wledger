@@ -95,7 +95,7 @@ templ Settings(user auth.User, s db.Setting, users []db.ListUsersRow) {
 								<div>
 									<h3 class="font-bold text-sm uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2 border-t border-base-content/5 pt-6">
 										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-										Hardware Automation
+										Locate Behavior
 									</h3>
 									<div class="form-control bg-base-100 p-4 rounded-lg border border-base-300">
 										<label class="label cursor-pointer justify-start gap-4 mb-4">
@@ -121,7 +121,7 @@ templ Settings(user auth.User, s db.Setting, users []db.ListUsersRow) {
 								<div>
 									<h3 class="font-bold text-sm uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2 border-t border-base-content/5 pt-6">
 										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path></svg>
-										Interface Colors
+										LED Colors
 									</h3>
 									<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
 										<div class="form-control">
@@ -170,7 +170,9 @@ templ Settings(user auth.User, s db.Setting, users []db.ListUsersRow) {
 							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
 							Change Your Password
 						</h3>
-						@components.ChangePasswordForm("/settings/password", true)
+						<div class="place-items-center">
+							@components.ChangePasswordForm("/settings/password", true)
+						</div>
 					</div>
 				</div>
 			</div>
