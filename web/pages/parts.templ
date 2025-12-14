@@ -97,8 +97,8 @@ templ PartCards(parts []PartView, search string, page int) {
 				<p class="text-xs opacity-70 truncate">{ part.Description.String }</p>
 				<div class="flex justify-between items-end mt-4">
 					<div class="flex flex-col">
-						<span class="text-xs font-mono opacity-50"># { part.PartNumber.String }</span>
-						<span class="badge badge-sm badge-neutral mt-1">Stock: { fmt.Sprintf("%v", part.TotalStock) }</span>
+						<span class="text-s font-mono opacity-50"># { part.PartNumber.String }</span>
+						<span class="badge badge-sm badge-secondary mt-1">Stock: { fmt.Sprintf("%v", part.TotalStock) }</span>
 					</div>
 				</div>
 			</div>

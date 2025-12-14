@@ -46,7 +46,7 @@ templ PartForm(part db.Part, links []db.PartLink, docs []db.PartDoc, action stri
 									</div>
 								</div>
 							}
-							<input type="file" name="image" accept="image/*" class="file-input file-input-bordered w-full"/>
+							<input type="file" name="image" accept="image/*" class="file-input file-input-primary w-full"/>
 						</div>
 						<label class="label"><span class="label-text-alt opacity-60">Replaces current image if uploaded.</span></label>
 					</div>
@@ -90,12 +90,17 @@ templ PartForm(part db.Part, links []db.PartLink, docs []db.PartDoc, action stri
 						<input type="number" step="0.01" name="unit_cost" value={ fmt.Sprintf("%.2f", part.UnitCost.Float64) } class="input input-bordered w-full"/>
 					</div>
 					<div class="form-control w-full">
-						<label class="label"><span class="label-text font-medium">Min Stock Level</span></label>
+						<label class="label">
+							<span class="label-text font-medium">Min Stock Level</span>
+							@QuestionTooltip("When inventory drops below this number, it will be flagged as 'Critical Stock'.")
+						</label>
 						<input type="number" name="min_stock" value={ fmt.Sprintf("%d", part.MinStockThreshold.Int64) } class="input input-bordered w-full"/>
-						<label class="label"><span class="label-text-alt text-warning">Triggers "Low Stock" warning</span></label>
 					</div>
 					<div class="form-control w-full">
-						<label class="label"><span class="label-text font-medium">Reorder Level</span></label>
+						<label class="label">
+							<span class="label-text font-medium">Reorder Level</span>
+							@QuestionTooltip("When inventory drops below this number, it will be flagged as 'Low Stock'.")
+						</label>
 						<input type="number" name="reorder_level" value={ fmt.Sprintf("%d", part.ReorderLevel.Int64) } class="input input-bordered w-full"/>
 					</div>
 				</div>
@@ -158,7 +163,7 @@ templ PartForm(part db.Part, links []db.PartLink, docs []db.PartDoc, action stri
 									</div>
 									<button
 										type="button"
-										class="btn btn-xs btn-ghost text-error"
+										class="btn btn-s btn-error"
 										hx-delete={ fmt.Sprintf("/parts/docs/%d", doc.ID) }
 										hx-target={ fmt.Sprintf("#doc-%d", doc.ID) }
 										hx-swap="outerHTML"
@@ -169,7 +174,7 @@ templ PartForm(part db.Part, links []db.PartLink, docs []db.PartDoc, action stri
 							}
 						</div>
 					}
-					<input type="file" name="documents" multiple class="file-input file-input-bordered w-full"/>
+					<input type="file" name="documents" multiple class="file-input file-input-primary w-full"/>
 				</div>
 			</div>
 		</div>

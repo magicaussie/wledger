@@ -215,32 +215,49 @@ templ Settings(user auth.User, s db.Setting, users []db.ListUsersRow) {
 			</div>
 			if user.IsAdmin() {
 				<dialog id="user_add_modal" class="modal">
-					<div class="modal-box">
-						<h3 class="font-bold text-lg">Add New User</h3>
-						<form action="/settings/users" method="POST" class="py-4 space-y-4">
-							<div class="form-control">
-								<label class="label"><span class="label-text">Email</span></label>
-								<input type="email" name="email" class="input input-bordered w-full" required/>
+					<div class="modal-box bg-base-100">
+						<form method="dialog">
+							<button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+						</form>
+						<h3 class="font-bold text-xl mb-6">Add New User</h3>
+						<form action="/settings/users" method="POST" class="space-y-5">
+							<div class="form-control w-full">
+								<label class="label pt-0 pb-2">
+									<span class="label-text font-medium">Email Address</span>
+								</label>
+								<input type="email" name="email" class="input input-bordered w-full" placeholder="user@example.com" required/>
 							</div>
-							<div class="form-control">
-								<label class="label"><span class="label-text">Temporary Password</span></label>
-								<input type="text" name="temp_password" value="Wledger123!" class="input input-bordered w-full font-mono" required/>
-								<label class="label"><span class="label-text-alt text-warning">User must change this on first login.</span></label>
+							<div class="form-control w-full">
+								<label class="label pt-0 pb-2">
+									<span class="label-text font-medium">Temporary Password</span>
+								</label>
+								<input type="text" name="temp_password" value="Wledger123!" class="input validator input-bordered w-full font-mono bg-base-200" minlength="8" required/>
+								<label class="label pb-0">
+									<span class="label-text-alt text-warning flex items-center gap-1.5 font-medium">
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+										User must change this on first login
+									</span>
+								</label>
 							</div>
-							<div class="form-control">
-								<label class="label"><span class="label-text">Role</span></label>
-								<select name="role" class="select select-bordered">
+							<div class="form-control w-full">
+								<label class="label pt-0 pb-2">
+									<span class="label-text font-medium">Role</span>
+								</label>
+								<select name="role" class="select select-bordered w-full">
 									<option value="viewer">Viewer (Read-Only)</option>
-									<option value="editor">Editor (Inventory)</option>
-									<option value="admin">Admin (Full Access)</option>
+									<option value="editor">Editor (Inventory Operations)</option>
+									<option value="admin">Admin (Full System Access)</option>
 								</select>
 							</div>
-							<div class="modal-action">
-								<button type="button" class="btn" onclick="user_add_modal.close()">Cancel</button>
-								<button class="btn btn-primary">Create User</button>
+							<div class="modal-action mt-8">
+								<button type="button" class="btn btn-ghost" onclick="user_add_modal.close()">Cancel</button>
+								<button type="submit" class="btn btn-primary px-6">Create User</button>
 							</div>
 						</form>
 					</div>
+					<form method="dialog" class="modal-backdrop">
+						<button>close</button>
+					</form>
 				</dialog>
 			}
 			<div class="text-center mt-12 opacity-30 text-xs pb-8">
