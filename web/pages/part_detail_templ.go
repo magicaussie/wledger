@@ -396,7 +396,7 @@ func PartDetail(user auth.User, part db.Part, stock []db.GetPartAssignmentsRow, 
 				}
 			}
 			for _, s := range stock {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "<tr><td class=\"font-medium\"><div class=\"flex items-center gap-2\"><svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-4 w-4 opacity-50\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z\"></path><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M15 11a3 3 0 11-6 0 3 3 0 016 0z\"></path></svg> ")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "<tr><td class=\"font-medium\"><div class=\"flex items-center gap-2\"><svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-5 w-5 opacity-50\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z\"></path><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M15 11a3 3 0 11-6 0 3 3 0 016 0z\"></path></svg> ")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -460,7 +460,7 @@ func PartDetail(user auth.User, part db.Part, stock []db.GetPartAssignmentsRow, 
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 50, "\" hx-swap=\"none\" class=\"btn btn-xs btn-ghost text-accent\" title=\"Locate\"><svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-4 w-4\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M15 12a3 3 0 11-6 0 3 3 0 016 0z\"></path><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z\"></path></svg></button> ")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 50, "\" hx-swap=\"none\" class=\"btn btn-xs btn-ghost text-accent\" title=\"Locate\"><svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-5 w-5\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M15 12a3 3 0 11-6 0 3 3 0 016 0z\"></path><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z\"></path></svg></button> ")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -494,20 +494,20 @@ func PartDetail(user auth.User, part db.Part, stock []db.GetPartAssignmentsRow, 
 				return templ_7745c5c3_Err
 			}
 			if user.CanWrite() {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 55, "<dialog id=\"stock_modal\" class=\"modal\"><div class=\"modal-box\"><h3 class=\"font-bold text-lg mb-4\">Add Stock Location</h3><form action=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 55, "<dialog id=\"stock_modal\" class=\"modal\"><div class=\"modal-box bg-base-100 overflow-visible\"><form method=\"dialog\"><button class=\"btn btn-sm btn-circle btn-ghost absolute right-2 top-2\">✕</button></form><h3 class=\"font-bold text-xl mb-6\">Add Stock Location</h3><form action=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var24 templ.SafeURL
 				templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/parts/%d/assign", part.ID)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 210, Col: 76}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 214, Col: 71}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 56, "\" method=\"POST\" class=\"space-y-4\"><div class=\"form-control\"><label class=\"label\"><span class=\"label-text\">WLED Controller</span></label> <select name=\"controller_id\" class=\"select select-bordered\" hx-get=\"/parts/bins_options\" hx-target=\"#bin_select\" hx-trigger=\"change\"><option value=\"\" disabled selected>Select a controller...</option> ")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 56, "\" method=\"POST\" class=\"space-y-5\" x-data=\"{ valid: false }\" @input=\"valid = $el.checkValidity()\" x-init=\"valid = $el.checkValidity()\"><div class=\"form-control w-full\"><label class=\"label pt-0 pb-2 justify-start gap-2\"><span class=\"label-text font-medium\">WLED Controller</span><div class=\"tooltip tooltip-bottom md:tooltip-right before:text-xs before:w-[14rem] md:before:w-[24rem] z-50\" data-tip=\"Select the WLED controller containing the bin you want to store this part in.\"><svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"currentColor\" class=\"w-5 h-5 text-base-content/80 hover:text-primary transition-colors cursor-help\"><path fill-rule=\"evenodd\" d=\"M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm11.378-3.917c-.89-.777-2.366-.777-3.255 0a.75.75 0 01-.988-1.129c1.454-1.272 3.776-1.272 5.23 0 1.539 1.345 1.469 3.797.147 4.931-1.019.874-1.725 1.76-1.725 2.865v.75a.75.75 0 01-1.5 0v-.75c0-1.76 1.144-3.09 2.45-4.21.602-.516.59-1.2.14-1.593zM12 18a.75.75 0 100-1.5.75.75 0 000 1.5z\" clip-rule=\"evenodd\"></path></svg></div></label> <select name=\"controller_id\" class=\"select select-bordered w-full\" hx-get=\"/parts/bins_options\" hx-target=\"#bin_select\" hx-trigger=\"change\" required><option value=\"\" disabled selected>Select a controller...</option> ")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -519,7 +519,7 @@ func PartDetail(user auth.User, part db.Part, stock []db.GetPartAssignmentsRow, 
 					var templ_7745c5c3_Var25 string
 					templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", c.ID))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 222, Col: 49}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 243, Col: 49}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 					if templ_7745c5c3_Err != nil {
@@ -532,7 +532,7 @@ func PartDetail(user auth.User, part db.Part, stock []db.GetPartAssignmentsRow, 
 					var templ_7745c5c3_Var26 string
 					templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(c.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 222, Col: 60}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 243, Col: 60}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 					if templ_7745c5c3_Err != nil {
@@ -543,7 +543,7 @@ func PartDetail(user auth.User, part db.Part, stock []db.GetPartAssignmentsRow, 
 						return templ_7745c5c3_Err
 					}
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 60, "</select></div><div class=\"form-control\"><label class=\"label\"><span class=\"label-text\">Bin / Location</span></label> <select id=\"bin_select\" name=\"bin_id\" class=\"select select-bordered\" required><option disabled selected>Select a controller first</option></select></div><div class=\"form-control\"><label class=\"label\"><span class=\"label-text\">Quantity</span></label> <input type=\"number\" name=\"quantity\" value=\"1\" min=\"1\" class=\"input input-bordered\" required></div><div class=\"modal-action\"><button type=\"button\" class=\"btn\" onclick=\"stock_modal.close()\">Cancel</button> <button class=\"btn btn-primary\">Save Assignment</button></div></form></div></dialog>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 60, "</select></div><div class=\"form-control w-full\"><label class=\"label pt-0 pb-2 justify-start gap-2\"><span class=\"label-text font-medium\">Bin / Location</span><div class=\"tooltip tooltip-bottom md:tooltip-right before:text-xs before:w-[14rem] md:before:w-[24rem] z-50\" data-tip=\"Choose the specific physical bin (LED segment) assigned to this part.\"><svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"currentColor\" class=\"w-5 h-5 text-base-content/80 hover:text-primary transition-colors cursor-help\"><path fill-rule=\"evenodd\" d=\"M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm11.378-3.917c-.89-.777-2.366-.777-3.255 0a.75.75 0 01-.988-1.129c1.454-1.272 3.776-1.272 5.23 0 1.539 1.345 1.469 3.797.147 4.931-1.019.874-1.725 1.76-1.725 2.865v.75a.75.75 0 01-1.5 0v-.75c0-1.76 1.144-3.09 2.45-4.21.602-.516.59-1.2.14-1.593zM12 18a.75.75 0 100-1.5.75.75 0 000 1.5z\" clip-rule=\"evenodd\"></path></svg></div></label> <select id=\"bin_select\" name=\"bin_id\" class=\"select select-bordered w-full\" required><option value=\"\" disabled selected>Select a controller first</option></select> <label class=\"label\"><span class=\"label-text-alt text-base-content/50\">Select a controller to load available bins</span></label></div><div class=\"form-control w-full\" x-data=\"{ qty: 1 }\"><label class=\"label pt-0 pb-2 justify-start gap-2\"><span class=\"label-text font-medium\">Quantity</span><div class=\"tooltip tooltip-bottom md:tooltip-right before:text-xs before:w-[14rem] md:before:w-[24rem] z-50\" data-tip=\"Enter how many units are currently stored in this specific bin.\"><svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"currentColor\" class=\"w-5 h-5 text-base-content/80 hover:text-primary transition-colors cursor-help\"><path fill-rule=\"evenodd\" d=\"M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm11.378-3.917c-.89-.777-2.366-.777-3.255 0a.75.75 0 01-.988-1.129c1.454-1.272 3.776-1.272 5.23 0 1.539 1.345 1.469 3.797.147 4.931-1.019.874-1.725 1.76-1.725 2.865v.75a.75.75 0 01-1.5 0v-.75c0-1.76 1.144-3.09 2.45-4.21.602-.516.59-1.2.14-1.593zM12 18a.75.75 0 100-1.5.75.75 0 000 1.5z\" clip-rule=\"evenodd\"></path></svg></div></label><div class=\"join w-full\"><button type=\"button\" class=\"btn btn-primary join-item btn-square\" @click=\"qty = Math.max(1, parseInt(qty || 0) - 1)\"><svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-5 w-5\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M20 12H4\"></path></svg></button> <input type=\"number\" name=\"quantity\" x-model=\"qty\" min=\"1\" class=\"input input-bordered join-item w-full text-center appearance-none\" required> <button type=\"button\" class=\"btn btn-primary join-item btn-square\" @click=\"qty = parseInt(qty || 0) + 1\"><svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-5 w-5\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M12 4v16m8-8H4\"></path></svg></button></div></div><div class=\"modal-action mt-8\"><button type=\"button\" class=\"btn btn-ghost\" onclick=\"stock_modal.close()\">Cancel</button> <button type=\"submit\" class=\"btn btn-primary px-6\" :disabled=\"!valid\">Save Stock</button></div></form></div><form method=\"dialog\" class=\"modal-backdrop\"><button>close</button></form></dialog>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

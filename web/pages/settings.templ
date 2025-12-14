@@ -21,54 +21,79 @@ templ Settings(user auth.User, s db.Setting, users []db.ListUsersRow) {
 						<div class="card-body">
 							<div class="flex justify-between items-center mb-4">
 								<h3 class="font-bold text-sm uppercase tracking-wider opacity-50 flex items-center gap-2">
-									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
 									User Management
 								</h3>
-								<button onclick="user_add_modal.showModal()" class="btn btn-xs btn-primary">
-									<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-									Add User
+								<button onclick="user_add_modal.showModal()" class="btn btn-primary px-8 gap-2">
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 md:mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+									<span class="hidden md:inline">Add User</span>
 								</button>
 							</div>
-							<div class="overflow-x-auto">
-								<table class="table table-zebra w-full">
-									<thead>
+							<div class="overflow-x-auto min-h-[200px] rounded-lg border border-base-200 bg-base-100">
+								<table class="table table-zebra table-sm md:table-md w-full">
+									<thead class="bg-base-200 text-base-content/70 uppercase tracking-wider text-xs">
 										<tr>
-											<th>Email</th>
-											<th>Role</th>
-											<th>Status</th>
-											<th class="text-right">Actions</th>
+											<th class="text-left align-middle py-3 pl-4">Email</th>
+											<th class="text-left align-middle py-3">Role</th>
+											<th class="text-left align-middle py-3">Status</th>
+											<th class="text-right align-middle py-3 pr-4">Actions</th>
 										</tr>
 									</thead>
 									<tbody>
 										for _, u := range users {
-											<tr>
-												<td class="font-medium">{ u.Email }</td>
-												<td>
-													<span class="badge badge-sm font-mono uppercase">{ u.Role }</span>
+											<tr class="hover">
+												<td class="font-medium align-middle pl-4">
+													<div class="flex items-center gap-3">
+														<div class="font-bold truncate max-w-[120px] md:max-w-[200px] text-sm" title={ u.Email }>
+															{ u.Email }
+														</div>
+													</div>
 												</td>
-												<td>
-													if u.ChangePasswordRequired.Bool {
-														<span class="badge badge-warning badge-sm gap-1">
-															<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-															Reset Pending
-														</span>
+												<td class="align-middle whitespace-nowrap">
+													if u.Role == "admin" {
+														<span class="badge badge-primary badge-outline badge-sm font-mono uppercase font-bold">{ u.Role }</span>
 													} else {
-														<span class="text-xs opacity-50">Active</span>
+														<span class="badge badge-ghost badge-sm font-mono uppercase">{ u.Role }</span>
 													}
 												</td>
-												<td class="text-right">
+												<td class="align-middle whitespace-nowrap">
+													if u.ChangePasswordRequired.Bool {
+														<div class="flex items-center">
+															<div class="md:hidden text-warning" title="Reset Pending">
+																<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+															</div>
+															<span class="hidden md:inline-flex badge badge-warning badge-sm gap-1">
+																<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+																Reset Pending
+															</span>
+														</div>
+													} else {
+														<div class="flex items-center gap-2 opacity-50">
+															<div class="w-1.5 h-1.5 rounded-full bg-success"></div>
+															<span class="text-xs font-semibold uppercase tracking-wide">Active</span>
+														</div>
+													}
+												</td>
+												<td class="text-right align-middle pr-4 whitespace-nowrap">
 													if u.ID != user.ID {
-														<div class="flex justify-end gap-2">
+														<div class="flex justify-end items-center gap-2">
 															if u.Role != "admin" {
 																<form action={ templ.SafeURL(fmt.Sprintf("/settings/users/%d/reset", u.ID)) } method="POST" onsubmit="return confirm('Force this user to change their password on next login?');">
-																	<button class="btn btn-xs btn-outline btn-warning" title="Force Password Reset">
-																		<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>
-																		Force Reset
+																	<button class="btn btn-sm md:btn-xs btn-outline btn-warning px-2 md:px-3" title="Force Reset">
+																		<div class="flex items-center gap-1">
+																			<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>
+																			<span class="hidden md:inline text-[10px] uppercase font-bold">Reset</span>
+																		</div>
 																	</button>
 																</form>
 															}
 															<form action={ templ.SafeURL(fmt.Sprintf("/settings/users/%d/delete", u.ID)) } method="POST" onsubmit="return confirm('Delete this user?');">
-																<button class="btn btn-xs btn-ghost text-error" title="Delete User">Delete</button>
+																<button class="btn btn-sm md:btn-xs btn-outline btn-error opacity-70 hover:opacity-100 px-2 md:px-3" title="Delete">
+																	<div class="flex items-center gap-1">
+																		<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+																		<span class="hidden md:inline text-[10px] uppercase font-bold">Delete</span>
+																	</div>
+																</button>
 															</form>
 														</div>
 													}
@@ -112,7 +137,7 @@ templ Settings(user auth.User, s db.Setting, users []db.ListUsersRow) {
 											<input
 												type="checkbox"
 												name="enable_timeout"
-												class="toggle toggle-secondary"
+												class="toggle toggle-primary"
 												if s.EnableLocateTimeout.Bool {
 													checked
 												}
@@ -180,7 +205,11 @@ templ Settings(user auth.User, s db.Setting, users []db.ListUsersRow) {
 							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
 							Change Your Password
 						</h3>
-						@components.ChangePasswordForm("/settings/password", true)
+						<div class="flex justify-center w-full">
+							<div class="w-full max-w-sm">
+								@components.ChangePasswordForm("/settings/password", true)
+							</div>
+						</div>
 					</div>
 				</div>
 			</div>
