@@ -11,13 +11,16 @@ import (
 
 type Querier interface {
 	CleanupSessions(ctx context.Context, expiry float64) error
-	CountParts(ctx context.Context) (int64, error)
 	CountUsers(ctx context.Context) (int64, error)
 	CreateAuditLog(ctx context.Context, arg CreateAuditLogParams) error
 	CreateBin(ctx context.Context, arg CreateBinParams) (int64, error)
 	CreateController(ctx context.Context, arg CreateControllerParams) (CreateControllerRow, error)
 	CreatePart(ctx context.Context, arg CreatePartParams) (int64, error)
 	CreatePartAssignment(ctx context.Context, arg CreatePartAssignmentParams) error
+	// DOCUMENTS
+	CreatePartDoc(ctx context.Context, arg CreatePartDocParams) error
+	// LINKS
+	CreatePartLink(ctx context.Context, arg CreatePartLinkParams) error
 	CreateSession(ctx context.Context, arg CreateSessionParams) error
 	CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error)
 	DeleteBinByLed(ctx context.Context, arg DeleteBinByLedParams) error
@@ -25,6 +28,8 @@ type Querier interface {
 	DeleteController(ctx context.Context, id int64) error
 	DeletePart(ctx context.Context, id int64) error
 	DeletePartAssignment(ctx context.Context, arg DeletePartAssignmentParams) error
+	DeletePartDoc(ctx context.Context, id int64) error
+	DeletePartLink(ctx context.Context, id int64) error
 	DeleteSession(ctx context.Context, token string) error
 	DeleteUser(ctx context.Context, id int64) error
 	GetAssignmentID(ctx context.Context, arg GetAssignmentIDParams) (int64, error)
@@ -34,19 +39,21 @@ type Querier interface {
 	GetControllers(ctx context.Context) ([]Controller, error)
 	GetDashboardStats(ctx context.Context) (GetDashboardStatsRow, error)
 	GetPart(ctx context.Context, id int64) (Part, error)
+	// STOCK ASSIGNMENTS
 	GetPartAssignments(ctx context.Context, partID int64) ([]GetPartAssignmentsRow, error)
+	GetPartDoc(ctx context.Context, id int64) (PartDoc, error)
+	GetPartDocs(ctx context.Context, partID int64) ([]PartDoc, error)
+	GetPartLinks(ctx context.Context, partID int64) ([]PartLink, error)
 	// SESSION QUERIES
 	GetSession(ctx context.Context, token string) (Session, error)
 	GetSettings(ctx context.Context) (Setting, error)
-	GetTotalStock(ctx context.Context, partID int64) (interface{}, error)
 	GetUser(ctx context.Context, id int64) (User, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	InitSettings(ctx context.Context) error
 	ListParts(ctx context.Context, arg ListPartsParams) ([]ListPartsRow, error)
 	ListUsers(ctx context.Context) ([]ListUsersRow, error)
-	SearchParts(ctx context.Context, partsFts sql.NullString) ([]SearchPartsRow, error)
+	SearchParts(ctx context.Context, arg SearchPartsParams) ([]SearchPartsRow, error)
 	SetPasswordResetFlag(ctx context.Context, arg SetPasswordResetFlagParams) error
-	UpdateBinQuantity(ctx context.Context, arg UpdateBinQuantityParams) error
 	UpdateColors(ctx context.Context, arg UpdateColorsParams) error
 	UpdateControllerStatus(ctx context.Context, arg UpdateControllerStatusParams) error
 	UpdateGeneralSettings(ctx context.Context, arg UpdateGeneralSettingsParams) error

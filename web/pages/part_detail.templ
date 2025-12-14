@@ -7,235 +7,240 @@ import (
 	"github.com/tuxedocurly/wledger/web/layouts"
 )
 
-templ PartDetail(user auth.User, p db.Part, stock []db.GetPartAssignmentsRow, controllers []db.Controller) {
-	@layouts.Base(p.Name, user) {
-		<div class="max-w-6xl mx-auto w-full">
-			<div class="text-sm breadcrumbs mb-4 opacity-70">
-				<ul>
-					<li><a href="/parts">Inventory</a></li>
-					<li class="font-bold">{ p.Name }</li>
-				</ul>
+templ PartDetail(user auth.User, part db.Part, stock []db.GetPartAssignmentsRow, links []db.PartLink, docs []db.PartDoc, controllers []db.Controller) {
+	@layouts.Base(part.Name, user) {
+		<div class="max-w-5xl mx-auto w-full">
+			<div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+				<div>
+					<div class="text-sm breadcrumbs opacity-50 mb-1">
+						<ul>
+							<li><a href="/parts">Inventory</a></li>
+							<li>{ part.Name }</li>
+						</ul>
+					</div>
+					<h1 class="text-4xl font-bold">{ part.Name }</h1>
+					if part.Description.Valid {
+						<p class="text-lg opacity-70 mt-2">{ part.Description.String }</p>
+					}
+				</div>
+				<div class="flex gap-2">
+					if user.CanWrite() {
+						<a href={ templ.SafeURL(fmt.Sprintf("/parts/%d/edit", part.ID)) } class="btn btn-outline gap-2">
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+							Edit Part
+						</a>
+					}
+				</div>
 			</div>
 			<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-				<div class="lg:col-span-1 space-y-6">
+				<div class="space-y-6">
 					<div class="card bg-base-200 shadow-xl border border-base-300 overflow-hidden">
 						<figure class="aspect-square bg-base-300 relative group">
-							if p.ImagePath.Valid && p.ImagePath.String != "" {
-								<img src={ "/uploads/" + p.ImagePath.String } alt={ p.Name } class="object-cover w-full h-full transition-transform duration-500 group-hover:scale-105"/>
+							if part.ImagePath.Valid && part.ImagePath.String != "" {
+								<img src={ part.ImagePath.String } alt={ part.Name } class="w-full h-full object-cover"/>
 							} else {
-								<div class="flex flex-col items-center justify-center w-full h-full text-base-content/20">
-									<span class="text-6xl mb-2">📦</span>
-									<span class="text-xs uppercase font-bold tracking-widest">No Image</span>
+								<div class="flex flex-col items-center justify-center h-full opacity-20">
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-24 w-24" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
 								</div>
 							}
-							<div class="absolute top-2 right-2 badge badge-neutral font-mono text-xs shadow-md">ID: { fmt.Sprintf("%d", p.ID) }</div>
 						</figure>
-						<div class="card-body p-5">
-							<div class="mb-2">
-								<h1 class="text-2xl font-black leading-tight text-base-content">{ p.Name }</h1>
-								if p.PartNumber.Valid && p.PartNumber.String != "" {
-									<div class="flex items-center gap-2 mt-1">
-										<span class="badge badge-outline text-xs font-mono opacity-70">{ p.PartNumber.String }</span>
+					</div>
+					<div class="card bg-base-200 shadow-xl border border-base-300">
+						<div class="card-body p-4">
+							<h3 class="font-bold text-xs uppercase tracking-wider opacity-50 mb-3">Specifications</h3>
+							<div class="space-y-3 text-sm">
+								if part.PartNumber.Valid {
+									<div class="flex justify-between">
+										<span class="opacity-70">MPN</span>
+										<span class="font-mono">{ part.PartNumber.String }</span>
 									</div>
 								}
-							</div>
-							if p.Description.Valid && p.Description.String != "" {
-								<p class="text-sm text-base-content/70 leading-relaxed border-l-2 border-primary/20 pl-3 my-2">
-									{ p.Description.String }
-								</p>
-							} else {
-								<p class="text-sm italic opacity-40 my-2">No description provided.</p>
-							}
-							<div class="stats stats-vertical bg-base-100 shadow-sm border border-base-300 mt-4 text-xs lg:text-sm">
-								<div class="stat p-3">
-									<div class="stat-title opacity-60">Unit Cost</div>
-									<div class="stat-value text-lg text-primary">${ fmt.Sprintf("%.2f", p.UnitCost.Float64) }</div>
-								</div>
-								<div class="stat p-3">
-									<div class="stat-title opacity-60">Total Value</div>
-									<div class="stat-value text-lg text-base-content opacity-70">
-										${ fmt.Sprintf("%.2f", p.UnitCost.Float64 * float64(calculateTotal(stock))) }
+								if part.Manufacturer.Valid {
+									<div class="flex justify-between">
+										<span class="opacity-70">Manufacturer</span>
+										<span class="font-medium">{ part.Manufacturer.String }</span>
 									</div>
+								}
+								if part.Supplier.Valid {
+									<div class="flex justify-between">
+										<span class="opacity-70">Supplier</span>
+										<span class="font-medium">{ part.Supplier.String }</span>
+									</div>
+								}
+								<div class="divider my-1"></div>
+								<div class="flex justify-between">
+									<span class="opacity-70">Unit Cost</span>
+									<span class="font-mono">$ { fmt.Sprintf("%.2f", part.UnitCost.Float64) }</span>
 								</div>
 							</div>
-							if user.CanWrite() {
-								<div class="card-actions justify-end mt-6 pt-4 border-t border-base-content/10 gap-2">
-									<a href={ templ.SafeURL(fmt.Sprintf("/parts/%d/edit", p.ID)) } class="btn btn-sm btn-outline gap-2">
-										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
-										Edit
-									</a>
-									if user.CanDelete() {
-										<form action={ templ.SafeURL(fmt.Sprintf("/parts/%d/delete", p.ID)) } method="POST" hx-boost="false">
-											<button
-												type="submit"
-												class="btn btn-sm btn-outline btn-error gap-2"
-												onclick="if(!confirm('Are you sure you want to delete this part? This cannot be undone.')){ return false; }"
-											>
-												<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-												Delete
-											</button>
-										</form>
-									}
-								</div>
-							}
 						</div>
 					</div>
-				</div>
-				<div class="lg:col-span-2 space-y-6">
-					<div class="card bg-base-100 shadow-xl border border-base-300">
-						<div class="card-body p-0 sm:p-6">
-							<div class="p-4 sm:p-0 flex justify-between items-center">
-								<h2 class="card-title text-lg flex items-center gap-2">
-									<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-secondary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-									Stock Locations
-								</h2>
-								<div class="badge badge-secondary badge-lg font-bold">Total: { fmt.Sprintf("%d", calculateTotal(stock)) }</div>
-							</div>
-							if len(stock) == 0 {
-								<div class="alert alert-warning text-sm m-4 sm:m-0 w-auto">
-									<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-									<span>No stock assigned. Add items below.</span>
-								</div>
-							} else {
-								<div class="overflow-x-auto w-full">
-									<table class="table table-zebra w-full">
-										<thead>
-											<tr class="bg-base-200 text-base-content/70">
-												<th class="w-1/3">Controller</th>
-												<th>Bin</th>
-												<th class="text-right">Qty</th>
-												<th class="text-right pr-6">Actions</th>
-											</tr>
-										</thead>
-										<tbody>
-											for _, s := range stock {
-												<tr class="hover">
-													<td>
-														if s.ControllerName.Valid {
-															<div class="font-medium">{ s.ControllerName.String }</div>
-															<div class="text-xs opacity-50 truncate max-w-[100px]">{ s.ControllerIp.String }</div>
-														} else {
-															<span class="opacity-50 italic">Unassigned</span>
-														}
-													</td>
-													<td>
-														<span class="badge badge-neutral font-mono font-bold">{ s.BinName }</span>
-													</td>
-													<td class="text-right font-bold text-lg font-mono">{ fmt.Sprintf("%d", s.Quantity) }</td>
-													<td class="text-right">
-														<div class="flex items-center justify-end gap-2">
-															if s.ControllerID.Valid {
-																<button
-																	type="button"
-																	hx-post={ fmt.Sprintf("/hardware/%d/locate?bin_id=%d", s.ControllerID.Int64, s.BinID) }
-																	hx-trigger="click"
-																	hx-swap="none"
-																	class="btn btn-xs btn-primary text-white shadow-sm border-none"
-																	title="Locate LED"
-																>
-																	<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
-																	<span class="hidden sm:inline">Locate</span>
-																</button>
-															}
-															if user.CanDelete() {
-																<form
-																	action={ templ.SafeURL(fmt.Sprintf("/parts/%d/stock/%d/delete", p.ID, s.BinID)) }
-																	method="POST"
-																	hx-boost="false"
-																	style="display:inline;"
-																>
-																	<button
-																		type="submit"
-																		class="btn btn-xs btn-outline btn-error shadow-sm"
-																		onclick="return confirm('Remove this stock assignment?');"
-																		title="Remove Stock"
-																	>
-																		<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-																	</button>
-																</form>
-															}
-														</div>
-													</td>
-												</tr>
-											}
-										</tbody>
-									</table>
-								</div>
-							}
-						</div>
-					</div>
-					if user.CanWrite() {
-						<div class="card bg-base-200 shadow-xl">
-							<div class="card-body">
-								<h3 class="font-bold text-lg flex items-center gap-2">
-									<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
-									Add Stock
-								</h3>
-								<form action={ templ.SafeURL(fmt.Sprintf("/parts/%d/assign", p.ID)) } method="POST" class="flex flex-col gap-4">
-									<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-										<div class="form-control">
-											<label class="label"><span class="label-text">Controller</span></label>
-											<select
-												name="controller_id"
-												class="select select-bordered w-full"
-												hx-get="/parts/bins_options"
-												hx-target="#bin-select"
-												hx-swap="outerHTML"
-												hx-trigger="change"
-											>
-												<option disabled selected>Select Controller</option>
-												for _, c := range controllers {
-													<option value={ fmt.Sprintf("%d", c.ID) }>{ c.Name }</option>
-												}
-											</select>
-										</div>
-										<div class="form-control">
-											<label class="label"><span class="label-text">Bin</span></label>
-											<select id="bin-select" name="bin_id" class="select select-bordered w-full" disabled>
-												<option>Select Controller First</option>
-											</select>
-										</div>
+					if len(links) > 0 || len(docs) > 0 {
+						<div class="card bg-base-200 shadow-xl border border-base-300">
+							<div class="card-body p-4">
+								<h3 class="font-bold text-xs uppercase tracking-wider opacity-50 mb-3">Resources</h3>
+								if len(links) > 0 {
+									<div class="flex flex-col gap-2">
+										for _, link := range links {
+											<a href={ templ.SafeURL(link.Url) } target="_blank" class="btn btn-sm btn-ghost justify-start font-normal h-auto py-2">
+												<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+												{ link.Label.String }
+											</a>
+										}
 									</div>
-									<div class="form-control">
-										<label class="label"><span class="label-text">Quantity</span></label>
-										<div class="flex items-center gap-4">
-											<div class="join">
-												<button type="button" class="btn join-item" onclick="this.parentNode.querySelector('input[type=number]').stepDown()">-</button>
-												<input type="number" name="quantity" class="input input-bordered join-item w-20 text-center" value="1" min="1"/>
-												<button type="button" class="btn join-item" onclick="this.parentNode.querySelector('input[type=number]').stepUp()">+</button>
-											</div>
-											<button class="btn btn-primary flex-1">
-												Assign Stock
-											</button>
-										</div>
+								}
+								if len(links) > 0 && len(docs) > 0 {
+									<div class="divider my-1"></div>
+								}
+								if len(docs) > 0 {
+									<div class="flex flex-col gap-2">
+										for _, doc := range docs {
+											<a href={ templ.SafeURL(doc.FilePath) } target="_blank" class="btn btn-sm btn-ghost justify-start font-normal h-auto py-2">
+												<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+												{ doc.FileName }
+											</a>
+										}
 									</div>
-								</form>
+								}
 							</div>
 						</div>
 					}
 				</div>
+				<div class="lg:col-span-2 space-y-6">
+					<div class="stats shadow-xl border border-base-300 w-full bg-base-200">
+						<div class="stat">
+							<div class="stat-title">Total In Stock</div>
+							<div class="stat-value text-primary">
+								{ fmt.Sprintf("%d", calculateTotalStock(stock)) }
+							</div>
+							if part.MinStockThreshold.Valid && calculateTotalStock(stock) <= part.MinStockThreshold.Int64 {
+								<div class="stat-desc text-warning font-bold">Low Stock Warning</div>
+							}
+						</div>
+					</div>
+					<div class="card bg-base-200 shadow-xl border border-base-300">
+						<div class="card-body p-0">
+							<div class="p-4 border-b border-base-300 flex justify-between items-center">
+								<h3 class="font-bold">Locations</h3>
+								if user.CanWrite() {
+									<button onclick="stock_modal.showModal()" class="btn btn-sm btn-primary">
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+										Add Stock
+									</button>
+								}
+							</div>
+							<div class="overflow-x-auto">
+								<table class="table">
+									<thead>
+										<tr>
+											<th>Location</th>
+											<th>Controller</th>
+											<th class="text-right">Qty</th>
+											<th class="text-right w-1">Actions</th>
+										</tr>
+									</thead>
+									<tbody>
+										if len(stock) == 0 {
+											<tr>
+												<td colspan="4" class="text-center py-8 opacity-50">
+													No stock assigned.
+												</td>
+											</tr>
+										}
+										for _, s := range stock {
+											<tr>
+												<td class="font-medium">
+													<div class="flex items-center gap-2">
+														<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+														{ s.BinName }
+													</div>
+												</td>
+												<td class="text-sm opacity-70">
+													if s.ControllerName.Valid {
+														{ s.ControllerName.String }
+													} else {
+														<span class="italic">Unmanaged</span>
+													}
+												</td>
+												<td class="text-right font-mono font-bold">{ fmt.Sprintf("%d", s.Quantity) }</td>
+												<td class="text-right">
+													<div class="flex justify-end gap-1">
+														if s.ControllerID.Valid {
+															<button
+																hx-post={ fmt.Sprintf("/hardware/%d/locate?bin_id=%d", s.ControllerID.Int64, s.BinID) }
+																hx-swap="none"
+																class="btn btn-xs btn-ghost text-accent"
+																title="Locate"
+															>
+																<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+															</button>
+														}
+														if user.CanWrite() {
+															<form action={ templ.SafeURL(fmt.Sprintf("/parts/%d/stock/%d/delete", part.ID, s.BinID)) } method="POST" onsubmit="return confirm('Remove this stock assignment?');">
+																<button class="btn btn-xs btn-ghost text-error" title="Remove">
+																	<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+																</button>
+															</form>
+														}
+													</div>
+												</td>
+											</tr>
+										}
+									</tbody>
+								</table>
+							</div>
+						</div>
+					</div>
+				</div>
 			</div>
+			if user.CanWrite() {
+				<dialog id="stock_modal" class="modal">
+					<div class="modal-box">
+						<h3 class="font-bold text-lg mb-4">Add Stock Location</h3>
+						<form action={ templ.SafeURL(fmt.Sprintf("/parts/%d/assign", part.ID)) } method="POST" class="space-y-4">
+							<div class="form-control">
+								<label class="label"><span class="label-text">WLED Controller</span></label>
+								<select
+									name="controller_id"
+									class="select select-bordered"
+									hx-get="/parts/bins_options"
+									hx-target="#bin_select"
+									hx-trigger="change"
+								>
+									<option value="" disabled selected>Select a controller...</option>
+									for _, c := range controllers {
+										<option value={ fmt.Sprintf("%d", c.ID) }>{ c.Name }</option>
+									}
+								</select>
+							</div>
+							<div class="form-control">
+								<label class="label"><span class="label-text">Bin / Location</span></label>
+								<select id="bin_select" name="bin_id" class="select select-bordered" required>
+									<option disabled selected>Select a controller first</option>
+								</select>
+							</div>
+							<div class="form-control">
+								<label class="label"><span class="label-text">Quantity</span></label>
+								<input type="number" name="quantity" value="1" min="1" class="input input-bordered" required/>
+							</div>
+							<div class="modal-action">
+								<button type="button" class="btn" onclick="stock_modal.close()">Cancel</button>
+								<button class="btn btn-primary">Save Assignment</button>
+							</div>
+						</form>
+					</div>
+				</dialog>
+			}
 		</div>
 	}
 }
 
-func calculateTotal(stock []db.GetPartAssignmentsRow) int64 {
-	var t int64 = 0
+// Helper to sum stock
+// TODO: move this into /internal/utils
+func calculateTotalStock(stock []db.GetPartAssignmentsRow) int64 {
+	var total int64 = 0
 	for _, s := range stock {
-		t += s.Quantity
+		total += s.Quantity
 	}
-	return t
-}
-
-templ BinOptions(bins []db.Bin) {
-	<select id="bin-select" name="bin_id" class="select select-bordered w-full">
-		if len(bins) == 0 {
-			<option disabled selected>No bins available</option>
-		} else {
-			<option disabled selected>Select Bin</option>
-			for _, b := range bins {
-				<option value={ fmt.Sprintf("%d", b.ID) }>{ b.Name }</option>
-			}
-		}
-	</select>
+	return total
 }

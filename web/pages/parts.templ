@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/web/layouts"
+	"net/url"
 )
 
 type PartView struct {
@@ -18,6 +19,7 @@ type PartView struct {
 	TotalStock  any
 }
 
+// PartsList is the full page wrapper
 templ PartsList(user auth.User, parts []PartView, search string, page int) {
 	@layouts.Base("Inventory", user) {
 		<div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
@@ -31,9 +33,10 @@ templ PartsList(user auth.User, parts []PartView, search string, page int) {
 						class="input input-bordered join-item w-full md:w-64"
 						placeholder="Search parts..."
 						hx-get="/parts"
-						hx-trigger="keyup changed delay:250ms"
+						hx-trigger="input changed delay:250ms, search"
 						hx-target="#parts-grid"
 						hx-select="#parts-grid"
+						hx-swap="outerHTML"
 						hx-push-url="true"
 					/>
 					<button class="btn join-item">Search</button>
@@ -46,53 +49,69 @@ templ PartsList(user auth.User, parts []PartView, search string, page int) {
 				}
 			</div>
 		</div>
-		<div id="parts-grid">
-			if len(parts) == 0 {
-				<div class="text-center opacity-50 mt-20">
-					<div class="text-6xl mb-4">📦</div>
-					<p class="text-xl">No parts found.</p>
+		<div id="parts-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-12 items-start">
+			if len(parts) == 0 && page == 1 {
+				<div class="col-span-full">
+					<div class="card bg-base-200 shadow-xl border border-base-300">
+						<div class="card-body flex flex-col items-center justify-center py-16 text-center opacity-60">
+							<div class="text-6xl mb-4 grayscale">📦</div>
+							<h2 class="text-2xl font-bold">No parts found</h2>
+							<p class="text-sm">We couldn't find anything matching "{ search }".</p>
+							if search != "" {
+								<button onclick="document.querySelector('input[name=q]').value = ''; htmx.trigger('input[name=q]', 'input');" class="btn btn-sm btn-outline mt-4">
+									Clear Search
+								</button>
+							}
+						</div>
+					</div>
 				</div>
 			} else {
-				<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-					for _, p := range parts {
-						<a href={ templ.SafeURL(fmt.Sprintf("/parts/%d", p.ID)) } class="card bg-base-200 shadow-xl hover:shadow-2xl transition-shadow cursor-pointer h-full block">
-							<figure class="h-48 bg-base-300 relative">
-								if p.ImagePath.Valid && p.ImagePath.String != "" {
-									<img src={ "/uploads/" + p.ImagePath.String } alt={ p.Name } class="object-cover w-full h-full"/>
-								} else {
-									<div class="flex items-center justify-center w-full h-full text-4xl opacity-20">📷</div>
-								}
-							</figure>
-							<div class="card-body p-4">
-								<h2 class="card-title text-base">
-									{ p.Name }
-									if p.IsFavorite.Bool {
-										<span class="text-warning text-xs">★</span>
-									}
-								</h2>
-								<p class="text-xs opacity-70 truncate">{ p.Description.String }</p>
-								<div class="flex justify-between items-end mt-4">
-									<div class="flex flex-col">
-										<span class="text-xs font-mono opacity-50"># { p.PartNumber.String }</span>
-										<span class="badge badge-sm badge-neutral mt-1">Stock: { fmt.Sprintf("%v", p.TotalStock) }</span>
-									</div>
-									if user.CanWrite() {
-										<button class="btn btn-sm btn-ghost">Edit</button>
-									}
-								</div>
-							</div>
-						</a>
-					}
-				</div>
-				<div class="join grid grid-cols-2 mt-8 w-64 mx-auto">
-					if page > 1 {
-						<a href={ templ.SafeURL(fmt.Sprintf("/parts?page=%d&q=%s", page-1, search)) } class="join-item btn btn-outline">Previous</a>
-					} else {
-						<button class="join-item btn btn-outline btn-disabled">Previous</button>
-					}
-					<a href={ templ.SafeURL(fmt.Sprintf("/parts?page=%d&q=%s", page+1, search)) } class="join-item btn btn-outline">Next</a>
-				</div>
+				@PartCards(parts, search, page)
 			}
+		</div>
+	}
+}
+
+// PartCards renders ONLY the part cards and the next-page trigger.
+templ PartCards(parts []PartView, search string, page int) {
+	for _, part := range parts {
+		<a href={ templ.SafeURL(fmt.Sprintf("/parts/%d", part.ID)) } class="card bg-base-200 shadow-xl hover:shadow-2xl transition-shadow cursor-pointer block group">
+			<figure class="h-48 bg-base-300 relative overflow-hidden">
+				if part.ImagePath.Valid && part.ImagePath.String != "" {
+					<img
+						src={ part.ImagePath.String }
+						alt={ part.Name }
+						class="object-cover w-full h-full transform transition-transform duration-500 group-hover:scale-110"
+					/>
+				} else {
+					<div class="flex items-center justify-center w-full h-full text-4xl opacity-20 transform transition-transform duration-500 group-hover:scale-110">📷</div>
+				}
+			</figure>
+			<div class="card-body p-4 relative z-10 bg-base-200">
+				<h2 class="card-title text-base">
+					{ part.Name }
+					if part.IsFavorite.Bool {
+						<span class="text-warning text-xs">★</span>
+					}
+				</h2>
+				<p class="text-xs opacity-70 truncate">{ part.Description.String }</p>
+				<div class="flex justify-between items-end mt-4">
+					<div class="flex flex-col">
+						<span class="text-xs font-mono opacity-50"># { part.PartNumber.String }</span>
+						<span class="badge badge-sm badge-neutral mt-1">Stock: { fmt.Sprintf("%v", part.TotalStock) }</span>
+					</div>
+				</div>
+			</div>
+		</a>
+	}
+	if len(parts) >= 20 {
+		<div
+			hx-get={ fmt.Sprintf("/parts?page=%d&q=%s&scroll=true", page+1, url.QueryEscape(search)) }
+			hx-trigger="revealed"
+			hx-swap="outerHTML"
+			class="col-span-full py-8 flex justify-center text-primary"
+		>
+			<span class="loading loading-dots loading-lg"></span>
 		</div>
 	}
 }

@@ -54,15 +54,17 @@ templ Base(title string, user auth.User) {
 								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 opacity-50 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
 								<input
 									type="text"
+									name="q"
 									placeholder="Search (Cmd+K)"
 									class="input input-bordered w-full pl-9 h-10 text-sm"
 									@keydown.window.meta.k.prevent="$el.focus()"
 									@keydown.window.ctrl.k.prevent="$el.focus()"
 									hx-get="/parts"
-									name="q"
-									hx-select="#parts-grid"
+									hx-trigger="input changed delay:500ms, search"
 									hx-target="#main-content"
-									hx-push-url="/parts"
+									hx-select="#main-content"
+									hx-swap="outerHTML"
+									hx-push-url="true"
 								/>
 							</div>
 						</div>
@@ -160,7 +162,10 @@ templ Base(title string, user auth.User) {
 	</html>
 }
 
-// --- REUSABLE COMPONENTS ---
+// -----------------------------------------------------------
+// REUSABLE COMPONENTS
+// TODO: break these out into the /components folder
+// -----------------------------------------------------------
 
 var navBtnClass = "btn btn-ghost justify-start w-full normal-case text-base font-normal px-2"
 var commBtnClass = "btn btn-ghost btn-sm justify-start w-full normal-case font-normal text-base-content/70 px-2"

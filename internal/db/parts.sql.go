@@ -10,26 +10,16 @@ import (
 	"database/sql"
 )
 
-const countParts = `-- name: CountParts :one
-SELECT COUNT(*) FROM parts
-`
-
-func (q *Queries) CountParts(ctx context.Context) (int64, error) {
-	row := q.queryRow(ctx, q.countPartsStmt, countParts)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const createPart = `-- name: CreatePart :one
 INSERT INTO parts (
     name, description, part_number, manufacturer, supplier, 
     unit_cost, reorder_level, min_stock_threshold, 
-    barcode_data, image_path
+    image_path, barcode_data
 ) VALUES (
-    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-)
-RETURNING id
+    ?, ?, ?, ?, ?, 
+    ?, ?, ?, 
+    ?, ?
+) RETURNING id
 `
 
 type CreatePartParams struct {
@@ -41,8 +31,8 @@ type CreatePartParams struct {
 	UnitCost          sql.NullFloat64 `json:"unit_cost"`
 	ReorderLevel      sql.NullInt64   `json:"reorder_level"`
 	MinStockThreshold sql.NullInt64   `json:"min_stock_threshold"`
-	BarcodeData       sql.NullString  `json:"barcode_data"`
 	ImagePath         sql.NullString  `json:"image_path"`
+	BarcodeData       sql.NullString  `json:"barcode_data"`
 }
 
 func (q *Queries) CreatePart(ctx context.Context, arg CreatePartParams) (int64, error) {
@@ -55,8 +45,8 @@ func (q *Queries) CreatePart(ctx context.Context, arg CreatePartParams) (int64, 
 		arg.UnitCost,
 		arg.ReorderLevel,
 		arg.MinStockThreshold,
-		arg.BarcodeData,
 		arg.ImagePath,
+		arg.BarcodeData,
 	)
 	var id int64
 	err := row.Scan(&id)
@@ -64,8 +54,7 @@ func (q *Queries) CreatePart(ctx context.Context, arg CreatePartParams) (int64, 
 }
 
 const createPartAssignment = `-- name: CreatePartAssignment :exec
-INSERT INTO part_assignments (part_id, bin_id, quantity)
-VALUES (?, ?, ?)
+INSERT INTO part_assignments (part_id, bin_id, quantity) VALUES (?, ?, ?)
 `
 
 type CreatePartAssignmentParams struct {
@@ -79,6 +68,38 @@ func (q *Queries) CreatePartAssignment(ctx context.Context, arg CreatePartAssign
 	return err
 }
 
+const createPartDoc = `-- name: CreatePartDoc :exec
+INSERT INTO part_docs (part_id, file_path, file_name) VALUES (?, ?, ?)
+`
+
+type CreatePartDocParams struct {
+	PartID   int64  `json:"part_id"`
+	FilePath string `json:"file_path"`
+	FileName string `json:"file_name"`
+}
+
+// DOCUMENTS
+func (q *Queries) CreatePartDoc(ctx context.Context, arg CreatePartDocParams) error {
+	_, err := q.exec(ctx, q.createPartDocStmt, createPartDoc, arg.PartID, arg.FilePath, arg.FileName)
+	return err
+}
+
+const createPartLink = `-- name: CreatePartLink :exec
+INSERT INTO part_links (part_id, url, label) VALUES (?, ?, ?)
+`
+
+type CreatePartLinkParams struct {
+	PartID int64          `json:"part_id"`
+	Url    string         `json:"url"`
+	Label  sql.NullString `json:"label"`
+}
+
+// LINKS
+func (q *Queries) CreatePartLink(ctx context.Context, arg CreatePartLinkParams) error {
+	_, err := q.exec(ctx, q.createPartLinkStmt, createPartLink, arg.PartID, arg.Url, arg.Label)
+	return err
+}
+
 const deletePart = `-- name: DeletePart :exec
 DELETE FROM parts WHERE id = ?
 `
@@ -89,8 +110,7 @@ func (q *Queries) DeletePart(ctx context.Context, id int64) error {
 }
 
 const deletePartAssignment = `-- name: DeletePartAssignment :exec
-DELETE FROM part_assignments 
-WHERE part_id = ? AND bin_id = ?
+DELETE FROM part_assignments WHERE part_id = ? AND bin_id = ?
 `
 
 type DeletePartAssignmentParams struct {
@@ -103,9 +123,26 @@ func (q *Queries) DeletePartAssignment(ctx context.Context, arg DeletePartAssign
 	return err
 }
 
+const deletePartDoc = `-- name: DeletePartDoc :exec
+DELETE FROM part_docs WHERE id = ?
+`
+
+func (q *Queries) DeletePartDoc(ctx context.Context, id int64) error {
+	_, err := q.exec(ctx, q.deletePartDocStmt, deletePartDoc, id)
+	return err
+}
+
+const deletePartLink = `-- name: DeletePartLink :exec
+DELETE FROM part_links WHERE id = ?
+`
+
+func (q *Queries) DeletePartLink(ctx context.Context, id int64) error {
+	_, err := q.exec(ctx, q.deletePartLinkStmt, deletePartLink, id)
+	return err
+}
+
 const getAssignmentID = `-- name: GetAssignmentID :one
-SELECT id FROM part_assignments 
-WHERE part_id = ? AND bin_id = ?
+SELECT id FROM part_assignments WHERE part_id = ? AND bin_id = ?
 `
 
 type GetAssignmentIDParams struct {
@@ -148,7 +185,9 @@ func (q *Queries) GetPart(ctx context.Context, id int64) (Part, error) {
 
 const getPartAssignments = `-- name: GetPartAssignments :many
 SELECT 
-    pa.id, pa.quantity, pa.bin_id,
+    pa.id, 
+    pa.quantity, 
+    b.id as bin_id, 
     b.name as bin_name,
     c.name as controller_name,
     c.id as controller_id,
@@ -157,7 +196,6 @@ FROM part_assignments pa
 JOIN bins b ON pa.bin_id = b.id
 LEFT JOIN controllers c ON b.controller_id = c.id
 WHERE pa.part_id = ?
-ORDER BY c.name, b.name
 `
 
 type GetPartAssignmentsRow struct {
@@ -170,6 +208,7 @@ type GetPartAssignmentsRow struct {
 	ControllerIp   sql.NullString `json:"controller_ip"`
 }
 
+// STOCK ASSIGNMENTS
 func (q *Queries) GetPartAssignments(ctx context.Context, partID int64) ([]GetPartAssignmentsRow, error) {
 	rows, err := q.query(ctx, q.getPartAssignmentsStmt, getPartAssignments, partID)
 	if err != nil {
@@ -201,24 +240,91 @@ func (q *Queries) GetPartAssignments(ctx context.Context, partID int64) ([]GetPa
 	return items, nil
 }
 
-const getTotalStock = `-- name: GetTotalStock :one
-SELECT COALESCE(SUM(quantity), 0) 
-FROM part_assignments 
-WHERE part_id = ?
+const getPartDoc = `-- name: GetPartDoc :one
+SELECT id, part_id, file_path, file_name FROM part_docs WHERE id = ?
 `
 
-func (q *Queries) GetTotalStock(ctx context.Context, partID int64) (interface{}, error) {
-	row := q.queryRow(ctx, q.getTotalStockStmt, getTotalStock, partID)
-	var coalesce interface{}
-	err := row.Scan(&coalesce)
-	return coalesce, err
+func (q *Queries) GetPartDoc(ctx context.Context, id int64) (PartDoc, error) {
+	row := q.queryRow(ctx, q.getPartDocStmt, getPartDoc, id)
+	var i PartDoc
+	err := row.Scan(
+		&i.ID,
+		&i.PartID,
+		&i.FilePath,
+		&i.FileName,
+	)
+	return i, err
+}
+
+const getPartDocs = `-- name: GetPartDocs :many
+SELECT id, part_id, file_path, file_name FROM part_docs WHERE part_id = ?
+`
+
+func (q *Queries) GetPartDocs(ctx context.Context, partID int64) ([]PartDoc, error) {
+	rows, err := q.query(ctx, q.getPartDocsStmt, getPartDocs, partID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PartDoc
+	for rows.Next() {
+		var i PartDoc
+		if err := rows.Scan(
+			&i.ID,
+			&i.PartID,
+			&i.FilePath,
+			&i.FileName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getPartLinks = `-- name: GetPartLinks :many
+SELECT id, part_id, url, label FROM part_links WHERE part_id = ?
+`
+
+func (q *Queries) GetPartLinks(ctx context.Context, partID int64) ([]PartLink, error) {
+	rows, err := q.query(ctx, q.getPartLinksStmt, getPartLinks, partID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PartLink
+	for rows.Next() {
+		var i PartLink
+		if err := rows.Scan(
+			&i.ID,
+			&i.PartID,
+			&i.Url,
+			&i.Label,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listParts = `-- name: ListParts :many
-SELECT p.id, p.name, p.description, p.part_number, p.manufacturer, p.supplier, p.unit_cost, p.reorder_level, p.min_stock_threshold, p.barcode_data, p.image_path, p.is_favorite, p.created_at, p.updated_at, 
-    (SELECT COALESCE(SUM(quantity), 0) FROM part_assignments pa WHERE pa.part_id = p.id) AS total_stock
-FROM parts p
-ORDER BY p.name ASC 
+SELECT id, name, description, part_number, manufacturer, supplier, unit_cost, reorder_level, min_stock_threshold, barcode_data, image_path, is_favorite, created_at, updated_at, 
+    (SELECT COALESCE(SUM(quantity), 0) FROM part_assignments WHERE part_id = parts.id) as total_stock 
+FROM parts 
+ORDER BY name 
 LIMIT ? OFFSET ?
 `
 
@@ -285,14 +391,20 @@ func (q *Queries) ListParts(ctx context.Context, arg ListPartsParams) ([]ListPar
 }
 
 const searchParts = `-- name: SearchParts :many
-SELECT p.id, p.name, p.description, p.part_number, p.manufacturer, p.supplier, p.unit_cost, p.reorder_level, p.min_stock_threshold, p.barcode_data, p.image_path, p.is_favorite, p.created_at, p.updated_at,
-    (SELECT COALESCE(SUM(quantity), 0) FROM part_assignments pa WHERE pa.part_id = p.id) AS total_stock
-FROM parts p
-JOIN parts_fts ON p.id = parts_fts.rowid
+SELECT p.id, p.name, p.description, p.part_number, p.manufacturer, p.supplier, p.unit_cost, p.reorder_level, p.min_stock_threshold, p.barcode_data, p.image_path, p.is_favorite, p.created_at, p.updated_at, 
+    (SELECT COALESCE(SUM(quantity), 0) FROM part_assignments WHERE part_id = p.id) as total_stock 
+FROM parts_fts 
+JOIN parts p ON parts_fts.rowid = p.id 
 WHERE parts_fts MATCH ? 
-ORDER BY rank
-LIMIT 50
+ORDER BY parts_fts.rank
+LIMIT ? OFFSET ?
 `
+
+type SearchPartsParams struct {
+	PartsFts sql.NullString `json:"parts_fts"`
+	Limit    int64          `json:"limit"`
+	Offset   int64          `json:"offset"`
+}
 
 type SearchPartsRow struct {
 	ID                int64           `json:"id"`
@@ -312,8 +424,8 @@ type SearchPartsRow struct {
 	TotalStock        interface{}     `json:"total_stock"`
 }
 
-func (q *Queries) SearchParts(ctx context.Context, partsFts sql.NullString) ([]SearchPartsRow, error) {
-	rows, err := q.query(ctx, q.searchPartsStmt, searchParts, partsFts)
+func (q *Queries) SearchParts(ctx context.Context, arg SearchPartsParams) ([]SearchPartsRow, error) {
+	rows, err := q.query(ctx, q.searchPartsStmt, searchParts, arg.PartsFts, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -351,27 +463,18 @@ func (q *Queries) SearchParts(ctx context.Context, partsFts sql.NullString) ([]S
 	return items, nil
 }
 
-const updateBinQuantity = `-- name: UpdateBinQuantity :exec
-UPDATE part_assignments 
-SET quantity = ? 
-WHERE id = ?
-`
-
-type UpdateBinQuantityParams struct {
-	Quantity int64 `json:"quantity"`
-	ID       int64 `json:"id"`
-}
-
-func (q *Queries) UpdateBinQuantity(ctx context.Context, arg UpdateBinQuantityParams) error {
-	_, err := q.exec(ctx, q.updateBinQuantityStmt, updateBinQuantity, arg.Quantity, arg.ID)
-	return err
-}
-
 const updatePart = `-- name: UpdatePart :exec
 UPDATE parts SET 
-    name = ?, description = ?, part_number = ?, manufacturer = ?, 
-    supplier = ?, unit_cost = ?, reorder_level = ?, 
-    min_stock_threshold = ?, barcode_data = ?, image_path = ?,
+    name = ?, 
+    description = ?, 
+    part_number = ?, 
+    manufacturer = ?, 
+    supplier = ?, 
+    unit_cost = ?, 
+    reorder_level = ?, 
+    min_stock_threshold = ?, 
+    barcode_data = ?,
+    image_path = ?,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = ?
 `
@@ -408,9 +511,7 @@ func (q *Queries) UpdatePart(ctx context.Context, arg UpdatePartParams) error {
 }
 
 const updatePartAssignmentQuantity = `-- name: UpdatePartAssignmentQuantity :exec
-UPDATE part_assignments 
-SET quantity = quantity + ? 
-WHERE part_id = ? AND bin_id = ?
+UPDATE part_assignments SET quantity = ? WHERE part_id = ? AND bin_id = ?
 `
 
 type UpdatePartAssignmentQuantityParams struct {

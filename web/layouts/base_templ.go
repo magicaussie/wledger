@@ -85,7 +85,7 @@ func Base(title string, user auth.User) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</div><nav class=\"flex-1 flex flex-col px-4 py-2 overflow-y-auto custom-scrollbar gap-2\"><div class=\"mb-2\"><div class=\"relative\"><svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 opacity-50 pointer-events-none\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z\"></path></svg> <input type=\"text\" placeholder=\"Search (Cmd+K)\" class=\"input input-bordered w-full pl-9 h-10 text-sm\" @keydown.window.meta.k.prevent=\"$el.focus()\" @keydown.window.ctrl.k.prevent=\"$el.focus()\" hx-get=\"/parts\" name=\"q\" hx-select=\"#parts-grid\" hx-target=\"#main-content\" hx-push-url=\"/parts\"></div></div><div class=\"space-y-1\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</div><nav class=\"flex-1 flex flex-col px-4 py-2 overflow-y-auto custom-scrollbar gap-2\"><div class=\"mb-2\"><div class=\"relative\"><svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 opacity-50 pointer-events-none\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z\"></path></svg> <input type=\"text\" name=\"q\" placeholder=\"Search (Cmd+K)\" class=\"input input-bordered w-full pl-9 h-10 text-sm\" @keydown.window.meta.k.prevent=\"$el.focus()\" @keydown.window.ctrl.k.prevent=\"$el.focus()\" hx-get=\"/parts\" hx-trigger=\"input changed delay:500ms, search\" hx-target=\"#main-content\" hx-select=\"#main-content\" hx-swap=\"outerHTML\" hx-push-url=\"true\"></div></div><div class=\"space-y-1\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -162,7 +162,7 @@ func Base(title string, user auth.User) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(user.Email)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/layouts/base.templ`, Line: 130, Col: 65}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/layouts/base.templ`, Line: 132, Col: 65}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -175,7 +175,7 @@ func Base(title string, user auth.User) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(user.Role)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/layouts/base.templ`, Line: 131, Col: 94}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/layouts/base.templ`, Line: 133, Col: 94}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -244,7 +244,10 @@ func Base(title string, user auth.User) templ.Component {
 	})
 }
 
-// --- REUSABLE COMPONENTS ---
+// -----------------------------------------------------------
+// REUSABLE COMPONENTS
+// TODO: break these out into the /components folder
+// -----------------------------------------------------------
 
 var navBtnClass = "btn btn-ghost justify-start w-full normal-case text-base font-normal px-2"
 var commBtnClass = "btn btn-ghost btn-sm justify-start w-full normal-case font-normal text-base-content/70 px-2"

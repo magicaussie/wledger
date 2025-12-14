@@ -1,0 +1,194 @@
+package components
+
+import (
+	"fmt"
+	"github.com/tuxedocurly/wledger/internal/db"
+)
+
+// PartForm renders the shared form for Creating and Editing parts.
+// - part: The existing part data (empty if creating)
+// - links: Existing links (empty if creating)
+// - docs: Existing documents (empty if creating)
+// - action: The URL to POST to (e.g., "/parts" or "/parts/1/update")
+// - isEdit: Boolean to toggle specific "Edit Mode" features like deleting existing files
+templ PartForm(part db.Part, links []db.PartLink, docs []db.PartDoc, action string, isEdit bool) {
+	<form
+		action={ templ.SafeURL(action) }
+		method="POST"
+		enctype="multipart/form-data"
+		class="space-y-8"
+		x-data="{ 
+            // AlpineJS for dynamic link rows
+            newLinks: [],
+            addLink() { this.newLinks.push({url: '', label: ''}); },
+            removeLink(index) { this.newLinks.splice(index, 1); }
+        }"
+	>
+		<div class="card bg-base-200 shadow-sm border border-base-300">
+			<div class="card-body p-6">
+				<h3 class="card-title text-sm opacity-50 uppercase tracking-widest mb-4">Core Identity</h3>
+				<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+					<div class="form-control w-full">
+						<label class="label"><span class="label-text font-medium">Part Name</span></label>
+						<input type="text" name="name" value={ part.Name } placeholder="e.g. ESP32-WROOM-32" class="input input-bordered w-full" required/>
+					</div>
+					<div class="form-control w-full">
+						<label class="label"><span class="label-text font-medium">Description</span></label>
+						<input type="text" name="description" value={ part.Description.String } placeholder="Short summary..." class="input input-bordered w-full"/>
+					</div>
+					<div class="form-control w-full md:col-span-2">
+						<label class="label"><span class="label-text font-medium">Cover Image</span></label>
+						<div class="flex items-center gap-4">
+							if isEdit && part.ImagePath.Valid {
+								<div class="avatar">
+									<div class="w-16 h-16 rounded border border-base-300">
+										<img src={ part.ImagePath.String } alt="Current"/>
+									</div>
+								</div>
+							}
+							<input type="file" name="image" accept="image/*" class="file-input file-input-bordered w-full"/>
+						</div>
+						<label class="label"><span class="label-text-alt opacity-60">Replaces current image if uploaded.</span></label>
+					</div>
+				</div>
+			</div>
+		</div>
+		<div class="card bg-base-200 shadow-sm border border-base-300">
+			<div class="card-body p-6">
+				<h3 class="card-title text-sm opacity-50 uppercase tracking-widest mb-4">Specifications & Sourcing</h3>
+				<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+					<div class="form-control w-full">
+						<label class="label"><span class="label-text font-medium">Part Number (MPN)</span></label>
+						<input type="text" name="part_number" value={ part.PartNumber.String } placeholder="e.g. SN74HC595N" class="input input-bordered w-full font-mono"/>
+					</div>
+					<div class="form-control w-full">
+						<label class="label"><span class="label-text font-medium">Manufacturer</span></label>
+						<input type="text" name="manufacturer" value={ part.Manufacturer.String } placeholder="e.g. Texas Instruments" class="input input-bordered w-full"/>
+					</div>
+					<div class="form-control w-full">
+						<label class="label"><span class="label-text font-medium">Supplier</span></label>
+						<input type="text" name="supplier" value={ part.Supplier.String } placeholder="e.g. DigiKey" class="input input-bordered w-full"/>
+					</div>
+					<div class="form-control w-full md:col-span-3">
+						<label class="label"><span class="label-text font-medium">Barcode Data</span></label>
+						<div class="join w-full">
+							<input type="text" name="barcode_data" value={ part.BarcodeData.String } placeholder="Scan a barcode here..." class="input input-bordered join-item w-full font-mono"/>
+							<button type="button" class="btn join-item btn-square" title="Scan">
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path></svg>
+							</button>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+		<div class="card bg-base-200 shadow-sm border border-base-300">
+			<div class="card-body p-6">
+				<h3 class="card-title text-sm opacity-50 uppercase tracking-widest mb-4">Inventory Control</h3>
+				<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+					<div class="form-control w-full">
+						<label class="label"><span class="label-text font-medium">Unit Cost ($)</span></label>
+						<input type="number" step="0.01" name="unit_cost" value={ fmt.Sprintf("%.2f", part.UnitCost.Float64) } class="input input-bordered w-full"/>
+					</div>
+					<div class="form-control w-full">
+						<label class="label"><span class="label-text font-medium">Min Stock Level</span></label>
+						<input type="number" name="min_stock" value={ fmt.Sprintf("%d", part.MinStockThreshold.Int64) } class="input input-bordered w-full"/>
+						<label class="label"><span class="label-text-alt text-warning">Triggers "Low Stock" warning</span></label>
+					</div>
+					<div class="form-control w-full">
+						<label class="label"><span class="label-text font-medium">Reorder Level</span></label>
+						<input type="number" name="reorder_level" value={ fmt.Sprintf("%d", part.ReorderLevel.Int64) } class="input input-bordered w-full"/>
+					</div>
+				</div>
+			</div>
+		</div>
+		<div class="card bg-base-200 shadow-sm border border-base-300">
+			<div class="card-body p-6">
+				<h3 class="card-title text-sm opacity-50 uppercase tracking-widest mb-4">Resources</h3>
+				<div class="mb-6">
+					<label class="label"><span class="label-text font-medium">External Links</span></label>
+					if isEdit {
+						<div class="space-y-2 mb-2">
+							for _, link := range links {
+								<div class="flex gap-2" id={ fmt.Sprintf("link-%d", link.ID) }>
+									<div class="input input-bordered flex items-center bg-base-300 px-3 w-1/3 text-sm opacity-70 cursor-not-allowed">
+										{ link.Label.String }
+									</div>
+									<div class="input input-bordered flex items-center bg-base-300 px-3 w-2/3 text-sm opacity-70 cursor-not-allowed truncate">
+										{ link.Url }
+									</div>
+									<button
+										type="button"
+										class="btn btn-square btn-ghost text-error"
+										hx-delete={ fmt.Sprintf("/parts/links/%d", link.ID) }
+										hx-target={ fmt.Sprintf("#link-%d", link.ID) }
+										hx-swap="outerHTML"
+									>
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+									</button>
+								</div>
+							}
+						</div>
+					}
+					<div class="space-y-2">
+						<template x-for="(link, index) in newLinks" :key="index">
+							<div class="flex gap-2">
+								<input type="text" name="link_labels[]" x-model="link.label" placeholder="Label (e.g. Datasheet)" class="input input-bordered w-1/3" required/>
+								<input type="url" name="link_urls[]" x-model="link.url" placeholder="https://..." class="input input-bordered w-2/3" required/>
+								<button type="button" @click="removeLink(index)" class="btn btn-square btn-ghost text-error">
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+								</button>
+							</div>
+						</template>
+					</div>
+					<button type="button" @click="addLink()" class="btn btn-sm btn-ghost gap-2 mt-2">
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+						Add Link
+					</button>
+				</div>
+				<div class="divider"></div>
+				<div>
+					<label class="label"><span class="label-text font-medium">Documents (PDF, TXT, MD)</span></label>
+					if isEdit && len(docs) > 0 {
+						<div class="grid grid-cols-1 gap-2 mb-4">
+							for _, doc := range docs {
+								<div class="alert bg-base-100 border border-base-300 py-2 flex justify-between" id={ fmt.Sprintf("doc-%d", doc.ID) }>
+									<div class="flex items-center gap-3 overflow-hidden">
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+										<span class="text-sm truncate">{ doc.FileName }</span>
+									</div>
+									<button
+										type="button"
+										class="btn btn-xs btn-ghost text-error"
+										hx-delete={ fmt.Sprintf("/parts/docs/%d", doc.ID) }
+										hx-target={ fmt.Sprintf("#doc-%d", doc.ID) }
+										hx-swap="outerHTML"
+									>
+										Delete
+									</button>
+								</div>
+							}
+						</div>
+					}
+					<input type="file" name="documents" multiple class="file-input file-input-bordered w-full"/>
+				</div>
+			</div>
+		</div>
+		<div class="flex justify-end gap-4 pt-4 pb-12">
+			<a href="/parts" class="btn btn-ghost">Cancel</a>
+			<button type="submit" class="btn btn-primary px-8">
+				if isEdit {
+					Save Changes
+				} else {
+					Create Part
+				}
+			</button>
+		</div>
+	</form>
+}
+
+templ BinOptions(bins []db.Bin) {
+	<option value="" disabled selected>Select a bin...</option>
+	for _, b := range bins {
+		<option value={ fmt.Sprintf("%d", b.ID) }>{ b.Name }</option>
+	}
+}

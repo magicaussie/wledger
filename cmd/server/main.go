@@ -165,12 +165,20 @@ func main() {
 			// Parts CRUD
 			r.Get("/parts/new", app.handlePartsNew)
 			r.Post("/parts", app.handlePartsCreate)
+
 			r.Get("/parts/{id}/edit", app.handlePartEdit)
-			r.Post("/parts/{id}/edit", app.handlePartUpdate)
+			// UPDATED: Changed from /edit to /update to match the form action
+			r.Post("/parts/{id}/update", app.handlePartUpdate)
+
 			r.Post("/parts/{id}/delete", app.handlePartDelete)
+
+			// Sub-Resources (HTMX Deletion)
+			r.Delete("/parts/links/{id}", app.handleLinkDelete)
+			r.Delete("/parts/docs/{id}", app.handleDocDelete)
+
+			// Stock Management
 			r.Post("/parts/{id}/assign", app.handlePartAssign)
 			r.Post("/parts/{id}/stock/{bin_id}/delete", app.handlePartStockRemove)
-
 		})
 
 		// -----------------------------------------------------------
