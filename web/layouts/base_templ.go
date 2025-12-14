@@ -246,7 +246,7 @@ func Base(title string, user auth.User) templ.Component {
 
 // -----------------------------------------------------------
 // REUSABLE COMPONENTS
-// TODO: break these out into the /components folder
+// TODO: consider breaking these out into the /components folder
 // -----------------------------------------------------------
 
 var navBtnClass = "btn btn-ghost justify-start w-full normal-case text-base font-normal px-2"
@@ -273,7 +273,7 @@ func GlobalOffButton() templ.Component {
 			templ_7745c5c3_Var7 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "<button hx-post=\"/hardware/off\" hx-swap=\"none\" class=\"btn btn-outline btn-error w-full gap-2 justify-start normal-case text-base font-normal px-2\"><svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-5 w-5 mr-3\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M13 10V3L4 14h7v7l9-11h-7z\"></path></svg> Turn Off All LEDs</button>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "<button hx-post=\"/hardware/off\" hx-swap=\"none\" class=\"btn btn-outline btn-error w-full gap-2 justify-start normal-case text-base font-normal px-2\"><svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-5 w-5 mr-3\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M5.636 5.636a9 9 0 1012.728 0M12 3v9\"></path></svg> Turn Off All LEDs</button>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
