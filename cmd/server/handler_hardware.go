@@ -197,12 +197,43 @@ func (app *application) handleGlobalOff(w http.ResponseWriter, r *http.Request) 
 	w.WriteHeader(http.StatusOK)
 }
 
-// POST /hardware/{id}/locate?bin_id=X
+// POST /hardware/{id}/locate
 func (app *application) handleHardwareLocate(w http.ResponseWriter, r *http.Request) {
 	cidStr := chi.URLParam(r, "id")
 	cid, _ := strconv.Atoi(cidStr)
 	binID, _ := strconv.Atoi(r.URL.Query().Get("bin_id"))
 
+	// Fetch Settings First (needed for Auth check AND WLED config)
+	settings, err := app.queries.GetSettings(r.Context())
+	if err != nil {
+		// Fallback defaults if DB fails
+		settings.ColorLocate.String = "#0000FF"
+		settings.EnableLocateTimeout.Bool = false
+		settings.LocateTimeoutSeconds.Int64 = 0
+		// Assume secure default for auth if DB fails
+		settings.RequireAuthForRead.Bool = true
+	}
+
+	// Check Authorization
+	user := auth.GetUserFromRequest(r)
+	allowed := false
+
+	if user.IsAuthenticated() {
+		// Authenticated users (Viewers, Editors, Admins) can always locate
+		allowed = true
+	} else {
+		// Guest: Only allow if RequireAuthForRead is FALSE
+		if !settings.RequireAuthForRead.Bool {
+			allowed = true
+		}
+	}
+
+	if !allowed {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Retrieve Hardware Details
 	controller, err := app.queries.GetController(r.Context(), int64(cid))
 	if err != nil {
 		app.logger.Error("locate failed: controller not found", "cid", cid)
@@ -217,31 +248,31 @@ func (app *application) handleHardwareLocate(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	settings, err := app.queries.GetSettings(r.Context())
-	if err != nil {
-		settings.ColorLocate.String = "#0000FF"
-		settings.EnableLocateTimeout.Bool = false
-		settings.LocateTimeoutSeconds.Int64 = 0
-	}
-
+	// Calculate LED Positions
 	ledIndex := int(bin.LedIndex.Int64)
 	width := int(bin.Width.Int64)
 	if width < 1 {
 		width = 1
 	}
 
+	// Trigger WLED
 	err = app.wled.LightUp(r.Context(), controller.IpAddress, ledIndex, width, settings.ColorLocate.String)
 	if err != nil {
+		// Don't return error to client, just log it
 		app.logger.Error("failed to locate bin", "error", err, "ip", controller.IpAddress)
 	}
 
+	// Handle Auto-Off Timer
 	if settings.EnableLocateTimeout.Bool && settings.LocateTimeoutSeconds.Int64 > 0 {
 		timeoutDuration := time.Duration(settings.LocateTimeoutSeconds.Int64) * time.Second
 
 		go func(ip string, idx, count int, duration time.Duration) {
 			time.Sleep(duration)
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			// Create a new context since the request context will be cancelled
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
+
+			// Turn off (using black)
 			_ = app.wled.LightUp(ctx, ip, idx, count, "#000000")
 		}(controller.IpAddress, ledIndex, width, timeoutDuration)
 	}
