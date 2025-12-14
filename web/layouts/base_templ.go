@@ -44,7 +44,7 @@ func Base(title string, user auth.User) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, " | WLEDger</title><link rel=\"icon\" href=\"/static/img/favicon.ico\"><link href=\"/static/css/output.css\" rel=\"stylesheet\"><script src=\"https://unpkg.com/htmx.org@2.0.4\"></script><script src=\"https://unpkg.com/alpinejs@3.14.8/dist/cdn.min.js\" defer></script><script>\n                const savedTheme = localStorage.getItem('theme') || 'dark';\n                document.documentElement.setAttribute('data-theme', savedTheme);\n            </script><style id=\"dynamic-colors\">\n            :root {\n                --color-locate: #0000FF;\n                --color-stock-ok: #00FF00;\n                --color-stock-low: #FFFF00;\n                --color-stock-critical: #FF0000;\n            }\n            [x-cloak] { display: none !important; }\n            .custom-scrollbar::-webkit-scrollbar { width: 4px; }\n            .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }\n            .custom-scrollbar::-webkit-scrollbar-thumb { background: oklch(var(--bc) / 0.2); border-radius: 4px; }\n            .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: oklch(var(--bc) / 0.4); }\n            </style></head><body class=\"h-screen w-screen overflow-hidden bg-base-100 text-base-content font-sans\" x-data=\"{ mobileMenuOpen: false }\"><div id=\"toast-container\" class=\"toast toast-end z-[100]\"></div><div class=\"flex h-full w-full\"><aside class=\"hidden md:flex w-64 flex-col bg-base-200 border-r border-base-300 h-full\"><a href=\"/\" class=\"flex items-center justify-center h-16 shrink-0 hover:bg-base-300 transition-colors px-4\"><img src=\"/static/img/wledger-name-rainbow.png\" alt=\"WLEDger\" class=\"h-8 w-auto object-contain\"></a><div class=\"px-6 pb-4 border-b border-base-300/50 mb-2\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, " | WLEDger</title><link rel=\"icon\" href=\"/static/img/favicon.ico\"><link href=\"/static/css/output.css\" rel=\"stylesheet\"><script src=\"https://unpkg.com/htmx.org@2.0.4\"></script><script src=\"https://unpkg.com/alpinejs@3.14.8/dist/cdn.min.js\" defer></script><script src=\"https://unpkg.com/html5-qrcode\" type=\"text/javascript\"></script><script>\n                const savedTheme = localStorage.getItem('theme') || 'dark';\n                document.documentElement.setAttribute('data-theme', savedTheme);\n            </script><style id=\"dynamic-colors\">\n            :root {\n                --color-locate: #0000FF;\n                --color-stock-ok: #00FF00;\n                --color-stock-low: #FFFF00;\n                --color-stock-critical: #FF0000;\n            }\n            [x-cloak] { display: none !important; }\n            .custom-scrollbar::-webkit-scrollbar { width: 4px; }\n            .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }\n            .custom-scrollbar::-webkit-scrollbar-thumb { background: oklch(var(--bc) / 0.2); border-radius: 4px; }\n            .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: oklch(var(--bc) / 0.4); }\n            </style></head><body class=\"h-screen w-screen overflow-hidden bg-base-100 text-base-content font-sans\" x-data=\"{ mobileMenuOpen: false }\"><div id=\"toast-container\" class=\"toast toast-end z-[100]\"></div><div class=\"flex h-full w-full\"><aside class=\"hidden md:flex w-64 flex-col bg-base-200 border-r border-base-300 h-full\"><a href=\"/\" class=\"flex items-center justify-center h-16 shrink-0 hover:bg-base-300 transition-colors px-4\"><img src=\"/static/img/wledger-name-rainbow.png\" alt=\"WLEDger\" class=\"h-8 w-auto object-contain\"></a><div class=\"px-6 pb-4 border-b border-base-300/50 mb-2\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -56,7 +56,7 @@ func Base(title string, user auth.User) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(user.Email)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/layouts/base.templ`, Line: 44, Col: 65}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/layouts/base.templ`, Line: 45, Col: 65}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -69,7 +69,7 @@ func Base(title string, user auth.User) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(user.Role)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/layouts/base.templ`, Line: 45, Col: 94}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/layouts/base.templ`, Line: 46, Col: 94}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -162,7 +162,7 @@ func Base(title string, user auth.User) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(user.Email)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/layouts/base.templ`, Line: 132, Col: 65}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/layouts/base.templ`, Line: 133, Col: 65}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -175,7 +175,7 @@ func Base(title string, user auth.User) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(user.Role)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/layouts/base.templ`, Line: 133, Col: 94}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/layouts/base.templ`, Line: 134, Col: 94}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {

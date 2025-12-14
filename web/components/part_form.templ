@@ -26,29 +26,33 @@ templ PartForm(part db.Part, links []db.PartLink, docs []db.PartDoc, action stri
 	>
 		<div class="card bg-base-200 shadow-sm border border-base-300">
 			<div class="card-body p-6">
-				<h3 class="card-title text-sm opacity-50 uppercase tracking-widest mb-4">Core Identity</h3>
+				<h3 class="card-title text-sm opacity-50 uppercase tracking-widest mb-4">Core Details</h3>
 				<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 					<div class="form-control w-full">
-						<label class="label"><span class="label-text font-medium">Part Name</span></label>
+						<label class="label pt-0 pb-2"><span class="label-text font-medium">Part Name</span></label>
 						<input type="text" name="name" value={ part.Name } placeholder="e.g. ESP32-WROOM-32" class="input input-bordered w-full" required/>
 					</div>
-					<div class="form-control w-full">
-						<label class="label"><span class="label-text font-medium">Description</span></label>
-						<input type="text" name="description" value={ part.Description.String } placeholder="Short summary..." class="input input-bordered w-full"/>
+					<div class="form-control w-full md:col-span-2">
+						<label class="label pt-0 pb-2"><span class="label-text font-medium">Description</span></label>
+						<textarea
+							name="description"
+							class="textarea textarea-bordered h-24 text-base leading-relaxed resize-y w-full"
+							placeholder="Enter a detailed description..."
+						>{ part.Description.String }</textarea>
 					</div>
 					<div class="form-control w-full md:col-span-2">
-						<label class="label"><span class="label-text font-medium">Cover Image</span></label>
+						<label class="label pt-0 pb-2"><span class="label-text font-medium">Cover Image</span></label>
 						<div class="flex items-center gap-4">
 							if isEdit && part.ImagePath.Valid {
 								<div class="avatar">
 									<div class="w-16 h-16 rounded border border-base-300">
-										<img src={ part.ImagePath.String } alt="Current"/>
+										<img src={ part.ImagePath.String } alt="Current Cover Image" class="object-cover w-full h-full"/>
 									</div>
 								</div>
 							}
-							<input type="file" name="image" accept="image/*" class="file-input file-input-primary w-full"/>
+							<input type="file" name="image" accept="image/*" class="file-input file-input-bordered file-input-primary w-full"/>
 						</div>
-						<label class="label"><span class="label-text-alt opacity-60">Replaces current image if uploaded.</span></label>
+						<label class="label mt-2"><span class="label-text-alt opacity-60">Replaces current image if uploaded.</span></label>
 					</div>
 				</div>
 			</div>
@@ -58,24 +62,29 @@ templ PartForm(part db.Part, links []db.PartLink, docs []db.PartDoc, action stri
 				<h3 class="card-title text-sm opacity-50 uppercase tracking-widest mb-4">Specifications & Sourcing</h3>
 				<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
 					<div class="form-control w-full">
-						<label class="label"><span class="label-text font-medium">Part Number (MPN)</span></label>
+						<label class="label"><span class="label-text font-medium mb-2">Part Number (MPN)</span></label>
 						<input type="text" name="part_number" value={ part.PartNumber.String } placeholder="e.g. SN74HC595N" class="input input-bordered w-full font-mono"/>
 					</div>
 					<div class="form-control w-full">
-						<label class="label"><span class="label-text font-medium">Manufacturer</span></label>
+						<label class="label"><span class="label-text font-medium mb-2">Manufacturer</span></label>
 						<input type="text" name="manufacturer" value={ part.Manufacturer.String } placeholder="e.g. Texas Instruments" class="input input-bordered w-full"/>
 					</div>
 					<div class="form-control w-full">
-						<label class="label"><span class="label-text font-medium">Supplier</span></label>
+						<label class="label"><span class="label-text font-medium mb-2">Supplier</span></label>
 						<input type="text" name="supplier" value={ part.Supplier.String } placeholder="e.g. DigiKey" class="input input-bordered w-full"/>
 					</div>
 					<div class="form-control w-full md:col-span-3">
-						<label class="label"><span class="label-text font-medium">Barcode Data</span></label>
+						<label class="label"><span class="label-text font-medium mb-2">Barcode Data</span></label>
 						<div class="join w-full">
-							<input type="text" name="barcode_data" value={ part.BarcodeData.String } placeholder="Scan a barcode here..." class="input input-bordered join-item w-full font-mono"/>
-							<button type="button" class="btn join-item btn-square" title="Scan">
-								<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path></svg>
-							</button>
+							<input
+								id="barcode_input"
+								type="text"
+								name="barcode_data"
+								value={ part.BarcodeData.String }
+								placeholder="Scan a barcode here..."
+								class="input input-bordered join-item w-full font-mono"
+							/>
+							@BarcodeTrigger("barcode_input")
 						</div>
 					</div>
 				</div>
@@ -86,18 +95,18 @@ templ PartForm(part db.Part, links []db.PartLink, docs []db.PartDoc, action stri
 				<h3 class="card-title text-sm opacity-50 uppercase tracking-widest mb-4">Inventory Control</h3>
 				<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
 					<div class="form-control w-full">
-						<label class="label"><span class="label-text font-medium">Unit Cost ($)</span></label>
+						<label class="label"><span class="label-text font-medium mb-2">Unit Cost ($)</span></label>
 						<input type="number" step="0.01" name="unit_cost" value={ fmt.Sprintf("%.2f", part.UnitCost.Float64) } class="input input-bordered w-full"/>
 					</div>
 					<div class="form-control w-full">
-						<label class="label">
+						<label class="label mb-2">
 							<span class="label-text font-medium">Min Stock Level</span>
 							@QuestionTooltip("When inventory drops below this number, it will be flagged as 'Critical Stock'.")
 						</label>
 						<input type="number" name="min_stock" value={ fmt.Sprintf("%d", part.MinStockThreshold.Int64) } class="input input-bordered w-full"/>
 					</div>
 					<div class="form-control w-full">
-						<label class="label">
+						<label class="label mb-2">
 							<span class="label-text font-medium">Reorder Level</span>
 							@QuestionTooltip("When inventory drops below this number, it will be flagged as 'Low Stock'.")
 						</label>
@@ -110,7 +119,7 @@ templ PartForm(part db.Part, links []db.PartLink, docs []db.PartDoc, action stri
 			<div class="card-body p-6">
 				<h3 class="card-title text-sm opacity-50 uppercase tracking-widest mb-4">Resources</h3>
 				<div class="mb-6">
-					<label class="label"><span class="label-text font-medium">External Links</span></label>
+					<label class="label"><span class="label-text font-medium mb-2">External Links</span></label>
 					if isEdit {
 						<div class="space-y-2 mb-2">
 							for _, link := range links {
@@ -145,14 +154,14 @@ templ PartForm(part db.Part, links []db.PartLink, docs []db.PartDoc, action stri
 							</div>
 						</template>
 					</div>
-					<button type="button" @click="addLink()" class="btn btn-sm btn-ghost gap-2 mt-2">
+					<button type="button" @click="addLink()" class="btn btn-s btn-primary gap-2 mt-2">
 						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
 						Add Link
 					</button>
 				</div>
 				<div class="divider"></div>
 				<div>
-					<label class="label"><span class="label-text font-medium">Documents (PDF, TXT, MD)</span></label>
+					<label class="label"><span class="label-text font-medium mb-2">Documents</span></label>
 					if isEdit && len(docs) > 0 {
 						<div class="grid grid-cols-1 gap-2 mb-4">
 							for _, doc := range docs {
@@ -189,6 +198,7 @@ templ PartForm(part db.Part, links []db.PartLink, docs []db.PartDoc, action stri
 			</button>
 		</div>
 	</form>
+	@BarcodeScannerModal()
 }
 
 templ BinOptions(bins []db.Bin) {
