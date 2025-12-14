@@ -126,6 +126,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.searchPartsStmt, err = db.PrepareContext(ctx, searchParts); err != nil {
 		return nil, fmt.Errorf("error preparing query SearchParts: %w", err)
 	}
+	if q.setPasswordResetFlagStmt, err = db.PrepareContext(ctx, setPasswordResetFlag); err != nil {
+		return nil, fmt.Errorf("error preparing query SetPasswordResetFlag: %w", err)
+	}
 	if q.updateBinQuantityStmt, err = db.PrepareContext(ctx, updateBinQuantity); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateBinQuantity: %w", err)
 	}
@@ -325,6 +328,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing searchPartsStmt: %w", cerr)
 		}
 	}
+	if q.setPasswordResetFlagStmt != nil {
+		if cerr := q.setPasswordResetFlagStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing setPasswordResetFlagStmt: %w", cerr)
+		}
+	}
 	if q.updateBinQuantityStmt != nil {
 		if cerr := q.updateBinQuantityStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing updateBinQuantityStmt: %w", cerr)
@@ -438,6 +446,7 @@ type Queries struct {
 	listPartsStmt                    *sql.Stmt
 	listUsersStmt                    *sql.Stmt
 	searchPartsStmt                  *sql.Stmt
+	setPasswordResetFlagStmt         *sql.Stmt
 	updateBinQuantityStmt            *sql.Stmt
 	updateColorsStmt                 *sql.Stmt
 	updateControllerStatusStmt       *sql.Stmt
@@ -486,6 +495,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		listPartsStmt:                    q.listPartsStmt,
 		listUsersStmt:                    q.listUsersStmt,
 		searchPartsStmt:                  q.searchPartsStmt,
+		setPasswordResetFlagStmt:         q.setPasswordResetFlagStmt,
 		updateBinQuantityStmt:            q.updateBinQuantityStmt,
 		updateColorsStmt:                 q.updateColorsStmt,
 		updateControllerStatusStmt:       q.updateControllerStatusStmt,

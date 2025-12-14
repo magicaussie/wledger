@@ -193,6 +193,22 @@ func (q *Queries) ListUsers(ctx context.Context) ([]ListUsersRow, error) {
 	return items, nil
 }
 
+const setPasswordResetFlag = `-- name: SetPasswordResetFlag :exec
+UPDATE users 
+SET change_password_required = ? 
+WHERE id = ?
+`
+
+type SetPasswordResetFlagParams struct {
+	ChangePasswordRequired sql.NullBool `json:"change_password_required"`
+	ID                     int64        `json:"id"`
+}
+
+func (q *Queries) SetPasswordResetFlag(ctx context.Context, arg SetPasswordResetFlagParams) error {
+	_, err := q.exec(ctx, q.setPasswordResetFlagStmt, setPasswordResetFlag, arg.ChangePasswordRequired, arg.ID)
+	return err
+}
+
 const updateUserPassword = `-- name: UpdateUserPassword :exec
 UPDATE users 
 SET password_hash = ?, change_password_required = 0 

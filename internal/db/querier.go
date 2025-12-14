@@ -45,6 +45,7 @@ type Querier interface {
 	ListParts(ctx context.Context, arg ListPartsParams) ([]ListPartsRow, error)
 	ListUsers(ctx context.Context) ([]ListUsersRow, error)
 	SearchParts(ctx context.Context, partsFts sql.NullString) ([]SearchPartsRow, error)
+	SetPasswordResetFlag(ctx context.Context, arg SetPasswordResetFlagParams) error
 	UpdateBinQuantity(ctx context.Context, arg UpdateBinQuantityParams) error
 	UpdateColors(ctx context.Context, arg UpdateColorsParams) error
 	UpdateControllerStatus(ctx context.Context, arg UpdateControllerStatusParams) error

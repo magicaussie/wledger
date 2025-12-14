@@ -185,3 +185,30 @@ func (app *application) handleUserDelete(w http.ResponseWriter, r *http.Request)
 
 	http.Redirect(w, r, "/settings", http.StatusSeeOther)
 }
+
+// POST /settings/users/{id}/reset
+func (app *application) handleUserForceReset(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, _ := strconv.Atoi(idStr)
+	currentUserID := app.session.GetInt64(r.Context(), "user_id")
+
+	// Don't flag yourself (UX preference, use standard change password instead)
+	if int64(id) == currentUserID {
+		http.Redirect(w, r, "/settings", http.StatusSeeOther)
+		return
+	}
+
+	err := app.queries.SetPasswordResetFlag(r.Context(), db.SetPasswordResetFlagParams{
+		ChangePasswordRequired: sql.NullBool{Bool: true, Valid: true},
+		ID:                     int64(id),
+	})
+
+	if err != nil {
+		app.logger.Error("failed to force password reset", "error", err, "target_id", id)
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+
+	app.logger.Info("admin triggered force password reset", "target_id", id)
+	http.Redirect(w, r, "/settings", http.StatusSeeOther)
+}

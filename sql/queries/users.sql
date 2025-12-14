@@ -27,6 +27,11 @@ UPDATE users
 SET password_hash = ?, change_password_required = 0 
 WHERE id = ?;
 
+-- name: SetPasswordResetFlag :exec
+UPDATE users 
+SET change_password_required = ? 
+WHERE id = ?;
+
 -- SESSION QUERIES
 -- name: GetSession :one
 SELECT token, data, expiry FROM sessions WHERE token = ?;

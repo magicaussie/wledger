@@ -125,6 +125,8 @@ func main() {
 		r.Get("/parts", app.handlePartsList)
 		r.Get("/parts/{id}", app.handlePartDetail)
 		r.Get("/parts/bins_options", app.handleBinOptions)
+		// Locate (Viewers, if permission is enabled, can light up parts)
+		r.Post("/hardware/{id}/locate", app.handleHardwareLocate)
 
 		// Hardware (Read)
 		r.Get("/hardware", app.handleHardwareList)
@@ -169,8 +171,6 @@ func main() {
 			r.Post("/parts/{id}/assign", app.handlePartAssign)
 			r.Post("/parts/{id}/stock/{bin_id}/delete", app.handlePartStockRemove)
 
-			// Locate (Editors need to light up bins to find parts)
-			r.Post("/hardware/{id}/locate", app.handleHardwareLocate)
 		})
 
 		// -----------------------------------------------------------
@@ -191,6 +191,7 @@ func main() {
 			// User Management
 			r.Post("/settings/users", app.handleUserCreate)
 			r.Post("/settings/users/{id}/delete", app.handleUserDelete)
+			r.Post("/settings/users/{id}/reset", app.handleUserForceReset)
 		})
 	})
 
