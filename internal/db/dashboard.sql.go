@@ -7,7 +7,68 @@ package db
 
 import (
 	"context"
+	"database/sql"
 )
+
+const getDashboardGrid = `-- name: GetDashboardGrid :many
+SELECT 
+    b.id as bin_id, 
+    b.name as bin_name, 
+    b.grid_x, 
+    b.grid_y,
+    p.id as part_id, 
+    pa.quantity, 
+    p.min_stock_threshold, 
+    p.reorder_level
+FROM bins b
+LEFT JOIN part_assignments pa ON b.id = pa.bin_id
+LEFT JOIN parts p ON pa.part_id = p.id
+WHERE b.grid_x IS NOT NULL AND b.grid_y IS NOT NULL
+ORDER BY b.grid_y, b.grid_x
+`
+
+type GetDashboardGridRow struct {
+	BinID             int64         `json:"bin_id"`
+	BinName           string        `json:"bin_name"`
+	GridX             sql.NullInt64 `json:"grid_x"`
+	GridY             sql.NullInt64 `json:"grid_y"`
+	PartID            sql.NullInt64 `json:"part_id"`
+	Quantity          sql.NullInt64 `json:"quantity"`
+	MinStockThreshold sql.NullInt64 `json:"min_stock_threshold"`
+	ReorderLevel      sql.NullInt64 `json:"reorder_level"`
+}
+
+func (q *Queries) GetDashboardGrid(ctx context.Context) ([]GetDashboardGridRow, error) {
+	rows, err := q.query(ctx, q.getDashboardGridStmt, getDashboardGrid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetDashboardGridRow
+	for rows.Next() {
+		var i GetDashboardGridRow
+		if err := rows.Scan(
+			&i.BinID,
+			&i.BinName,
+			&i.GridX,
+			&i.GridY,
+			&i.PartID,
+			&i.Quantity,
+			&i.MinStockThreshold,
+			&i.ReorderLevel,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
 
 const getDashboardStats = `-- name: GetDashboardStats :one
 SELECT 

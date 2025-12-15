@@ -6,216 +6,372 @@ import (
 	"github.com/tuxedocurly/wledger/internal/utils"
 )
 
-// GridPainter renders the interactive LED mapping tool.
+// GridPainter renders the interactive LED mapping tool with Linear, Grid, and Compound support.
 templ GridPainter(controller db.Controller, bins []db.Bin, canEdit bool) {
-	<div x-data={ fmt.Sprintf(`gridPainter(%d, %d, %d, %s, %t)`, controller.ID, 16, 16, utils.JSON(bins), canEdit) } class="w-full">
+	<div
+		x-data={ fmt.Sprintf(`gridPainter(%d, %s, %s, %t)`, 
+		controller.ID, 
+		utils.JSON(bins), 
+		utils.DefaultJSON(controller.ConfigJson, "{}"), // Helper to ensure an empty string is not passed
+		canEdit) }
+		class="w-full"
+	>
 		if canEdit {
-			<div class="flex flex-wrap gap-4 mb-6 p-4 bg-base-200 rounded-lg items-end">
-				<div class="form-control w-24">
-					<label class="label"><span class="label-text">Rows</span></label>
-					<input type="number" x-model.number="rows" class="input input-bordered input-sm" min="1" max="64"/>
+			<div class="card bg-base-200 mb-8 border border-base-300">
+				<div class="card-body p-4">
+					<div class="flex flex-col gap-4">
+						<div class="flex flex-wrap gap-4 items-end justify-between">
+							<div class="form-control w-full max-w-xs">
+								<label class="label"><span class="label-text font-semibold">Grid Type</span></label>
+								<select x-model="config.type" @change="resetLayout()" class="select select-bordered select-sm w-full">
+									<option value="linear">Linear Strip (1 × N)</option>
+									<option value="grid">Standard Matrix (M × N)</option>
+									<option value="compound">Compound (Multi-Section)</option>
+								</select>
+							</div>
+							<div class="flex gap-2">
+								<button @click="autoFill('linear')" class="btn btn-sm btn-outline gap-2">
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path></svg>
+									Auto Map (Linear)
+								</button>
+								<button @click="autoFill('serpentine')" class="btn btn-sm btn-outline gap-2">
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+									Auto Map (Snake)
+								</button>
+								<button @click="clearGrid()" class="btn btn-sm btn-ghost text-error">Clear</button>
+							</div>
+						</div>
+						<div x-show="config.type === 'linear'" class="p-4 bg-base-100 rounded-lg border border-base-300">
+							<div class="form-control w-32">
+								<label class="label"><span class="label-text text-xs">Total LEDs</span></label>
+								<input type="number" x-model.number="config.total" class="input input-bordered input-sm" min="1" max="1024"/>
+							</div>
+						</div>
+						<div x-show="config.type === 'grid'" class="p-4 bg-base-100 rounded-lg border border-base-300 flex gap-4">
+							<div class="form-control w-24">
+								<label class="label"><span class="label-text text-xs">Rows</span></label>
+								<input type="number" x-model.number="config.rows" class="input input-bordered input-sm" min="1" max="64"/>
+							</div>
+							<div class="form-control w-24">
+								<label class="label"><span class="label-text text-xs">Columns</span></label>
+								<input type="number" x-model.number="config.cols" class="input input-bordered input-sm" min="1" max="64"/>
+							</div>
+						</div>
+						<div x-show="config.type === 'compound'" class="space-y-4">
+							<div class="flex items-center gap-4">
+								<button @click="addSection()" class="btn btn-xs btn-secondary">+ Add Section</button>
+								<span class="text-xs opacity-50" x-text="config.sections.length + ' sections configured'"></span>
+							</div>
+							<div class="space-y-2">
+								<template x-for="(section, idx) in config.sections" :key="idx">
+									<div class="flex items-center gap-2 p-2 bg-base-100 rounded border border-base-300">
+										<span class="font-mono text-xs font-bold w-6" x-text="'#' + (idx + 1)"></span>
+										<div class="flex items-center gap-2">
+											<span class="text-xs opacity-70">Rows:</span>
+											<input type="number" x-model.number="section.rows" class="input input-bordered input-xs w-16" min="1"/>
+										</div>
+										<div class="flex items-center gap-2">
+											<span class="text-xs opacity-70">Cols:</span>
+											<input type="number" x-model.number="section.cols" class="input input-bordered input-xs w-16" min="1"/>
+										</div>
+										<div class="flex-1"></div>
+										<button @click="removeSection(idx)" class="btn btn-ghost btn-xs text-error btn-square">
+											<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+										</button>
+									</div>
+								</template>
+							</div>
+						</div>
+					</div>
 				</div>
-				<div class="form-control w-24">
-					<label class="label"><span class="label-text">Cols</span></label>
-					<input type="number" x-model.number="cols" class="input input-bordered input-sm" min="1" max="64"/>
-				</div>
-				<div class="divider divider-horizontal"></div>
-				<button @click="autoFill('linear')" class="btn btn-sm btn-outline">
-					Auto Fill (Linear)
-				</button>
-				<button @click="autoFill('serpentine')" class="btn btn-sm btn-outline">
-					Auto Fill (Serpentine)
-				</button>
-				<button @click="clearGrid()" class="btn btn-sm btn-ghost text-error">
-					Clear
-				</button>
 			</div>
 		} else {
 			<div class="alert alert-info shadow-sm mb-6">
-				<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-				<span>You are in read-only mode.</span>
+				<span>Read-only mode. Log in as admin to configure.</span>
 			</div>
 		}
-		<div class="overflow-x-auto pb-4">
-			<div
-				class="grid gap-1 select-none"
-				:style="`grid-template-columns: repeat(${cols}, minmax(2rem, 1fr)); width: fit-content; min-width: 100%;`"
-			>
-				<template x-for="i in (rows * cols)">
-					<div
-						class="aspect-square border border-base-300 rounded flex items-center justify-center text-xs transition-colors relative"
-						:class="[getCellClass(i-1), canEdit ? 'cursor-pointer hover:border-primary' : 'cursor-default']"
-						@click="toggleCell(i-1)"
-						@mouseenter="hoverCell(i-1)"
-					>
-						<span x-text="getLedIndex(i-1)" class="font-bold"></span>
-						<div
-							x-show="getBinName(i-1)"
-							x-text="getBinName(i-1)"
-							class="absolute -top-6 bg-black text-white text-[10px] px-1 rounded z-10 whitespace-nowrap pointer-events-none"
-						></div>
+		<div class="space-y-8">
+			<template x-for="(section, secIdx) in getRenderSections()" :key="secIdx">
+				<div>
+					<div x-show="config.type === 'compound'" class="mb-2 flex items-center gap-2">
+						<span class="badge badge-sm badge-neutral" x-text="'Section ' + (secIdx + 1)"></span>
+						<span class="text-xs opacity-50" x-text="section.rows + '×' + section.cols"></span>
 					</div>
-				</template>
-			</div>
+					<div class="overflow-x-auto pb-2">
+						<div
+							class="grid gap-1 select-none"
+							:style="`grid-template-columns: repeat(${section.cols}, minmax(2.5rem, 1fr)); width: fit-content; min-width: 100%;`"
+						>
+							<template x-for="i in (section.rows * section.cols)">
+								<div
+									class="aspect-square border border-base-300 rounded flex flex-col items-center justify-center text-xs transition-colors relative"
+									:class="[
+										getCellClass(secIdx, i-1), 
+										canEdit ? 'cursor-pointer hover:border-primary hover:bg-base-200' : 'cursor-default'
+									]"
+									@click="toggleCell(secIdx, i-1)"
+								>
+									<span x-text="getLedIndex(secIdx, i-1)" class="font-bold text-[10px]"></span>
+									<span x-show="getBinName(secIdx, i-1)" x-text="getBinName(secIdx, i-1)" class="text-[9px] opacity-70 truncate w-full text-center px-0.5"></span>
+								</div>
+							</template>
+						</div>
+					</div>
+				</div>
+			</template>
 		</div>
 		if canEdit {
-			<form method="POST" action={ templ.SafeURL(fmt.Sprintf("/hardware/%d/grid", controller.ID)) } class="mt-8 border-t border-base-300 pt-6">
-				<h3 class="font-bold text-lg mb-2">Save Configuration</h3>
-				<p class="text-sm opacity-70 mb-4">This will overwrite the current LED mapping for this controller.</p>
-				<input type="hidden" name="grid_data" :value="JSON.stringify(exportData())"/>
-				<div class="flex justify-end gap-2">
-					<a href="/hardware" class="btn btn-ghost">Cancel</a>
-					<button class="btn btn-primary">Save Grid</button>
+			<form x-ref="gridForm" method="POST" action={ templ.SafeURL(fmt.Sprintf("/hardware/%d/grid", controller.ID)) } class="mt-8 border-t border-base-300 pt-6">
+				<div class="flex justify-between items-center">
+					<div>
+						<h3 class="font-bold text-lg">Save Configuration</h3>
+						<p class="text-sm opacity-70">Updates mapped bins and WLED layout.</p>
+					</div>
+					<div class="flex gap-2">
+						<a href="/hardware" class="btn btn-ghost">Cancel</a>
+						<button type="button" @click="submitGrid()" class="btn btn-primary">Save Grid</button>
+					</div>
 				</div>
+				<input type="hidden" name="grid_data" :value="JSON.stringify(exportBinData())"/>
+				<input type="hidden" name="config_data" :value="JSON.stringify(config)"/>
 			</form>
 		}
 	</div>
 	<script>
         document.addEventListener('alpine:init', () => {
-            Alpine.data('gridPainter', (ctrlId, initRows, initCols, existingBins, canEdit) => ({
-                controllerId: ctrlId,
-                rows: initRows,
-                cols: initCols,
+            Alpine.data('gridPainter', (ctrlId, existingBins, savedConfig, canEdit) => ({
                 canEdit: canEdit,
-                cells: {}, 
+                
+                // Track initial state to detect changes
+                initialConfigStr: '',
+                initialGridStr: '',
 
-                init() {
-                    const val = (v) => {
-                        if (v !== null && typeof v === 'object' && 'Int64' in v) {
-                            return v.Valid ? v.Int64 : null;
-                        }
-                        return v;
-                    };
-
-                    if (existingBins) {
-                        let maxX = 0;
-                        let maxY = 0;
-                        
-                        existingBins.forEach(b => {
-                            const gx = val(b.grid_x);
-                            const gy = val(b.grid_y);
-                            const li = val(b.led_index);
-                            
-                            if (gx === null || gy === null) return;
-                            
-                            const key = `${gx},${gy}`;
-                            this.cells[key] = {
-                                led_index: li,
-                                name: b.name
-                            };
-                            
-                            if (gx >= maxX) maxX = gx + 1;
-                            if (gy >= maxY) maxY = gy + 1;
-                        });
-
-                        if (maxX > 0) this.cols = maxX;
-                        if (maxY > 0) this.rows = maxY;
-                    }
+                // Internal State
+                config: {
+                    type: 'grid', // 'linear', 'grid', 'compound'
+                    rows: 8,     // Used for 'grid'
+                    cols: 8,     // Used for 'grid'
+                    total: 8,    // Used for 'linear'
+                    sections: [   // Used for 'compound'
+                        { rows: 4, cols: 4 },
+                        { rows: 4, cols: 4 }
+                    ]
                 },
 
-                getXY(index) {
-                    const x = index % this.cols;
-                    const y = Math.floor(index / this.cols);
+                cells: {},
+
+                init() {
+                    // Load Config
+                    if (savedConfig && Object.keys(savedConfig).length > 0) {
+                        this.config = { ...this.config, ...savedConfig };
+                    }
+
+                    // Load Existing Bins into Cells
+                    existingBins.forEach(b => {
+                        const gx = b.grid_x?.Int64 || 0;
+                        const gy = b.grid_y?.Int64 || 0;
+                        const led = b.led_index?.Int64 || 0;
+                        
+                        const location = this.resolveSectionFromGlobalXY(gx, gy);
+                        if (location) {
+                            const key = `${location.secIdx},${location.localIdx}`;
+                            this.cells[key] = {
+                                led_index: Number(led),
+                                name: b.name
+                            };
+                        }
+                    });
+
+                    // SNAPSHOT: Store the initial state strings
+                    this.initialConfigStr = JSON.stringify(this.config);
+                    // use exportBinData() to get the canonical representation of the grid
+                    this.initialGridStr = JSON.stringify(this.exportBinData());
+                },
+
+                // Configuration Helpers
+
+                resetLayout() {
+                    if (this.config.type === 'linear') {
+                        this.config.total = 16;
+                    } else if (this.config.type === 'grid') {
+                        this.config.rows = 8;
+                        this.config.cols = 8;
+                    } else {
+                        this.config.sections = [{ rows: 4, cols: 4 }];
+                    }
+                    this.cells = {};
+                },
+
+                addSection() {
+                    this.config.sections.push({ rows: 4, cols: 4 });
+                },
+
+                removeSection(idx) {
+                    this.config.sections.splice(idx, 1);
+                },
+
+                // Rendering Helpers
+                getRenderSections() {
+                    if (this.config.type === 'linear') return [{ rows: 1, cols: this.config.total }];
+                    if (this.config.type === 'grid') return [{ rows: this.config.rows, cols: this.config.cols }];
+                    return this.config.sections;
+                },
+
+                getXY(secIdx, cellIdx) {
+                    const sections = this.getRenderSections();
+                    const sec = sections[secIdx];
+                    const x = cellIdx % sec.cols;
+                    const y = Math.floor(cellIdx / sec.cols);
                     return { x, y };
                 },
 
-                getCellClass(index) {
-                    const { x, y } = this.getXY(index);
-                    const key = `${x},${y}`;
-                    if (this.cells[key]) {
-                        return 'bg-primary text-primary-content border-primary';
-                    }
-                    return 'bg-base-100 text-base-content/20';
+                getCellClass(secIdx, cellIdx) {
+                    const key = `${secIdx},${cellIdx}`;
+                    return this.cells[key] ? 'bg-primary text-primary-content border-primary' : 'bg-base-100 text-base-content/20';
                 },
 
-                getLedIndex(index) {
-                    const { x, y } = this.getXY(index);
-                    const cell = this.cells[`${x},${y}`];
-                    return cell ? cell.led_index : '';
+                getLedIndex(secIdx, cellIdx) {
+                    const key = `${secIdx},${cellIdx}`;
+                    return this.cells[key] ? this.cells[key].led_index : '';
                 },
 
-                getBinName(index) {
-                    const { x, y } = this.getXY(index);
-                    const cell = this.cells[`${x},${y}`];
-                    return cell ? cell.name : null;
+                getBinName(secIdx, cellIdx) {
+                    const key = `${secIdx},${cellIdx}`;
+                    return this.cells[key] ? this.cells[key].name : '';
                 },
 
-                toggleCell(index) {
-                    // GATE: Stop interaction if not editable
+                // Interaction: toggleCell
+                toggleCell(secIdx, cellIdx) {
                     if (!this.canEdit) return;
-
-                    const { x, y } = this.getXY(index);
-                    const key = `${x},${y}`;
-
+                    const key = `${secIdx},${cellIdx}`;
+                    
                     if (this.cells[key]) {
                         delete this.cells[key];
                     } else {
-                        const nextIndex = this.getNextAvailableIndex();
-                        this.cells[key] = {
-                            led_index: nextIndex,
-                            name: this.generateName(x, y)
-                        };
+                        const nextLed = this.getNextAvailableIndex();
+                        const name = this.generateName(secIdx, cellIdx);
+                        this.cells[key] = { led_index: nextLed, name: name };
                     }
                 },
 
                 getNextAvailableIndex() {
-                    const used = new Set();
-                    Object.entries(this.cells).forEach(([key, val]) => {
-                        const [x, y] = key.split(',').map(Number);
-                        if (x < this.cols && y < this.rows) {
-                            used.add(val.led_index);
-                        }
-                    });
+                    const used = new Set(Object.values(this.cells).map(c => c.led_index));
                     let i = 0;
-                    while (true) {
-                        if (!used.has(i)) return i;
-                        i++;
+                    while (used.has(i)) i++;
+                    return i;
+                },
+
+                generateName(secIdx, cellIdx) {
+                    const { x, y } = this.getXY(secIdx, cellIdx);
+                    const colLetter = String.fromCharCode(65 + x);
+                    if (this.config.type === 'compound') {
+                        return `S${secIdx+1}-${colLetter}${y+1}`;
                     }
+                    return `${colLetter}${y+1}`;
                 },
 
-                generateName(x, y) {
-                    const colLetter = String.fromCharCode(65 + x); 
-                    return `${colLetter}${y + 1}`;
-                },
-
+                // Auto Fill & Clear
                 autoFill(mode) {
                     if (!this.canEdit) return;
-                    this.cells = {}; 
-                    let counter = 0;
-                    for (let y = 0; y < this.rows; y++) {
-                        for (let x = 0; x < this.cols; x++) {
-                            let targetX = x;
-                            if (mode === 'serpentine' && y % 2 !== 0) targetX = (this.cols - 1) - x;
-                            
-                            const key = `${targetX},${y}`;
-                            this.cells[key] = {
-                                led_index: counter,
-                                name: this.generateName(targetX, y)
-                            };
-                            counter++;
+                    if (!confirm("This will overwrite existing mappings. Continue?")) return;
+
+                    this.cells = {};
+                    let ledCounter = 0;
+
+                    const sections = this.getRenderSections();
+                    sections.forEach((sec, secIdx) => {
+                        for (let y = 0; y < sec.rows; y++) {
+                            for (let x = 0; x < sec.cols; x++) {
+                                let targetX = x;
+                                if (mode === 'serpentine' && y % 2 !== 0) {
+                                    targetX = (sec.cols - 1) - x;
+                                }
+                                const cellIdx = (y * sec.cols) + targetX;
+                                const key = `${secIdx},${cellIdx}`;
+                                this.cells[key] = {
+                                    led_index: ledCounter,
+                                    name: this.generateName(secIdx, cellIdx)
+                                };
+                                ledCounter++;
+                            }
                         }
-                    }
+                    });
                 },
 
                 clearGrid() {
-                    if (!this.canEdit) return;
-                    if(confirm('Clear all mapped pixels?')) {
+                    if (this.canEdit && confirm("Clear all mappings?")) {
                         this.cells = {};
                     }
                 },
-                
-                hoverCell(index) {},
 
-                exportData() {
-                    return Object.entries(this.cells)
-                        .filter(([key, val]) => {
-                            const [x, y] = key.split(',').map(Number);
-                            return x < this.cols && y < this.rows;
-                        })
-                        .map(([key, val]) => {
-                            const [x, y] = key.split(',').map(Number);
-                            return { x: x, y: y, led_index: val.led_index, name: val.name };
-                        });
+                submitGrid() {
+                    // Check for Changes
+                    const currentConfigStr = JSON.stringify(this.config);
+                    const currentGridStr = JSON.stringify(this.exportBinData());
+
+                    if (currentConfigStr === this.initialConfigStr && currentGridStr === this.initialGridStr) {
+                        alert("No changes detected. Nothing was saved.");
+                        return;
+                    }
+
+                    // Destructive Warning
+                    // TODO: Find a better way to handle the "user updates controller bin config"
+                    // situation.
+                    const msg = "WARNING: DESTRUCTIVE ACTION\n\n" +
+                                "Saving this configuration will OVERWRITE ALL existing bin data for this controller.\n\n" +
+                                "Any parts currently assigned to bins on this controller will be UNASSIGNED.\n\n" +
+                                "Are you sure you want to proceed?";
+
+                    if (!confirm(msg)) {
+                        return;
+                    }
+                    
+                    // Submit
+                    this.$refs.gridForm.submit();
+                },
+
+                exportBinData() {
+                    const result = [];
+                    const sections = this.getRenderSections();
+                    let globalYOffset = 0;
+                    sections.forEach((sec, secIdx) => {
+                        for (let i = 0; i < (sec.rows * sec.cols); i++) {
+                            const key = `${secIdx},${i}`;
+                            const cell = this.cells[key];
+                            if (cell) {
+                                const { x, y } = this.getXY(secIdx, i);
+                                result.push({
+                                    x: x, 
+                                    y: y + globalYOffset,
+                                    led_index: cell.led_index,
+                                    name: cell.name
+                                });
+                            }
+                        }
+                        globalYOffset += (sec.rows + 1);
+                    });
+                    return result;
+                },
+
+                resolveSectionFromGlobalXY(gx, gy) {
+                    const sections = this.getRenderSections();
+                    let currentYBase = 0;
+
+                    for (let i = 0; i < sections.length; i++) {
+                        const sec = sections[i];
+                        const secHeight = sec.rows;
+                        
+                        if (gy >= currentYBase && gy < (currentYBase + secHeight)) {
+                            const localY = gy - currentYBase;
+                            const localX = gx;
+                            if (localX < sec.cols) {
+                                const cellIdx = (localY * sec.cols) + localX;
+                                return { secIdx: i, localIdx: cellIdx };
+                            }
+                        }
+                        currentYBase += (secHeight + 1);
+                    }
+                    return null;
                 }
             }));
         });

@@ -99,6 +99,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.getControllersStmt, err = db.PrepareContext(ctx, getControllers); err != nil {
 		return nil, fmt.Errorf("error preparing query GetControllers: %w", err)
 	}
+	if q.getDashboardGridStmt, err = db.PrepareContext(ctx, getDashboardGrid); err != nil {
+		return nil, fmt.Errorf("error preparing query GetDashboardGrid: %w", err)
+	}
 	if q.getDashboardStatsStmt, err = db.PrepareContext(ctx, getDashboardStats); err != nil {
 		return nil, fmt.Errorf("error preparing query GetDashboardStats: %w", err)
 	}
@@ -146,6 +149,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.updateColorsStmt, err = db.PrepareContext(ctx, updateColors); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateColors: %w", err)
+	}
+	if q.updateControllerConfigStmt, err = db.PrepareContext(ctx, updateControllerConfig); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateControllerConfig: %w", err)
 	}
 	if q.updateControllerStatusStmt, err = db.PrepareContext(ctx, updateControllerStatus); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateControllerStatus: %w", err)
@@ -295,6 +301,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing getControllersStmt: %w", cerr)
 		}
 	}
+	if q.getDashboardGridStmt != nil {
+		if cerr := q.getDashboardGridStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getDashboardGridStmt: %w", cerr)
+		}
+	}
 	if q.getDashboardStatsStmt != nil {
 		if cerr := q.getDashboardStatsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getDashboardStatsStmt: %w", cerr)
@@ -373,6 +384,11 @@ func (q *Queries) Close() error {
 	if q.updateColorsStmt != nil {
 		if cerr := q.updateColorsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing updateColorsStmt: %w", cerr)
+		}
+	}
+	if q.updateControllerConfigStmt != nil {
+		if cerr := q.updateControllerConfigStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateControllerConfigStmt: %w", cerr)
 		}
 	}
 	if q.updateControllerStatusStmt != nil {
@@ -469,6 +485,7 @@ type Queries struct {
 	getBinsByControllerStmt          *sql.Stmt
 	getControllerStmt                *sql.Stmt
 	getControllersStmt               *sql.Stmt
+	getDashboardGridStmt             *sql.Stmt
 	getDashboardStatsStmt            *sql.Stmt
 	getPartStmt                      *sql.Stmt
 	getPartAssignmentsStmt           *sql.Stmt
@@ -485,6 +502,7 @@ type Queries struct {
 	searchPartsStmt                  *sql.Stmt
 	setPasswordResetFlagStmt         *sql.Stmt
 	updateColorsStmt                 *sql.Stmt
+	updateControllerConfigStmt       *sql.Stmt
 	updateControllerStatusStmt       *sql.Stmt
 	updateGeneralSettingsStmt        *sql.Stmt
 	updatePartStmt                   *sql.Stmt
@@ -522,6 +540,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		getBinsByControllerStmt:          q.getBinsByControllerStmt,
 		getControllerStmt:                q.getControllerStmt,
 		getControllersStmt:               q.getControllersStmt,
+		getDashboardGridStmt:             q.getDashboardGridStmt,
 		getDashboardStatsStmt:            q.getDashboardStatsStmt,
 		getPartStmt:                      q.getPartStmt,
 		getPartAssignmentsStmt:           q.getPartAssignmentsStmt,
@@ -538,6 +557,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		searchPartsStmt:                  q.searchPartsStmt,
 		setPasswordResetFlagStmt:         q.setPasswordResetFlagStmt,
 		updateColorsStmt:                 q.updateColorsStmt,
+		updateControllerConfigStmt:       q.updateControllerConfigStmt,
 		updateControllerStatusStmt:       q.updateControllerStatusStmt,
 		updateGeneralSettingsStmt:        q.updateGeneralSettingsStmt,
 		updatePartStmt:                   q.updatePartStmt,

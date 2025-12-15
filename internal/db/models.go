@@ -39,6 +39,7 @@ type Controller struct {
 	MacAddress sql.NullString `json:"mac_address"`
 	IsOnline   sql.NullBool   `json:"is_online"`
 	LedCount   int64          `json:"led_count"`
+	ConfigJson sql.NullString `json:"config_json"`
 	CreatedAt  sql.NullTime   `json:"created_at"`
 }
 

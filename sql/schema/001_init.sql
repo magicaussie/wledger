@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS controllers (
     mac_address TEXT,
     is_online BOOLEAN DEFAULT 0,
     led_count INTEGER NOT NULL DEFAULT 0,
+    config_json TEXT DEFAULT '{"type":"grid","rows":8,"cols":8}', -- Stores the UI configuration (Linear vs Grid vs Compound definitions)
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 

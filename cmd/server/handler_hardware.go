@@ -142,20 +142,47 @@ type gridCellData struct {
 // POST /hardware/{id}/grid
 func (app *application) handleHardwareGridSave(w http.ResponseWriter, r *http.Request) {
 	controllerID, _ := strconv.Atoi(chi.URLParam(r, "id"))
+	ctx := r.Context()
 
-	// Parse the JSON blob
+	// Parse Payload
 	gridDataJSON := r.FormValue("grid_data")
-	var cells []gridCellData
-	if err := json.Unmarshal([]byte(gridDataJSON), &cells); err != nil {
+	var newCells []gridCellData
+	if err := json.Unmarshal([]byte(gridDataJSON), &newCells); err != nil {
 		app.logger.Error("failed to parse grid json", "error", err)
-		http.Error(w, "Invalid JSON data", http.StatusBadRequest)
+		http.Error(w, "Invalid Grid JSON", http.StatusBadRequest)
 		return
 	}
 
-	// Upsert new/updated bins
-	ctx := r.Context()
-	for _, cell := range cells {
-		app.queries.UpsertBin(ctx, db.UpsertBinParams{
+	tx, err := app.database.Begin()
+	if err != nil {
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+	defer tx.Rollback()
+	qtx := app.queries.WithTx(tx)
+
+	// TODO: REVISIT THIS
+	// Delete ALL bins for this controller
+	// This removes all bins and (via cascading delete) creates a clean slate.
+	// It also removes all bin/inventory assignments from all parts when this happens.
+	// I need to figure out a more elegant solution.
+	err = qtx.DeleteBinsByController(ctx, sql.NullInt64{Int64: int64(controllerID), Valid: true})
+	if err != nil {
+		app.logger.Error("failed to wipe existing bins", "error", err)
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+
+	// Insert New Bins (Fresh Start)
+	maxLedIndex := 0
+	for _, cell := range newCells {
+		if cell.LedIndex > maxLedIndex {
+			maxLedIndex = cell.LedIndex
+		}
+
+		// use CreateBin (INSERT) because the table is empty for this controller now.
+		// No Upsert needed.
+		_, err := qtx.CreateBin(ctx, db.CreateBinParams{
 			Name:         cell.Name,
 			ControllerID: sql.NullInt64{Int64: int64(controllerID), Valid: true},
 			LedIndex:     sql.NullInt64{Int64: int64(cell.LedIndex), Valid: true},
@@ -163,9 +190,33 @@ func (app *application) handleHardwareGridSave(w http.ResponseWriter, r *http.Re
 			GridX:        sql.NullInt64{Int64: int64(cell.X), Valid: true},
 			GridY:        sql.NullInt64{Int64: int64(cell.Y), Valid: true},
 		})
+		if err != nil {
+			app.logger.Error("failed to create bin", "name", cell.Name, "error", err)
+			http.Error(w, "Failed to save layout", http.StatusInternalServerError)
+			return
+		}
 	}
 
-	audit.Log(ctx, app.queries, "UPDATE", "HARDWARE", int64(controllerID), "Updated LED Grid Layout", nil, nil)
+	// Update Controller Config
+	configJSON := r.FormValue("config_data")
+	if configJSON != "" {
+		err := qtx.UpdateControllerConfig(ctx, db.UpdateControllerConfigParams{
+			ConfigJson: sql.NullString{String: configJSON, Valid: true},
+			LedCount:   int64(maxLedIndex + 1),
+			ID:         int64(controllerID),
+		})
+		if err != nil {
+			http.Error(w, "Config update failed", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		http.Error(w, "Commit failed", http.StatusInternalServerError)
+		return
+	}
+
+	audit.Log(ctx, app.queries, "UPDATE", "HARDWARE", int64(controllerID), "Reset LED Grid Layout", nil, nil)
 	http.Redirect(w, r, "/hardware", http.StatusSeeOther)
 }
 

@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 )
@@ -14,4 +15,13 @@ func JSON(v any) string {
 		return "{}"
 	}
 	return string(b)
+}
+
+// DefaultJSON safely returns the string value from a NullString,
+// or the provided default if the value is invalid/empty.
+func DefaultJSON(ns sql.NullString, defaultValue string) string {
+	if !ns.Valid || ns.String == "" {
+		return defaultValue
+	}
+	return ns.String
 }

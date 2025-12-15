@@ -37,6 +37,7 @@ type Querier interface {
 	GetBinsByController(ctx context.Context, controllerID sql.NullInt64) ([]Bin, error)
 	GetController(ctx context.Context, id int64) (Controller, error)
 	GetControllers(ctx context.Context) ([]Controller, error)
+	GetDashboardGrid(ctx context.Context) ([]GetDashboardGridRow, error)
 	GetDashboardStats(ctx context.Context) (GetDashboardStatsRow, error)
 	GetPart(ctx context.Context, id int64) (Part, error)
 	// STOCK ASSIGNMENTS
@@ -55,6 +56,7 @@ type Querier interface {
 	SearchParts(ctx context.Context, arg SearchPartsParams) ([]SearchPartsRow, error)
 	SetPasswordResetFlag(ctx context.Context, arg SetPasswordResetFlagParams) error
 	UpdateColors(ctx context.Context, arg UpdateColorsParams) error
+	UpdateControllerConfig(ctx context.Context, arg UpdateControllerConfigParams) error
 	UpdateControllerStatus(ctx context.Context, arg UpdateControllerStatusParams) error
 	UpdateGeneralSettings(ctx context.Context, arg UpdateGeneralSettingsParams) error
 	UpdatePart(ctx context.Context, arg UpdatePartParams) error

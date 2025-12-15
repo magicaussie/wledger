@@ -16,3 +16,8 @@ DELETE FROM controllers WHERE id = ?;
 UPDATE controllers 
 SET is_online = ?, led_count = ? 
 WHERE id = ?;
+
+-- name: UpdateControllerConfig :exec
+UPDATE controllers 
+SET config_json = ?, led_count = ?
+WHERE id = ?;
