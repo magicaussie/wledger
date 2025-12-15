@@ -100,19 +100,19 @@ templ GridPainter(controller db.Controller, bins []db.Bin, canEdit bool) {
 					<div class="overflow-x-auto pb-2">
 						<div
 							class="grid gap-1 select-none"
-							:style="`grid-template-columns: repeat(${section.cols}, minmax(2.5rem, 1fr)); width: fit-content; min-width: 100%;`"
+							:style="`grid-template-columns: repeat(${section.cols}, 3rem); width: fit-content;`"
 						>
 							<template x-for="i in (section.rows * section.cols)">
 								<div
-									class="aspect-square border border-base-300 rounded flex flex-col items-center justify-center text-xs transition-colors relative"
+									class="aspect-square border border-base-300 rounded flex flex-col items-center justify-center text-xs transition-colors relative overflow-hidden"
 									:class="[
 										getCellClass(secIdx, i-1), 
 										canEdit ? 'cursor-pointer hover:border-primary hover:bg-base-200' : 'cursor-default'
 									]"
 									@click="toggleCell(secIdx, i-1)"
 								>
-									<span x-text="getLedIndex(secIdx, i-1)" class="font-bold text-[10px]"></span>
-									<span x-show="getBinName(secIdx, i-1)" x-text="getBinName(secIdx, i-1)" class="text-[9px] opacity-70 truncate w-full text-center px-0.5"></span>
+									<span x-text="getLedIndex(secIdx, i-1)" class="font-bold text-[10px] leading-tight"></span>
+									<span x-show="getBinName(secIdx, i-1)" x-text="getBinName(secIdx, i-1)" class="text-[8px] opacity-70 truncate w-full text-center px-0.5 leading-tight"></span>
 								</div>
 							</template>
 						</div>

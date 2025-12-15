@@ -126,7 +126,7 @@ func DashboardGrid(bins []DashboardBin) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<div class=\"card bg-base-100 shadow-xl border border-base-300 overflow-hidden\"><div class=\"card-body p-6\"><h2 class=\"card-title text-2xl mb-6\">Inventory Status</h2><div class=\"overflow-x-auto\"><div class=\"grid gap-1.5\" style=\"width: fit-content; min-width: 100%;\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<div class=\"card bg-base-100 shadow-xl border border-base-300 overflow-hidden\"><div class=\"card-body p-6\"><h2 class=\"card-title text-2xl mb-6\">Inventory Status</h2><div class=\"overflow-x-auto\"><div class=\"grid gap-1.5 p-1\" style=\"width: fit-content; min-width: 100%;\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

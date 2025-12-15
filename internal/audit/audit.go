@@ -10,6 +10,7 @@ import (
 	"github.com/tuxedocurly/wledger/internal/middleware"
 )
 
+// TODO: fix this implementation before implementing the ledger functionality
 // Log records an action to the audit_logs table.
 // Handles JSON marshaling and user extraction automatically
 func Log(ctx context.Context, q *db.Queries, action, entityType string, entityID int64, details string, oldVal, newVal any) {
