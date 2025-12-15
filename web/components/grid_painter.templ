@@ -46,11 +46,11 @@ templ GridPainter(controller db.Controller, bins []db.Bin, canEdit bool) {
 								</div>
 							</div>
 							<div class="flex gap-2">
-								<button @click="autoFill('linear')" class="btn btn-sm btn-outline gap-2">
+								<button @click="autoFill('linear')" class="btn btn-sm btn-success gap-2">
 									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path></svg>
 									Auto Map (Linear)
 								</button>
-								<button @click="autoFill('serpentine')" class="btn btn-sm btn-outline gap-2">
+								<button @click="autoFill('serpentine')" class="btn btn-sm btn-success gap-2">
 									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
 									Auto Map (Snake)
 								</button>
