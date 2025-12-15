@@ -12,7 +12,7 @@ templ GridPainter(controller db.Controller, bins []db.Bin, canEdit bool) {
 		x-data={ fmt.Sprintf(`gridPainter(%d, %s, %s, %t)`, 
 		controller.ID, 
 		utils.JSON(bins), 
-		utils.DefaultJSON(controller.ConfigJson, "{}"), // Helper to ensure an empty string is not passed
+		utils.DefaultJSON(controller.ConfigJson, "{}"), 
 		canEdit) }
 		class="w-full"
 	>
@@ -21,13 +21,29 @@ templ GridPainter(controller db.Controller, bins []db.Bin, canEdit bool) {
 				<div class="card-body p-4">
 					<div class="flex flex-col gap-4">
 						<div class="flex flex-wrap gap-4 items-end justify-between">
-							<div class="form-control w-full max-w-xs">
-								<label class="label"><span class="label-text font-semibold">Grid Type</span></label>
-								<select x-model="config.type" @change="resetLayout()" class="select select-bordered select-sm w-full">
-									<option value="linear">Linear Strip (1 × N)</option>
-									<option value="grid">Standard Matrix (M × N)</option>
-									<option value="compound">Compound (Multi-Section)</option>
-								</select>
+							<div class="flex gap-4">
+								<div class="form-control w-full max-w-xs">
+									<label class="label pb-2">
+										<span class="label-text font-semibold">Grid Type</span>
+									</label>
+									<select x-model="config.type" @change="resetLayout()" class="select select-bordered select-sm w-full">
+										<option value="linear">Linear Strip (1 × N)</option>
+										<option value="grid">Standard Matrix (M × N)</option>
+										<option value="compound">Compound (Multi-Section)</option>
+									</select>
+								</div>
+								<div class="form-control w-full max-w-xs">
+									<label class="label pb-2">
+										<span class="label-text font-semibold">Data Start</span>
+										@QuestionTooltip("Select the location of your WLED controller. This is used for the Auto Map feature. Not required if you are mapping the data direction manually.")
+									</label>
+									<select x-model="config.start_corner" class="select select-bordered select-sm w-full">
+										<option value="tl">Top-Left</option>
+										<option value="tr">Top-Right</option>
+										<option value="bl">Bottom-Left</option>
+										<option value="br">Bottom-Right</option>
+									</select>
+								</div>
 							</div>
 							<div class="flex gap-2">
 								<button @click="autoFill('linear')" class="btn btn-sm btn-outline gap-2">
@@ -49,11 +65,11 @@ templ GridPainter(controller db.Controller, bins []db.Bin, canEdit bool) {
 						</div>
 						<div x-show="config.type === 'grid'" class="p-4 bg-base-100 rounded-lg border border-base-300 flex gap-4">
 							<div class="form-control w-24">
-								<label class="label"><span class="label-text text-xs">Rows</span></label>
+								<label class="label pb-2"><span class="label-text text-xs">Rows</span></label>
 								<input type="number" x-model.number="config.rows" class="input input-bordered input-sm" min="1" max="64"/>
 							</div>
 							<div class="form-control w-24">
-								<label class="label"><span class="label-text text-xs">Columns</span></label>
+								<label class="label pb-2"><span class="label-text text-xs">Columns</span></label>
 								<input type="number" x-model.number="config.cols" class="input input-bordered input-sm" min="1" max="64"/>
 							</div>
 						</div>
@@ -141,18 +157,16 @@ templ GridPainter(controller db.Controller, bins []db.Bin, canEdit bool) {
         document.addEventListener('alpine:init', () => {
             Alpine.data('gridPainter', (ctrlId, existingBins, savedConfig, canEdit) => ({
                 canEdit: canEdit,
-                
-                // Track initial state to detect changes
                 initialConfigStr: '',
                 initialGridStr: '',
 
-                // Internal State
                 config: {
-                    type: 'grid', // 'linear', 'grid', 'compound'
-                    rows: 8,     // Used for 'grid'
-                    cols: 8,     // Used for 'grid'
-                    total: 8,    // Used for 'linear'
-                    sections: [   // Used for 'compound'
+                    type: 'grid', 
+                    rows: 8,     
+                    cols: 8,     
+                    total: 8,
+                    start_corner: 'tl', // tl, tr, bl, br
+                    sections: [
                         { rows: 4, cols: 4 },
                         { rows: 4, cols: 4 }
                     ]
@@ -164,9 +178,11 @@ templ GridPainter(controller db.Controller, bins []db.Bin, canEdit bool) {
                     // Load Config
                     if (savedConfig && Object.keys(savedConfig).length > 0) {
                         this.config = { ...this.config, ...savedConfig };
+                        // Ensure default if missing from old saved config
+                        if (!this.config.start_corner) this.config.start_corner = 'tl';
                     }
 
-                    // Load Existing Bins into Cells
+                    // Load Existing Bins
                     existingBins.forEach(b => {
                         const gx = b.grid_x?.Int64 || 0;
                         const gy = b.grid_y?.Int64 || 0;
@@ -182,13 +198,9 @@ templ GridPainter(controller db.Controller, bins []db.Bin, canEdit bool) {
                         }
                     });
 
-                    // SNAPSHOT: Store the initial state strings
                     this.initialConfigStr = JSON.stringify(this.config);
-                    // use exportBinData() to get the canonical representation of the grid
                     this.initialGridStr = JSON.stringify(this.exportBinData());
                 },
-
-                // Configuration Helpers
 
                 resetLayout() {
                     if (this.config.type === 'linear') {
@@ -210,7 +222,6 @@ templ GridPainter(controller db.Controller, bins []db.Bin, canEdit bool) {
                     this.config.sections.splice(idx, 1);
                 },
 
-                // Rendering Helpers
                 getRenderSections() {
                     if (this.config.type === 'linear') return [{ rows: 1, cols: this.config.total }];
                     if (this.config.type === 'grid') return [{ rows: this.config.rows, cols: this.config.cols }];
@@ -240,11 +251,9 @@ templ GridPainter(controller db.Controller, bins []db.Bin, canEdit bool) {
                     return this.cells[key] ? this.cells[key].name : '';
                 },
 
-                // Interaction: toggleCell
                 toggleCell(secIdx, cellIdx) {
                     if (!this.canEdit) return;
                     const key = `${secIdx},${cellIdx}`;
-                    
                     if (this.cells[key]) {
                         delete this.cells[key];
                     } else {
@@ -263,49 +272,65 @@ templ GridPainter(controller db.Controller, bins []db.Bin, canEdit bool) {
 
                 generateName(secIdx, cellIdx) {
                     const { x, y } = this.getXY(secIdx, cellIdx);
-                    
-                    // Logic: 
-                    // 0-25  -> A..Z
-                    // 26-51 -> AA..ZZ
-                    // 52-77 -> AAA..ZZZ
-                    
-                    // Determine the base character (A-Z)
+                    // 0-25 -> A..Z; 26-51 -> AA..ZZ
                     const charCode = 65 + (x % 26);
                     const char = String.fromCharCode(charCode);
-                    
-                    // Determine repetition count (1, 2, 3...)
                     const repeatCount = Math.floor(x / 26) + 1;
-                    
-                    // Build the column label
                     const colLetter = char.repeat(repeatCount);
 
                     if (this.config.type === 'compound') {
-                        // S1-AA1 -> Section 1, Bin AA1
                         return `S${secIdx+1}-${colLetter}${y+1}`;
                     }
                     return `${colLetter}${y+1}`;
                 },
 
-                // Auto Fill & Clear
                 autoFill(mode) {
                     if (!this.canEdit) return;
                     if (!confirm("This will overwrite existing mappings. Continue?")) return;
 
                     this.cells = {};
                     let ledCounter = 0;
+                    const startPos = this.config.start_corner || 'tl'; // tl, tr, bl, br
 
                     const sections = this.getRenderSections();
                     sections.forEach((sec, secIdx) => {
-                        for (let y = 0; y < sec.rows; y++) {
-                            for (let x = 0; x < sec.cols; x++) {
-                                let targetX = x;
-                                if (mode === 'serpentine' && y % 2 !== 0) {
-                                    targetX = (sec.cols - 1) - x;
+                        
+                        // We iterate through the "Wiring" path (Row by Row)
+                        // But we must calculate the "Visual" X/Y coordinate for that path
+                        
+                        for (let r = 0; r < sec.rows; r++) {
+                            for (let c = 0; c < sec.cols; c++) {
+                                
+                                // 1. Determine Visual Y based on Vertical Start
+                                // If starting at Bottom, row 0 is actually the last visual row
+                                let visualY = (startPos.includes('b')) ? (sec.rows - 1 - r) : r;
+
+                                // 2. Determine Visual X based on Horizontal Start
+                                // If starting at Right, col 0 is actually the last visual col
+                                let visualX = (startPos.includes('r')) ? (sec.cols - 1 - c) : c;
+
+                                // 3. Handle Snake/Serpentine Reversal
+                                if (mode === 'serpentine' && r % 2 !== 0) {
+                                    // If we are on an odd row (1, 3, 5...), we flip the direction
+                                    // relative to the start side.
+                                    if (startPos.includes('r')) {
+                                        // Started Right. Normal is R->L. Flip is L->R (which is visual c)
+                                        visualX = c; 
+                                    } else {
+                                        // Started Left. Normal is L->R. Flip is R->L.
+                                        visualX = (sec.cols - 1 - c);
+                                    }
                                 }
-                                const cellIdx = (y * sec.cols) + targetX;
+
+                                // 4. Save Logic
+                                // We must convert visual X/Y back to the linear cell index 
+                                // because that's how we key the 'cells' object (row-major).
+                                const cellIdx = (visualY * sec.cols) + visualX;
                                 const key = `${secIdx},${cellIdx}`;
+
                                 this.cells[key] = {
                                     led_index: ledCounter,
+                                    // Naming is always based on Visual Position (Spreadsheet style)
                                     name: this.generateName(secIdx, cellIdx)
                                 };
                                 ledCounter++;
@@ -321,7 +346,6 @@ templ GridPainter(controller db.Controller, bins []db.Bin, canEdit bool) {
                 },
 
                 submitGrid() {
-                    // Check for Changes
                     const currentConfigStr = JSON.stringify(this.config);
                     const currentGridStr = JSON.stringify(this.exportBinData());
 
@@ -330,9 +354,6 @@ templ GridPainter(controller db.Controller, bins []db.Bin, canEdit bool) {
                         return;
                     }
 
-                    // Destructive Warning
-                    // TODO: Find a better way to handle the "user updates controller bin config"
-                    // situation.
                     const msg = "WARNING: DESTRUCTIVE ACTION\n\n" +
                                 "Saving this configuration will OVERWRITE ALL existing bin data for this controller.\n\n" +
                                 "Any parts currently assigned to bins on this controller will be UNASSIGNED.\n\n" +
@@ -341,8 +362,6 @@ templ GridPainter(controller db.Controller, bins []db.Bin, canEdit bool) {
                     if (!confirm(msg)) {
                         return;
                     }
-                    
-                    // Submit
                     this.$refs.gridForm.submit();
                 },
 
