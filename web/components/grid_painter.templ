@@ -263,8 +263,24 @@ templ GridPainter(controller db.Controller, bins []db.Bin, canEdit bool) {
 
                 generateName(secIdx, cellIdx) {
                     const { x, y } = this.getXY(secIdx, cellIdx);
-                    const colLetter = String.fromCharCode(65 + x);
+                    
+                    // Logic: 
+                    // 0-25  -> A..Z
+                    // 26-51 -> AA..ZZ
+                    // 52-77 -> AAA..ZZZ
+                    
+                    // Determine the base character (A-Z)
+                    const charCode = 65 + (x % 26);
+                    const char = String.fromCharCode(charCode);
+                    
+                    // Determine repetition count (1, 2, 3...)
+                    const repeatCount = Math.floor(x / 26) + 1;
+                    
+                    // Build the column label
+                    const colLetter = char.repeat(repeatCount);
+
                     if (this.config.type === 'compound') {
+                        // S1-AA1 -> Section 1, Bin AA1
                         return `S${secIdx+1}-${colLetter}${y+1}`;
                     }
                     return `${colLetter}${y+1}`;
