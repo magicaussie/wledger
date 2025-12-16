@@ -11,8 +11,11 @@ tmp_dir = "tmp"
   # Ignore these to prevent loops
   exclude_dir = ["assets", "tmp", "vendor", "node_modules", "web/static", ".git"]
   
+  # Exclude generated templ files (templ watch handles .templ -> _templ.go)
+  exclude_regex = ["_templ\\.go$"]
+  
   # Watch these extensions
-  include_ext = ["go", "templ", "html"]
+  include_ext = ["go"]
   
   # Don't let build errors kill the process
   stop_on_error = true

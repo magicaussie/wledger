@@ -1,21 +1,68 @@
-# Run all dev watchers
+# Default target
+.PHONY: help
+help:
+	@echo "Available commands:"
+	@echo "  make dev        - Run all dev watchers (templ, tailwind, air)"
+	@echo "  make build      - Build for production"
+	@echo "  make generate   - Generate all code (templ, sqlc, tailwind)"
+	@echo "  make clean      - Clean generated files and build artifacts"
+	@echo "  make test       - Run tests"
+
+# Run all dev watchers (with initial generation)
+.PHONY: dev
 dev:
-	@make -j3 dev-templ dev-tailwind dev-server
+	@echo "Running initial code generation..."
+	@make --no-print-directory generate
+	@echo ""
+	@echo "Starting development watchers..."
+	@make --no-print-directory -j3 dev-templ dev-tailwind dev-server
 
 # Watch Templ files
+.PHONY: dev-templ
 dev-templ:
 	templ generate --watch --proxy="http://localhost:8080"
 
 # Watch CSS (Tailwind v4)
+.PHONY: dev-tailwind
 dev-tailwind:
-	./node_modules/.bin/tailwindcss -i ./web/static/css/input.css -o ./web/static/css/output.css --content "./web/**/*.templ" --watch
+	npx @tailwindcss/cli -i ./web/static/css/input.css -o ./web/static/css/output.css --watch
 
 # Watch Go Server
+.PHONY: dev-server
 dev-server:
 	air -c air.toml
 
+# Generate all code (useful after git pull or initial setup)
+.PHONY: generate
+generate:
+	@echo "Generating templ files..."
+	@templ generate
+	@echo "Generating sqlc files..."
+	@sqlc generate
+	@echo "Generating CSS..."
+	@npx @tailwindcss/cli -i ./web/static/css/input.css -o ./web/static/css/output.css
+	@echo "Done!"
+
 # Build for production
+.PHONY: build
 build:
-	templ generate
-	./node_modules/.bin/tailwindcss -i ./web/static/css/input.css -o ./web/static/css/output.css --content "./web/**/*.templ" --minify
-	go build -tags fts5 -o bin/wledger cmd/server/main.go
+	@echo "Building for production..."
+	@templ generate
+	@npx @tailwindcss/cli -i web/static/css/input.css -o web/static/css/output.css --minify
+	@go build -tags fts5 -o bin/wledger cmd/server/main.go
+	@echo "Build complete: bin/wledger"
+
+# Run tests
+.PHONY: test
+test:
+	go test -v -tags fts5 ./...
+
+# Clean generated files
+.PHONY: clean
+clean:
+	@echo "Cleaning generated files..."
+	@rm -rf tmp/
+	@rm -rf bin/
+	@rm -f web/static/css/output.css
+	@find . -name "*_templ.go" -type f -delete
+	@echo "Clean complete!"

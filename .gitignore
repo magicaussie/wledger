@@ -6,18 +6,19 @@ main
 # Local Database
 /data/*
 
+# Local File Uploads & Logs
+/app/logs
+/app/data
+/app/uploads
+
 # OS
 .DS_Store
 
 # Node
 node_modules
-/web/static/css/output.css
 
 # Go
 vendor/
 
 # Environment
 .env
-/app/logs
-/app/data
-/app/uploads
