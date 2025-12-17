@@ -12,7 +12,7 @@ tmp_dir = "tmp"
   exclude_dir = ["assets", "tmp", "vendor", "node_modules", "web/static", ".git"]
   
   # Exclude generated templ files (templ watch handles .templ -> _templ.go)
-  exclude_regex = ["_templ\\.go$"]
+  # exclude_regex = ["_templ\\.go$"]
   
   # Watch these extensions
   include_ext = ["go"]
