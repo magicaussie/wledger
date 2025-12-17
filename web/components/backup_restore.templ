@@ -7,7 +7,6 @@ templ BackupRestore() {
 				<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 011.414.586l4.243 4.243a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"></path></svg>
 				Backup & Restore
 			</h3>
-			
 			<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 				<!-- Backup Section -->
 				<div class="bg-base-100 p-4 rounded-lg border border-base-300 flex flex-col justify-between">
@@ -22,7 +21,6 @@ templ BackupRestore() {
 						Download Backup
 					</a>
 				</div>
-
 				<!-- Restore Section -->
 				<div class="bg-base-100 p-4 rounded-lg border border-base-300 flex flex-col justify-between">
 					<div>
@@ -40,26 +38,22 @@ templ BackupRestore() {
 			</div>
 		</div>
 	</div>
-
 	<!-- Restore Modal -->
 	<dialog id="restore_modal" class="modal">
 		<div class="modal-box bg-base-100 border-2 border-error">
 			<form method="dialog">
 				<button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
 			</form>
-			
 			<h3 class="font-bold text-xl text-error mb-4 flex items-center gap-2">
 				<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
 				Danger Zone: System Restore
 			</h3>
-			
 			<div class="alert alert-error text-sm">
 				<span>
 					You are about to completely wipe the current database and replace it with the backup.
 					All current parts, bins, and settings will be lost.
 				</span>
 			</div>
-
 			<form
 				hx-post="/settings/backup/restore"
 				hx-encoding="multipart/form-data"
@@ -74,19 +68,16 @@ templ BackupRestore() {
 					</label>
 					<input type="file" name="backup_file" accept=".zip" class="file-input file-input-bordered file-input-error w-full" required/>
 				</div>
-
 				<div class="form-control">
 					<label class="label cursor-pointer justify-start gap-4">
-						<input type="checkbox" required class="checkbox checkbox-error" />
+						<input type="checkbox" required class="checkbox checkbox-error"/>
 						<span class="label-text text-xs">I understand that this action is irreversible.</span>
 					</label>
 				</div>
-
 				<button type="submit" class="btn btn-error w-full">
 					PERFORM FULL RESTORE
 				</button>
 			</form>
-
 			<div id="restore_result" class="mt-4"></div>
 		</div>
 		<form method="dialog" class="modal-backdrop"><button>close</button></form>

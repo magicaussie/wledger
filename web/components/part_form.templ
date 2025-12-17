@@ -124,22 +124,22 @@ templ PartForm(part db.Part, links []db.PartLink, docs []db.PartDoc, action stri
 						<div class="space-y-2 mb-2">
 							for _, link := range links {
 								<div class="flex gap-2" id={ fmt.Sprintf("link-%d", link.ID) }>
-									<input type="hidden" name="existing_link_ids[]" value={ fmt.Sprintf("%d", link.ID) } />
-									<input 
-										type="text" 
-										name="existing_link_labels[]" 
-										value={ link.Label.String } 
-										class="input input-bordered w-1/3 text-sm" 
+									<input type="hidden" name="existing_link_ids[]" value={ fmt.Sprintf("%d", link.ID) }/>
+									<input
+										type="text"
+										name="existing_link_labels[]"
+										value={ link.Label.String }
+										class="input input-bordered w-1/3 text-sm"
 										placeholder="Label"
-										required 
+										required
 									/>
-									<input 
-										type="url" 
-										name="existing_link_urls[]" 
-										value={ link.Url } 
-										class="input input-bordered w-2/3 text-sm" 
+									<input
+										type="url"
+										name="existing_link_urls[]"
+										value={ link.Url }
+										class="input input-bordered w-2/3 text-sm"
 										placeholder="URL"
-										required 
+										required
 									/>
 									<button
 										type="button"

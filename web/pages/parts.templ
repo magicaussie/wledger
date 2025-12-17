@@ -52,50 +52,49 @@ templ PartsList(user auth.User, parts []PartView, search string, page int) {
 }
 
 templ PartCards(parts []PartView, search string, page int) {
-    // Render the cards
-    for _, part := range parts {
-        <a
-            href={ templ.SafeURL(fmt.Sprintf("/parts/%d", part.ID)) }
-            class="card bg-base-200 shadow-xl hover:shadow-2xl transition-shadow cursor-pointer block group"
-        >
-            <figure class="h-48 bg-base-300 relative overflow-hidden">
-                if part.ImagePath.Valid && part.ImagePath.String != "" {
-                    <img
-                        src={ part.ImagePath.String }
-                        alt={ part.Name }
-                        class="object-cover w-full h-full transform transition-transform duration-500 group-hover:scale-110"
-                    />
-                } else {
-                    <div class="flex items-center justify-center w-full h-full text-4xl opacity-20 transform transition-transform duration-500 group-hover:scale-110">📷</div>
-                }
-            </figure>
-            <div class="card-body p-4 relative z-10 bg-base-200">
-                <h2 class="card-title text-base">
-                    { part.Name }
-                    if part.IsFavorite.Bool {
-                        <span class="text-warning text-xs">★</span>
-                    }
-                </h2>
-                <p class="text-xs opacity-70 truncate">{ part.Description.String }</p>
-                <div class="flex justify-between items-end mt-4">
-                    <div class="flex flex-col">
-                        <span class="text-s font-mono opacity-50"># { part.PartNumber.String }</span>
-                        <span class="badge badge- badge-info mt-1">Stock: { fmt.Sprintf("%v", part.TotalStock) }</span>
-                    </div>
-                </div>
-            </div>
-        </a>
-    }
-
-    // sentinel for loading more parts
-    if len(parts) >= 20 {
-        <div
-            hx-get={ fmt.Sprintf("/parts?page=%d&q=%s&scroll=true", page+1, url.QueryEscape(search)) }
-            hx-trigger="intersect once"
-            hx-swap="outerHTML"
-            class="col-span-full h-12 w-full flex justify-center items-center opacity-50 text-xs"
-        >
-            <span class="loading loading-dots loading-lg text-primary"></span>
-        </div>
-    }
+	// Render the cards
+	for _, part := range parts {
+		<a
+			href={ templ.SafeURL(fmt.Sprintf("/parts/%d", part.ID)) }
+			class="card bg-base-200 shadow-xl hover:shadow-2xl transition-shadow cursor-pointer block group"
+		>
+			<figure class="h-48 bg-base-300 relative overflow-hidden">
+				if part.ImagePath.Valid && part.ImagePath.String != "" {
+					<img
+						src={ part.ImagePath.String }
+						alt={ part.Name }
+						class="object-cover w-full h-full transform transition-transform duration-500 group-hover:scale-110"
+					/>
+				} else {
+					<div class="flex items-center justify-center w-full h-full text-4xl opacity-20 transform transition-transform duration-500 group-hover:scale-110">📷</div>
+				}
+			</figure>
+			<div class="card-body p-4 relative z-10 bg-base-200">
+				<h2 class="card-title text-base">
+					{ part.Name }
+					if part.IsFavorite.Bool {
+						<span class="text-warning text-xs">★</span>
+					}
+				</h2>
+				<p class="text-xs opacity-70 truncate">{ part.Description.String }</p>
+				<div class="flex justify-between items-end mt-4">
+					<div class="flex flex-col">
+						<span class="text-s font-mono opacity-50"># { part.PartNumber.String }</span>
+						<span class="badge badge- badge-info mt-1">Stock: { fmt.Sprintf("%v", part.TotalStock) }</span>
+					</div>
+				</div>
+			</div>
+		</a>
+	}
+	// sentinel for loading more parts
+	if len(parts) >= 20 {
+		<div
+			hx-get={ fmt.Sprintf("/parts?page=%d&q=%s&scroll=true", page+1, url.QueryEscape(search)) }
+			hx-trigger="intersect once"
+			hx-swap="outerHTML"
+			class="col-span-full h-12 w-full flex justify-center items-center opacity-50 text-xs"
+		>
+			<span class="loading loading-dots loading-lg text-primary"></span>
+		</div>
+	}
 }
