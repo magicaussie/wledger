@@ -175,7 +175,7 @@ func Hardware(user auth.User, controllers []db.Controller) templ.Component {
 				}
 			}
 			if len(controllers) == 0 {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<div class=\"col-span-full text-center py-12 opacity-50\"><div class=\"text-6xl mb-4\">🔌</div><p>No controllers found. Add your first WLED device!</p></div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<div class=\"col-span-full\"><div class=\"card bg-base-200 shadow-xl border border-base-300\"><div class=\"card-body flex flex-col items-center justify-center py-16 text-center opacity-60\"><div class=\"text-6xl mb-4 grayscale\">🔌</div><p class=\"text-sm\">No controllers found. Add your first WLED device!</p></div></div></div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
