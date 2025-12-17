@@ -235,7 +235,7 @@ func (app *application) handleBackupRestore(w http.ResponseWriter, r *http.Reque
 	// Order doesn't strictly matter with FKs off, but good practice
 	tables := []string{
 		"part_assignments", "part_links", "part_docs", "part_ai_prompts", "part_tags",
-		"parts_fts", "parts", "bins", "controllers", "audit_logs", "sessions", "users", "settings",
+		"parts", "bins", "controllers", "audit_logs", "sessions", "users", "settings",
 	}
 	for _, table := range tables {
 		if _, err := tx.ExecContext(ctx, fmt.Sprintf("DELETE FROM %s", table)); err != nil {
