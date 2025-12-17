@@ -14,7 +14,7 @@ import (
 )
 
 // MoveStockModal renders a reusable modal for moving or fixing stock assignments.
-// It handles the Controller -> Bin selection logic via HTMX.
+// It handles the Controller + Bin selection logic for "move" and "fix" part buttons on part_detail.templ.
 func MoveStockModal(modalID string, title string, message string, actionURL string, quantity int64, controllers []db.Controller) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context

@@ -39,6 +39,15 @@ func (q *Queries) CreateBin(ctx context.Context, arg CreateBinParams) (int64, er
 	return id, err
 }
 
+const deleteBin = `-- name: DeleteBin :exec
+DELETE FROM bins WHERE id = ?
+`
+
+func (q *Queries) DeleteBin(ctx context.Context, id int64) error {
+	_, err := q.exec(ctx, q.deleteBinStmt, deleteBin, id)
+	return err
+}
+
 const deleteBinByLed = `-- name: DeleteBinByLed :exec
 DELETE FROM bins 
 WHERE controller_id = ? AND led_index = ?

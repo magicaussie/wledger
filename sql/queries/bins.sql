@@ -23,6 +23,9 @@ ON CONFLICT(controller_id, led_index) DO UPDATE SET
     grid_x = excluded.grid_x,
     grid_y = excluded.grid_y;
 
+-- name: DeleteBin :exec
+DELETE FROM bins WHERE id = ?;
+
 -- name: DeleteBinByLed :exec
 DELETE FROM bins 
 WHERE controller_id = ? AND led_index = ?;

@@ -161,7 +161,7 @@ func (app *application) handleHardwareGridSave(w http.ResponseWriter, r *http.Re
 	defer tx.Rollback()
 	qtx := app.queries.WithTx(tx)
 
-	// 1. Fetch Existing Bins
+	// Fetch Existing Bins
 	existingBins, err := qtx.GetBinsByController(ctx, sql.NullInt64{Int64: int64(controllerID), Valid: true})
 	if err != nil {
 		app.logger.Error("failed to fetch existing bins", "error", err)
@@ -169,7 +169,7 @@ func (app *application) handleHardwareGridSave(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// 2. Build Map for Diffing: [LedIndex] -> Bin
+	// Build Map for Diffing: [LedIndex] -> Bin
 	existingMap := make(map[int64]db.Bin)
 	for _, b := range existingBins {
 		if b.LedIndex.Valid {
@@ -179,7 +179,7 @@ func (app *application) handleHardwareGridSave(w http.ResponseWriter, r *http.Re
 
 	maxLedIndex := 0
 
-	// 3. Process Incoming Grid Data
+	// Process Incoming Grid Data
 	for _, cell := range newCells {
 		if cell.LedIndex > maxLedIndex {
 			maxLedIndex = cell.LedIndex
@@ -188,8 +188,8 @@ func (app *application) handleHardwareGridSave(w http.ResponseWriter, r *http.Re
 		ledIdx := int64(cell.LedIndex)
 
 		if _, exists := existingMap[ledIdx]; exists {
-			// --- UPDATE EXISTING ---
-			// By using UpsertBin here, we update the Name/Grid position for this LED Index.
+			// UPDATE EXISTING
+			// By using UpsertBin here, the Name/Grid position is updated for this LED Index.
 			// Note: UpsertBin relies on UNIQUE(controller_id, led_index)
 			err := qtx.UpsertBin(ctx, db.UpsertBinParams{
 				Name:         cell.Name,
@@ -225,9 +225,9 @@ func (app *application) handleHardwareGridSave(w http.ResponseWriter, r *http.Re
 		}
 	}
 
-	// 4. Handle Deletions (Orphan Logic)
+	// Handle Deletions (Orphan Logic)
 	// Any bins remaining in existingMap were NOT in the new payload.
-	// We delete them. The DB Schema (ON DELETE SET NULL) handles orphaning stock automatically.
+	// Delete them. The DB Schema (ON DELETE SET NULL) handles orphaning stock automatically.
 	for _, binToDelete := range existingMap {
 		err := qtx.DeleteBinByLed(ctx, db.DeleteBinByLedParams{
 			ControllerID: sql.NullInt64{Int64: int64(controllerID), Valid: true},

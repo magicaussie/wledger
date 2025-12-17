@@ -486,21 +486,21 @@ func (app *application) handlePartStockMove(w http.ResponseWriter, r *http.Reque
 
 	ctx := r.Context()
 
-	// 1. Get Source Assignment
+	// Get Source Assignment
 	source, err := app.queries.GetAssignment(ctx, int64(assignmentID))
 	if err != nil {
 		http.Error(w, "Source assignment not found", http.StatusNotFound)
 		return
 	}
 
-	// 2. Check if Target exists
+	// Check if Target exists
 	targetID, err := app.queries.GetAssignmentID(ctx, db.GetAssignmentIDParams{
 		PartID: int64(partID),
 		BinID:  sql.NullInt64{Int64: int64(targetBinID), Valid: true},
 	})
 
 	if err == nil {
-		// --- MERGE PATH ---
+		// Merge Path
 		// Target Exists. Add Source Qty to Target Qty.
 		target, _ := app.queries.GetAssignment(ctx, targetID) // Fetch current qty
 		newQty := target.Quantity + source.Quantity
@@ -526,7 +526,7 @@ func (app *application) handlePartStockMove(w http.ResponseWriter, r *http.Reque
 		audit.Log(ctx, app.queries, "STOCK_MERGE", "PART", int64(partID), fmt.Sprintf("Merged stock into bin %d", targetBinID), nil, nil)
 
 	} else {
-		// --- MOVE PATH ---
+		// Move Path
 		// Target does not exist. Just update the Bin ID.
 		err = app.queries.ReassignPartAssignment(ctx, db.ReassignPartAssignmentParams{
 			BinID: sql.NullInt64{Int64: int64(targetBinID), Valid: true},

@@ -60,6 +60,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.deleteAssignmentStmt, err = db.PrepareContext(ctx, deleteAssignment); err != nil {
 		return nil, fmt.Errorf("error preparing query DeleteAssignment: %w", err)
 	}
+	if q.deleteBinStmt, err = db.PrepareContext(ctx, deleteBin); err != nil {
+		return nil, fmt.Errorf("error preparing query DeleteBin: %w", err)
+	}
 	if q.deleteBinByLedStmt, err = db.PrepareContext(ctx, deleteBinByLed); err != nil {
 		return nil, fmt.Errorf("error preparing query DeleteBinByLed: %w", err)
 	}
@@ -243,6 +246,11 @@ func (q *Queries) Close() error {
 	if q.deleteAssignmentStmt != nil {
 		if cerr := q.deleteAssignmentStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing deleteAssignmentStmt: %w", cerr)
+		}
+	}
+	if q.deleteBinStmt != nil {
+		if cerr := q.deleteBinStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing deleteBinStmt: %w", cerr)
 		}
 	}
 	if q.deleteBinByLedStmt != nil {
@@ -496,6 +504,7 @@ type Queries struct {
 	createSessionStmt                *sql.Stmt
 	createUserStmt                   *sql.Stmt
 	deleteAssignmentStmt             *sql.Stmt
+	deleteBinStmt                    *sql.Stmt
 	deleteBinByLedStmt               *sql.Stmt
 	deleteBinsByControllerStmt       *sql.Stmt
 	deleteControllerStmt             *sql.Stmt
@@ -554,6 +563,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		createSessionStmt:                q.createSessionStmt,
 		createUserStmt:                   q.createUserStmt,
 		deleteAssignmentStmt:             q.deleteAssignmentStmt,
+		deleteBinStmt:                    q.deleteBinStmt,
 		deleteBinByLedStmt:               q.deleteBinByLedStmt,
 		deleteBinsByControllerStmt:       q.deleteBinsByControllerStmt,
 		deleteControllerStmt:             q.deleteControllerStmt,

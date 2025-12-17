@@ -24,6 +24,7 @@ type Querier interface {
 	CreateSession(ctx context.Context, arg CreateSessionParams) error
 	CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error)
 	DeleteAssignment(ctx context.Context, id int64) error
+	DeleteBin(ctx context.Context, id int64) error
 	DeleteBinByLed(ctx context.Context, arg DeleteBinByLedParams) error
 	DeleteBinsByController(ctx context.Context, controllerID sql.NullInt64) error
 	DeleteController(ctx context.Context, id int64) error

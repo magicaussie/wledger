@@ -200,6 +200,10 @@ templ GridPainter(controller db.Controller, bins []db.Bin, canEdit bool) {
 
                     this.initialConfigStr = JSON.stringify(this.config);
                     this.initialGridStr = JSON.stringify(this.exportBinData());
+
+                    // Watch for dimension changes to auto-update bin names
+                    this.$watch('config.rows', () => this.recalculateBinNames());
+                    this.$watch('config.cols', () => this.recalculateBinNames());
                 },
 
                 resetLayout() {
@@ -295,23 +299,23 @@ templ GridPainter(controller db.Controller, bins []db.Bin, canEdit bool) {
                     const sections = this.getRenderSections();
                     sections.forEach((sec, secIdx) => {
                         
-                        // We iterate through the "Wiring" path (Row by Row)
-                        // But we must calculate the "Visual" X/Y coordinate for that path
+                        // iterate through the "Wiring" path (Row by Row)
+                        // calculate the "Visual" X/Y coordinate for that path
                         
                         for (let r = 0; r < sec.rows; r++) {
                             for (let c = 0; c < sec.cols; c++) {
                                 
-                                // 1. Determine Visual Y based on Vertical Start
+                                // Determine Visual Y based on Vertical Start
                                 // If starting at Bottom, row 0 is actually the last visual row
                                 let visualY = (startPos.includes('b')) ? (sec.rows - 1 - r) : r;
 
-                                // 2. Determine Visual X based on Horizontal Start
+                                // Determine Visual X based on Horizontal Start
                                 // If starting at Right, col 0 is actually the last visual col
                                 let visualX = (startPos.includes('r')) ? (sec.cols - 1 - c) : c;
 
-                                // 3. Handle Snake/Serpentine Reversal
+                                // Handle Snake/Serpentine Reversal
                                 if (mode === 'serpentine' && r % 2 !== 0) {
-                                    // If we are on an odd row (1, 3, 5...), we flip the direction
+                                    // If on an odd row (1, 3, 5...), flip the direction
                                     // relative to the start side.
                                     if (startPos.includes('r')) {
                                         // Started Right. Normal is R->L. Flip is L->R (which is visual c)
@@ -322,9 +326,9 @@ templ GridPainter(controller db.Controller, bins []db.Bin, canEdit bool) {
                                     }
                                 }
 
-                                // 4. Save Logic
-                                // We must convert visual X/Y back to the linear cell index 
-                                // because that's how we key the 'cells' object (row-major).
+                                // Save Logic
+                                // convert visual X/Y back to the linear cell index 
+                                // because that's how to key the 'cells' object (row-major).
                                 const cellIdx = (visualY * sec.cols) + visualX;
                                 const key = `${secIdx},${cellIdx}`;
 
@@ -342,6 +346,18 @@ templ GridPainter(controller db.Controller, bins []db.Bin, canEdit bool) {
                 clearGrid() {
                     if (this.canEdit && confirm("Clear all mappings?")) {
                         this.cells = {};
+                    }
+                },
+
+                recalculateBinNames() {
+                    // Update names for all currently selected cells based on new dimensions
+                    for (const key in this.cells) {
+                        if (this.cells.hasOwnProperty(key)) {
+                            const [secIdxStr, cellIdxStr] = key.split(',');
+                            const secIdx = parseInt(secIdxStr);
+                            const cellIdx = parseInt(cellIdxStr);
+                            this.cells[key].name = this.generateName(secIdx, cellIdx);
+                        }
                     }
                 },
 
