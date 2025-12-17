@@ -83,6 +83,7 @@ type Querier interface {
 	UpdateGeneralSettings(ctx context.Context, arg UpdateGeneralSettingsParams) error
 	UpdatePart(ctx context.Context, arg UpdatePartParams) error
 	UpdatePartAssignmentQuantity(ctx context.Context, arg UpdatePartAssignmentQuantityParams) error
+	UpdatePartLink(ctx context.Context, arg UpdatePartLinkParams) error
 	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error
 	UpsertBin(ctx context.Context, arg UpsertBinParams) error
 }

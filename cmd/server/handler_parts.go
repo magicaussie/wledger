@@ -307,6 +307,25 @@ func (app *application) handlePartUpdate(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Update Existing Links
+	existingIDs := r.PostForm["existing_link_ids[]"]
+	existingLabels := r.PostForm["existing_link_labels[]"]
+	existingUrls := r.PostForm["existing_link_urls[]"]
+
+	if len(existingIDs) == len(existingLabels) && len(existingIDs) == len(existingUrls) {
+		for i, idStr := range existingIDs {
+			linkID, _ := strconv.Atoi(idStr)
+			if linkID == 0 || existingUrls[i] == "" {
+				continue
+			}
+			_ = app.queries.UpdatePartLink(r.Context(), db.UpdatePartLinkParams{
+				Url:   existingUrls[i],
+				Label: sql.NullString{String: existingLabels[i], Valid: existingLabels[i] != ""},
+				ID:    int64(linkID),
+			})
+		}
+	}
+
 	// Add Links
 	labels := r.PostForm["link_labels[]"]
 	urls := r.PostForm["link_urls[]"]

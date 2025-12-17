@@ -874,3 +874,18 @@ func (q *Queries) UpdatePartAssignmentQuantity(ctx context.Context, arg UpdatePa
 	_, err := q.exec(ctx, q.updatePartAssignmentQuantityStmt, updatePartAssignmentQuantity, arg.Quantity, arg.PartID, arg.BinID)
 	return err
 }
+
+const updatePartLink = `-- name: UpdatePartLink :exec
+UPDATE part_links SET url = ?, label = ? WHERE id = ?
+`
+
+type UpdatePartLinkParams struct {
+	Url   string         `json:"url"`
+	Label sql.NullString `json:"label"`
+	ID    int64          `json:"id"`
+}
+
+func (q *Queries) UpdatePartLink(ctx context.Context, arg UpdatePartLinkParams) error {
+	_, err := q.exec(ctx, q.updatePartLinkStmt, updatePartLink, arg.Url, arg.Label, arg.ID)
+	return err
+}

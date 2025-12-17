@@ -231,6 +231,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.updatePartAssignmentQuantityStmt, err = db.PrepareContext(ctx, updatePartAssignmentQuantity); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdatePartAssignmentQuantity: %w", err)
 	}
+	if q.updatePartLinkStmt, err = db.PrepareContext(ctx, updatePartLink); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdatePartLink: %w", err)
+	}
 	if q.updateUserPasswordStmt, err = db.PrepareContext(ctx, updateUserPassword); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateUserPassword: %w", err)
 	}
@@ -587,6 +590,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing updatePartAssignmentQuantityStmt: %w", cerr)
 		}
 	}
+	if q.updatePartLinkStmt != nil {
+		if cerr := q.updatePartLinkStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updatePartLinkStmt: %w", cerr)
+		}
+	}
 	if q.updateUserPasswordStmt != nil {
 		if cerr := q.updateUserPasswordStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing updateUserPasswordStmt: %w", cerr)
@@ -705,6 +713,7 @@ type Queries struct {
 	updateGeneralSettingsStmt        *sql.Stmt
 	updatePartStmt                   *sql.Stmt
 	updatePartAssignmentQuantityStmt *sql.Stmt
+	updatePartLinkStmt               *sql.Stmt
 	updateUserPasswordStmt           *sql.Stmt
 	upsertBinStmt                    *sql.Stmt
 }
@@ -782,6 +791,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		updateGeneralSettingsStmt:        q.updateGeneralSettingsStmt,
 		updatePartStmt:                   q.updatePartStmt,
 		updatePartAssignmentQuantityStmt: q.updatePartAssignmentQuantityStmt,
+		updatePartLinkStmt:               q.updatePartLinkStmt,
 		updateUserPasswordStmt:           q.updateUserPasswordStmt,
 		upsertBinStmt:                    q.upsertBinStmt,
 	}

@@ -85,6 +85,9 @@ DELETE FROM parts WHERE id = ?;
 -- name: CreatePartLink :exec
 INSERT INTO part_links (part_id, url, label) VALUES (?, ?, ?);
 
+-- name: UpdatePartLink :exec
+UPDATE part_links SET url = ?, label = ? WHERE id = ?;
+
 -- name: GetPartLinks :many
 SELECT * FROM part_links WHERE part_id = ?;
 
