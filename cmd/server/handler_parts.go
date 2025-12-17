@@ -443,21 +443,23 @@ func (app *application) handlePartAssign(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	nullBinID := sql.NullInt64{Int64: int64(binID), Valid: true}
+
 	_, err := app.queries.GetAssignmentID(r.Context(), db.GetAssignmentIDParams{
 		PartID: int64(partID),
-		BinID:  int64(binID),
+		BinID:  nullBinID,
 	})
 
 	if err == nil {
 		err = app.queries.UpdatePartAssignmentQuantity(r.Context(), db.UpdatePartAssignmentQuantityParams{
 			Quantity: int64(qty),
 			PartID:   int64(partID),
-			BinID:    int64(binID),
+			BinID:    nullBinID,
 		})
 	} else {
 		err = app.queries.CreatePartAssignment(r.Context(), db.CreatePartAssignmentParams{
 			PartID:   int64(partID),
-			BinID:    int64(binID),
+			BinID:    nullBinID,
 			Quantity: int64(qty),
 		})
 	}
@@ -472,14 +474,81 @@ func (app *application) handlePartAssign(w http.ResponseWriter, r *http.Request)
 	http.Redirect(w, r, fmt.Sprintf("/parts/%d", partID), http.StatusSeeOther)
 }
 
+func (app *application) handlePartStockMove(w http.ResponseWriter, r *http.Request) {
+	partID, _ := strconv.Atoi(chi.URLParam(r, "id"))
+	assignmentID, _ := strconv.Atoi(chi.URLParam(r, "assignment_id"))
+	targetBinID, _ := strconv.Atoi(r.FormValue("bin_id"))
+
+	if targetBinID == 0 {
+		http.Error(w, "Invalid target bin", http.StatusBadRequest)
+		return
+	}
+
+	ctx := r.Context()
+
+	// 1. Get Source Assignment
+	source, err := app.queries.GetAssignment(ctx, int64(assignmentID))
+	if err != nil {
+		http.Error(w, "Source assignment not found", http.StatusNotFound)
+		return
+	}
+
+	// 2. Check if Target exists
+	targetID, err := app.queries.GetAssignmentID(ctx, db.GetAssignmentIDParams{
+		PartID: int64(partID),
+		BinID:  sql.NullInt64{Int64: int64(targetBinID), Valid: true},
+	})
+
+	if err == nil {
+		// --- MERGE PATH ---
+		// Target Exists. Add Source Qty to Target Qty.
+		target, _ := app.queries.GetAssignment(ctx, targetID) // Fetch current qty
+		newQty := target.Quantity + source.Quantity
+
+		// Update Target
+		err = app.queries.UpdatePartAssignmentQuantity(ctx, db.UpdatePartAssignmentQuantityParams{
+			Quantity: newQty,
+			PartID:   int64(partID),
+			BinID:    sql.NullInt64{Int64: int64(targetBinID), Valid: true},
+		})
+		if err != nil {
+			app.logger.Error("failed to update target stock", "error", err)
+			http.Error(w, "Merge failed", http.StatusInternalServerError)
+			return
+		}
+
+		// Delete Source
+		err = app.queries.DeleteAssignment(ctx, int64(assignmentID))
+		if err != nil {
+			app.logger.Error("failed to delete source stock after merge", "error", err)
+		}
+
+		audit.Log(ctx, app.queries, "STOCK_MERGE", "PART", int64(partID), fmt.Sprintf("Merged stock into bin %d", targetBinID), nil, nil)
+
+	} else {
+		// --- MOVE PATH ---
+		// Target does not exist. Just update the Bin ID.
+		err = app.queries.ReassignPartAssignment(ctx, db.ReassignPartAssignmentParams{
+			BinID: sql.NullInt64{Int64: int64(targetBinID), Valid: true},
+			ID:    int64(assignmentID),
+		})
+		if err != nil {
+			app.logger.Error("failed to move stock", "error", err)
+			http.Error(w, "Move failed", http.StatusInternalServerError)
+			return
+		}
+
+		audit.Log(ctx, app.queries, "STOCK_MOVE", "PART", int64(partID), fmt.Sprintf("Moved stock to bin %d", targetBinID), nil, nil)
+	}
+
+	http.Redirect(w, r, fmt.Sprintf("/parts/%d", partID), http.StatusSeeOther)
+}
+
 func (app *application) handlePartStockRemove(w http.ResponseWriter, r *http.Request) {
 	partID, _ := strconv.Atoi(chi.URLParam(r, "id"))
-	binID, _ := strconv.Atoi(chi.URLParam(r, "bin_id"))
+	assignmentID, _ := strconv.Atoi(chi.URLParam(r, "assignment_id"))
 
-	err := app.queries.DeletePartAssignment(r.Context(), db.DeletePartAssignmentParams{
-		PartID: int64(partID),
-		BinID:  int64(binID),
-	})
+	err := app.queries.DeleteAssignment(r.Context(), int64(assignmentID))
 
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)

@@ -70,10 +70,10 @@ type PartAiPrompt struct {
 }
 
 type PartAssignment struct {
-	ID       int64 `json:"id"`
-	PartID   int64 `json:"part_id"`
-	BinID    int64 `json:"bin_id"`
-	Quantity int64 `json:"quantity"`
+	ID       int64         `json:"id"`
+	PartID   int64         `json:"part_id"`
+	BinID    sql.NullInt64 `json:"bin_id"`
+	Quantity int64         `json:"quantity"`
 }
 
 type PartDoc struct {

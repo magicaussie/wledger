@@ -57,6 +57,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.createUserStmt, err = db.PrepareContext(ctx, createUser); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateUser: %w", err)
 	}
+	if q.deleteAssignmentStmt, err = db.PrepareContext(ctx, deleteAssignment); err != nil {
+		return nil, fmt.Errorf("error preparing query DeleteAssignment: %w", err)
+	}
 	if q.deleteBinByLedStmt, err = db.PrepareContext(ctx, deleteBinByLed); err != nil {
 		return nil, fmt.Errorf("error preparing query DeleteBinByLed: %w", err)
 	}
@@ -83,6 +86,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.deleteUserStmt, err = db.PrepareContext(ctx, deleteUser); err != nil {
 		return nil, fmt.Errorf("error preparing query DeleteUser: %w", err)
+	}
+	if q.getAssignmentStmt, err = db.PrepareContext(ctx, getAssignment); err != nil {
+		return nil, fmt.Errorf("error preparing query GetAssignment: %w", err)
 	}
 	if q.getAssignmentIDStmt, err = db.PrepareContext(ctx, getAssignmentID); err != nil {
 		return nil, fmt.Errorf("error preparing query GetAssignmentID: %w", err)
@@ -140,6 +146,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.listUsersStmt, err = db.PrepareContext(ctx, listUsers); err != nil {
 		return nil, fmt.Errorf("error preparing query ListUsers: %w", err)
+	}
+	if q.reassignPartAssignmentStmt, err = db.PrepareContext(ctx, reassignPartAssignment); err != nil {
+		return nil, fmt.Errorf("error preparing query ReassignPartAssignment: %w", err)
 	}
 	if q.searchPartsStmt, err = db.PrepareContext(ctx, searchParts); err != nil {
 		return nil, fmt.Errorf("error preparing query SearchParts: %w", err)
@@ -231,6 +240,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing createUserStmt: %w", cerr)
 		}
 	}
+	if q.deleteAssignmentStmt != nil {
+		if cerr := q.deleteAssignmentStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing deleteAssignmentStmt: %w", cerr)
+		}
+	}
 	if q.deleteBinByLedStmt != nil {
 		if cerr := q.deleteBinByLedStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing deleteBinByLedStmt: %w", cerr)
@@ -274,6 +288,11 @@ func (q *Queries) Close() error {
 	if q.deleteUserStmt != nil {
 		if cerr := q.deleteUserStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing deleteUserStmt: %w", cerr)
+		}
+	}
+	if q.getAssignmentStmt != nil {
+		if cerr := q.getAssignmentStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getAssignmentStmt: %w", cerr)
 		}
 	}
 	if q.getAssignmentIDStmt != nil {
@@ -369,6 +388,11 @@ func (q *Queries) Close() error {
 	if q.listUsersStmt != nil {
 		if cerr := q.listUsersStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing listUsersStmt: %w", cerr)
+		}
+	}
+	if q.reassignPartAssignmentStmt != nil {
+		if cerr := q.reassignPartAssignmentStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing reassignPartAssignmentStmt: %w", cerr)
 		}
 	}
 	if q.searchPartsStmt != nil {
@@ -471,6 +495,7 @@ type Queries struct {
 	createPartLinkStmt               *sql.Stmt
 	createSessionStmt                *sql.Stmt
 	createUserStmt                   *sql.Stmt
+	deleteAssignmentStmt             *sql.Stmt
 	deleteBinByLedStmt               *sql.Stmt
 	deleteBinsByControllerStmt       *sql.Stmt
 	deleteControllerStmt             *sql.Stmt
@@ -480,6 +505,7 @@ type Queries struct {
 	deletePartLinkStmt               *sql.Stmt
 	deleteSessionStmt                *sql.Stmt
 	deleteUserStmt                   *sql.Stmt
+	getAssignmentStmt                *sql.Stmt
 	getAssignmentIDStmt              *sql.Stmt
 	getBinStmt                       *sql.Stmt
 	getBinsByControllerStmt          *sql.Stmt
@@ -499,6 +525,7 @@ type Queries struct {
 	initSettingsStmt                 *sql.Stmt
 	listPartsStmt                    *sql.Stmt
 	listUsersStmt                    *sql.Stmt
+	reassignPartAssignmentStmt       *sql.Stmt
 	searchPartsStmt                  *sql.Stmt
 	setPasswordResetFlagStmt         *sql.Stmt
 	updateColorsStmt                 *sql.Stmt
@@ -526,6 +553,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		createPartLinkStmt:               q.createPartLinkStmt,
 		createSessionStmt:                q.createSessionStmt,
 		createUserStmt:                   q.createUserStmt,
+		deleteAssignmentStmt:             q.deleteAssignmentStmt,
 		deleteBinByLedStmt:               q.deleteBinByLedStmt,
 		deleteBinsByControllerStmt:       q.deleteBinsByControllerStmt,
 		deleteControllerStmt:             q.deleteControllerStmt,
@@ -535,6 +563,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		deletePartLinkStmt:               q.deletePartLinkStmt,
 		deleteSessionStmt:                q.deleteSessionStmt,
 		deleteUserStmt:                   q.deleteUserStmt,
+		getAssignmentStmt:                q.getAssignmentStmt,
 		getAssignmentIDStmt:              q.getAssignmentIDStmt,
 		getBinStmt:                       q.getBinStmt,
 		getBinsByControllerStmt:          q.getBinsByControllerStmt,
@@ -554,6 +583,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		initSettingsStmt:                 q.initSettingsStmt,
 		listPartsStmt:                    q.listPartsStmt,
 		listUsersStmt:                    q.listUsersStmt,
+		reassignPartAssignmentStmt:       q.reassignPartAssignmentStmt,
 		searchPartsStmt:                  q.searchPartsStmt,
 		setPasswordResetFlagStmt:         q.setPasswordResetFlagStmt,
 		updateColorsStmt:                 q.updateColorsStmt,

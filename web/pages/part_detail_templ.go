@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/internal/db"
+	"github.com/tuxedocurly/wledger/web/components"
 	"github.com/tuxedocurly/wledger/web/layouts"
 )
 
@@ -55,7 +56,7 @@ func PartDetail(user auth.User, part db.Part, stock []db.GetPartAssignmentsRow, 
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(part.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 18, Col: 22}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 19, Col: 22}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -68,7 +69,7 @@ func PartDetail(user auth.User, part db.Part, stock []db.GetPartAssignmentsRow, 
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(part.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 21, Col: 47}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 22, Col: 47}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -86,7 +87,7 @@ func PartDetail(user auth.User, part db.Part, stock []db.GetPartAssignmentsRow, 
 				var templ_7745c5c3_Var5 string
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(part.Description.String)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 23, Col: 66}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 24, Col: 66}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 				if templ_7745c5c3_Err != nil {
@@ -109,7 +110,7 @@ func PartDetail(user auth.User, part db.Part, stock []db.GetPartAssignmentsRow, 
 				var templ_7745c5c3_Var6 templ.SafeURL
 				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/parts/%d/edit", part.ID)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 28, Col: 69}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 29, Col: 69}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 				if templ_7745c5c3_Err != nil {
@@ -122,7 +123,7 @@ func PartDetail(user auth.User, part db.Part, stock []db.GetPartAssignmentsRow, 
 				var templ_7745c5c3_Var7 templ.SafeURL
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/parts/%d/delete", part.ID)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 33, Col: 71}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 34, Col: 71}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 				if templ_7745c5c3_Err != nil {
@@ -145,7 +146,7 @@ func PartDetail(user auth.User, part db.Part, stock []db.GetPartAssignmentsRow, 
 				var templ_7745c5c3_Var8 string
 				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(part.ImagePath.String)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 50, Col: 40}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 51, Col: 40}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 				if templ_7745c5c3_Err != nil {
@@ -158,7 +159,7 @@ func PartDetail(user auth.User, part db.Part, stock []db.GetPartAssignmentsRow, 
 				var templ_7745c5c3_Var9 string
 				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(part.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 50, Col: 58}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 51, Col: 58}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 				if templ_7745c5c3_Err != nil {
@@ -186,7 +187,7 @@ func PartDetail(user auth.User, part db.Part, stock []db.GetPartAssignmentsRow, 
 				var templ_7745c5c3_Var10 string
 				templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(part.PartNumber.String)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 65, Col: 58}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 66, Col: 58}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 				if templ_7745c5c3_Err != nil {
@@ -205,7 +206,7 @@ func PartDetail(user auth.User, part db.Part, stock []db.GetPartAssignmentsRow, 
 				var templ_7745c5c3_Var11 string
 				templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(part.Manufacturer.String)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 71, Col: 62}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 72, Col: 62}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 				if templ_7745c5c3_Err != nil {
@@ -224,7 +225,7 @@ func PartDetail(user auth.User, part db.Part, stock []db.GetPartAssignmentsRow, 
 				var templ_7745c5c3_Var12 string
 				templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(part.Supplier.String)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 77, Col: 58}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 78, Col: 58}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 				if templ_7745c5c3_Err != nil {
@@ -242,7 +243,7 @@ func PartDetail(user auth.User, part db.Part, stock []db.GetPartAssignmentsRow, 
 			var templ_7745c5c3_Var13 string
 			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%.2f", part.UnitCost.Float64))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 83, Col: 79}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 84, Col: 79}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 			if templ_7745c5c3_Err != nil {
@@ -270,7 +271,7 @@ func PartDetail(user auth.User, part db.Part, stock []db.GetPartAssignmentsRow, 
 						var templ_7745c5c3_Var14 templ.SafeURL
 						templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(link.Url))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 95, Col: 44}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 96, Col: 44}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 						if templ_7745c5c3_Err != nil {
@@ -283,7 +284,7 @@ func PartDetail(user auth.User, part db.Part, stock []db.GetPartAssignmentsRow, 
 						var templ_7745c5c3_Var15 string
 						templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(link.Label.String)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 97, Col: 31}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 98, Col: 31}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 						if templ_7745c5c3_Err != nil {
@@ -318,7 +319,7 @@ func PartDetail(user auth.User, part db.Part, stock []db.GetPartAssignmentsRow, 
 						var templ_7745c5c3_Var16 templ.SafeURL
 						templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(doc.FilePath))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 108, Col: 48}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 109, Col: 48}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 						if templ_7745c5c3_Err != nil {
@@ -331,7 +332,7 @@ func PartDetail(user auth.User, part db.Part, stock []db.GetPartAssignmentsRow, 
 						var templ_7745c5c3_Var17 string
 						templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(doc.FileName)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 110, Col: 26}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 111, Col: 26}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 						if templ_7745c5c3_Err != nil {
@@ -359,7 +360,7 @@ func PartDetail(user auth.User, part db.Part, stock []db.GetPartAssignmentsRow, 
 			var templ_7745c5c3_Var18 string
 			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", calculateTotalStock(stock)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 124, Col: 55}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 125, Col: 55}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 			if templ_7745c5c3_Err != nil {
@@ -396,20 +397,35 @@ func PartDetail(user auth.User, part db.Part, stock []db.GetPartAssignmentsRow, 
 				}
 			}
 			for _, s := range stock {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "<tr><td class=\"font-medium\"><div class=\"flex items-center gap-2\"><svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-5 w-5 opacity-50\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z\"></path><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M15 11a3 3 0 11-6 0 3 3 0 016 0z\"></path></svg> ")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "<tr><td class=\"font-medium\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				var templ_7745c5c3_Var19 string
-				templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(s.BinName)
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 165, Col: 25}
+				if s.BinName.Valid {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 45, "<div class=\"flex items-center gap-2\"><svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-5 w-5 opacity-50\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z\"></path><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M15 11a3 3 0 11-6 0 3 3 0 016 0z\"></path></svg> ")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var19 string
+					templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(s.BinName.String)
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 167, Col: 33}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 46, "</div>")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+				} else {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 47, "<div class=\"flex items-center gap-2 text-warning\" title=\"This stock is no longer assigned to a valid bin\"><svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-5 w-5\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z\"></path></svg> Orphaned</div>")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
 				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 45, "</div></td><td class=\"text-sm opacity-70\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 48, "</td><td class=\"text-sm opacity-70\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -417,138 +433,187 @@ func PartDetail(user auth.User, part db.Part, stock []db.GetPartAssignmentsRow, 
 					var templ_7745c5c3_Var20 string
 					templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(s.ControllerName.String)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 170, Col: 39}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 178, Col: 39}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 				} else {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 46, "<span class=\"italic\">Unmanaged</span>")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 49, "<span class=\"italic\">Unmanaged</span>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 47, "</td><td class=\"text-right font-mono font-bold\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 50, "</td><td class=\"text-right font-mono font-bold\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var21 string
 				templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", s.Quantity))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 175, Col: 86}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 183, Col: 86}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 48, "</td><td class=\"text-right\"><div class=\"flex justify-end gap-1\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 51, "</td><td class=\"text-right\"><div class=\"flex justify-end gap-1\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				if s.ControllerID.Valid {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 49, "<button hx-post=\"")
+				if s.ControllerID.Valid && s.BinID.Valid {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 52, "<button hx-post=\"")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var22 string
-					templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/hardware/%d/locate?bin_id=%d", s.ControllerID.Int64, s.BinID))
+					templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/hardware/%d/locate?bin_id=%d", s.ControllerID.Int64, s.BinID.Int64))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 180, Col: 101}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 188, Col: 107}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 50, "\" hx-swap=\"none\" class=\"btn btn-xs btn-ghost text-accent\" title=\"Locate\"><svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-5 w-5\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M15 12a3 3 0 11-6 0 3 3 0 016 0z\"></path><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z\"></path></svg></button> ")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 53, "\" hx-swap=\"none\" class=\"btn btn-xs btn-ghost text-accent\" title=\"Locate\"><svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-5 w-5\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M15 12a3 3 0 11-6 0 3 3 0 016 0z\"></path><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z\"></path></svg></button> ")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 				}
 				if user.CanWrite() {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 51, "<form action=\"")
+					if !s.BinName.Valid || !s.ControllerID.Valid {
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 54, "<button")
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+						templ_7745c5c3_Err = templ.RenderAttributes(ctx, templ_7745c5c3_Buffer, templ.Attributes{"onclick": fmt.Sprintf("move_stock_modal_%d.showModal()", s.ID)})
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 55, " class=\"btn btn-xs btn-outline btn-warning\" title=\"Reassign to a valid bin\">Fix</button>")
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+						templ_7745c5c3_Err = components.MoveStockModal(
+							fmt.Sprintf("move_stock_modal_%d", s.ID),
+							"Reassign Orphaned Stock",
+							fmt.Sprintf("This stock is currently not assigned to any physical bin. Select a new location for these %d items.", s.Quantity),
+							fmt.Sprintf("/parts/%d/stock/%d/move", part.ID, s.ID),
+							s.Quantity,
+							controllers,
+						).Render(ctx, templ_7745c5c3_Buffer)
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+					} else {
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 56, "<button")
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+						templ_7745c5c3_Err = templ.RenderAttributes(ctx, templ_7745c5c3_Buffer, templ.Attributes{"onclick": fmt.Sprintf("move_stock_modal_%d.showModal()", s.ID)})
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 57, " class=\"btn btn-xs btn-ghost\" title=\"Move Stock\"><svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-4 w-4\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4\"></path></svg></button>")
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+						templ_7745c5c3_Err = components.MoveStockModal(
+							fmt.Sprintf("move_stock_modal_%d", s.ID),
+							"Move Stock",
+							fmt.Sprintf("Select a new location to move these %d items to.", s.Quantity),
+							fmt.Sprintf("/parts/%d/stock/%d/move", part.ID, s.ID),
+							s.Quantity,
+							controllers,
+						).Render(ctx, templ_7745c5c3_Buffer)
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 58, " <form action=\"")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var23 templ.SafeURL
-					templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/parts/%d/stock/%d/delete", part.ID, s.BinID)))
+					templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/parts/%d/stock/%d/delete", part.ID, s.ID)))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 189, Col: 103}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 230, Col: 100}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 52, "\" method=\"POST\" onsubmit=\"return confirm('Remove this stock assignment?');\"><button class=\"btn btn-xs btn-ghost text-error\" title=\"Remove\"><svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-4 w-4\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16\"></path></svg></button></form>")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 59, "\" method=\"POST\" onsubmit=\"return confirm('Remove this stock assignment?');\"><button class=\"btn btn-xs btn-ghost text-error\" title=\"Remove\"><svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-4 w-4\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16\"></path></svg></button></form>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 53, "</div></td></tr>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 60, "</div></td></tr>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 54, "</tbody></table></div></div></div></div></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 61, "</tbody></table></div></div></div></div></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			if user.CanWrite() {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 55, "<dialog id=\"stock_modal\" class=\"modal\"><div class=\"modal-box bg-base-100 overflow-visible\"><form method=\"dialog\"><button class=\"btn btn-sm btn-circle btn-ghost absolute right-2 top-2\">✕</button></form><h3 class=\"font-bold text-xl mb-6\">Add Stock Location</h3><form action=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 62, "<dialog id=\"stock_modal\" class=\"modal\"><div class=\"modal-box bg-base-100 overflow-visible\"><form method=\"dialog\"><button class=\"btn btn-sm btn-circle btn-ghost absolute right-2 top-2\">✕</button></form><h3 class=\"font-bold text-xl mb-6\">Add Stock Location</h3><form action=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var24 templ.SafeURL
 				templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/parts/%d/assign", part.ID)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 214, Col: 71}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 255, Col: 71}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 56, "\" method=\"POST\" class=\"space-y-5\" x-data=\"{ valid: false }\" @input=\"valid = $el.checkValidity()\" x-init=\"valid = $el.checkValidity()\"><div class=\"form-control w-full\"><label class=\"label pt-0 pb-2 justify-start gap-2\"><span class=\"label-text font-medium\">WLED Controller</span><div class=\"tooltip tooltip-bottom md:tooltip-right before:text-xs before:w-[14rem] md:before:w-[24rem] z-50\" data-tip=\"Select the WLED controller containing the bin you want to store this part in.\"><svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"currentColor\" class=\"w-5 h-5 text-base-content/80 hover:text-primary transition-colors cursor-help\"><path fill-rule=\"evenodd\" d=\"M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm11.378-3.917c-.89-.777-2.366-.777-3.255 0a.75.75 0 01-.988-1.129c1.454-1.272 3.776-1.272 5.23 0 1.539 1.345 1.469 3.797.147 4.931-1.019.874-1.725 1.76-1.725 2.865v.75a.75.75 0 01-1.5 0v-.75c0-1.76 1.144-3.09 2.45-4.21.602-.516.59-1.2.14-1.593zM12 18a.75.75 0 100-1.5.75.75 0 000 1.5z\" clip-rule=\"evenodd\"></path></svg></div></label> <select name=\"controller_id\" class=\"select select-bordered w-full\" hx-get=\"/parts/bins_options\" hx-target=\"#bin_select\" hx-trigger=\"change\" required><option value=\"\" disabled selected>Select a controller...</option> ")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 63, "\" method=\"POST\" class=\"space-y-5\" x-data=\"{ valid: false }\" @input=\"valid = $el.checkValidity()\" x-init=\"valid = $el.checkValidity()\"><div class=\"form-control w-full\"><label class=\"label pt-0 pb-2 justify-start gap-2\"><span class=\"label-text font-medium\">WLED Controller</span><div class=\"tooltip tooltip-bottom md:tooltip-right before:text-xs before:w-[14rem] md:before:w-[24rem] z-50\" data-tip=\"Select the WLED controller containing the bin you want to store this part in.\"><svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"currentColor\" class=\"w-5 h-5 text-base-content/80 hover:text-primary transition-colors cursor-help\"><path fill-rule=\"evenodd\" d=\"M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm11.378-3.917c-.89-.777-2.366-.777-3.255 0a.75.75 0 01-.988-1.129c1.454-1.272 3.776-1.272 5.23 0 1.539 1.345 1.469 3.797.147 4.931-1.019.874-1.725 1.76-1.725 2.865v.75a.75.75 0 01-1.5 0v-.75c0-1.76 1.144-3.09 2.45-4.21.602-.516.59-1.2.14-1.593zM12 18a.75.75 0 100-1.5.75.75 0 000 1.5z\" clip-rule=\"evenodd\"></path></svg></div></label> <select name=\"controller_id\" class=\"select select-bordered w-full\" hx-get=\"/parts/bins_options\" hx-target=\"#bin_select\" hx-trigger=\"change\" required><option value=\"\" disabled selected>Select a controller...</option> ")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				for _, c := range controllers {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 57, "<option value=\"")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 64, "<option value=\"")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var25 string
 					templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", c.ID))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 243, Col: 49}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 284, Col: 49}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 58, "\">")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 65, "\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var26 string
 					templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(c.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 243, Col: 60}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/part_detail.templ`, Line: 284, Col: 60}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 59, "</option>")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 66, "</option>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 60, "</select></div><div class=\"form-control w-full\"><label class=\"label pt-0 pb-2 justify-start gap-2\"><span class=\"label-text font-medium\">Bin / Location</span><div class=\"tooltip tooltip-bottom md:tooltip-right before:text-xs before:w-[14rem] md:before:w-[24rem] z-50\" data-tip=\"Choose the specific physical bin (LED segment) assigned to this part.\"><svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"currentColor\" class=\"w-5 h-5 text-base-content/80 hover:text-primary transition-colors cursor-help\"><path fill-rule=\"evenodd\" d=\"M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm11.378-3.917c-.89-.777-2.366-.777-3.255 0a.75.75 0 01-.988-1.129c1.454-1.272 3.776-1.272 5.23 0 1.539 1.345 1.469 3.797.147 4.931-1.019.874-1.725 1.76-1.725 2.865v.75a.75.75 0 01-1.5 0v-.75c0-1.76 1.144-3.09 2.45-4.21.602-.516.59-1.2.14-1.593zM12 18a.75.75 0 100-1.5.75.75 0 000 1.5z\" clip-rule=\"evenodd\"></path></svg></div></label> <select id=\"bin_select\" name=\"bin_id\" class=\"select select-bordered w-full\" required><option value=\"\" disabled selected>Select a controller first</option></select> <label class=\"label\"><span class=\"label-text-alt text-base-content/50\">Select a controller to load available bins</span></label></div><div class=\"form-control w-full\" x-data=\"{ qty: 1 }\"><label class=\"label pt-0 pb-2 justify-start gap-2\"><span class=\"label-text font-medium\">Quantity</span><div class=\"tooltip tooltip-bottom md:tooltip-right before:text-xs before:w-[14rem] md:before:w-[24rem] z-50\" data-tip=\"Enter how many units are currently stored in this specific bin.\"><svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"currentColor\" class=\"w-5 h-5 text-base-content/80 hover:text-primary transition-colors cursor-help\"><path fill-rule=\"evenodd\" d=\"M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm11.378-3.917c-.89-.777-2.366-.777-3.255 0a.75.75 0 01-.988-1.129c1.454-1.272 3.776-1.272 5.23 0 1.539 1.345 1.469 3.797.147 4.931-1.019.874-1.725 1.76-1.725 2.865v.75a.75.75 0 01-1.5 0v-.75c0-1.76 1.144-3.09 2.45-4.21.602-.516.59-1.2.14-1.593zM12 18a.75.75 0 100-1.5.75.75 0 000 1.5z\" clip-rule=\"evenodd\"></path></svg></div></label><div class=\"join w-full\"><button type=\"button\" class=\"btn btn-primary join-item btn-square\" @click=\"qty = Math.max(1, parseInt(qty || 0) - 1)\"><svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-5 w-5\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M20 12H4\"></path></svg></button> <input type=\"number\" name=\"quantity\" x-model=\"qty\" min=\"1\" class=\"input input-bordered join-item w-full text-center appearance-none\" required> <button type=\"button\" class=\"btn btn-primary join-item btn-square\" @click=\"qty = parseInt(qty || 0) + 1\"><svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-5 w-5\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M12 4v16m8-8H4\"></path></svg></button></div></div><div class=\"modal-action mt-8\"><button type=\"button\" class=\"btn btn-ghost\" onclick=\"stock_modal.close()\">Cancel</button> <button type=\"submit\" class=\"btn btn-primary px-6\" :disabled=\"!valid\">Save Stock</button></div></form></div><form method=\"dialog\" class=\"modal-backdrop\"><button>close</button></form></dialog>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 67, "</select></div><div class=\"form-control w-full\"><label class=\"label pt-0 pb-2 justify-start gap-2\"><span class=\"label-text font-medium\">Bin / Location</span><div class=\"tooltip tooltip-bottom md:tooltip-right before:text-xs before:w-[14rem] md:before:w-[24rem] z-50\" data-tip=\"Choose the specific physical bin (LED segment) assigned to this part.\"><svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"currentColor\" class=\"w-5 h-5 text-base-content/80 hover:text-primary transition-colors cursor-help\"><path fill-rule=\"evenodd\" d=\"M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm11.378-3.917c-.89-.777-2.366-.777-3.255 0a.75.75 0 01-.988-1.129c1.454-1.272 3.776-1.272 5.23 0 1.539 1.345 1.469 3.797.147 4.931-1.019.874-1.725 1.76-1.725 2.865v.75a.75.75 0 01-1.5 0v-.75c0-1.76 1.144-3.09 2.45-4.21.602-.516.59-1.2.14-1.593zM12 18a.75.75 0 100-1.5.75.75 0 000 1.5z\" clip-rule=\"evenodd\"></path></svg></div></label> <select id=\"bin_select\" name=\"bin_id\" class=\"select select-bordered w-full\" required><option value=\"\" disabled selected>Select a controller first</option></select> <label class=\"label\"><span class=\"label-text-alt text-base-content/50\">Select a controller to load available bins</span></label></div><div class=\"form-control w-full\" x-data=\"{ qty: 1 }\"><label class=\"label pt-0 pb-2 justify-start gap-2\"><span class=\"label-text font-medium\">Quantity</span><div class=\"tooltip tooltip-bottom md:tooltip-right before:text-xs before:w-[14rem] md:before:w-[24rem] z-50\" data-tip=\"Enter how many units are currently stored in this specific bin.\"><svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"currentColor\" class=\"w-5 h-5 text-base-content/80 hover:text-primary transition-colors cursor-help\"><path fill-rule=\"evenodd\" d=\"M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm11.378-3.917c-.89-.777-2.366-.777-3.255 0a.75.75 0 01-.988-1.129c1.454-1.272 3.776-1.272 5.23 0 1.539 1.345 1.469 3.797.147 4.931-1.019.874-1.725 1.76-1.725 2.865v.75a.75.75 0 01-1.5 0v-.75c0-1.76 1.144-3.09 2.45-4.21.602-.516.59-1.2.14-1.593zM12 18a.75.75 0 100-1.5.75.75 0 000 1.5z\" clip-rule=\"evenodd\"></path></svg></div></label><div class=\"join w-full\"><button type=\"button\" class=\"btn btn-primary join-item btn-square\" @click=\"qty = Math.max(1, parseInt(qty || 0) - 1)\"><svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-5 w-5\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M20 12H4\"></path></svg></button> <input type=\"number\" name=\"quantity\" x-model=\"qty\" min=\"1\" class=\"input input-bordered join-item w-full text-center appearance-none\" required> <button type=\"button\" class=\"btn btn-primary join-item btn-square\" @click=\"qty = parseInt(qty || 0) + 1\"><svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-5 w-5\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M12 4v16m8-8H4\"></path></svg></button></div></div><div class=\"modal-action mt-8\"><button type=\"button\" class=\"btn btn-ghost\" onclick=\"stock_modal.close()\">Cancel</button> <button type=\"submit\" class=\"btn btn-primary px-6\" :disabled=\"!valid\">Save Stock</button></div></form></div><form method=\"dialog\" class=\"modal-backdrop\"><button>close</button></form></dialog>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 61, "</div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 68, "</div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -563,7 +628,7 @@ func PartDetail(user auth.User, part db.Part, stock []db.GetPartAssignmentsRow, 
 }
 
 // Helper to sum stock
-// TODO: move this into /internal/utils
+// TODO: potentially move this into /internal/utils
 func calculateTotalStock(stock []db.GetPartAssignmentsRow) int64 {
 	var total int64 = 0
 	for _, s := range stock {

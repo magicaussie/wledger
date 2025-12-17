@@ -127,10 +127,10 @@ CREATE TABLE IF NOT EXISTS part_docs (
 CREATE TABLE IF NOT EXISTS part_assignments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     part_id INTEGER NOT NULL,
-    bin_id INTEGER NOT NULL,
+    bin_id INTEGER,
     quantity INTEGER NOT NULL DEFAULT 1 CHECK (quantity >= 0),
     FOREIGN KEY(part_id) REFERENCES parts(id) ON DELETE CASCADE,
-    FOREIGN KEY(bin_id) REFERENCES bins(id) ON DELETE CASCADE,
+    FOREIGN KEY(bin_id) REFERENCES bins(id) ON DELETE SET NULL,
     UNIQUE(part_id, bin_id)
 );
 

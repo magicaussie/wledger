@@ -80,9 +80,12 @@ SELECT
     c.id as controller_id,
     c.ip_address as controller_ip
 FROM part_assignments pa
-JOIN bins b ON pa.bin_id = b.id
+LEFT JOIN bins b ON pa.bin_id = b.id
 LEFT JOIN controllers c ON b.controller_id = c.id
 WHERE pa.part_id = ?;
+
+-- name: GetAssignment :one
+SELECT * FROM part_assignments WHERE id = ?;
 
 -- name: GetAssignmentID :one
 SELECT id FROM part_assignments WHERE part_id = ? AND bin_id = ?;
@@ -90,8 +93,16 @@ SELECT id FROM part_assignments WHERE part_id = ? AND bin_id = ?;
 -- name: CreatePartAssignment :exec
 INSERT INTO part_assignments (part_id, bin_id, quantity) VALUES (?, ?, ?);
 
+-- name: ReassignPartAssignment :exec
+UPDATE part_assignments 
+SET bin_id = ? 
+WHERE id = ?;
+
 -- name: UpdatePartAssignmentQuantity :exec
 UPDATE part_assignments SET quantity = ? WHERE part_id = ? AND bin_id = ?;
 
 -- name: DeletePartAssignment :exec
 DELETE FROM part_assignments WHERE part_id = ? AND bin_id = ?;
+
+-- name: DeleteAssignment :exec
+DELETE FROM part_assignments WHERE id = ?;

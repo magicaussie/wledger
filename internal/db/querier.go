@@ -23,6 +23,7 @@ type Querier interface {
 	CreatePartLink(ctx context.Context, arg CreatePartLinkParams) error
 	CreateSession(ctx context.Context, arg CreateSessionParams) error
 	CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error)
+	DeleteAssignment(ctx context.Context, id int64) error
 	DeleteBinByLed(ctx context.Context, arg DeleteBinByLedParams) error
 	DeleteBinsByController(ctx context.Context, controllerID sql.NullInt64) error
 	DeleteController(ctx context.Context, id int64) error
@@ -32,6 +33,7 @@ type Querier interface {
 	DeletePartLink(ctx context.Context, id int64) error
 	DeleteSession(ctx context.Context, token string) error
 	DeleteUser(ctx context.Context, id int64) error
+	GetAssignment(ctx context.Context, id int64) (PartAssignment, error)
 	GetAssignmentID(ctx context.Context, arg GetAssignmentIDParams) (int64, error)
 	GetBin(ctx context.Context, id int64) (Bin, error)
 	GetBinsByController(ctx context.Context, controllerID sql.NullInt64) ([]Bin, error)
@@ -53,6 +55,7 @@ type Querier interface {
 	InitSettings(ctx context.Context) error
 	ListParts(ctx context.Context, arg ListPartsParams) ([]ListPartsRow, error)
 	ListUsers(ctx context.Context) ([]ListUsersRow, error)
+	ReassignPartAssignment(ctx context.Context, arg ReassignPartAssignmentParams) error
 	SearchParts(ctx context.Context, arg SearchPartsParams) ([]SearchPartsRow, error)
 	SetPasswordResetFlag(ctx context.Context, arg SetPasswordResetFlagParams) error
 	UpdateColors(ctx context.Context, arg UpdateColorsParams) error

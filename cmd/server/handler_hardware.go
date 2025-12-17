@@ -161,39 +161,81 @@ func (app *application) handleHardwareGridSave(w http.ResponseWriter, r *http.Re
 	defer tx.Rollback()
 	qtx := app.queries.WithTx(tx)
 
-	// TODO: REVISIT THIS
-	// Delete ALL bins for this controller
-	// This removes all bins and (via cascading delete) creates a clean slate.
-	// It also removes all bin/inventory assignments from all parts when this happens.
-	// I need to figure out a more elegant solution.
-	err = qtx.DeleteBinsByController(ctx, sql.NullInt64{Int64: int64(controllerID), Valid: true})
+	// 1. Fetch Existing Bins
+	existingBins, err := qtx.GetBinsByController(ctx, sql.NullInt64{Int64: int64(controllerID), Valid: true})
 	if err != nil {
-		app.logger.Error("failed to wipe existing bins", "error", err)
+		app.logger.Error("failed to fetch existing bins", "error", err)
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
 
-	// Insert New Bins (Fresh Start)
+	// 2. Build Map for Diffing: [LedIndex] -> Bin
+	existingMap := make(map[int64]db.Bin)
+	for _, b := range existingBins {
+		if b.LedIndex.Valid {
+			existingMap[b.LedIndex.Int64] = b
+		}
+	}
+
 	maxLedIndex := 0
+
+	// 3. Process Incoming Grid Data
 	for _, cell := range newCells {
 		if cell.LedIndex > maxLedIndex {
 			maxLedIndex = cell.LedIndex
 		}
 
-		// use CreateBin (INSERT) because the table is empty for this controller now.
-		// No Upsert needed.
-		_, err := qtx.CreateBin(ctx, db.CreateBinParams{
-			Name:         cell.Name,
+		ledIdx := int64(cell.LedIndex)
+
+		if _, exists := existingMap[ledIdx]; exists {
+			// --- UPDATE EXISTING ---
+			// By using UpsertBin here, we update the Name/Grid position for this LED Index.
+			// Note: UpsertBin relies on UNIQUE(controller_id, led_index)
+			err := qtx.UpsertBin(ctx, db.UpsertBinParams{
+				Name:         cell.Name,
+				ControllerID: sql.NullInt64{Int64: int64(controllerID), Valid: true},
+				LedIndex:     sql.NullInt64{Int64: ledIdx, Valid: true},
+				Width:        sql.NullInt64{Int64: 1, Valid: true},
+				GridX:        sql.NullInt64{Int64: int64(cell.X), Valid: true},
+				GridY:        sql.NullInt64{Int64: int64(cell.Y), Valid: true},
+			})
+			if err != nil {
+				app.logger.Error("failed to update bin", "led", ledIdx, "error", err)
+				http.Error(w, "Save failed", http.StatusInternalServerError)
+				return
+			}
+			// Remove from map to mark as "kept"
+			delete(existingMap, ledIdx)
+
+		} else {
+			// --- INSERT NEW ---
+			_, err := qtx.CreateBin(ctx, db.CreateBinParams{
+				Name:         cell.Name,
+				ControllerID: sql.NullInt64{Int64: int64(controllerID), Valid: true},
+				LedIndex:     sql.NullInt64{Int64: ledIdx, Valid: true},
+				Width:        sql.NullInt64{Int64: 1, Valid: true},
+				GridX:        sql.NullInt64{Int64: int64(cell.X), Valid: true},
+				GridY:        sql.NullInt64{Int64: int64(cell.Y), Valid: true},
+			})
+			if err != nil {
+				app.logger.Error("failed to create bin", "led", ledIdx, "error", err)
+				http.Error(w, "Save failed", http.StatusInternalServerError)
+				return
+			}
+		}
+	}
+
+	// 4. Handle Deletions (Orphan Logic)
+	// Any bins remaining in existingMap were NOT in the new payload.
+	// We delete them. The DB Schema (ON DELETE SET NULL) handles orphaning stock automatically.
+	for _, binToDelete := range existingMap {
+		err := qtx.DeleteBinByLed(ctx, db.DeleteBinByLedParams{
 			ControllerID: sql.NullInt64{Int64: int64(controllerID), Valid: true},
-			LedIndex:     sql.NullInt64{Int64: int64(cell.LedIndex), Valid: true},
-			Width:        sql.NullInt64{Int64: 1, Valid: true},
-			GridX:        sql.NullInt64{Int64: int64(cell.X), Valid: true},
-			GridY:        sql.NullInt64{Int64: int64(cell.Y), Valid: true},
+			LedIndex:     binToDelete.LedIndex,
 		})
 		if err != nil {
-			app.logger.Error("failed to create bin", "name", cell.Name, "error", err)
-			http.Error(w, "Failed to save layout", http.StatusInternalServerError)
-			return
+			app.logger.Error("failed to delete removed bin", "id", binToDelete.ID, "error", err)
+			// Continue deleting others even if one fails
 		}
 	}
 
@@ -216,7 +258,7 @@ func (app *application) handleHardwareGridSave(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	audit.Log(ctx, app.queries, "UPDATE", "HARDWARE", int64(controllerID), "Reset LED Grid Layout", nil, nil)
+	audit.Log(ctx, app.queries, "UPDATE", "HARDWARE", int64(controllerID), "Updated LED Grid Layout", nil, nil)
 	http.Redirect(w, r, "/hardware", http.StatusSeeOther)
 }
 

@@ -58,9 +58,9 @@ INSERT INTO part_assignments (part_id, bin_id, quantity) VALUES (?, ?, ?)
 `
 
 type CreatePartAssignmentParams struct {
-	PartID   int64 `json:"part_id"`
-	BinID    int64 `json:"bin_id"`
-	Quantity int64 `json:"quantity"`
+	PartID   int64         `json:"part_id"`
+	BinID    sql.NullInt64 `json:"bin_id"`
+	Quantity int64         `json:"quantity"`
 }
 
 func (q *Queries) CreatePartAssignment(ctx context.Context, arg CreatePartAssignmentParams) error {
@@ -100,6 +100,15 @@ func (q *Queries) CreatePartLink(ctx context.Context, arg CreatePartLinkParams) 
 	return err
 }
 
+const deleteAssignment = `-- name: DeleteAssignment :exec
+DELETE FROM part_assignments WHERE id = ?
+`
+
+func (q *Queries) DeleteAssignment(ctx context.Context, id int64) error {
+	_, err := q.exec(ctx, q.deleteAssignmentStmt, deleteAssignment, id)
+	return err
+}
+
 const deletePart = `-- name: DeletePart :exec
 DELETE FROM parts WHERE id = ?
 `
@@ -114,8 +123,8 @@ DELETE FROM part_assignments WHERE part_id = ? AND bin_id = ?
 `
 
 type DeletePartAssignmentParams struct {
-	PartID int64 `json:"part_id"`
-	BinID  int64 `json:"bin_id"`
+	PartID int64         `json:"part_id"`
+	BinID  sql.NullInt64 `json:"bin_id"`
 }
 
 func (q *Queries) DeletePartAssignment(ctx context.Context, arg DeletePartAssignmentParams) error {
@@ -141,13 +150,29 @@ func (q *Queries) DeletePartLink(ctx context.Context, id int64) error {
 	return err
 }
 
+const getAssignment = `-- name: GetAssignment :one
+SELECT id, part_id, bin_id, quantity FROM part_assignments WHERE id = ?
+`
+
+func (q *Queries) GetAssignment(ctx context.Context, id int64) (PartAssignment, error) {
+	row := q.queryRow(ctx, q.getAssignmentStmt, getAssignment, id)
+	var i PartAssignment
+	err := row.Scan(
+		&i.ID,
+		&i.PartID,
+		&i.BinID,
+		&i.Quantity,
+	)
+	return i, err
+}
+
 const getAssignmentID = `-- name: GetAssignmentID :one
 SELECT id FROM part_assignments WHERE part_id = ? AND bin_id = ?
 `
 
 type GetAssignmentIDParams struct {
-	PartID int64 `json:"part_id"`
-	BinID  int64 `json:"bin_id"`
+	PartID int64         `json:"part_id"`
+	BinID  sql.NullInt64 `json:"bin_id"`
 }
 
 func (q *Queries) GetAssignmentID(ctx context.Context, arg GetAssignmentIDParams) (int64, error) {
@@ -193,7 +218,7 @@ SELECT
     c.id as controller_id,
     c.ip_address as controller_ip
 FROM part_assignments pa
-JOIN bins b ON pa.bin_id = b.id
+LEFT JOIN bins b ON pa.bin_id = b.id
 LEFT JOIN controllers c ON b.controller_id = c.id
 WHERE pa.part_id = ?
 `
@@ -201,8 +226,8 @@ WHERE pa.part_id = ?
 type GetPartAssignmentsRow struct {
 	ID             int64          `json:"id"`
 	Quantity       int64          `json:"quantity"`
-	BinID          int64          `json:"bin_id"`
-	BinName        string         `json:"bin_name"`
+	BinID          sql.NullInt64  `json:"bin_id"`
+	BinName        sql.NullString `json:"bin_name"`
 	ControllerName sql.NullString `json:"controller_name"`
 	ControllerID   sql.NullInt64  `json:"controller_id"`
 	ControllerIp   sql.NullString `json:"controller_ip"`
@@ -390,6 +415,22 @@ func (q *Queries) ListParts(ctx context.Context, arg ListPartsParams) ([]ListPar
 	return items, nil
 }
 
+const reassignPartAssignment = `-- name: ReassignPartAssignment :exec
+UPDATE part_assignments 
+SET bin_id = ? 
+WHERE id = ?
+`
+
+type ReassignPartAssignmentParams struct {
+	BinID sql.NullInt64 `json:"bin_id"`
+	ID    int64         `json:"id"`
+}
+
+func (q *Queries) ReassignPartAssignment(ctx context.Context, arg ReassignPartAssignmentParams) error {
+	_, err := q.exec(ctx, q.reassignPartAssignmentStmt, reassignPartAssignment, arg.BinID, arg.ID)
+	return err
+}
+
 const searchParts = `-- name: SearchParts :many
 SELECT p.id, p.name, p.description, p.part_number, p.manufacturer, p.supplier, p.unit_cost, p.reorder_level, p.min_stock_threshold, p.barcode_data, p.image_path, p.is_favorite, p.created_at, p.updated_at, 
     (SELECT COALESCE(SUM(quantity), 0) FROM part_assignments WHERE part_id = p.id) as total_stock 
@@ -515,9 +556,9 @@ UPDATE part_assignments SET quantity = ? WHERE part_id = ? AND bin_id = ?
 `
 
 type UpdatePartAssignmentQuantityParams struct {
-	Quantity int64 `json:"quantity"`
-	PartID   int64 `json:"part_id"`
-	BinID    int64 `json:"bin_id"`
+	Quantity int64         `json:"quantity"`
+	PartID   int64         `json:"part_id"`
+	BinID    sql.NullInt64 `json:"bin_id"`
 }
 
 func (q *Queries) UpdatePartAssignmentQuantity(ctx context.Context, arg UpdatePartAssignmentQuantityParams) error {
