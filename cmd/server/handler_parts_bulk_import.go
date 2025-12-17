@@ -1,0 +1,126 @@
+package main
+
+import (
+	"database/sql"
+	"fmt"
+	"net/http"
+	"strings"
+
+	"github.com/tuxedocurly/wledger/internal/audit"
+	"github.com/tuxedocurly/wledger/internal/auth"
+	"github.com/tuxedocurly/wledger/internal/db"
+	"github.com/tuxedocurly/wledger/internal/importer"
+	"github.com/tuxedocurly/wledger/web/components"
+)
+
+// GET /parts/import/template
+func (app *application) handlePartsImportTemplate(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/csv")
+	w.Header().Set("Content-Disposition", "attachment;filename=wledger_import_template.csv")
+	w.Write([]byte("Name,Description,Part Number,Manufacturer,Supplier,Unit Cost,Reorder Level,Min Stock,Barcode,Quantity\n"))
+	w.Write([]byte("Example Part,10k Resistor,R-10k,Vishay,DigiKey,0.05,50,10,12345678,100\n"))
+}
+
+// POST /parts/import
+func (app *application) handlePartsImport(w http.ResponseWriter, r *http.Request) {
+	// Authorization
+	user := auth.GetUserFromRequest(r)
+	if !user.CanWrite() {
+		http.Error(w, "Unauthorized", http.StatusForbidden)
+		return
+	}
+
+	// Parse Form
+	err := r.ParseMultipartForm(10 << 20) // 10 MB
+	if err != nil {
+		components.ImportResult(false, "Failed to parse form: "+err.Error(), nil).Render(r.Context(), w)
+		return
+	}
+
+	// Get Input (File takes precedence over text)
+	var rows []importer.PartImportRow
+
+	file, _, err := r.FormFile("file")
+	if err == nil {
+		defer file.Close()
+		rows, err = importer.ParsePartsCSV(file)
+	} else {
+		// Try raw text
+		raw := r.FormValue("raw_text")
+		if strings.TrimSpace(raw) == "" {
+			components.ImportResult(false, "No data provided. Upload a file or paste text.", nil).Render(r.Context(), w)
+			return
+		}
+		rows, err = importer.ParsePartsCSV(strings.NewReader(raw))
+	}
+
+	if err != nil {
+		components.ImportResult(false, "Parsing Error: "+err.Error(), nil).Render(r.Context(), w)
+		return
+	}
+
+	if len(rows) == 0 {
+		components.ImportResult(false, "No valid rows found in input.", nil).Render(r.Context(), w)
+		return
+	}
+
+	// Database Transaction
+	tx, err := app.database.Begin()
+	if err != nil {
+		components.ImportResult(false, "Database error: "+err.Error(), nil).Render(r.Context(), w)
+		return
+	}
+	defer tx.Rollback()
+	qtx := app.queries.WithTx(tx)
+
+	count := 0
+	for _, row := range rows {
+		// Insert Part
+		partID, err := qtx.CreatePart(r.Context(), db.CreatePartParams{
+			Name:              row.Name,
+			Description:       sql.NullString{String: row.Description, Valid: row.Description != ""},
+			PartNumber:        sql.NullString{String: row.PartNumber, Valid: row.PartNumber != ""},
+			Manufacturer:      sql.NullString{String: row.Manufacturer, Valid: row.Manufacturer != ""},
+			Supplier:          sql.NullString{String: row.Supplier, Valid: row.Supplier != ""},
+			UnitCost:          sql.NullFloat64{Float64: row.UnitCost, Valid: true},
+			ReorderLevel:      sql.NullInt64{Int64: int64(row.ReorderLevel), Valid: true},
+			MinStockThreshold: sql.NullInt64{Int64: int64(row.MinStockThreshold), Valid: true},
+			BarcodeData:       sql.NullString{String: row.BarcodeData, Valid: row.BarcodeData != ""},
+		})
+
+		if err != nil {
+			returnErr := fmt.Sprintf("Row %d Error: %v", row.RowNumber, err)
+			if strings.Contains(err.Error(), "UNIQUE constraint") {
+				returnErr = fmt.Sprintf("Row %d Error: Duplicate Barcode '%s'", row.RowNumber, row.BarcodeData)
+			}
+			components.ImportResult(false, returnErr, nil).Render(r.Context(), w)
+			return
+		}
+
+		// Insert Orphaned Stock if Quantity > 0
+		if row.InitialQuantity > 0 {
+			err = qtx.CreatePartAssignment(r.Context(), db.CreatePartAssignmentParams{
+				PartID:   partID,
+				BinID:    sql.NullInt64{Valid: false}, // Orphaned
+				Quantity: int64(row.InitialQuantity),
+			})
+			if err != nil {
+				components.ImportResult(false, fmt.Sprintf("Row %d Error saving stock: %v", row.RowNumber, err), nil).Render(r.Context(), w)
+				return
+			}
+		}
+		count++
+	}
+
+	if err := tx.Commit(); err != nil {
+		components.ImportResult(false, "Commit failed: "+err.Error(), nil).Render(r.Context(), w)
+		return
+	}
+
+	// Audit Log
+	audit.Log(r.Context(), app.queries, "IMPORT", "PARTS", 0, fmt.Sprintf("Bulk imported %d parts", count), nil, nil)
+
+	// Success Response
+	msg := fmt.Sprintf("Successfully imported %d parts.", count)
+	components.ImportResult(true, msg, nil).Render(r.Context(), w)
+}

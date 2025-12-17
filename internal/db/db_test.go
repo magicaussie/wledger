@@ -2,6 +2,7 @@ package db_test
 
 import (
 	"context"
+	"database/sql"
 	"os"
 	"path/filepath"
 	"testing"
@@ -102,5 +103,48 @@ func TestSettingsInit(t *testing.T) {
 	// Check default settings
 	if settings.LocateTimeoutSeconds.Int64 != 10 { // default should be 10 seconds
 		t.Errorf("expected default timeout 10, got %d", settings.LocateTimeoutSeconds.Int64)
+	}
+}
+
+func TestCascadeDelete(t *testing.T) {
+	q, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	ctx := context.Background()
+
+	// Create Part
+	part, err := q.CreatePart(ctx, db.CreatePartParams{
+		Name: "Doom Part",
+	})
+	if err != nil {
+		t.Fatalf("create part: %v", err)
+	}
+
+	// Create Orphaned Assignment
+	err = q.CreatePartAssignment(ctx, db.CreatePartAssignmentParams{
+		PartID:   part,
+		BinID:    sql.NullInt64{Valid: false},
+		Quantity: 100,
+	})
+	if err != nil {
+		t.Fatalf("create assignment: %v", err)
+	}
+
+	// Verify it exists
+	stats, _ := q.GetDashboardStats(ctx)
+	if stats.TotalItemsInStock != 100 {
+		t.Fatalf("expected 100 items, got %d", stats.TotalItemsInStock)
+	}
+
+	// Delete Part
+	err = q.DeletePart(ctx, part)
+	if err != nil {
+		t.Fatalf("delete part: %v", err)
+	}
+
+	// Verify Cascade
+	stats, _ = q.GetDashboardStats(ctx)
+	if stats.TotalItemsInStock != 0 {
+		t.Errorf("CASCADE FAILED: expected 0 items, got %d", stats.TotalItemsInStock)
 	}
 }

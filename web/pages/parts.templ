@@ -47,6 +47,7 @@ templ PartsList(user auth.User, parts []PartView, search string, page int) {
 				@PartCards(parts, search, page)
 			}
 		</div>
+		@components.ImportModal()
 	}
 }
 

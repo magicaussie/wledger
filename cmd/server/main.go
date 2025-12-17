@@ -165,6 +165,8 @@ func main() {
 			// Parts CRUD
 			r.Get("/parts/new", app.handlePartsNew)
 			r.Post("/parts", app.handlePartsCreate)
+			r.Get("/parts/import/template", app.handlePartsImportTemplate) // Download Bulk Import Template
+			r.Post("/parts/import", app.handlePartsImport)                 // Bulk Import
 
 			r.Get("/parts/{id}/edit", app.handlePartEdit)
 			// UPDATED: Changed from /edit to /update to match the form action

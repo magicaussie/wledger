@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"log/slog"
+	"strings"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -11,6 +12,17 @@ import (
 
 // Open() opens a database connection and configures it for use
 func Open(dsn string) (*sql.DB, error) {
+	// Ensure Foreign Keys are enabled for all connections in the pool via DSN
+	if !strings.Contains(dsn, "?") {
+		dsn += "?_foreign_keys=on"
+	} else {
+		dsn += "&_foreign_keys=on"
+	}
+
+	// Add WAL mode to DSN for better concurrency
+	dsn += "&_journal_mode=WAL"
+	dsn += "&_busy_timeout=5000"
+
 	db, err := sql.Open("sqlite3", dsn)
 	if err != nil {
 		return nil, err
@@ -24,21 +36,7 @@ func Open(dsn string) (*sql.DB, error) {
 		return nil, err
 	}
 
-	// Performance and safety settings
-	// WAL (write ahead logging) mode allows simultaneous readers and writers
-	if _, err := db.ExecContext(ctx, "PRAGMA journal_mode=WAL;"); err != nil {
-		return nil, err
-	}
-	// Enable foreign keys, as they are disabled by default in SQLite
-	if _, err := db.ExecContext(ctx, "PRAGMA foreign_keys=ON;"); err != nil {
-		return nil, err
-	}
-	// Busy timeout prevents "database is locked" errors, since SQLite allows only 1 writer at a time
-	if _, err := db.ExecContext(ctx, "PRAGMA busy_timeout=5000;"); err != nil {
-		return nil, err
-	}
-
-	slog.Info("SQLite database connection opened")
+	slog.Info("SQLite database connection opened", "dsn", dsn)
 
 	return db, nil
 }
