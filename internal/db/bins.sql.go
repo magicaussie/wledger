@@ -72,6 +72,41 @@ func (q *Queries) DeleteBinsByController(ctx context.Context, controllerID sql.N
 	return err
 }
 
+const getAllBins = `-- name: GetAllBins :many
+SELECT id, name, controller_id, led_index, width, grid_x, grid_y FROM bins ORDER BY id
+`
+
+func (q *Queries) GetAllBins(ctx context.Context) ([]Bin, error) {
+	rows, err := q.query(ctx, q.getAllBinsStmt, getAllBins)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Bin
+	for rows.Next() {
+		var i Bin
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.ControllerID,
+			&i.LedIndex,
+			&i.Width,
+			&i.GridX,
+			&i.GridY,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getBin = `-- name: GetBin :one
 SELECT id, name, controller_id, led_index, width, grid_x, grid_y FROM bins WHERE id = ?
 `
@@ -126,6 +161,34 @@ func (q *Queries) GetBinsByController(ctx context.Context, controllerID sql.Null
 		return nil, err
 	}
 	return items, nil
+}
+
+const restoreBin = `-- name: RestoreBin :exec
+INSERT INTO bins (id, name, controller_id, led_index, width, grid_x, grid_y)
+VALUES (?, ?, ?, ?, ?, ?, ?)
+`
+
+type RestoreBinParams struct {
+	ID           int64         `json:"id"`
+	Name         string        `json:"name"`
+	ControllerID sql.NullInt64 `json:"controller_id"`
+	LedIndex     sql.NullInt64 `json:"led_index"`
+	Width        sql.NullInt64 `json:"width"`
+	GridX        sql.NullInt64 `json:"grid_x"`
+	GridY        sql.NullInt64 `json:"grid_y"`
+}
+
+func (q *Queries) RestoreBin(ctx context.Context, arg RestoreBinParams) error {
+	_, err := q.exec(ctx, q.restoreBinStmt, restoreBin,
+		arg.ID,
+		arg.Name,
+		arg.ControllerID,
+		arg.LedIndex,
+		arg.Width,
+		arg.GridX,
+		arg.GridY,
+	)
+	return err
 }
 
 const upsertBin = `-- name: UpsertBin :exec

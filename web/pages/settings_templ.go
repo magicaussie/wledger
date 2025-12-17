@@ -333,6 +333,10 @@ func Settings(user auth.User, s db.Setting, users []db.ListUsersRow) templ.Compo
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
+				templ_7745c5c3_Err = components.BackupRestore().Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
 			}
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "<div class=\"card bg-base-200 shadow-xl border border-base-300\"><div class=\"card-body\"><h3 class=\"font-bold text-sm uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2\"><svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-4 w-4\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z\"></path></svg> Change Your Password</h3><div class=\"flex justify-center w-full\"><div class=\"w-full max-w-sm\">")
 			if templ_7745c5c3_Err != nil {

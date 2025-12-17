@@ -90,6 +90,30 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.deleteUserStmt, err = db.PrepareContext(ctx, deleteUser); err != nil {
 		return nil, fmt.Errorf("error preparing query DeleteUser: %w", err)
 	}
+	if q.getAllAuditLogsStmt, err = db.PrepareContext(ctx, getAllAuditLogs); err != nil {
+		return nil, fmt.Errorf("error preparing query GetAllAuditLogs: %w", err)
+	}
+	if q.getAllBinsStmt, err = db.PrepareContext(ctx, getAllBins); err != nil {
+		return nil, fmt.Errorf("error preparing query GetAllBins: %w", err)
+	}
+	if q.getAllPartAiPromptsStmt, err = db.PrepareContext(ctx, getAllPartAiPrompts); err != nil {
+		return nil, fmt.Errorf("error preparing query GetAllPartAiPrompts: %w", err)
+	}
+	if q.getAllPartAssignmentsStmt, err = db.PrepareContext(ctx, getAllPartAssignments); err != nil {
+		return nil, fmt.Errorf("error preparing query GetAllPartAssignments: %w", err)
+	}
+	if q.getAllPartDocsStmt, err = db.PrepareContext(ctx, getAllPartDocs); err != nil {
+		return nil, fmt.Errorf("error preparing query GetAllPartDocs: %w", err)
+	}
+	if q.getAllPartLinksStmt, err = db.PrepareContext(ctx, getAllPartLinks); err != nil {
+		return nil, fmt.Errorf("error preparing query GetAllPartLinks: %w", err)
+	}
+	if q.getAllPartsStmt, err = db.PrepareContext(ctx, getAllParts); err != nil {
+		return nil, fmt.Errorf("error preparing query GetAllParts: %w", err)
+	}
+	if q.getAllUsersStmt, err = db.PrepareContext(ctx, getAllUsers); err != nil {
+		return nil, fmt.Errorf("error preparing query GetAllUsers: %w", err)
+	}
 	if q.getAssignmentStmt, err = db.PrepareContext(ctx, getAssignment); err != nil {
 		return nil, fmt.Errorf("error preparing query GetAssignment: %w", err)
 	}
@@ -152,6 +176,36 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.reassignPartAssignmentStmt, err = db.PrepareContext(ctx, reassignPartAssignment); err != nil {
 		return nil, fmt.Errorf("error preparing query ReassignPartAssignment: %w", err)
+	}
+	if q.restoreAuditLogStmt, err = db.PrepareContext(ctx, restoreAuditLog); err != nil {
+		return nil, fmt.Errorf("error preparing query RestoreAuditLog: %w", err)
+	}
+	if q.restoreBinStmt, err = db.PrepareContext(ctx, restoreBin); err != nil {
+		return nil, fmt.Errorf("error preparing query RestoreBin: %w", err)
+	}
+	if q.restoreControllerStmt, err = db.PrepareContext(ctx, restoreController); err != nil {
+		return nil, fmt.Errorf("error preparing query RestoreController: %w", err)
+	}
+	if q.restorePartStmt, err = db.PrepareContext(ctx, restorePart); err != nil {
+		return nil, fmt.Errorf("error preparing query RestorePart: %w", err)
+	}
+	if q.restorePartAiPromptStmt, err = db.PrepareContext(ctx, restorePartAiPrompt); err != nil {
+		return nil, fmt.Errorf("error preparing query RestorePartAiPrompt: %w", err)
+	}
+	if q.restorePartAssignmentStmt, err = db.PrepareContext(ctx, restorePartAssignment); err != nil {
+		return nil, fmt.Errorf("error preparing query RestorePartAssignment: %w", err)
+	}
+	if q.restorePartDocStmt, err = db.PrepareContext(ctx, restorePartDoc); err != nil {
+		return nil, fmt.Errorf("error preparing query RestorePartDoc: %w", err)
+	}
+	if q.restorePartLinkStmt, err = db.PrepareContext(ctx, restorePartLink); err != nil {
+		return nil, fmt.Errorf("error preparing query RestorePartLink: %w", err)
+	}
+	if q.restoreSettingsStmt, err = db.PrepareContext(ctx, restoreSettings); err != nil {
+		return nil, fmt.Errorf("error preparing query RestoreSettings: %w", err)
+	}
+	if q.restoreUserStmt, err = db.PrepareContext(ctx, restoreUser); err != nil {
+		return nil, fmt.Errorf("error preparing query RestoreUser: %w", err)
 	}
 	if q.searchPartsStmt, err = db.PrepareContext(ctx, searchParts); err != nil {
 		return nil, fmt.Errorf("error preparing query SearchParts: %w", err)
@@ -298,6 +352,46 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing deleteUserStmt: %w", cerr)
 		}
 	}
+	if q.getAllAuditLogsStmt != nil {
+		if cerr := q.getAllAuditLogsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getAllAuditLogsStmt: %w", cerr)
+		}
+	}
+	if q.getAllBinsStmt != nil {
+		if cerr := q.getAllBinsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getAllBinsStmt: %w", cerr)
+		}
+	}
+	if q.getAllPartAiPromptsStmt != nil {
+		if cerr := q.getAllPartAiPromptsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getAllPartAiPromptsStmt: %w", cerr)
+		}
+	}
+	if q.getAllPartAssignmentsStmt != nil {
+		if cerr := q.getAllPartAssignmentsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getAllPartAssignmentsStmt: %w", cerr)
+		}
+	}
+	if q.getAllPartDocsStmt != nil {
+		if cerr := q.getAllPartDocsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getAllPartDocsStmt: %w", cerr)
+		}
+	}
+	if q.getAllPartLinksStmt != nil {
+		if cerr := q.getAllPartLinksStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getAllPartLinksStmt: %w", cerr)
+		}
+	}
+	if q.getAllPartsStmt != nil {
+		if cerr := q.getAllPartsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getAllPartsStmt: %w", cerr)
+		}
+	}
+	if q.getAllUsersStmt != nil {
+		if cerr := q.getAllUsersStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getAllUsersStmt: %w", cerr)
+		}
+	}
 	if q.getAssignmentStmt != nil {
 		if cerr := q.getAssignmentStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getAssignmentStmt: %w", cerr)
@@ -401,6 +495,56 @@ func (q *Queries) Close() error {
 	if q.reassignPartAssignmentStmt != nil {
 		if cerr := q.reassignPartAssignmentStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing reassignPartAssignmentStmt: %w", cerr)
+		}
+	}
+	if q.restoreAuditLogStmt != nil {
+		if cerr := q.restoreAuditLogStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing restoreAuditLogStmt: %w", cerr)
+		}
+	}
+	if q.restoreBinStmt != nil {
+		if cerr := q.restoreBinStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing restoreBinStmt: %w", cerr)
+		}
+	}
+	if q.restoreControllerStmt != nil {
+		if cerr := q.restoreControllerStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing restoreControllerStmt: %w", cerr)
+		}
+	}
+	if q.restorePartStmt != nil {
+		if cerr := q.restorePartStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing restorePartStmt: %w", cerr)
+		}
+	}
+	if q.restorePartAiPromptStmt != nil {
+		if cerr := q.restorePartAiPromptStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing restorePartAiPromptStmt: %w", cerr)
+		}
+	}
+	if q.restorePartAssignmentStmt != nil {
+		if cerr := q.restorePartAssignmentStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing restorePartAssignmentStmt: %w", cerr)
+		}
+	}
+	if q.restorePartDocStmt != nil {
+		if cerr := q.restorePartDocStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing restorePartDocStmt: %w", cerr)
+		}
+	}
+	if q.restorePartLinkStmt != nil {
+		if cerr := q.restorePartLinkStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing restorePartLinkStmt: %w", cerr)
+		}
+	}
+	if q.restoreSettingsStmt != nil {
+		if cerr := q.restoreSettingsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing restoreSettingsStmt: %w", cerr)
+		}
+	}
+	if q.restoreUserStmt != nil {
+		if cerr := q.restoreUserStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing restoreUserStmt: %w", cerr)
 		}
 	}
 	if q.searchPartsStmt != nil {
@@ -514,6 +658,14 @@ type Queries struct {
 	deletePartLinkStmt               *sql.Stmt
 	deleteSessionStmt                *sql.Stmt
 	deleteUserStmt                   *sql.Stmt
+	getAllAuditLogsStmt              *sql.Stmt
+	getAllBinsStmt                   *sql.Stmt
+	getAllPartAiPromptsStmt          *sql.Stmt
+	getAllPartAssignmentsStmt        *sql.Stmt
+	getAllPartDocsStmt               *sql.Stmt
+	getAllPartLinksStmt              *sql.Stmt
+	getAllPartsStmt                  *sql.Stmt
+	getAllUsersStmt                  *sql.Stmt
 	getAssignmentStmt                *sql.Stmt
 	getAssignmentIDStmt              *sql.Stmt
 	getBinStmt                       *sql.Stmt
@@ -535,6 +687,16 @@ type Queries struct {
 	listPartsStmt                    *sql.Stmt
 	listUsersStmt                    *sql.Stmt
 	reassignPartAssignmentStmt       *sql.Stmt
+	restoreAuditLogStmt              *sql.Stmt
+	restoreBinStmt                   *sql.Stmt
+	restoreControllerStmt            *sql.Stmt
+	restorePartStmt                  *sql.Stmt
+	restorePartAiPromptStmt          *sql.Stmt
+	restorePartAssignmentStmt        *sql.Stmt
+	restorePartDocStmt               *sql.Stmt
+	restorePartLinkStmt              *sql.Stmt
+	restoreSettingsStmt              *sql.Stmt
+	restoreUserStmt                  *sql.Stmt
 	searchPartsStmt                  *sql.Stmt
 	setPasswordResetFlagStmt         *sql.Stmt
 	updateColorsStmt                 *sql.Stmt
@@ -573,6 +735,14 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		deletePartLinkStmt:               q.deletePartLinkStmt,
 		deleteSessionStmt:                q.deleteSessionStmt,
 		deleteUserStmt:                   q.deleteUserStmt,
+		getAllAuditLogsStmt:              q.getAllAuditLogsStmt,
+		getAllBinsStmt:                   q.getAllBinsStmt,
+		getAllPartAiPromptsStmt:          q.getAllPartAiPromptsStmt,
+		getAllPartAssignmentsStmt:        q.getAllPartAssignmentsStmt,
+		getAllPartDocsStmt:               q.getAllPartDocsStmt,
+		getAllPartLinksStmt:              q.getAllPartLinksStmt,
+		getAllPartsStmt:                  q.getAllPartsStmt,
+		getAllUsersStmt:                  q.getAllUsersStmt,
 		getAssignmentStmt:                q.getAssignmentStmt,
 		getAssignmentIDStmt:              q.getAssignmentIDStmt,
 		getBinStmt:                       q.getBinStmt,
@@ -594,6 +764,16 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		listPartsStmt:                    q.listPartsStmt,
 		listUsersStmt:                    q.listUsersStmt,
 		reassignPartAssignmentStmt:       q.reassignPartAssignmentStmt,
+		restoreAuditLogStmt:              q.restoreAuditLogStmt,
+		restoreBinStmt:                   q.restoreBinStmt,
+		restoreControllerStmt:            q.restoreControllerStmt,
+		restorePartStmt:                  q.restorePartStmt,
+		restorePartAiPromptStmt:          q.restorePartAiPromptStmt,
+		restorePartAssignmentStmt:        q.restorePartAssignmentStmt,
+		restorePartDocStmt:               q.restorePartDocStmt,
+		restorePartLinkStmt:              q.restorePartLinkStmt,
+		restoreSettingsStmt:              q.restoreSettingsStmt,
+		restoreUserStmt:                  q.restoreUserStmt,
 		searchPartsStmt:                  q.searchPartsStmt,
 		setPasswordResetFlagStmt:         q.setPasswordResetFlagStmt,
 		updateColorsStmt:                 q.updateColorsStmt,

@@ -17,6 +17,41 @@ WHERE parts_fts MATCH ?
 ORDER BY parts_fts.rank
 LIMIT ? OFFSET ?;
 
+-- name: GetAllParts :many
+SELECT * FROM parts ORDER BY id;
+
+-- name: GetAllPartLinks :many
+SELECT * FROM part_links ORDER BY id;
+
+-- name: GetAllPartDocs :many
+SELECT * FROM part_docs ORDER BY id;
+
+-- name: GetAllPartAiPrompts :many
+SELECT * FROM part_ai_prompts ORDER BY id;
+
+-- name: RestorePart :exec
+INSERT INTO parts (
+    id, name, description, part_number, manufacturer, supplier, 
+    unit_cost, reorder_level, min_stock_threshold, 
+    image_path, barcode_data, is_favorite, created_at, updated_at
+) VALUES (
+    ?, ?, ?, ?, ?, ?, 
+    ?, ?, ?, 
+    ?, ?, ?, ?, ?
+);
+
+-- name: RestorePartLink :exec
+INSERT INTO part_links (id, part_id, url, label) VALUES (?, ?, ?, ?);
+
+-- name: RestorePartDoc :exec
+INSERT INTO part_docs (id, part_id, file_path, file_name) VALUES (?, ?, ?, ?);
+
+-- name: RestorePartAssignment :exec
+INSERT INTO part_assignments (id, part_id, bin_id, quantity) VALUES (?, ?, ?, ?);
+
+-- name: RestorePartAiPrompt :exec
+INSERT INTO part_ai_prompts (id, part_id, prompt_text, ai_response, model_used, created_at) VALUES (?, ?, ?, ?, ?, ?);
+
 -- name: CreatePart :one
 INSERT INTO parts (
     name, description, part_number, manufacturer, supplier, 
@@ -70,6 +105,9 @@ SELECT * FROM part_docs WHERE id = ?;
 DELETE FROM part_docs WHERE id = ?;
 
 -- STOCK ASSIGNMENTS
+-- name: GetAllPartAssignments :many
+SELECT * FROM part_assignments ORDER BY id;
+
 -- name: GetPartAssignments :many
 SELECT 
     pa.id, 

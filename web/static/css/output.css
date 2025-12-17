@@ -2987,6 +2987,9 @@
       border-color: color-mix(in oklab, var(--color-base-content) 10%, transparent);
     }
   }
+  .border-error {
+    border-color: var(--color-error);
+  }
   .border-primary {
     border-color: var(--color-primary);
   }
@@ -3335,6 +3338,17 @@
       --alert-color: var(--color-success);
     }
   }
+  .file-input-error {
+    @layer daisyui.l1.l2 {
+      --btn-color: var(--color-error);
+      &::file-selector-button {
+        color: var(--color-error-content);
+      }
+      &, &:focus, &:focus-within {
+        --input-color: var(--color-error);
+      }
+    }
+  }
   .file-input-primary {
     @layer daisyui.l1.l2 {
       --btn-color: var(--color-primary);
@@ -3344,6 +3358,12 @@
       &, &:focus, &:focus-within {
         --input-color: var(--color-primary);
       }
+    }
+  }
+  .checkbox-error {
+    @layer daisyui.l1.l2 {
+      color: var(--color-error-content);
+      --input-color: var(--color-error);
     }
   }
   .text-\[\#ff5e5b\] {

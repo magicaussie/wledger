@@ -34,6 +34,15 @@ type Querier interface {
 	DeletePartLink(ctx context.Context, id int64) error
 	DeleteSession(ctx context.Context, token string) error
 	DeleteUser(ctx context.Context, id int64) error
+	GetAllAuditLogs(ctx context.Context) ([]AuditLog, error)
+	GetAllBins(ctx context.Context) ([]Bin, error)
+	GetAllPartAiPrompts(ctx context.Context) ([]PartAiPrompt, error)
+	// STOCK ASSIGNMENTS
+	GetAllPartAssignments(ctx context.Context) ([]PartAssignment, error)
+	GetAllPartDocs(ctx context.Context) ([]PartDoc, error)
+	GetAllPartLinks(ctx context.Context) ([]PartLink, error)
+	GetAllParts(ctx context.Context) ([]Part, error)
+	GetAllUsers(ctx context.Context) ([]User, error)
 	GetAssignment(ctx context.Context, id int64) (PartAssignment, error)
 	GetAssignmentID(ctx context.Context, arg GetAssignmentIDParams) (int64, error)
 	GetBin(ctx context.Context, id int64) (Bin, error)
@@ -43,7 +52,6 @@ type Querier interface {
 	GetDashboardGrid(ctx context.Context) ([]GetDashboardGridRow, error)
 	GetDashboardStats(ctx context.Context) (GetDashboardStatsRow, error)
 	GetPart(ctx context.Context, id int64) (Part, error)
-	// STOCK ASSIGNMENTS
 	GetPartAssignments(ctx context.Context, partID int64) ([]GetPartAssignmentsRow, error)
 	GetPartDoc(ctx context.Context, id int64) (PartDoc, error)
 	GetPartDocs(ctx context.Context, partID int64) ([]PartDoc, error)
@@ -57,6 +65,16 @@ type Querier interface {
 	ListParts(ctx context.Context, arg ListPartsParams) ([]ListPartsRow, error)
 	ListUsers(ctx context.Context) ([]ListUsersRow, error)
 	ReassignPartAssignment(ctx context.Context, arg ReassignPartAssignmentParams) error
+	RestoreAuditLog(ctx context.Context, arg RestoreAuditLogParams) error
+	RestoreBin(ctx context.Context, arg RestoreBinParams) error
+	RestoreController(ctx context.Context, arg RestoreControllerParams) error
+	RestorePart(ctx context.Context, arg RestorePartParams) error
+	RestorePartAiPrompt(ctx context.Context, arg RestorePartAiPromptParams) error
+	RestorePartAssignment(ctx context.Context, arg RestorePartAssignmentParams) error
+	RestorePartDoc(ctx context.Context, arg RestorePartDocParams) error
+	RestorePartLink(ctx context.Context, arg RestorePartLinkParams) error
+	RestoreSettings(ctx context.Context, arg RestoreSettingsParams) error
+	RestoreUser(ctx context.Context, arg RestoreUserParams) error
 	SearchParts(ctx context.Context, arg SearchPartsParams) ([]SearchPartsRow, error)
 	SetPasswordResetFlag(ctx context.Context, arg SetPasswordResetFlagParams) error
 	UpdateColors(ctx context.Context, arg UpdateColorsParams) error

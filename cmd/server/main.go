@@ -198,6 +198,8 @@ func main() {
 
 			// System Settings Update
 			r.Post("/settings", app.handleSettingsUpdate)
+			r.Get("/settings/backup/download", app.handleBackupDownload)
+			r.Post("/settings/backup/restore", app.handleBackupRestore)
 
 			// User Management
 			r.Post("/settings/users", app.handleUserCreate)

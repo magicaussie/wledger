@@ -1,3 +1,14 @@
+-- name: RestoreSettings :exec
+INSERT INTO settings (
+    id, require_auth_for_read, locate_timeout_seconds, enable_locate_timeout, 
+    color_locate, color_stock_ok, color_stock_low, color_stock_critical, 
+    created_at, updated_at
+) VALUES (
+    1, ?, ?, ?, 
+    ?, ?, ?, ?, 
+    ?, ?
+);
+
 -- name: GetSettings :one
 SELECT * FROM settings WHERE id = 1;
 

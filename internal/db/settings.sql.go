@@ -42,6 +42,45 @@ func (q *Queries) InitSettings(ctx context.Context) error {
 	return err
 }
 
+const restoreSettings = `-- name: RestoreSettings :exec
+INSERT INTO settings (
+    id, require_auth_for_read, locate_timeout_seconds, enable_locate_timeout, 
+    color_locate, color_stock_ok, color_stock_low, color_stock_critical, 
+    created_at, updated_at
+) VALUES (
+    1, ?, ?, ?, 
+    ?, ?, ?, ?, 
+    ?, ?
+)
+`
+
+type RestoreSettingsParams struct {
+	RequireAuthForRead   sql.NullBool   `json:"require_auth_for_read"`
+	LocateTimeoutSeconds sql.NullInt64  `json:"locate_timeout_seconds"`
+	EnableLocateTimeout  sql.NullBool   `json:"enable_locate_timeout"`
+	ColorLocate          sql.NullString `json:"color_locate"`
+	ColorStockOk         sql.NullString `json:"color_stock_ok"`
+	ColorStockLow        sql.NullString `json:"color_stock_low"`
+	ColorStockCritical   sql.NullString `json:"color_stock_critical"`
+	CreatedAt            sql.NullTime   `json:"created_at"`
+	UpdatedAt            sql.NullTime   `json:"updated_at"`
+}
+
+func (q *Queries) RestoreSettings(ctx context.Context, arg RestoreSettingsParams) error {
+	_, err := q.exec(ctx, q.restoreSettingsStmt, restoreSettings,
+		arg.RequireAuthForRead,
+		arg.LocateTimeoutSeconds,
+		arg.EnableLocateTimeout,
+		arg.ColorLocate,
+		arg.ColorStockOk,
+		arg.ColorStockLow,
+		arg.ColorStockCritical,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	return err
+}
+
 const updateColors = `-- name: UpdateColors :exec
 UPDATE settings
 SET color_locate = ?, color_stock_ok = ?, color_stock_low = ?, color_stock_critical = ?, updated_at = CURRENT_TIMESTAMP

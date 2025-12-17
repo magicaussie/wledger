@@ -110,6 +110,38 @@ func (q *Queries) GetControllers(ctx context.Context) ([]Controller, error) {
 	return items, nil
 }
 
+const restoreController = `-- name: RestoreController :exec
+INSERT INTO controllers (id, name, ip_address, port, mac_address, is_online, led_count, config_json, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+`
+
+type RestoreControllerParams struct {
+	ID         int64          `json:"id"`
+	Name       string         `json:"name"`
+	IpAddress  string         `json:"ip_address"`
+	Port       sql.NullInt64  `json:"port"`
+	MacAddress sql.NullString `json:"mac_address"`
+	IsOnline   sql.NullBool   `json:"is_online"`
+	LedCount   int64          `json:"led_count"`
+	ConfigJson sql.NullString `json:"config_json"`
+	CreatedAt  sql.NullTime   `json:"created_at"`
+}
+
+func (q *Queries) RestoreController(ctx context.Context, arg RestoreControllerParams) error {
+	_, err := q.exec(ctx, q.restoreControllerStmt, restoreController,
+		arg.ID,
+		arg.Name,
+		arg.IpAddress,
+		arg.Port,
+		arg.MacAddress,
+		arg.IsOnline,
+		arg.LedCount,
+		arg.ConfigJson,
+		arg.CreatedAt,
+	)
+	return err
+}
+
 const updateControllerConfig = `-- name: UpdateControllerConfig :exec
 UPDATE controllers 
 SET config_json = ?, led_count = ?

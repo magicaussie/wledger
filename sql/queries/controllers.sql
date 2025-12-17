@@ -1,3 +1,7 @@
+-- name: RestoreController :exec
+INSERT INTO controllers (id, name, ip_address, port, mac_address, is_online, led_count, config_json, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+
 -- name: CreateController :one
 INSERT INTO controllers (name, ip_address, port) 
 VALUES (?, ?, ?)

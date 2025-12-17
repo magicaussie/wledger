@@ -100,6 +100,40 @@ func (q *Queries) DeleteUser(ctx context.Context, id int64) error {
 	return err
 }
 
+const getAllUsers = `-- name: GetAllUsers :many
+SELECT id, email, password_hash, role, change_password_required, created_at FROM users ORDER BY id
+`
+
+func (q *Queries) GetAllUsers(ctx context.Context) ([]User, error) {
+	rows, err := q.query(ctx, q.getAllUsersStmt, getAllUsers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []User
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.PasswordHash,
+			&i.Role,
+			&i.ChangePasswordRequired,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getSession = `-- name: GetSession :one
 SELECT token, data, expiry FROM sessions WHERE token = ?
 `
@@ -191,6 +225,32 @@ func (q *Queries) ListUsers(ctx context.Context) ([]ListUsersRow, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const restoreUser = `-- name: RestoreUser :exec
+INSERT INTO users (id, email, password_hash, role, change_password_required, created_at)
+VALUES (?, ?, ?, ?, ?, ?)
+`
+
+type RestoreUserParams struct {
+	ID                     int64        `json:"id"`
+	Email                  string       `json:"email"`
+	PasswordHash           string       `json:"password_hash"`
+	Role                   string       `json:"role"`
+	ChangePasswordRequired sql.NullBool `json:"change_password_required"`
+	CreatedAt              sql.NullTime `json:"created_at"`
+}
+
+func (q *Queries) RestoreUser(ctx context.Context, arg RestoreUserParams) error {
+	_, err := q.exec(ctx, q.restoreUserStmt, restoreUser,
+		arg.ID,
+		arg.Email,
+		arg.PasswordHash,
+		arg.Role,
+		arg.ChangePasswordRequired,
+		arg.CreatedAt,
+	)
+	return err
 }
 
 const setPasswordResetFlag = `-- name: SetPasswordResetFlag :exec

@@ -1,3 +1,10 @@
+-- name: GetAllBins :many
+SELECT * FROM bins ORDER BY id;
+
+-- name: RestoreBin :exec
+INSERT INTO bins (id, name, controller_id, led_index, width, grid_x, grid_y)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
 -- name: CreateBin :one
 INSERT INTO bins (name, controller_id, led_index, width, grid_x, grid_y)
 VALUES (?, ?, ?, ?, ?, ?)

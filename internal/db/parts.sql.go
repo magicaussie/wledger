@@ -150,6 +150,179 @@ func (q *Queries) DeletePartLink(ctx context.Context, id int64) error {
 	return err
 }
 
+const getAllPartAiPrompts = `-- name: GetAllPartAiPrompts :many
+SELECT id, part_id, prompt_text, ai_response, model_used, created_at FROM part_ai_prompts ORDER BY id
+`
+
+func (q *Queries) GetAllPartAiPrompts(ctx context.Context) ([]PartAiPrompt, error) {
+	rows, err := q.query(ctx, q.getAllPartAiPromptsStmt, getAllPartAiPrompts)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PartAiPrompt
+	for rows.Next() {
+		var i PartAiPrompt
+		if err := rows.Scan(
+			&i.ID,
+			&i.PartID,
+			&i.PromptText,
+			&i.AiResponse,
+			&i.ModelUsed,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAllPartAssignments = `-- name: GetAllPartAssignments :many
+SELECT id, part_id, bin_id, quantity FROM part_assignments ORDER BY id
+`
+
+// STOCK ASSIGNMENTS
+func (q *Queries) GetAllPartAssignments(ctx context.Context) ([]PartAssignment, error) {
+	rows, err := q.query(ctx, q.getAllPartAssignmentsStmt, getAllPartAssignments)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PartAssignment
+	for rows.Next() {
+		var i PartAssignment
+		if err := rows.Scan(
+			&i.ID,
+			&i.PartID,
+			&i.BinID,
+			&i.Quantity,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAllPartDocs = `-- name: GetAllPartDocs :many
+SELECT id, part_id, file_path, file_name FROM part_docs ORDER BY id
+`
+
+func (q *Queries) GetAllPartDocs(ctx context.Context) ([]PartDoc, error) {
+	rows, err := q.query(ctx, q.getAllPartDocsStmt, getAllPartDocs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PartDoc
+	for rows.Next() {
+		var i PartDoc
+		if err := rows.Scan(
+			&i.ID,
+			&i.PartID,
+			&i.FilePath,
+			&i.FileName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAllPartLinks = `-- name: GetAllPartLinks :many
+SELECT id, part_id, url, label FROM part_links ORDER BY id
+`
+
+func (q *Queries) GetAllPartLinks(ctx context.Context) ([]PartLink, error) {
+	rows, err := q.query(ctx, q.getAllPartLinksStmt, getAllPartLinks)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PartLink
+	for rows.Next() {
+		var i PartLink
+		if err := rows.Scan(
+			&i.ID,
+			&i.PartID,
+			&i.Url,
+			&i.Label,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAllParts = `-- name: GetAllParts :many
+SELECT id, name, description, part_number, manufacturer, supplier, unit_cost, reorder_level, min_stock_threshold, barcode_data, image_path, is_favorite, created_at, updated_at FROM parts ORDER BY id
+`
+
+func (q *Queries) GetAllParts(ctx context.Context) ([]Part, error) {
+	rows, err := q.query(ctx, q.getAllPartsStmt, getAllParts)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Part
+	for rows.Next() {
+		var i Part
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.PartNumber,
+			&i.Manufacturer,
+			&i.Supplier,
+			&i.UnitCost,
+			&i.ReorderLevel,
+			&i.MinStockThreshold,
+			&i.BarcodeData,
+			&i.ImagePath,
+			&i.IsFavorite,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getAssignment = `-- name: GetAssignment :one
 SELECT id, part_id, bin_id, quantity FROM part_assignments WHERE id = ?
 `
@@ -233,7 +406,6 @@ type GetPartAssignmentsRow struct {
 	ControllerIp   sql.NullString `json:"controller_ip"`
 }
 
-// STOCK ASSIGNMENTS
 func (q *Queries) GetPartAssignments(ctx context.Context, partID int64) ([]GetPartAssignmentsRow, error) {
 	rows, err := q.query(ctx, q.getPartAssignmentsStmt, getPartAssignments, partID)
 	if err != nil {
@@ -428,6 +600,143 @@ type ReassignPartAssignmentParams struct {
 
 func (q *Queries) ReassignPartAssignment(ctx context.Context, arg ReassignPartAssignmentParams) error {
 	_, err := q.exec(ctx, q.reassignPartAssignmentStmt, reassignPartAssignment, arg.BinID, arg.ID)
+	return err
+}
+
+const restorePart = `-- name: RestorePart :exec
+INSERT INTO parts (
+    id, name, description, part_number, manufacturer, supplier, 
+    unit_cost, reorder_level, min_stock_threshold, 
+    image_path, barcode_data, is_favorite, created_at, updated_at
+) VALUES (
+    ?, ?, ?, ?, ?, ?, 
+    ?, ?, ?, 
+    ?, ?, ?, ?, ?
+)
+`
+
+type RestorePartParams struct {
+	ID                int64           `json:"id"`
+	Name              string          `json:"name"`
+	Description       sql.NullString  `json:"description"`
+	PartNumber        sql.NullString  `json:"part_number"`
+	Manufacturer      sql.NullString  `json:"manufacturer"`
+	Supplier          sql.NullString  `json:"supplier"`
+	UnitCost          sql.NullFloat64 `json:"unit_cost"`
+	ReorderLevel      sql.NullInt64   `json:"reorder_level"`
+	MinStockThreshold sql.NullInt64   `json:"min_stock_threshold"`
+	ImagePath         sql.NullString  `json:"image_path"`
+	BarcodeData       sql.NullString  `json:"barcode_data"`
+	IsFavorite        sql.NullBool    `json:"is_favorite"`
+	CreatedAt         sql.NullTime    `json:"created_at"`
+	UpdatedAt         sql.NullTime    `json:"updated_at"`
+}
+
+func (q *Queries) RestorePart(ctx context.Context, arg RestorePartParams) error {
+	_, err := q.exec(ctx, q.restorePartStmt, restorePart,
+		arg.ID,
+		arg.Name,
+		arg.Description,
+		arg.PartNumber,
+		arg.Manufacturer,
+		arg.Supplier,
+		arg.UnitCost,
+		arg.ReorderLevel,
+		arg.MinStockThreshold,
+		arg.ImagePath,
+		arg.BarcodeData,
+		arg.IsFavorite,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	return err
+}
+
+const restorePartAiPrompt = `-- name: RestorePartAiPrompt :exec
+INSERT INTO part_ai_prompts (id, part_id, prompt_text, ai_response, model_used, created_at) VALUES (?, ?, ?, ?, ?, ?)
+`
+
+type RestorePartAiPromptParams struct {
+	ID         int64          `json:"id"`
+	PartID     int64          `json:"part_id"`
+	PromptText string         `json:"prompt_text"`
+	AiResponse sql.NullString `json:"ai_response"`
+	ModelUsed  sql.NullString `json:"model_used"`
+	CreatedAt  sql.NullTime   `json:"created_at"`
+}
+
+func (q *Queries) RestorePartAiPrompt(ctx context.Context, arg RestorePartAiPromptParams) error {
+	_, err := q.exec(ctx, q.restorePartAiPromptStmt, restorePartAiPrompt,
+		arg.ID,
+		arg.PartID,
+		arg.PromptText,
+		arg.AiResponse,
+		arg.ModelUsed,
+		arg.CreatedAt,
+	)
+	return err
+}
+
+const restorePartAssignment = `-- name: RestorePartAssignment :exec
+INSERT INTO part_assignments (id, part_id, bin_id, quantity) VALUES (?, ?, ?, ?)
+`
+
+type RestorePartAssignmentParams struct {
+	ID       int64         `json:"id"`
+	PartID   int64         `json:"part_id"`
+	BinID    sql.NullInt64 `json:"bin_id"`
+	Quantity int64         `json:"quantity"`
+}
+
+func (q *Queries) RestorePartAssignment(ctx context.Context, arg RestorePartAssignmentParams) error {
+	_, err := q.exec(ctx, q.restorePartAssignmentStmt, restorePartAssignment,
+		arg.ID,
+		arg.PartID,
+		arg.BinID,
+		arg.Quantity,
+	)
+	return err
+}
+
+const restorePartDoc = `-- name: RestorePartDoc :exec
+INSERT INTO part_docs (id, part_id, file_path, file_name) VALUES (?, ?, ?, ?)
+`
+
+type RestorePartDocParams struct {
+	ID       int64  `json:"id"`
+	PartID   int64  `json:"part_id"`
+	FilePath string `json:"file_path"`
+	FileName string `json:"file_name"`
+}
+
+func (q *Queries) RestorePartDoc(ctx context.Context, arg RestorePartDocParams) error {
+	_, err := q.exec(ctx, q.restorePartDocStmt, restorePartDoc,
+		arg.ID,
+		arg.PartID,
+		arg.FilePath,
+		arg.FileName,
+	)
+	return err
+}
+
+const restorePartLink = `-- name: RestorePartLink :exec
+INSERT INTO part_links (id, part_id, url, label) VALUES (?, ?, ?, ?)
+`
+
+type RestorePartLinkParams struct {
+	ID     int64          `json:"id"`
+	PartID int64          `json:"part_id"`
+	Url    string         `json:"url"`
+	Label  sql.NullString `json:"label"`
+}
+
+func (q *Queries) RestorePartLink(ctx context.Context, arg RestorePartLinkParams) error {
+	_, err := q.exec(ctx, q.restorePartLinkStmt, restorePartLink,
+		arg.ID,
+		arg.PartID,
+		arg.Url,
+		arg.Label,
+	)
 	return err
 }
 

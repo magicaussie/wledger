@@ -41,3 +41,75 @@ func (q *Queries) CreateAuditLog(ctx context.Context, arg CreateAuditLogParams) 
 	)
 	return err
 }
+
+const getAllAuditLogs = `-- name: GetAllAuditLogs :many
+SELECT id, user_id, action_type, entity_type, entity_id, details, old_value, new_value, created_at FROM audit_logs ORDER BY id
+`
+
+func (q *Queries) GetAllAuditLogs(ctx context.Context) ([]AuditLog, error) {
+	rows, err := q.query(ctx, q.getAllAuditLogsStmt, getAllAuditLogs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AuditLog
+	for rows.Next() {
+		var i AuditLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.ActionType,
+			&i.EntityType,
+			&i.EntityID,
+			&i.Details,
+			&i.OldValue,
+			&i.NewValue,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const restoreAuditLog = `-- name: RestoreAuditLog :exec
+INSERT INTO audit_logs (
+    id, user_id, action_type, entity_type, entity_id, details, old_value, new_value, created_at
+) VALUES (
+    ?, ?, ?, ?, ?, ?, ?, ?, ?
+)
+`
+
+type RestoreAuditLogParams struct {
+	ID         int64           `json:"id"`
+	UserID     sql.NullInt64   `json:"user_id"`
+	ActionType string          `json:"action_type"`
+	EntityType string          `json:"entity_type"`
+	EntityID   int64           `json:"entity_id"`
+	Details    sql.NullString  `json:"details"`
+	OldValue   json.RawMessage `json:"old_value"`
+	NewValue   json.RawMessage `json:"new_value"`
+	CreatedAt  sql.NullTime    `json:"created_at"`
+}
+
+func (q *Queries) RestoreAuditLog(ctx context.Context, arg RestoreAuditLogParams) error {
+	_, err := q.exec(ctx, q.restoreAuditLogStmt, restoreAuditLog,
+		arg.ID,
+		arg.UserID,
+		arg.ActionType,
+		arg.EntityType,
+		arg.EntityID,
+		arg.Details,
+		arg.OldValue,
+		arg.NewValue,
+		arg.CreatedAt,
+	)
+	return err
+}

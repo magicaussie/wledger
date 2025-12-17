@@ -1,3 +1,10 @@
+-- name: GetAllUsers :many
+SELECT * FROM users ORDER BY id;
+
+-- name: RestoreUser :exec
+INSERT INTO users (id, email, password_hash, role, change_password_required, created_at)
+VALUES (?, ?, ?, ?, ?, ?);
+
 -- name: CreateUser :one
 INSERT INTO users (email, password_hash, role, change_password_required) 
 VALUES (?, ?, ?, ?)
