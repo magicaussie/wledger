@@ -9,6 +9,8 @@ SELECT
 
 -- name: GetDashboardGrid :many
 SELECT 
+    c.id as controller_id,
+    c.name as controller_name,
     b.id as bin_id, 
     b.name as bin_name, 
     b.grid_x, 
@@ -18,7 +20,8 @@ SELECT
     p.min_stock_threshold, 
     p.reorder_level
 FROM bins b
+JOIN controllers c ON b.controller_id = c.id
 LEFT JOIN part_assignments pa ON b.id = pa.bin_id
 LEFT JOIN parts p ON pa.part_id = p.id
-WHERE b.grid_x IS NOT NULL AND b.grid_y IS NOT NULL AND b.controller_id IS NOT NULL
-ORDER BY b.grid_y, b.grid_x;
+WHERE b.grid_x IS NOT NULL AND b.grid_y IS NOT NULL
+ORDER BY c.name ASC, b.grid_y ASC, b.grid_x ASC;

@@ -12,6 +12,8 @@ import (
 
 const getDashboardGrid = `-- name: GetDashboardGrid :many
 SELECT 
+    c.id as controller_id,
+    c.name as controller_name,
     b.id as bin_id, 
     b.name as bin_name, 
     b.grid_x, 
@@ -21,13 +23,16 @@ SELECT
     p.min_stock_threshold, 
     p.reorder_level
 FROM bins b
+JOIN controllers c ON b.controller_id = c.id
 LEFT JOIN part_assignments pa ON b.id = pa.bin_id
 LEFT JOIN parts p ON pa.part_id = p.id
-WHERE b.grid_x IS NOT NULL AND b.grid_y IS NOT NULL AND b.controller_id IS NOT NULL
-ORDER BY b.grid_y, b.grid_x
+WHERE b.grid_x IS NOT NULL AND b.grid_y IS NOT NULL
+ORDER BY c.name ASC, b.grid_y ASC, b.grid_x ASC
 `
 
 type GetDashboardGridRow struct {
+	ControllerID      int64         `json:"controller_id"`
+	ControllerName    string        `json:"controller_name"`
 	BinID             int64         `json:"bin_id"`
 	BinName           string        `json:"bin_name"`
 	GridX             sql.NullInt64 `json:"grid_x"`
@@ -48,6 +53,8 @@ func (q *Queries) GetDashboardGrid(ctx context.Context) ([]GetDashboardGridRow, 
 	for rows.Next() {
 		var i GetDashboardGridRow
 		if err := rows.Scan(
+			&i.ControllerID,
+			&i.ControllerName,
 			&i.BinID,
 			&i.BinName,
 			&i.GridX,

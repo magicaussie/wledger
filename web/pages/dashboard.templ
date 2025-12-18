@@ -8,7 +8,7 @@ import (
 	"github.com/tuxedocurly/wledger/web/layouts"
 )
 
-templ Dashboard(user auth.User, stats db.GetDashboardStatsRow, bins []components.DashboardBin) {
+templ Dashboard(user auth.User, stats db.GetDashboardStatsRow, controllers []components.DashboardController) {
 	@layouts.Base("Dashboard", user) {
 		<div class="mb-8">
 			<h1 class="text-3xl font-bold">Dashboard</h1>
@@ -33,8 +33,15 @@ templ Dashboard(user auth.User, stats db.GetDashboardStatsRow, bins []components
 				</div>
 			</div>
 		</div>
-		<div class="mb-8">
-			@components.DashboardGrid(bins)
+		<div class="space-y-12">
+			if len(controllers) == 0 {
+				<div class="text-center py-12 opacity-50">
+					<p>No controllers configured. Go to Hardware to set up your LED grids.</p>
+				</div>
+			}
+			for _, ctrl := range controllers {
+				@components.DashboardGrid(ctrl)
+			}
 		</div>
 	}
 }
