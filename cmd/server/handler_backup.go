@@ -434,19 +434,16 @@ func (app *application) handleBackupRestore(w http.ResponseWriter, r *http.Reque
 	// At this point, the DB has the NEW data. Now the files need to be swapped.
 	liveUploads := filepath.Join("app", "uploads")
 	backupUploads := filepath.Join("app", fmt.Sprintf("uploads_bak_%d", timestamp))
-	backupCreated := false
 
 	// Move Live -> Backup
-	// Check if live uploads exists (might be fresh install)
-	if _, err := os.Stat(liveUploads); err == nil {
-		// If this fails, we are in a weird state (New DB, Old Files).
-		// But haven't lost data.
-		if err := os.Rename(liveUploads, backupUploads); err != nil {
-			app.logger.Error("CRITICAL: Failed to move live uploads to backup. Files mismatch DB.", "error", err)
-			components.ImportResult(true, "Restore successful, but file system swap failed. Check logs.", nil).Render(r.Context(), w)
-			return
-		}
-		backupCreated = true
+	// If this fails, the app is now in a weird state (New DB, Old Files).
+	// No data has been lost.
+	if err := os.Rename(liveUploads, backupUploads); err != nil {
+		// Try to recover: Move Temp -> Live
+		// For now, log critical error.
+		app.logger.Error("CRITICAL: Failed to move live uploads to backup. Files mismatch DB.", "error", err)
+		components.ImportResult(true, "Restore successful, but file system swap failed. Check logs and file a bug.", nil).Render(r.Context(), w)
+		return
 	}
 
 	// Move Temp -> Live
@@ -454,20 +451,16 @@ func (app *application) handleBackupRestore(w http.ResponseWriter, r *http.Reque
 		app.logger.Error("CRITICAL: Failed to move temp uploads to live. Attempting rollback.", "error", err)
 
 		// Attempt to restore backup
-		if backupCreated {
-			if recErr := os.Rename(backupUploads, liveUploads); recErr != nil {
-				app.logger.Error("FATAL: Failed to restore backup uploads!", "error", recErr)
-			}
+		if recErr := os.Rename(backupUploads, liveUploads); recErr != nil {
+			app.logger.Error("FATAL: Failed to restore backup uploads!", "error", recErr)
 		}
 
-		components.ImportResult(false, "File system error during swap. Contact Admin.", nil).Render(r.Context(), w)
+		components.ImportResult(false, "File system error during swap. Check logs and file a bug.", nil).Render(r.Context(), w)
 		return
 	}
 
 	// Cleanup Backup
-	if backupCreated {
-		os.RemoveAll(backupUploads)
-	}
+	os.RemoveAll(backupUploads)
 	// tempDir is empty now (moved), but defer will run os.RemoveAll(tempDir) which is fine.
 
 	// Force Logout
