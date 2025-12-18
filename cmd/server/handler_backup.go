@@ -188,7 +188,7 @@ func (app *application) handleBackupRestore(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Find JSON Manifest
+	// Validation: Find & Parse JSON Manifest
 	var manifest BackupManifest
 	var manifestFound bool
 
@@ -215,6 +215,63 @@ func (app *application) handleBackupRestore(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// Preparation: Extract Uploads to Temp Directory
+	// do this BEFORE the DB transaction to ensure the files are valid and extractable.
+	timestamp := time.Now().UnixNano()
+	tempDir := filepath.Join("app", fmt.Sprintf("restore_tmp_%d", timestamp))
+
+	// Ensure cleanup of temp dir in all failure cases
+	defer os.RemoveAll(tempDir)
+
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		app.logger.Error("failed to create temp restore dir", "path", tempDir, "error", err)
+		components.ImportResult(false, "System Error: Failed to create temp directory", nil).Render(r.Context(), w)
+		return
+	}
+
+	for _, f := range zipReader.File {
+		if strings.HasPrefix(f.Name, "uploads/") && !f.FileInfo().IsDir() {
+			// Strip "uploads/" to map to tempDir root
+			// e.g. "uploads/images/part.jpg" -> "images/part.jpg"
+			relPath := strings.TrimPrefix(f.Name, "uploads/")
+			targetPath := filepath.Join(tempDir, relPath)
+
+			// Security check: Ensure path is within tempDir
+			if !strings.HasPrefix(filepath.Clean(targetPath), tempDir) {
+				continue // Skip malicious paths
+			}
+
+			if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+				app.logger.Error("failed to create temp subdir", "path", targetPath, "error", err)
+				components.ImportResult(false, "Failed to extract assets", nil).Render(r.Context(), w)
+				return
+			}
+
+			outFile, err := os.Create(targetPath)
+			if err != nil {
+				app.logger.Error("failed to create temp file", "path", targetPath, "error", err)
+				components.ImportResult(false, "Failed to extract assets", nil).Render(r.Context(), w)
+				return
+			}
+
+			rc, err := f.Open()
+			if err != nil {
+				outFile.Close()
+				app.logger.Error("failed to open zip file", "file", f.Name, "error", err)
+				components.ImportResult(false, "Failed to extract assets", nil).Render(r.Context(), w)
+				return
+			}
+			_, err = io.Copy(outFile, rc)
+			rc.Close()
+			outFile.Close()
+			if err != nil {
+				app.logger.Error("failed to write temp file", "path", targetPath, "error", err)
+				components.ImportResult(false, "Failed to extract assets", nil).Render(r.Context(), w)
+				return
+			}
+		}
+	}
+
 	// Database Restore Transaction
 	ctx := r.Context()
 	tx, err := app.database.Begin()
@@ -222,6 +279,7 @@ func (app *application) handleBackupRestore(w http.ResponseWriter, r *http.Reque
 		components.ImportResult(false, "DB Error: "+err.Error(), nil).Render(r.Context(), w)
 		return
 	}
+	// If the function returns before tx.Commit(), this rolls back changes.
 	defer tx.Rollback()
 	qtx := app.queries.WithTx(tx)
 
@@ -232,7 +290,6 @@ func (app *application) handleBackupRestore(w http.ResponseWriter, r *http.Reque
 	}
 
 	// TRUNCATE (Delete All)
-	// Order doesn't strictly matter with FKs off, but good practice
 	tables := []string{
 		"part_assignments", "part_links", "part_docs", "part_ai_prompts", "part_tags",
 		"parts", "bins", "controllers", "audit_logs", "sessions", "users", "settings",
@@ -364,44 +421,54 @@ func (app *application) handleBackupRestore(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// restore Assets
-	// Wipe existing uploads ensures a clean state
-	os.RemoveAll("./app/uploads")
-	os.MkdirAll("./app/uploads", 0755)
-
-	for _, f := range zipReader.File {
-		if strings.HasPrefix(f.Name, "uploads/") && !f.FileInfo().IsDir() {
-			// uploads/images/foo.jpg -> ./app/uploads/images/foo.jpg
-			targetPath := filepath.Join("app", f.Name) // "app/uploads/..."
-
-			// Security check: Ensure path is within app/uploads
-			if !strings.HasPrefix(filepath.Clean(targetPath), "app"+string(os.PathSeparator)+"uploads") {
-				continue // Skip malicious paths
-			}
-
-			os.MkdirAll(filepath.Dir(targetPath), 0755)
-			outFile, err := os.Create(targetPath)
-			if err != nil {
-				app.logger.Warn("Failed to create asset file", "path", targetPath, "error", err)
-				continue
-			}
-
-			rc, err := f.Open()
-			if err != nil {
-				outFile.Close()
-				continue
-			}
-			io.Copy(outFile, rc)
-			rc.Close()
-			outFile.Close()
-		}
-	}
-
-	// Commit
+	// Commit DB Transaction
+	// If this fails, the DB is rolled back, and function exits.
+	// `defer os.RemoveAll(tempDir)` will clean up the extracted files.
+	// The live `app/uploads` is untouched.
 	if err := tx.Commit(); err != nil {
 		components.ImportResult(false, "Commit failed: "+err.Error(), nil).Render(r.Context(), w)
 		return
 	}
+
+	// Atomic Swap of Assets
+	// At this point, the DB has the NEW data. Now the files need to be swapped.
+	liveUploads := filepath.Join("app", "uploads")
+	backupUploads := filepath.Join("app", fmt.Sprintf("uploads_bak_%d", timestamp))
+	backupCreated := false
+
+	// Move Live -> Backup
+	// Check if live uploads exists (might be fresh install)
+	if _, err := os.Stat(liveUploads); err == nil {
+		// If this fails, we are in a weird state (New DB, Old Files).
+		// But haven't lost data.
+		if err := os.Rename(liveUploads, backupUploads); err != nil {
+			app.logger.Error("CRITICAL: Failed to move live uploads to backup. Files mismatch DB.", "error", err)
+			components.ImportResult(true, "Restore successful, but file system swap failed. Check logs.", nil).Render(r.Context(), w)
+			return
+		}
+		backupCreated = true
+	}
+
+	// Move Temp -> Live
+	if err := os.Rename(tempDir, liveUploads); err != nil {
+		app.logger.Error("CRITICAL: Failed to move temp uploads to live. Attempting rollback.", "error", err)
+
+		// Attempt to restore backup
+		if backupCreated {
+			if recErr := os.Rename(backupUploads, liveUploads); recErr != nil {
+				app.logger.Error("FATAL: Failed to restore backup uploads!", "error", recErr)
+			}
+		}
+
+		components.ImportResult(false, "File system error during swap. Contact Admin.", nil).Render(r.Context(), w)
+		return
+	}
+
+	// Cleanup Backup
+	if backupCreated {
+		os.RemoveAll(backupUploads)
+	}
+	// tempDir is empty now (moved), but defer will run os.RemoveAll(tempDir) which is fine.
 
 	// Force Logout
 	components.ImportResult(true, "System restored successfully. You will be logged out.", nil).Render(r.Context(), w)

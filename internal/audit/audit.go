@@ -32,6 +32,7 @@ func Log(ctx context.Context, q *db.Queries, action, entityType string, entityID
 	// Insert Async (Don't block the request for auditing)
 	// Note: Async is fine to keep the UI snappy, but if absolute audits
 	// are eeventually desired, this would need to be synchronous.
+	// TODO: Fix this to be synchronous
 	go func() {
 		// Need a new context since the request context might cancel
 		bgCtx := context.Background()
