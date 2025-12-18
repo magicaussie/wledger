@@ -70,9 +70,33 @@ func (app *application) handleHardwareDelete(w http.ResponseWriter, r *http.Requ
 	idStr := chi.URLParam(r, "id")
 	id, _ := strconv.Atoi(idStr)
 
-	err := app.queries.DeleteController(r.Context(), int64(id))
+	tx, err := app.database.Begin()
+	if err != nil {
+		app.logger.Error("failed to start transaction", "error", err)
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+	defer tx.Rollback()
+	qtx := app.queries.WithTx(tx)
+
+	// Delete Bins First (Manual Cascade)
+	err = qtx.DeleteBinsByController(r.Context(), sql.NullInt64{Int64: int64(id), Valid: true})
+	if err != nil {
+		app.logger.Error("failed to delete controller bins", "error", err)
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+
+	// Delete Controller
+	err = qtx.DeleteController(r.Context(), int64(id))
 	if err != nil {
 		app.logger.Error("failed to delete controller", "error", err)
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		app.logger.Error("failed to commit transaction", "error", err)
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}

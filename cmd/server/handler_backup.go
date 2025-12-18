@@ -35,7 +35,7 @@ type BackupManifest struct {
 
 // GET /settings/backup/download
 func (app *application) handleBackupDownload(w http.ResponseWriter, r *http.Request) {
-	// 1. Admin Only
+	// Admin Only
 	user := auth.GetUserFromRequest(r)
 	if !user.IsAdmin() {
 		http.Error(w, "Unauthorized", http.StatusForbidden)
@@ -264,14 +264,7 @@ func (app *application) handleBackupRestore(w http.ResponseWriter, r *http.Reque
 
 	// Users
 	for _, u := range manifest.Users {
-		err = qtx.RestoreUser(ctx, db.RestoreUserParams{
-			ID:                     u.ID,
-			Email:                  u.Email,
-			PasswordHash:           u.PasswordHash,
-			Role:                   u.Role,
-			ChangePasswordRequired: u.ChangePasswordRequired,
-			CreatedAt:              u.CreatedAt,
-		})
+		err = qtx.RestoreUser(ctx, db.RestoreUserParams(u))
 		if err != nil {
 			components.ImportResult(false, "Failed to restore User: "+err.Error(), nil).Render(r.Context(), w)
 			return
@@ -280,17 +273,7 @@ func (app *application) handleBackupRestore(w http.ResponseWriter, r *http.Reque
 
 	// Controllers
 	for _, c := range manifest.Controllers {
-		err = qtx.RestoreController(ctx, db.RestoreControllerParams{
-			ID:         c.ID,
-			Name:       c.Name,
-			IpAddress:  c.IpAddress,
-			Port:       c.Port,
-			MacAddress: c.MacAddress,
-			IsOnline:   c.IsOnline,
-			LedCount:   c.LedCount,
-			ConfigJson: c.ConfigJson,
-			CreatedAt:  c.CreatedAt,
-		})
+		err = qtx.RestoreController(ctx, db.RestoreControllerParams(c))
 		if err != nil {
 			components.ImportResult(false, "Failed to restore Controller: "+err.Error(), nil).Render(r.Context(), w)
 			return
@@ -299,15 +282,7 @@ func (app *application) handleBackupRestore(w http.ResponseWriter, r *http.Reque
 
 	// Bins
 	for _, b := range manifest.Bins {
-		err = qtx.RestoreBin(ctx, db.RestoreBinParams{
-			ID:           b.ID,
-			Name:         b.Name,
-			ControllerID: b.ControllerID,
-			LedIndex:     b.LedIndex,
-			Width:        b.Width,
-			GridX:        b.GridX,
-			GridY:        b.GridY,
-		})
+		err = qtx.RestoreBin(ctx, db.RestoreBinParams(b))
 		if err != nil {
 			components.ImportResult(false, "Failed to restore Bin: "+err.Error(), nil).Render(r.Context(), w)
 			return
@@ -340,12 +315,7 @@ func (app *application) handleBackupRestore(w http.ResponseWriter, r *http.Reque
 
 	// Assignments
 	for _, a := range manifest.PartAssignments {
-		err = qtx.RestorePartAssignment(ctx, db.RestorePartAssignmentParams{
-			ID:       a.ID,
-			PartID:   a.PartID,
-			BinID:    a.BinID,
-			Quantity: a.Quantity,
-		})
+		err = qtx.RestorePartAssignment(ctx, db.RestorePartAssignmentParams(a))
 		if err != nil {
 			components.ImportResult(false, "Failed to restore Assignment: "+err.Error(), nil).Render(r.Context(), w)
 			return
@@ -354,12 +324,7 @@ func (app *application) handleBackupRestore(w http.ResponseWriter, r *http.Reque
 
 	// Links
 	for _, l := range manifest.PartLinks {
-		err = qtx.RestorePartLink(ctx, db.RestorePartLinkParams{
-			ID:     l.ID,
-			PartID: l.PartID,
-			Url:    l.Url,
-			Label:  l.Label,
-		})
+		err = qtx.RestorePartLink(ctx, db.RestorePartLinkParams(l))
 		if err != nil {
 			components.ImportResult(false, "Failed to restore Link: "+err.Error(), nil).Render(r.Context(), w)
 			return
@@ -368,12 +333,7 @@ func (app *application) handleBackupRestore(w http.ResponseWriter, r *http.Reque
 
 	// Docs
 	for _, d := range manifest.PartDocs {
-		err = qtx.RestorePartDoc(ctx, db.RestorePartDocParams{
-			ID:       d.ID,
-			PartID:   d.PartID,
-			FilePath: d.FilePath,
-			FileName: d.FileName,
-		})
+		err = qtx.RestorePartDoc(ctx, db.RestorePartDocParams(d))
 		if err != nil {
 			components.ImportResult(false, "Failed to restore Doc: "+err.Error(), nil).Render(r.Context(), w)
 			return
@@ -382,14 +342,7 @@ func (app *application) handleBackupRestore(w http.ResponseWriter, r *http.Reque
 
 	// Prompts
 	for _, p := range manifest.PartAiPrompts {
-		err = qtx.RestorePartAiPrompt(ctx, db.RestorePartAiPromptParams{
-			ID:         p.ID,
-			PartID:     p.PartID,
-			PromptText: p.PromptText,
-			AiResponse: p.AiResponse,
-			ModelUsed:  p.ModelUsed,
-			CreatedAt:  p.CreatedAt,
-		})
+		err = qtx.RestorePartAiPrompt(ctx, db.RestorePartAiPromptParams(p))
 		if err != nil {
 			components.ImportResult(false, "Failed to restore AI Prompt: "+err.Error(), nil).Render(r.Context(), w)
 			return
@@ -398,17 +351,7 @@ func (app *application) handleBackupRestore(w http.ResponseWriter, r *http.Reque
 
 	// Logs
 	for _, l := range manifest.AuditLogs {
-		err = qtx.RestoreAuditLog(ctx, db.RestoreAuditLogParams{
-			ID:         l.ID,
-			UserID:     l.UserID,
-			ActionType: l.ActionType,
-			EntityType: l.EntityType,
-			EntityID:   l.EntityID,
-			Details:    l.Details,
-			OldValue:   l.OldValue,
-			NewValue:   l.NewValue,
-			CreatedAt:  l.CreatedAt,
-		})
+		err = qtx.RestoreAuditLog(ctx, db.RestoreAuditLogParams(l))
 		if err != nil {
 			components.ImportResult(false, "Failed to restore Audit Log: "+err.Error(), nil).Render(r.Context(), w)
 			return
