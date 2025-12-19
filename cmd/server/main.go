@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/tuxedocurly/wledger/internal/auth"
+	"github.com/tuxedocurly/wledger/internal/backup"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/images"
 	"github.com/tuxedocurly/wledger/internal/logger"
@@ -27,6 +28,7 @@ type application struct {
 	session  *scs.SessionManager
 	wled     *wled.Client
 	database *sql.DB
+	backup   backup.Service
 }
 
 func main() {
@@ -63,6 +65,9 @@ func main() {
 	// WLED client
 	wledClient := wled.New()
 
+	// Backup Service
+	backupService := backup.NewService(database, queries, "./app/uploads", log)
+
 	// app struct
 	app := &application{
 		logger:   log,
@@ -70,6 +75,7 @@ func main() {
 		session:  sessionManager,
 		wled:     wledClient,
 		database: database,
+		backup:   backupService,
 	}
 
 	// Middleware Manager
