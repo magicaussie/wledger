@@ -1,5 +1,7 @@
 package auth
 
+import "github.com/tuxedocurly/wledger/internal/db"
+
 // User represents the context of the current requester.
 // This helps decouple the UI from the raw database schema.
 type User struct {
@@ -37,6 +39,15 @@ func (u User) CanDelete() bool {
 // CanConfigure returns true if user can change hardware/system settings.
 func (u User) CanConfigure() bool {
 	return u.Role == "admin"
+}
+
+// CanRead determines if the user is allowed to view data.
+// Returns true if authenticated, or if settings allow guests.
+func (u User) CanRead(s db.Setting) bool {
+	if u.IsAuthenticated() {
+		return true
+	}
+	return !s.RequireAuthForRead.Bool
 }
 
 // IsAuthenticated serves as a quick check for login status

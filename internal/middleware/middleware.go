@@ -67,29 +67,43 @@ func (m *Manager) RequireAuth(next http.Handler) http.Handler {
 // RequireReadAuth checks the DB setting. If "Require Auth" is ON, it behaves like RequireAuth
 func (m *Manager) RequireReadAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// If user is already logged in, allow access
+		// Determine Identity
 		userID := m.Session.GetInt64(r.Context(), "user_id")
+		var user auth.User
+
+		if userID > 0 {
+			// Authenticated
+			u, err := m.Queries.GetUser(r.Context(), userID)
+			if err == nil {
+				user = auth.User{ID: u.ID, Role: u.Role, IsGuest: false}
+			} else {
+				user = auth.Guest()
+			}
+		} else {
+			user = auth.Guest()
+		}
+
+		// Fetch Settings
+		s, err := m.Queries.GetSettings(r.Context())
+		if err != nil {
+			// Fail secure
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+
+		// Authorization Check
+		if !user.CanRead(s) {
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+
+		// Pass Context
 		if userID > 0 {
 			ctx := context.WithValue(r.Context(), UserContextKey, int64(userID))
 			next.ServeHTTP(w, r.WithContext(ctx))
-			return
+		} else {
+			next.ServeHTTP(w, r)
 		}
-
-		// If not logged in, check DB settings
-		s, err := m.Queries.GetSettings(r.Context())
-		if err != nil {
-			http.Redirect(w, r, "/login", http.StatusSeeOther)
-			return
-		}
-
-		// If Settings say "Require Auth", redirect guest
-		if s.RequireAuthForRead.Bool {
-			http.Redirect(w, r, "/login", http.StatusSeeOther)
-			return
-		}
-
-		// Otherwise, public access is allowed
-		next.ServeHTTP(w, r)
 	})
 }
 

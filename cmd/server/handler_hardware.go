@@ -320,34 +320,13 @@ func (app *application) handleHardwareLocate(w http.ResponseWriter, r *http.Requ
 	cid, _ := strconv.Atoi(cidStr)
 	binID, _ := strconv.Atoi(r.URL.Query().Get("bin_id"))
 
-	// Fetch Settings First (needed for Auth check AND WLED config)
+	// Fetch Settings (Needed for Color and Timeout config)
 	settings, err := app.queries.GetSettings(r.Context())
 	if err != nil {
 		// Fallback defaults if DB fails
 		settings.ColorLocate.String = "#0000FF"
 		settings.EnableLocateTimeout.Bool = false
 		settings.LocateTimeoutSeconds.Int64 = 0
-		// Assume secure default for auth if DB fails
-		settings.RequireAuthForRead.Bool = true
-	}
-
-	// Check Authorization
-	user := auth.GetUserFromRequest(r)
-	allowed := false
-
-	if user.IsAuthenticated() {
-		// Authenticated users (Viewers, Editors, Admins) can always locate
-		allowed = true
-	} else {
-		// Guest: Only allow if RequireAuthForRead is FALSE
-		if !settings.RequireAuthForRead.Bool {
-			allowed = true
-		}
-	}
-
-	if !allowed {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
 	}
 
 	// Retrieve Hardware Details
