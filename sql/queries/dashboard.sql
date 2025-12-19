@@ -1,11 +1,12 @@
 -- name: GetDashboardStats :one
-SELECT 
-    (SELECT COUNT(*) FROM parts) as total_parts,
+SELECT
+    COUNT(DISTINCT p.id) as total_parts,
     (SELECT COUNT(*) FROM controllers) as total_controllers,
     (SELECT COUNT(*) FROM controllers WHERE is_online = 1) as online_controllers,
-    -- CAST to INTEGER so sqlc generates 'int64' instead of 'interface{}'
-    (SELECT CAST(COALESCE(SUM(quantity), 0) AS INTEGER) FROM part_assignments) as total_items_in_stock,
-    (SELECT COUNT(*) FROM parts WHERE is_favorite = 1) as favorite_parts;
+    CAST(COALESCE(SUM(pa.quantity), 0) AS INTEGER) as total_items_in_stock,
+    COUNT(DISTINCT CASE WHEN p.is_favorite = 1 THEN p.id END) as favorite_parts
+FROM parts p
+LEFT JOIN part_assignments pa ON p.id = pa.part_id;
 
 -- name: GetDashboardGrid :many
 SELECT 
