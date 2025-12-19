@@ -24,6 +24,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/images"
+	"github.com/tuxedocurly/wledger/internal/parts"
 )
 
 // Reusing setup logic from handler_hardware_test.go
@@ -50,6 +51,7 @@ func setupPartTest(t *testing.T) (*application, *sql.DB) {
 		logger:   logger,
 		queries:  queries,
 		database: dbConn,
+		parts:    parts.NewService(dbConn, queries, logger),
 	}
 
 	return app, dbConn

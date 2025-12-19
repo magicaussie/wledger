@@ -3,19 +3,14 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	"io"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/tuxedocurly/wledger/internal/audit"
 	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/internal/db"
-	"github.com/tuxedocurly/wledger/internal/images"
+	"github.com/tuxedocurly/wledger/internal/parts"
 	"github.com/tuxedocurly/wledger/web/components"
 	"github.com/tuxedocurly/wledger/web/pages"
 )
@@ -143,73 +138,30 @@ func (app *application) handlePartsCreate(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Process Main Fields
-	name := r.FormValue("name")
-	desc := r.FormValue("description")
-	partNum := r.FormValue("part_number")
-	manufacturer := r.FormValue("manufacturer")
-	supplier := r.FormValue("supplier")
-	barcode := r.FormValue("barcode_data")
-
 	cost, _ := strconv.ParseFloat(r.FormValue("unit_cost"), 64)
 	reorder, _ := strconv.Atoi(r.FormValue("reorder_level"))
 	minStock, _ := strconv.Atoi(r.FormValue("min_stock"))
 
+	req := parts.CreatePartRequest{
+		Name:              r.FormValue("name"),
+		Description:       r.FormValue("description"),
+		PartNumber:        r.FormValue("part_number"),
+		Manufacturer:      r.FormValue("manufacturer"),
+		Supplier:          r.FormValue("supplier"),
+		BarcodeData:       r.FormValue("barcode_data"),
+		UnitCost:          cost,
+		ReorderLevel:      reorder,
+		MinStockThreshold: minStock,
+	}
+
 	// Handle Image Upload
-	// Upload first. If DB fails, delete the file in defer/error handling.
-	imagePath := ""
 	file, header, err := r.FormFile("image")
 	if err == nil {
+		req.Image = &parts.DocUpload{
+			File:   file,
+			Header: header,
+		}
 		defer file.Close()
-		fileName, err := images.ProcessUpload(file, header)
-		if err == nil {
-			// Prepend the web access path
-			imagePath = "/uploads/images/" + fileName
-		}
-	}
-
-	// Start Transaction
-	tx, err := app.database.Begin()
-	if err != nil {
-		app.logger.Error("failed to begin transaction", "error", err)
-		http.Error(w, "Database error", http.StatusInternalServerError)
-		// Cleanup uploaded image if DB connection fails entirely
-		if imagePath != "" {
-			images.DeleteByWebPath(imagePath)
-		}
-		return
-	}
-	// Default rollback (will be ignored if Commit is called)
-	defer tx.Rollback()
-
-	qtx := app.queries.WithTx(tx)
-
-	// Create Part
-	newID, err := qtx.CreatePart(r.Context(), db.CreatePartParams{
-		Name:              name,
-		Description:       sql.NullString{String: desc, Valid: desc != ""},
-		PartNumber:        sql.NullString{String: partNum, Valid: partNum != ""},
-		Manufacturer:      sql.NullString{String: manufacturer, Valid: manufacturer != ""},
-		Supplier:          sql.NullString{String: supplier, Valid: supplier != ""},
-		BarcodeData:       sql.NullString{String: barcode, Valid: barcode != ""},
-		UnitCost:          sql.NullFloat64{Float64: cost, Valid: true},
-		ReorderLevel:      sql.NullInt64{Int64: int64(reorder), Valid: true},
-		MinStockThreshold: sql.NullInt64{Int64: int64(minStock), Valid: true},
-		ImagePath:         sql.NullString{String: imagePath, Valid: imagePath != ""},
-	})
-
-	if err != nil {
-		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
-			http.Error(w, "Part already exists (check barcode)", http.StatusConflict)
-		} else {
-			app.logger.Error("failed to create part", "error", err)
-			http.Error(w, "Database error", http.StatusInternalServerError)
-		}
-		// Cleanup Uploaded Image
-		if imagePath != "" {
-			images.DeleteByWebPath(imagePath)
-		}
-		return
 	}
 
 	// Process Links
@@ -220,77 +172,34 @@ func (app *application) handlePartsCreate(w http.ResponseWriter, r *http.Request
 			if u == "" {
 				continue
 			}
-			err = qtx.CreatePartLink(r.Context(), db.CreatePartLinkParams{
-				PartID: newID,
-				Url:    u,
-				Label:  sql.NullString{String: labels[i], Valid: labels[i] != ""},
+			req.Links = append(req.Links, parts.LinkDTO{
+				Label: labels[i],
+				URL:   u,
 			})
-			if err != nil {
-				app.logger.Error("failed to create link", "error", err)
-				if imagePath != "" {
-					images.DeleteByWebPath(imagePath)
-				}
-				// Transaction rolls back on return
-				http.Error(w, "Failed to save links", http.StatusInternalServerError)
-				return
-			}
 		}
 	}
 
 	// Process Documents
 	docs := r.MultipartForm.File["documents"]
-	var uploadedDocs []string // Track for cleanup
-
 	for _, fh := range docs {
 		f, err := fh.Open()
-		if err != nil {
-			continue
-		}
-
-		savedWebPath, err := saveDocument(f, fh.Filename)
-		f.Close() // Close immediately
-
 		if err == nil {
-			uploadedDocs = append(uploadedDocs, savedWebPath)
-			err = qtx.CreatePartDoc(r.Context(), db.CreatePartDocParams{
-				PartID:   newID,
-				FilePath: savedWebPath,
-				FileName: fh.Filename,
+			req.Documents = append(req.Documents, parts.DocUpload{
+				File:   f,
+				Header: fh,
 			})
-			if err != nil {
-				app.logger.Error("failed to create doc record", "error", err)
-				// Cleanup Image
-				if imagePath != "" {
-					images.DeleteByWebPath(imagePath)
-				}
-				// Cleanup Docs
-				for _, p := range uploadedDocs {
-					// Convert /uploads/docs/x -> ./app/uploads/docs/x
-					relPath := "." + strings.Replace(p, "/uploads", "/app/uploads", 1)
-					os.Remove(relPath)
-				}
-				http.Error(w, "Failed to save documents", http.StatusInternalServerError)
-				return
-			}
+			defer f.Close()
 		}
 	}
 
-	// Audit Log (Now Synchronous via qtx)
-	audit.Log(r.Context(), qtx, "CREATE", "PART", newID, "Created part "+name, nil, nil)
-
-	// Commit Transaction
-	if err := tx.Commit(); err != nil {
-		app.logger.Error("failed to commit transaction", "error", err)
-		// Cleanup Image
-		if imagePath != "" {
-			images.DeleteByWebPath(imagePath)
+	newID, err := app.parts.CreatePart(r.Context(), req)
+	if err != nil {
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			http.Error(w, "Part already exists (check barcode)", http.StatusConflict)
+		} else {
+			app.logger.Error("failed to create part", "error", err)
+			http.Error(w, "Database error", http.StatusInternalServerError)
 		}
-		// Cleanup Docs
-		for _, p := range uploadedDocs {
-			relPath := "." + strings.Replace(p, "/uploads", "/app/uploads", 1)
-			os.Remove(relPath)
-		}
-		http.Error(w, "Database commit failed", http.StatusInternalServerError)
 		return
 	}
 
@@ -318,76 +227,37 @@ func (app *application) handlePartEdit(w http.ResponseWriter, r *http.Request) {
 func (app *application) handlePartUpdate(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
 
-	// Fetch old part to manage existing files
-	oldPart, err := app.queries.GetPart(r.Context(), int64(id))
+	err := r.ParseMultipartForm(20 << 20)
 	if err != nil {
-		http.Error(w, "Part not found", http.StatusNotFound)
+		http.Error(w, "Request too large", http.StatusBadRequest)
 		return
 	}
 
-	r.ParseMultipartForm(20 << 20)
-
-	// Image Update Logic
-	// Upload FIRST If Success, delete OLD one LATER. If Fail, delete NEW one NOW.
-	newImagePath := oldPart.ImagePath.String
-	uploadedNewImage := false
-
-	file, header, err := r.FormFile("image")
-	if err == nil {
-		defer file.Close()
-		fileName, err := images.ProcessUpload(file, header)
-		if err == nil {
-			// Set new path
-			newImagePath = "/uploads/images/" + fileName
-			uploadedNewImage = true
-		}
-	}
-
-	// Start Transaction
-	tx, err := app.database.Begin()
-	if err != nil {
-		app.logger.Error("failed to begin transaction", "error", err)
-		if uploadedNewImage {
-			images.DeleteByWebPath(newImagePath)
-		}
-		http.Error(w, "Database error", http.StatusInternalServerError)
-		return
-	}
-	defer tx.Rollback()
-
-	qtx := app.queries.WithTx(tx)
-
-	name := r.FormValue("name")
-	desc := r.FormValue("description")
-	partNum := r.FormValue("part_number")
-	manufacturer := r.FormValue("manufacturer")
-	supplier := r.FormValue("supplier")
-	barcode := r.FormValue("barcode_data")
 	cost, _ := strconv.ParseFloat(r.FormValue("unit_cost"), 64)
 	reorder, _ := strconv.Atoi(r.FormValue("reorder_level"))
 	minStock, _ := strconv.Atoi(r.FormValue("min_stock"))
 
-	err = qtx.UpdatePart(r.Context(), db.UpdatePartParams{
-		Name:              name,
-		Description:       sql.NullString{String: desc, Valid: desc != ""},
-		PartNumber:        sql.NullString{String: partNum, Valid: partNum != ""},
-		Manufacturer:      sql.NullString{String: manufacturer, Valid: manufacturer != ""},
-		Supplier:          sql.NullString{String: supplier, Valid: supplier != ""},
-		BarcodeData:       sql.NullString{String: barcode, Valid: barcode != ""},
-		UnitCost:          sql.NullFloat64{Float64: cost, Valid: true},
-		ReorderLevel:      sql.NullInt64{Int64: int64(reorder), Valid: true},
-		MinStockThreshold: sql.NullInt64{Int64: int64(minStock), Valid: true},
-		ImagePath:         sql.NullString{String: newImagePath, Valid: newImagePath != ""},
+	req := parts.UpdatePartRequest{
 		ID:                int64(id),
-	})
+		Name:              r.FormValue("name"),
+		Description:       r.FormValue("description"),
+		PartNumber:        r.FormValue("part_number"),
+		Manufacturer:      r.FormValue("manufacturer"),
+		Supplier:          r.FormValue("supplier"),
+		BarcodeData:       r.FormValue("barcode_data"),
+		UnitCost:          cost,
+		ReorderLevel:      reorder,
+		MinStockThreshold: minStock,
+	}
 
-	if err != nil {
-		app.logger.Error("failed to update part", "error", err)
-		if uploadedNewImage {
-			images.DeleteByWebPath(newImagePath)
+	// Handle Image Upload
+	file, header, err := r.FormFile("image")
+	if err == nil {
+		req.Image = &parts.DocUpload{
+			File:   file,
+			Header: header,
 		}
-		http.Error(w, "Update failed", http.StatusInternalServerError)
-		return
+		defer file.Close()
 	}
 
 	// Update Existing Links
@@ -401,19 +271,11 @@ func (app *application) handlePartUpdate(w http.ResponseWriter, r *http.Request)
 			if linkID == 0 || existingUrls[i] == "" {
 				continue
 			}
-			err = qtx.UpdatePartLink(r.Context(), db.UpdatePartLinkParams{
-				Url:   existingUrls[i],
-				Label: sql.NullString{String: existingLabels[i], Valid: existingLabels[i] != ""},
+			req.ExistingLinks = append(req.ExistingLinks, parts.LinkDTO{
 				ID:    int64(linkID),
+				Label: existingLabels[i],
+				URL:   existingUrls[i],
 			})
-			if err != nil {
-				if uploadedNewImage {
-					images.DeleteByWebPath(newImagePath)
-				}
-				app.logger.Error("failed to update link", "error", err)
-				http.Error(w, "Update failed", http.StatusInternalServerError)
-				return
-			}
 		}
 	}
 
@@ -425,80 +287,31 @@ func (app *application) handlePartUpdate(w http.ResponseWriter, r *http.Request)
 			if u == "" {
 				continue
 			}
-			err = qtx.CreatePartLink(r.Context(), db.CreatePartLinkParams{
-				PartID: int64(id),
-				Url:    u,
-				Label:  sql.NullString{String: labels[i], Valid: labels[i] != ""},
+			req.NewLinks = append(req.NewLinks, parts.LinkDTO{
+				Label: labels[i],
+				URL:   u,
 			})
-			if err != nil {
-				if uploadedNewImage {
-					images.DeleteByWebPath(newImagePath)
-				}
-				app.logger.Error("failed to add link", "error", err)
-				http.Error(w, "Update failed", http.StatusInternalServerError)
-				return
-			}
 		}
 	}
 
 	// Add Documents
 	docs := r.MultipartForm.File["documents"]
-	var uploadedDocs []string // Track for cleanup
-
 	for _, fh := range docs {
 		f, err := fh.Open()
-		if err != nil {
-			continue
-		}
-
-		savedWebPath, err := saveDocument(f, fh.Filename)
-		f.Close()
-
 		if err == nil {
-			uploadedDocs = append(uploadedDocs, savedWebPath)
-			err = qtx.CreatePartDoc(r.Context(), db.CreatePartDocParams{
-				PartID:   int64(id),
-				FilePath: savedWebPath,
-				FileName: fh.Filename,
+			req.NewDocuments = append(req.NewDocuments, parts.DocUpload{
+				File:   f,
+				Header: fh,
 			})
-			if err != nil {
-				// Cleanup New Image
-				if uploadedNewImage {
-					images.DeleteByWebPath(newImagePath)
-				}
-				// Cleanup New Docs
-				for _, p := range uploadedDocs {
-					relPath := "." + strings.Replace(p, "/uploads", "/app/uploads", 1)
-					os.Remove(relPath)
-				}
-				app.logger.Error("failed to add doc", "error", err)
-				http.Error(w, "Update failed", http.StatusInternalServerError)
-				return
-			}
+			defer f.Close()
 		}
 	}
 
-	audit.Log(r.Context(), qtx, "UPDATE", "PART", int64(id), "Updated details", nil, nil)
-
-	// Commit Transaction
-	if err := tx.Commit(); err != nil {
-		app.logger.Error("failed to commit transaction", "error", err)
-		// Cleanup New Image
-		if uploadedNewImage {
-			images.DeleteByWebPath(newImagePath)
-		}
-		// Cleanup New Docs
-		for _, p := range uploadedDocs {
-			relPath := "." + strings.Replace(p, "/uploads", "/app/uploads", 1)
-			os.Remove(relPath)
-		}
-		http.Error(w, "Database commit failed", http.StatusInternalServerError)
+	err = app.parts.UpdatePart(r.Context(), req)
+	if err != nil {
+		app.logger.Error("failed to update part", "error", err)
+		http.Error(w, "Update failed", http.StatusInternalServerError)
 		return
-	}
-
-	// Post-Commit Cleanup: Delete OLD image if we replaced it
-	if uploadedNewImage && oldPart.ImagePath.Valid {
-		images.DeleteByWebPath(oldPart.ImagePath.String)
 	}
 
 	http.Redirect(w, r, fmt.Sprintf("/parts/%d", id), http.StatusSeeOther)
@@ -509,36 +322,12 @@ func (app *application) handlePartDelete(w http.ResponseWriter, r *http.Request)
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
 	partID := int64(id)
 
-	// Fetch Part to clean up the Main Image
-	p, err := app.queries.GetPart(r.Context(), partID)
-	if err == nil && p.ImagePath.Valid {
-		images.DeleteByWebPath(p.ImagePath.String)
+	err := app.parts.DeletePart(r.Context(), partID)
+	if err != nil {
+		app.logger.Error("failed to delete part", "error", err)
+		http.Error(w, "Delete failed", http.StatusInternalServerError)
+		return
 	}
-
-	// Fetch Docs to clean up Document Files
-	docs, err := app.queries.GetPartDocs(r.Context(), partID)
-	if err == nil {
-		for _, doc := range docs {
-			// doc.FilePath is like "/uploads/docs/datasheet.pdf"
-			// convert it to the system path: "./app/uploads/docs/datasheet.pdf"
-			if strings.HasPrefix(doc.FilePath, "/uploads/") {
-				// "path/filepath" handles OS separators (slash vs backslash) automatically
-				relativePath := filepath.Join("app", doc.FilePath)
-
-				// remove the file
-				removeErr := os.Remove(relativePath)
-				if removeErr != nil {
-					// log this but don't stop the deletion process
-					app.logger.Warn("failed to delete orphaned document file", "path", relativePath, "error", removeErr)
-				}
-			}
-		}
-	}
-
-	// Log and Delete from DB
-	// The DB "ON DELETE CASCADE" will handle removing the rows from 'part_docs' and 'part_links'
-	audit.Log(r.Context(), app.queries, "DELETE", "PART", partID, "Deleted part", nil, nil)
-	_ = app.queries.DeletePart(r.Context(), partID)
 
 	http.Redirect(w, r, "/parts", http.StatusSeeOther)
 }
@@ -550,30 +339,14 @@ func (app *application) handlePartDelete(w http.ResponseWriter, r *http.Request)
 // DELETE /parts/links/{id}
 func (app *application) handleLinkDelete(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
-	_ = app.queries.DeletePartLink(r.Context(), int64(id))
+	_ = app.parts.DeleteLink(r.Context(), int64(id))
 	w.WriteHeader(http.StatusOK)
 }
 
 // DELETE /parts/docs/{id}
 func (app *application) handleDocDelete(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
-
-	// Fetch info to get filepath
-	doc, err := app.queries.GetPartDoc(r.Context(), int64(id))
-	if err == nil {
-		// Delete actual file from disk
-		// doc.FilePath is like "/uploads/docs/foo.pdf"
-		// convert to "./app/uploads/docs/foo.pdf"
-		relativePath := "." + strings.Replace(doc.FilePath, "/uploads", "/app/uploads", 1)
-
-		err := os.Remove(relativePath)
-		if err != nil {
-			app.logger.Warn("failed to delete doc file", "path", relativePath, "error", err)
-		}
-	}
-
-	// Delete DB Row
-	_ = app.queries.DeletePartDoc(r.Context(), int64(id))
+	_ = app.parts.DeleteDoc(r.Context(), int64(id))
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -601,26 +374,11 @@ func (app *application) handlePartAssign(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	nullBinID := sql.NullInt64{Int64: int64(binID), Valid: true}
-
-	_, err := app.queries.GetAssignmentID(r.Context(), db.GetAssignmentIDParams{
-		PartID: int64(partID),
-		BinID:  nullBinID,
+	err := app.parts.AssignStock(r.Context(), parts.AssignStockRequest{
+		PartID:   int64(partID),
+		BinID:    int64(binID),
+		Quantity: qty,
 	})
-
-	if err == nil {
-		err = app.queries.UpdatePartAssignmentQuantity(r.Context(), db.UpdatePartAssignmentQuantityParams{
-			Quantity: int64(qty),
-			PartID:   int64(partID),
-			BinID:    nullBinID,
-		})
-	} else {
-		err = app.queries.CreatePartAssignment(r.Context(), db.CreatePartAssignmentParams{
-			PartID:   int64(partID),
-			BinID:    nullBinID,
-			Quantity: int64(qty),
-		})
-	}
 
 	if err != nil {
 		app.logger.Error("failed to assign stock", "error", err)
@@ -628,7 +386,6 @@ func (app *application) handlePartAssign(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	audit.Log(r.Context(), app.queries, "STOCK_ADD", "PART", int64(partID), "Added stock", nil, nil)
 	http.Redirect(w, r, fmt.Sprintf("/parts/%d", partID), http.StatusSeeOther)
 }
 
@@ -642,87 +399,15 @@ func (app *application) handlePartStockMove(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Start Transaction
-	tx, err := app.database.Begin()
-	if err != nil {
-		app.logger.Error("failed to begin transaction", "error", err)
-		http.Error(w, "Database error", http.StatusInternalServerError)
-		return
-	}
-	defer tx.Rollback()
-
-	qtx := app.queries.WithTx(tx)
-	ctx := r.Context()
-
-	// Get Source Assignment
-	source, err := qtx.GetAssignment(ctx, int64(assignmentID))
-	if err != nil {
-		http.Error(w, "Source assignment not found", http.StatusNotFound)
-		return
-	}
-
-	// Check if Target exists
-	targetID, err := qtx.GetAssignmentID(ctx, db.GetAssignmentIDParams{
-		PartID: int64(partID),
-		BinID:  sql.NullInt64{Int64: int64(targetBinID), Valid: true},
+	err := app.parts.MoveStock(r.Context(), parts.MoveStockRequest{
+		PartID:       int64(partID),
+		AssignmentID: int64(assignmentID),
+		TargetBinID:  int64(targetBinID),
 	})
 
-	if err == nil {
-		// MERGE PATH
-		// Target Exists. Add Source Qty to Target Qty.
-
-		// Fetch current qty using QTX (locks row in some DBs, consistent read here)
-		target, err := qtx.GetAssignment(ctx, targetID)
-		if err != nil {
-			app.logger.Error("failed to fetch target for merge", "error", err)
-			http.Error(w, "Merge failed", http.StatusInternalServerError)
-			return
-		}
-
-		newQty := target.Quantity + source.Quantity
-
-		// Update Target
-		err = qtx.UpdatePartAssignmentQuantity(ctx, db.UpdatePartAssignmentQuantityParams{
-			Quantity: newQty,
-			PartID:   int64(partID),
-			BinID:    sql.NullInt64{Int64: int64(targetBinID), Valid: true},
-		})
-		if err != nil {
-			app.logger.Error("failed to update target stock", "error", err)
-			http.Error(w, "Merge failed", http.StatusInternalServerError)
-			return
-		}
-
-		// Delete Source
-		err = qtx.DeleteAssignment(ctx, int64(assignmentID))
-		if err != nil {
-			app.logger.Error("failed to delete source stock after merge", "error", err)
-			http.Error(w, "Merge failed", http.StatusInternalServerError)
-			return
-		}
-
-		audit.Log(ctx, qtx, "STOCK_MERGE", "PART", int64(partID), fmt.Sprintf("Merged stock into bin %d", targetBinID), nil, nil)
-
-	} else {
-		// MOVE PATH
-		// Target does not exist. Just update the Bin ID.
-		err = qtx.ReassignPartAssignment(ctx, db.ReassignPartAssignmentParams{
-			BinID: sql.NullInt64{Int64: int64(targetBinID), Valid: true},
-			ID:    int64(assignmentID),
-		})
-		if err != nil {
-			app.logger.Error("failed to move stock", "error", err)
-			http.Error(w, "Move failed", http.StatusInternalServerError)
-			return
-		}
-
-		audit.Log(ctx, qtx, "STOCK_MOVE", "PART", int64(partID), fmt.Sprintf("Moved stock to bin %d", targetBinID), nil, nil)
-	}
-
-	// Commit
-	if err := tx.Commit(); err != nil {
-		app.logger.Error("failed to commit transaction", "error", err)
-		http.Error(w, "Transaction failed", http.StatusInternalServerError)
+	if err != nil {
+		app.logger.Error("failed to move stock", "error", err)
+		http.Error(w, "Move failed", http.StatusInternalServerError)
 		return
 	}
 
@@ -733,52 +418,16 @@ func (app *application) handlePartStockRemove(w http.ResponseWriter, r *http.Req
 	partID, _ := strconv.Atoi(chi.URLParam(r, "id"))
 	assignmentID, _ := strconv.Atoi(chi.URLParam(r, "assignment_id"))
 
-	err := app.queries.DeleteAssignment(r.Context(), int64(assignmentID))
+	err := app.parts.RemoveStock(r.Context(), parts.RemoveStockRequest{
+		PartID:       int64(partID),
+		AssignmentID: int64(assignmentID),
+	})
 
 	if err != nil {
+		app.logger.Error("failed to remove stock", "error", err)
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
 
-	audit.Log(r.Context(), app.queries, "STOCK_REMOVE", "PART", int64(partID), "Removed stock", nil, nil)
 	http.Redirect(w, r, fmt.Sprintf("/parts/%d", partID), http.StatusSeeOther)
-}
-
-// -----------------------------------------------------------
-// HELPERS
-// -----------------------------------------------------------
-
-func saveDocument(src io.Reader, filename string) (string, error) {
-	// UPDATED: Save to ./app/uploads/docs
-	uploadDir := "./app/uploads/docs"
-	if err := os.MkdirAll(uploadDir, 0755); err != nil {
-		return "", err
-	}
-
-	// Generate unique name
-	ext := filepath.Ext(filename)
-	base := strings.TrimSuffix(filename, ext)
-	// Sanitize filename roughly to avoid filesystem issues
-	base = strings.Map(func(r rune) rune {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
-			return r
-		}
-		return '_'
-	}, base)
-
-	cleanName := fmt.Sprintf("%s_%d%s", base, time.Now().Unix(), ext)
-	destPath := filepath.Join(uploadDir, cleanName)
-
-	dst, err := os.Create(destPath)
-	if err != nil {
-		return "", err
-	}
-	defer dst.Close()
-
-	if _, err := io.Copy(dst, src); err != nil {
-		return "", err
-	}
-
-	// Return web-accessible path
-	return "/uploads/docs/" + cleanName, nil
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/tuxedocurly/wledger/internal/images"
 	"github.com/tuxedocurly/wledger/internal/logger"
 	"github.com/tuxedocurly/wledger/internal/middleware"
+	"github.com/tuxedocurly/wledger/internal/parts"
 	"github.com/tuxedocurly/wledger/internal/wled"
 )
 
@@ -29,6 +30,7 @@ type application struct {
 	wled     *wled.Client
 	database *sql.DB
 	backup   backup.Service
+	parts    parts.Service
 }
 
 func main() {
@@ -68,6 +70,9 @@ func main() {
 	// Backup Service
 	backupService := backup.NewService(database, queries, "./app/uploads", log)
 
+	// Parts Service
+	partsService := parts.NewService(database, queries, log)
+
 	// app struct
 	app := &application{
 		logger:   log,
@@ -76,6 +81,7 @@ func main() {
 		wled:     wledClient,
 		database: database,
 		backup:   backupService,
+		parts:    partsService,
 	}
 
 	// Middleware Manager
