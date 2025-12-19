@@ -2,19 +2,23 @@
 SELECT * FROM parts WHERE id = ?;
 
 -- name: ListParts :many
-SELECT *, 
-    (SELECT COALESCE(SUM(quantity), 0) FROM part_assignments WHERE part_id = parts.id) as total_stock 
-FROM parts 
-ORDER BY name 
+SELECT p.*, 
+    CAST(COALESCE(SUM(pa.quantity), 0) AS INTEGER) as total_stock
+FROM parts p
+LEFT JOIN part_assignments pa ON p.id = pa.part_id
+GROUP BY p.id
+ORDER BY p.name
 LIMIT ? OFFSET ?;
 
 -- name: SearchParts :many
 SELECT p.*, 
-    (SELECT COALESCE(SUM(quantity), 0) FROM part_assignments WHERE part_id = p.id) as total_stock 
-FROM parts_fts 
-JOIN parts p ON parts_fts.rowid = p.id 
-WHERE parts_fts MATCH ? 
-ORDER BY parts_fts.rank
+    CAST(COALESCE(SUM(pa.quantity), 0) AS INTEGER) as total_stock
+FROM parts_fts fts
+JOIN parts p ON fts.rowid = p.id
+LEFT JOIN part_assignments pa ON p.id = pa.part_id
+WHERE parts_fts MATCH ?
+GROUP BY p.id, fts.rank
+ORDER BY fts.rank
 LIMIT ? OFFSET ?;
 
 -- name: GetAllParts :many

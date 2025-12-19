@@ -518,10 +518,12 @@ func (q *Queries) GetPartLinks(ctx context.Context, partID int64) ([]PartLink, e
 }
 
 const listParts = `-- name: ListParts :many
-SELECT id, name, description, part_number, manufacturer, supplier, unit_cost, reorder_level, min_stock_threshold, barcode_data, image_path, is_favorite, created_at, updated_at, 
-    (SELECT COALESCE(SUM(quantity), 0) FROM part_assignments WHERE part_id = parts.id) as total_stock 
-FROM parts 
-ORDER BY name 
+SELECT p.id, p.name, p.description, p.part_number, p.manufacturer, p.supplier, p.unit_cost, p.reorder_level, p.min_stock_threshold, p.barcode_data, p.image_path, p.is_favorite, p.created_at, p.updated_at, 
+    CAST(COALESCE(SUM(pa.quantity), 0) AS INTEGER) as total_stock
+FROM parts p
+LEFT JOIN part_assignments pa ON p.id = pa.part_id
+GROUP BY p.id
+ORDER BY p.name
 LIMIT ? OFFSET ?
 `
 
@@ -545,7 +547,7 @@ type ListPartsRow struct {
 	IsFavorite        sql.NullBool    `json:"is_favorite"`
 	CreatedAt         sql.NullTime    `json:"created_at"`
 	UpdatedAt         sql.NullTime    `json:"updated_at"`
-	TotalStock        interface{}     `json:"total_stock"`
+	TotalStock        int64           `json:"total_stock"`
 }
 
 func (q *Queries) ListParts(ctx context.Context, arg ListPartsParams) ([]ListPartsRow, error) {
@@ -742,11 +744,13 @@ func (q *Queries) RestorePartLink(ctx context.Context, arg RestorePartLinkParams
 
 const searchParts = `-- name: SearchParts :many
 SELECT p.id, p.name, p.description, p.part_number, p.manufacturer, p.supplier, p.unit_cost, p.reorder_level, p.min_stock_threshold, p.barcode_data, p.image_path, p.is_favorite, p.created_at, p.updated_at, 
-    (SELECT COALESCE(SUM(quantity), 0) FROM part_assignments WHERE part_id = p.id) as total_stock 
-FROM parts_fts 
-JOIN parts p ON parts_fts.rowid = p.id 
-WHERE parts_fts MATCH ? 
-ORDER BY parts_fts.rank
+    CAST(COALESCE(SUM(pa.quantity), 0) AS INTEGER) as total_stock
+FROM parts_fts fts
+JOIN parts p ON fts.rowid = p.id
+LEFT JOIN part_assignments pa ON p.id = pa.part_id
+WHERE parts_fts MATCH ?
+GROUP BY p.id, fts.rank
+ORDER BY fts.rank
 LIMIT ? OFFSET ?
 `
 
@@ -771,7 +775,7 @@ type SearchPartsRow struct {
 	IsFavorite        sql.NullBool    `json:"is_favorite"`
 	CreatedAt         sql.NullTime    `json:"created_at"`
 	UpdatedAt         sql.NullTime    `json:"updated_at"`
-	TotalStock        interface{}     `json:"total_stock"`
+	TotalStock        int64           `json:"total_stock"`
 }
 
 func (q *Queries) SearchParts(ctx context.Context, arg SearchPartsParams) ([]SearchPartsRow, error) {
