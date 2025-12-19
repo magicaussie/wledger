@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"github.com/tuxedocurly/wledger/internal/auth"
+	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/web/components"
 	"github.com/tuxedocurly/wledger/web/pages"
 )
@@ -30,6 +31,13 @@ func (app *application) handleDashboard(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	controllers := newDashboardViewModel(gridRows)
+
+	// Render Dashboard with Stats and Controllers
+	pages.Dashboard(user, stats, controllers).Render(ctx, w)
+}
+
+func newDashboardViewModel(gridRows []db.GetDashboardGridRow) []components.DashboardController {
 	// Process Grid Data: Group by Controller
 	// Map: ControllerID -> *DashboardController
 	ctrlMap := make(map[int64]*components.DashboardController)
@@ -103,6 +111,5 @@ func (app *application) handleDashboard(w http.ResponseWriter, r *http.Request) 
 		return controllers[i].Name < controllers[j].Name
 	})
 
-	// Render Dashboard with Stats and Controllers
-	pages.Dashboard(user, stats, controllers).Render(ctx, w)
+	return controllers
 }
