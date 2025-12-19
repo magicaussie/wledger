@@ -10,7 +10,6 @@ import (
 	"github.com/tuxedocurly/wledger/internal/middleware"
 )
 
-// TODO: fix this implementation before implementing the ledger functionality
 // Log records an action to the audit_logs table.
 // Handles JSON marshaling and user extraction automatically
 func Log(ctx context.Context, q *db.Queries, action, entityType string, entityID int64, details string, oldVal, newVal any) {
@@ -29,32 +28,23 @@ func Log(ctx context.Context, q *db.Queries, action, entityType string, entityID
 		newJSON, _ = json.Marshal(newVal)
 	}
 
-	// Insert Async (Don't block the request for auditing)
-	// Note: Async is fine to keep the UI snappy, but if absolute audits
-	// are eeventually desired, this would need to be synchronous.
-	// TODO: Fix this to be synchronous
-	go func() {
-		// Need a new context since the request context might cancel
-		bgCtx := context.Background()
+	// Nullable userID helper
+	var nullUserID sql.NullInt64
+	if userID != 0 {
+		nullUserID = sql.NullInt64{Int64: userID, Valid: true}
+	}
 
-		// Nullable userID helper
-		var nullUserID sql.NullInt64
-		if userID != 0 {
-			nullUserID = sql.NullInt64{Int64: userID, Valid: true}
-		}
+	err := q.CreateAuditLog(ctx, db.CreateAuditLogParams{
+		UserID:     nullUserID,
+		ActionType: action,
+		EntityType: entityType,
+		EntityID:   entityID,
+		Details:    sql.NullString{String: details, Valid: details != ""},
+		OldValue:   oldJSON,
+		NewValue:   newJSON,
+	})
 
-		err := q.CreateAuditLog(bgCtx, db.CreateAuditLogParams{
-			UserID:     nullUserID,
-			ActionType: action,
-			EntityType: entityType,
-			EntityID:   entityID,
-			Details:    sql.NullString{String: details, Valid: details != ""},
-			OldValue:   oldJSON,
-			NewValue:   newJSON,
-		})
-
-		if err != nil {
-			slog.Error("failed to create audit log", "error", err)
-		}
-	}()
+	if err != nil {
+		slog.Error("failed to create audit log", "error", err)
+	}
 }

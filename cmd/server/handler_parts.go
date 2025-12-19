@@ -156,6 +156,7 @@ func (app *application) handlePartsCreate(w http.ResponseWriter, r *http.Request
 	minStock, _ := strconv.Atoi(r.FormValue("min_stock"))
 
 	// Handle Image Upload
+	// Upload first. If DB fails, delete the file in defer/error handling.
 	imagePath := ""
 	file, header, err := r.FormFile("image")
 	if err == nil {
@@ -167,8 +168,24 @@ func (app *application) handlePartsCreate(w http.ResponseWriter, r *http.Request
 		}
 	}
 
+	// Start Transaction
+	tx, err := app.database.Begin()
+	if err != nil {
+		app.logger.Error("failed to begin transaction", "error", err)
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		// Cleanup uploaded image if DB connection fails entirely
+		if imagePath != "" {
+			images.DeleteByWebPath(imagePath)
+		}
+		return
+	}
+	// Default rollback (will be ignored if Commit is called)
+	defer tx.Rollback()
+
+	qtx := app.queries.WithTx(tx)
+
 	// Create Part
-	newID, err := app.queries.CreatePart(r.Context(), db.CreatePartParams{
+	newID, err := qtx.CreatePart(r.Context(), db.CreatePartParams{
 		Name:              name,
 		Description:       sql.NullString{String: desc, Valid: desc != ""},
 		PartNumber:        sql.NullString{String: partNum, Valid: partNum != ""},
@@ -184,10 +201,14 @@ func (app *application) handlePartsCreate(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
 			http.Error(w, "Part already exists (check barcode)", http.StatusConflict)
-			return
+		} else {
+			app.logger.Error("failed to create part", "error", err)
+			http.Error(w, "Database error", http.StatusInternalServerError)
 		}
-		app.logger.Error("failed to create part", "error", err)
-		http.Error(w, "Database error", http.StatusInternalServerError)
+		// Cleanup Uploaded Image
+		if imagePath != "" {
+			images.DeleteByWebPath(imagePath)
+		}
 		return
 	}
 
@@ -199,34 +220,80 @@ func (app *application) handlePartsCreate(w http.ResponseWriter, r *http.Request
 			if u == "" {
 				continue
 			}
-			_ = app.queries.CreatePartLink(r.Context(), db.CreatePartLinkParams{
+			err = qtx.CreatePartLink(r.Context(), db.CreatePartLinkParams{
 				PartID: newID,
 				Url:    u,
 				Label:  sql.NullString{String: labels[i], Valid: labels[i] != ""},
 			})
+			if err != nil {
+				app.logger.Error("failed to create link", "error", err)
+				if imagePath != "" {
+					images.DeleteByWebPath(imagePath)
+				}
+				// Transaction rolls back on return
+				http.Error(w, "Failed to save links", http.StatusInternalServerError)
+				return
+			}
 		}
 	}
 
 	// Process Documents
 	docs := r.MultipartForm.File["documents"]
+	var uploadedDocs []string // Track for cleanup
+
 	for _, fh := range docs {
 		f, err := fh.Open()
 		if err != nil {
 			continue
 		}
-		defer f.Close()
 
 		savedWebPath, err := saveDocument(f, fh.Filename)
+		f.Close() // Close immediately
+
 		if err == nil {
-			_ = app.queries.CreatePartDoc(r.Context(), db.CreatePartDocParams{
+			uploadedDocs = append(uploadedDocs, savedWebPath)
+			err = qtx.CreatePartDoc(r.Context(), db.CreatePartDocParams{
 				PartID:   newID,
 				FilePath: savedWebPath,
 				FileName: fh.Filename,
 			})
+			if err != nil {
+				app.logger.Error("failed to create doc record", "error", err)
+				// Cleanup Image
+				if imagePath != "" {
+					images.DeleteByWebPath(imagePath)
+				}
+				// Cleanup Docs
+				for _, p := range uploadedDocs {
+					// Convert /uploads/docs/x -> ./app/uploads/docs/x
+					relPath := "." + strings.Replace(p, "/uploads", "/app/uploads", 1)
+					os.Remove(relPath)
+				}
+				http.Error(w, "Failed to save documents", http.StatusInternalServerError)
+				return
+			}
 		}
 	}
 
-	audit.Log(r.Context(), app.queries, "CREATE", "PART", newID, "Created part "+name, nil, nil)
+	// Audit Log (Now Synchronous via qtx)
+	audit.Log(r.Context(), qtx, "CREATE", "PART", newID, "Created part "+name, nil, nil)
+
+	// Commit Transaction
+	if err := tx.Commit(); err != nil {
+		app.logger.Error("failed to commit transaction", "error", err)
+		// Cleanup Image
+		if imagePath != "" {
+			images.DeleteByWebPath(imagePath)
+		}
+		// Cleanup Docs
+		for _, p := range uploadedDocs {
+			relPath := "." + strings.Replace(p, "/uploads", "/app/uploads", 1)
+			os.Remove(relPath)
+		}
+		http.Error(w, "Database commit failed", http.StatusInternalServerError)
+		return
+	}
+
 	http.Redirect(w, r, fmt.Sprintf("/parts/%d", newID), http.StatusSeeOther)
 }
 
@@ -261,7 +328,10 @@ func (app *application) handlePartUpdate(w http.ResponseWriter, r *http.Request)
 	r.ParseMultipartForm(20 << 20)
 
 	// Image Update Logic
+	// Upload FIRST If Success, delete OLD one LATER. If Fail, delete NEW one NOW.
 	newImagePath := oldPart.ImagePath.String
+	uploadedNewImage := false
+
 	file, header, err := r.FormFile("image")
 	if err == nil {
 		defer file.Close()
@@ -269,13 +339,23 @@ func (app *application) handlePartUpdate(w http.ResponseWriter, r *http.Request)
 		if err == nil {
 			// Set new path
 			newImagePath = "/uploads/images/" + fileName
-
-			// Clean up old image if it exists
-			if oldPart.ImagePath.Valid {
-				images.DeleteByWebPath(oldPart.ImagePath.String)
-			}
+			uploadedNewImage = true
 		}
 	}
+
+	// Start Transaction
+	tx, err := app.database.Begin()
+	if err != nil {
+		app.logger.Error("failed to begin transaction", "error", err)
+		if uploadedNewImage {
+			images.DeleteByWebPath(newImagePath)
+		}
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+	defer tx.Rollback()
+
+	qtx := app.queries.WithTx(tx)
 
 	name := r.FormValue("name")
 	desc := r.FormValue("description")
@@ -287,7 +367,7 @@ func (app *application) handlePartUpdate(w http.ResponseWriter, r *http.Request)
 	reorder, _ := strconv.Atoi(r.FormValue("reorder_level"))
 	minStock, _ := strconv.Atoi(r.FormValue("min_stock"))
 
-	err = app.queries.UpdatePart(r.Context(), db.UpdatePartParams{
+	err = qtx.UpdatePart(r.Context(), db.UpdatePartParams{
 		Name:              name,
 		Description:       sql.NullString{String: desc, Valid: desc != ""},
 		PartNumber:        sql.NullString{String: partNum, Valid: partNum != ""},
@@ -303,6 +383,9 @@ func (app *application) handlePartUpdate(w http.ResponseWriter, r *http.Request)
 
 	if err != nil {
 		app.logger.Error("failed to update part", "error", err)
+		if uploadedNewImage {
+			images.DeleteByWebPath(newImagePath)
+		}
 		http.Error(w, "Update failed", http.StatusInternalServerError)
 		return
 	}
@@ -318,11 +401,19 @@ func (app *application) handlePartUpdate(w http.ResponseWriter, r *http.Request)
 			if linkID == 0 || existingUrls[i] == "" {
 				continue
 			}
-			_ = app.queries.UpdatePartLink(r.Context(), db.UpdatePartLinkParams{
+			err = qtx.UpdatePartLink(r.Context(), db.UpdatePartLinkParams{
 				Url:   existingUrls[i],
 				Label: sql.NullString{String: existingLabels[i], Valid: existingLabels[i] != ""},
 				ID:    int64(linkID),
 			})
+			if err != nil {
+				if uploadedNewImage {
+					images.DeleteByWebPath(newImagePath)
+				}
+				app.logger.Error("failed to update link", "error", err)
+				http.Error(w, "Update failed", http.StatusInternalServerError)
+				return
+			}
 		}
 	}
 
@@ -334,34 +425,82 @@ func (app *application) handlePartUpdate(w http.ResponseWriter, r *http.Request)
 			if u == "" {
 				continue
 			}
-			_ = app.queries.CreatePartLink(r.Context(), db.CreatePartLinkParams{
+			err = qtx.CreatePartLink(r.Context(), db.CreatePartLinkParams{
 				PartID: int64(id),
 				Url:    u,
 				Label:  sql.NullString{String: labels[i], Valid: labels[i] != ""},
 			})
+			if err != nil {
+				if uploadedNewImage {
+					images.DeleteByWebPath(newImagePath)
+				}
+				app.logger.Error("failed to add link", "error", err)
+				http.Error(w, "Update failed", http.StatusInternalServerError)
+				return
+			}
 		}
 	}
 
 	// Add Documents
 	docs := r.MultipartForm.File["documents"]
+	var uploadedDocs []string // Track for cleanup
+
 	for _, fh := range docs {
 		f, err := fh.Open()
 		if err != nil {
 			continue
 		}
-		defer f.Close()
 
 		savedWebPath, err := saveDocument(f, fh.Filename)
+		f.Close()
+
 		if err == nil {
-			_ = app.queries.CreatePartDoc(r.Context(), db.CreatePartDocParams{
+			uploadedDocs = append(uploadedDocs, savedWebPath)
+			err = qtx.CreatePartDoc(r.Context(), db.CreatePartDocParams{
 				PartID:   int64(id),
 				FilePath: savedWebPath,
 				FileName: fh.Filename,
 			})
+			if err != nil {
+				// Cleanup New Image
+				if uploadedNewImage {
+					images.DeleteByWebPath(newImagePath)
+				}
+				// Cleanup New Docs
+				for _, p := range uploadedDocs {
+					relPath := "." + strings.Replace(p, "/uploads", "/app/uploads", 1)
+					os.Remove(relPath)
+				}
+				app.logger.Error("failed to add doc", "error", err)
+				http.Error(w, "Update failed", http.StatusInternalServerError)
+				return
+			}
 		}
 	}
 
-	audit.Log(r.Context(), app.queries, "UPDATE", "PART", int64(id), "Updated details", nil, nil)
+	audit.Log(r.Context(), qtx, "UPDATE", "PART", int64(id), "Updated details", nil, nil)
+
+	// Commit Transaction
+	if err := tx.Commit(); err != nil {
+		app.logger.Error("failed to commit transaction", "error", err)
+		// Cleanup New Image
+		if uploadedNewImage {
+			images.DeleteByWebPath(newImagePath)
+		}
+		// Cleanup New Docs
+		for _, p := range uploadedDocs {
+			relPath := "." + strings.Replace(p, "/uploads", "/app/uploads", 1)
+			os.Remove(relPath)
+		}
+		http.Error(w, "Database commit failed", http.StatusInternalServerError)
+		return
+	}
+
+	// Post-Commit Cleanup: Delete OLD image if we replaced it
+	if uploadedNewImage && oldPart.ImagePath.Valid {
+		images.DeleteByWebPath(oldPart.ImagePath.String)
+	}
+
 	http.Redirect(w, r, fmt.Sprintf("/parts/%d", id), http.StatusSeeOther)
 }
 
