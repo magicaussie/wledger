@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS bins (
     FOREIGN KEY(controller_id) REFERENCES controllers(id) ON DELETE CASCADE,
     UNIQUE(controller_id, led_index)
 );
+CREATE INDEX IF NOT EXISTS idx_bins_controller_id ON bins(controller_id);
 
 -- Parts (Inventory Items)
 CREATE TABLE IF NOT EXISTS parts (
@@ -133,6 +134,7 @@ CREATE TABLE IF NOT EXISTS part_assignments (
     FOREIGN KEY(bin_id) REFERENCES bins(id) ON DELETE SET NULL,
     UNIQUE(part_id, bin_id)
 );
+CREATE INDEX IF NOT EXISTS idx_part_assignments_bin_id ON part_assignments(bin_id);
 
 -- Tags
 CREATE TABLE IF NOT EXISTS tags (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE NOT NULL);
@@ -142,6 +144,7 @@ CREATE TABLE IF NOT EXISTS part_tags (
     FOREIGN KEY(part_id) REFERENCES parts(id) ON DELETE CASCADE,
     FOREIGN KEY(tag_id) REFERENCES tags(id) ON DELETE CASCADE
 );
+CREATE INDEX IF NOT EXISTS idx_part_tags_tag_id ON part_tags(tag_id);
 
 -- Audit Logs (Business Logic Log)
 CREATE TABLE IF NOT EXISTS audit_logs (
@@ -156,3 +159,4 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE SET NULL
 );
+CREATE INDEX IF NOT EXISTS idx_audit_logs_entity ON audit_logs(entity_type, entity_id);
