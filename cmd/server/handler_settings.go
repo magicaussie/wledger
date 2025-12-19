@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/tuxedocurly/wledger/internal/audit"
 	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/web/pages"
@@ -59,7 +60,18 @@ func (app *application) handleSettingsUpdate(w http.ResponseWriter, r *http.Requ
 
 	ctx := r.Context()
 
-	err := app.queries.UpdateGeneralSettings(ctx, db.UpdateGeneralSettingsParams{
+	// Start Transaction
+	tx, err := app.database.Begin()
+	if err != nil {
+		app.logger.Error("failed to begin transaction", "error", err)
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+	defer tx.Rollback()
+
+	qtx := app.queries.WithTx(tx)
+
+	err = qtx.UpdateGeneralSettings(ctx, db.UpdateGeneralSettingsParams{
 		RequireAuthForRead:   sql.NullBool{Bool: requireAuth, Valid: true},
 		LocateTimeoutSeconds: sql.NullInt64{Int64: int64(timeout), Valid: true},
 		EnableLocateTimeout:  sql.NullBool{Bool: enableTimeout, Valid: true},
@@ -70,7 +82,7 @@ func (app *application) handleSettingsUpdate(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	err = app.queries.UpdateColors(ctx, db.UpdateColorsParams{
+	err = qtx.UpdateColors(ctx, db.UpdateColorsParams{
 		ColorLocate:        sql.NullString{String: colorLocate, Valid: true},
 		ColorStockOk:       sql.NullString{String: colorOk, Valid: true},
 		ColorStockLow:      sql.NullString{String: colorLow, Valid: true},
@@ -79,6 +91,15 @@ func (app *application) handleSettingsUpdate(w http.ResponseWriter, r *http.Requ
 	if err != nil {
 		app.logger.Error("failed to update color settings", "error", err)
 		http.Error(w, "Update failed", http.StatusInternalServerError)
+		return
+	}
+
+	// Add Audit Log
+	audit.Log(ctx, qtx, "UPDATE", "SETTINGS", 1, "Updated system configuration", nil, nil)
+
+	if err := tx.Commit(); err != nil {
+		app.logger.Error("failed to commit settings update", "error", err)
+		http.Error(w, "Commit failed", http.StatusInternalServerError)
 		return
 	}
 
