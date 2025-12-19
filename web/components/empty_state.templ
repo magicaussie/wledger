@@ -1,0 +1,18 @@
+package components
+
+// EmptyState renders a placeholder card for when no data is available.
+// Actions (like a "Clear Search" button) can be passed as children.
+templ EmptyState(title string, description string, icon string) {
+	<div class="col-span-full">
+		<div class="card bg-base-200 shadow-xl border border-base-300">
+			<div class="card-body flex flex-col items-center justify-center py-16 text-center opacity-60">
+				<div class="text-6xl mb-4 grayscale">{ icon }</div>
+				<h2 class="text-2xl font-bold">{ title }</h2>
+				<p class="text-sm">{ description }</p>
+				<div class="mt-4 empty:hidden">
+					{ children... }
+				</div>
+			</div>
+		</div>
+	</div>
+}

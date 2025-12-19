@@ -11,16 +11,15 @@ import (
 templ PartEdit(user auth.User, part db.Part, links []db.PartLink, docs []db.PartDoc) {
 	@layouts.Base("Edit Part", user) {
 		<div class="max-w-4xl mx-auto w-full">
-			<div class="mb-8">
-				<div class="text-sm breadcrumbs opacity-50 mb-2">
-					<ul>
-						<li><a href="/parts">Inventory</a></li>
-						<li><a href={ templ.SafeURL(fmt.Sprintf("/parts/%d", part.ID)) }>{ part.Name }</a></li>
-						<li>Edit</li>
-					</ul>
-				</div>
-				<h1 class="text-3xl font-bold">Edit Part</h1>
-			</div>
+			@components.PageHeader(
+				fmt.Sprintf("Edit: %s", part.Name),
+				"",
+				[]components.Breadcrumb{
+					{Label: "Inventory", URL: "/parts"},
+					{Label: part.Name, URL: fmt.Sprintf("/parts/%d", part.ID)},
+					{Label: "Edit"},
+				},
+			)
 			@components.PartForm(part, links, docs, fmt.Sprintf("/parts/%d/update", part.ID), true)
 		</div>
 	}

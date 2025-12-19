@@ -10,9 +10,7 @@ import (
 
 templ Dashboard(user auth.User, stats db.GetDashboardStatsRow, controllers []components.DashboardController) {
 	@layouts.Base("Dashboard", user) {
-		<div class="mb-8">
-			<h1 class="text-3xl font-bold">Dashboard</h1>
-		</div>
+		@components.PageHeader("Dashboard", "", nil)
 		<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
 			<div class="stats shadow bg-base-200">
 				<div class="stat">
@@ -35,9 +33,11 @@ templ Dashboard(user auth.User, stats db.GetDashboardStatsRow, controllers []com
 		</div>
 		<div class="space-y-12">
 			if len(controllers) == 0 {
-				<div class="text-center py-12 opacity-50">
-					<p>No controllers configured. Go to Hardware to set up your LED grids.</p>
-				</div>
+				@components.EmptyState(
+					"No controllers configured",
+					"Go to Hardware to set up your first WLED controller.",
+					"🔌",
+				)
 			}
 			for _, ctrl := range controllers {
 				@components.DashboardGrid(ctrl)

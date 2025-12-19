@@ -10,15 +10,14 @@ import (
 templ PartCreate(user auth.User) {
 	@layouts.Base("Create Part", user) {
 		<div class="max-w-4xl mx-auto w-full">
-			<div class="mb-8">
-				<div class="text-sm breadcrumbs opacity-50 mb-2">
-					<ul>
-						<li><a href="/parts">Inventory</a></li>
-						<li>Create New</li>
-					</ul>
-				</div>
-				<h1 class="text-3xl font-bold">Add New Part</h1>
-			</div>
+			@components.PageHeader(
+				"Add New Part",
+				"",
+				[]components.Breadcrumb{
+					{Label: "Inventory", URL: "/parts"},
+					{Label: "Create New"},
+				},
+			)
 			@components.PartForm(db.Part{}, []db.PartLink{}, []db.PartDoc{}, "/parts", false)
 		</div>
 	}

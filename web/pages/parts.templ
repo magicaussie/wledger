@@ -23,26 +23,19 @@ type PartView struct {
 // PartsList is the full page wrapper
 templ PartsList(user auth.User, parts []PartView, search string, page int) {
 	@layouts.Base("Inventory", user) {
+		@components.PageHeader("Inventory", "", nil)
 		<div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-			<h1 class="text-3xl font-bold">Inventory</h1>
 			@components.PartSearchBar(search, user.CanWrite())
 		</div>
 		<div id="parts-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-12 items-start">
 			if len(parts) == 0 && page == 1 {
-				<div class="col-span-full">
-					<div class="card bg-base-200 shadow-xl border border-base-300">
-						<div class="card-body flex flex-col items-center justify-center py-16 text-center opacity-60">
-							<div class="text-6xl mb-4 grayscale">📦</div>
-							<h2 class="text-2xl font-bold">No parts found</h2>
-							<p class="text-sm">We couldn't find anything matching "{ search }".</p>
-							if search != "" {
-								<button onclick="document.querySelector('input[name=q]').value = ''; htmx.trigger('input[name=q]', 'input');" class="btn btn-sm btn-outline mt-4">
-									Clear Search
-								</button>
-							}
-						</div>
-					</div>
-				</div>
+				@components.EmptyState("No parts found", fmt.Sprintf("We couldn't find anything matching \"%s\".", search), "📦") {
+					if search != "" {
+						<button onclick="document.querySelector('input[name=q]').value = ''; htmx.trigger('input[name=q]', 'input');" class="btn btn-sm btn-outline mt-4">
+							Clear Search
+						</button>
+					}
+				}
 			} else {
 				@PartCards(parts, search, page)
 			}

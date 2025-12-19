@@ -48,7 +48,18 @@ func PartCreate(user auth.User) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"max-w-4xl mx-auto w-full\"><div class=\"mb-8\"><div class=\"text-sm breadcrumbs opacity-50 mb-2\"><ul><li><a href=\"/parts\">Inventory</a></li><li>Create New</li></ul></div><h1 class=\"text-3xl font-bold\">Add New Part</h1></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"max-w-4xl mx-auto w-full\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = components.PageHeader(
+				"Add New Part",
+				"",
+				[]components.Breadcrumb{
+					{Label: "Inventory", URL: "/parts"},
+					{Label: "Create New"},
+				},
+			).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
