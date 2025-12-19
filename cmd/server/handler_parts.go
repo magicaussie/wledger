@@ -642,29 +642,47 @@ func (app *application) handlePartStockMove(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// Start Transaction
+	tx, err := app.database.Begin()
+	if err != nil {
+		app.logger.Error("failed to begin transaction", "error", err)
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+	defer tx.Rollback()
+
+	qtx := app.queries.WithTx(tx)
 	ctx := r.Context()
 
 	// Get Source Assignment
-	source, err := app.queries.GetAssignment(ctx, int64(assignmentID))
+	source, err := qtx.GetAssignment(ctx, int64(assignmentID))
 	if err != nil {
 		http.Error(w, "Source assignment not found", http.StatusNotFound)
 		return
 	}
 
 	// Check if Target exists
-	targetID, err := app.queries.GetAssignmentID(ctx, db.GetAssignmentIDParams{
+	targetID, err := qtx.GetAssignmentID(ctx, db.GetAssignmentIDParams{
 		PartID: int64(partID),
 		BinID:  sql.NullInt64{Int64: int64(targetBinID), Valid: true},
 	})
 
 	if err == nil {
-		// Merge Path
+		// MERGE PATH
 		// Target Exists. Add Source Qty to Target Qty.
-		target, _ := app.queries.GetAssignment(ctx, targetID) // Fetch current qty
+
+		// Fetch current qty using QTX (locks row in some DBs, consistent read here)
+		target, err := qtx.GetAssignment(ctx, targetID)
+		if err != nil {
+			app.logger.Error("failed to fetch target for merge", "error", err)
+			http.Error(w, "Merge failed", http.StatusInternalServerError)
+			return
+		}
+
 		newQty := target.Quantity + source.Quantity
 
 		// Update Target
-		err = app.queries.UpdatePartAssignmentQuantity(ctx, db.UpdatePartAssignmentQuantityParams{
+		err = qtx.UpdatePartAssignmentQuantity(ctx, db.UpdatePartAssignmentQuantityParams{
 			Quantity: newQty,
 			PartID:   int64(partID),
 			BinID:    sql.NullInt64{Int64: int64(targetBinID), Valid: true},
@@ -676,17 +694,19 @@ func (app *application) handlePartStockMove(w http.ResponseWriter, r *http.Reque
 		}
 
 		// Delete Source
-		err = app.queries.DeleteAssignment(ctx, int64(assignmentID))
+		err = qtx.DeleteAssignment(ctx, int64(assignmentID))
 		if err != nil {
 			app.logger.Error("failed to delete source stock after merge", "error", err)
+			http.Error(w, "Merge failed", http.StatusInternalServerError)
+			return
 		}
 
-		audit.Log(ctx, app.queries, "STOCK_MERGE", "PART", int64(partID), fmt.Sprintf("Merged stock into bin %d", targetBinID), nil, nil)
+		audit.Log(ctx, qtx, "STOCK_MERGE", "PART", int64(partID), fmt.Sprintf("Merged stock into bin %d", targetBinID), nil, nil)
 
 	} else {
-		// Move Path
+		// MOVE PATH
 		// Target does not exist. Just update the Bin ID.
-		err = app.queries.ReassignPartAssignment(ctx, db.ReassignPartAssignmentParams{
+		err = qtx.ReassignPartAssignment(ctx, db.ReassignPartAssignmentParams{
 			BinID: sql.NullInt64{Int64: int64(targetBinID), Valid: true},
 			ID:    int64(assignmentID),
 		})
@@ -696,7 +716,14 @@ func (app *application) handlePartStockMove(w http.ResponseWriter, r *http.Reque
 			return
 		}
 
-		audit.Log(ctx, app.queries, "STOCK_MOVE", "PART", int64(partID), fmt.Sprintf("Moved stock to bin %d", targetBinID), nil, nil)
+		audit.Log(ctx, qtx, "STOCK_MOVE", "PART", int64(partID), fmt.Sprintf("Moved stock to bin %d", targetBinID), nil, nil)
+	}
+
+	// Commit
+	if err := tx.Commit(); err != nil {
+		app.logger.Error("failed to commit transaction", "error", err)
+		http.Error(w, "Transaction failed", http.StatusInternalServerError)
+		return
 	}
 
 	http.Redirect(w, r, fmt.Sprintf("/parts/%d", partID), http.StatusSeeOther)

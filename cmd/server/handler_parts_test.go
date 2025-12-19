@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"fmt"
 	"image"
 	"image/color"
 	"image/jpeg"
@@ -17,7 +18,7 @@ import (
 	"strings"
 	"testing"
 
-	_ "image/png" // Ensure PNG decoder is registered
+	_ "image/png"
 
 	"github.com/go-chi/chi/v5"
 	_ "github.com/mattn/go-sqlite3"
@@ -36,7 +37,6 @@ func setupPartTest(t *testing.T) (*application, *sql.DB) {
 
 	// Setup File System for Test
 	// Ensure there is a clean state for uploads
-	// The handlers hardcode "./app/uploads" for now, so I need to make sure directory exists relative to working directory
 	_ = os.RemoveAll("./app/uploads")
 	_ = os.MkdirAll("./app/uploads/images", 0755)
 	_ = os.MkdirAll("./app/uploads/docs", 0755)
@@ -86,8 +86,7 @@ func createMultipartRequest(t *testing.T, uri, method string, fields map[string]
 				}
 			}
 
-			// Encode to JPEG (using JPEG for simplicity as processor supports it well)
-			// even if filename is .png, processor checks extension.
+			// Encode to JPEG
 			err := jpeg.Encode(part, img, nil)
 			if err != nil {
 				t.Fatalf("failed to encode test image: %v", err)
@@ -163,7 +162,6 @@ func TestPartCreate_RollbackOnError(t *testing.T) {
 	})
 
 	// Try to create ANOTHER part with SAME barcode (DB Constraint Violation)
-	// also include a file upload to test cleanup
 	req := createMultipartRequest(t, "/parts", "POST", map[string]string{
 		"name":         "Duplicate Part",
 		"barcode_data": "1001",
@@ -181,7 +179,7 @@ func TestPartCreate_RollbackOnError(t *testing.T) {
 		t.Errorf("expected 409 Conflict, got %d", rr.Code)
 	}
 
-	// Verify DB Rollback (Should still only be 1 part)
+	// Verify DB Rollback
 	var count int
 	dbConn.QueryRow("SELECT count(*) FROM parts").Scan(&count)
 	if count != 1 {
@@ -189,7 +187,6 @@ func TestPartCreate_RollbackOnError(t *testing.T) {
 	}
 
 	// Verify File Cleanup
-	// The handler uploads files -> Starts TX -> Inserts -> Fails -> Defer Cleanup.
 	files, _ := os.ReadDir("./app/uploads/images")
 	if len(files) > 0 {
 		t.Errorf("expected 0 images (cleanup failed), got %d: %v", len(files), files)
@@ -207,7 +204,6 @@ func TestPartUpdate_RollbackOnError(t *testing.T) {
 	defer cleanupPartTest()
 
 	// Create Initial Part with Image
-	// a file was put there to simulate existing state
 	_ = os.MkdirAll("./app/uploads/images", 0755)
 	initialImgName := "initial.jpg"
 	_ = os.WriteFile("./app/uploads/images/"+initialImgName, []byte("dummy"), 0644)
@@ -226,7 +222,6 @@ func TestPartUpdate_RollbackOnError(t *testing.T) {
 	})
 
 	// Update "Original Part" to have barcode "9999" (Conflict)
-	// AND upload a NEW image "new.png"
 	req := createMultipartRequest(t, "/parts/"+strconv.Itoa(int(id))+"/update", "POST", map[string]string{
 		"name":         "Updated Name",
 		"barcode_data": "9999", // Conflict!
@@ -234,21 +229,19 @@ func TestPartUpdate_RollbackOnError(t *testing.T) {
 		"image": "new.png",
 	})
 
-	// Setup Router to handle params
+	// Setup Router
 	r := chi.NewRouter()
 	r.Post("/parts/{id}/update", app.handlePartUpdate)
 
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
 
-	// Expect Error (500 because UpdatePart doesn't explicitly check UNIQUE error string like Create does, it just logs and 500s)
-	// TODO: fix this experience by handling UNIQUE constraint in UpdatePart like CreatePart does.
-	// ensure UI shows proper error to the user.
+	// Expect Error
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf("expected 500, got %d", rr.Code)
 	}
 
-	// Verify DB state (Should match Original)
+	// Verify DB state
 	p, _ := app.queries.GetPart(context.Background(), id)
 	if p.Name != "Original Part" {
 		t.Errorf("DB modified despite rollback! Name: %s", p.Name)
@@ -258,17 +251,13 @@ func TestPartUpdate_RollbackOnError(t *testing.T) {
 	}
 
 	// Verify File System
-	// "initial.jpg" MUST exist (Old image preserved)
 	if _, err := os.Stat("./app/uploads/images/" + initialImgName); os.IsNotExist(err) {
 		t.Error("Original image was deleted!")
 	}
 
-	// "new.png" (processed name) MUST NOT exist (New image cleaned up)
-	// check the directory for any *other* files.
 	files, _ := os.ReadDir("./app/uploads/images")
 	for _, f := range files {
 		if f.Name() != initialImgName && !strings.Contains(f.Name(), "_thumb") {
-			// Note: processUpload creates _thumb. Check if it's the initial one or new one.
 			t.Errorf("Found unexpected file (cleanup failed): %s", f.Name())
 		}
 	}
@@ -279,10 +268,10 @@ func TestPartUpdate_HappyPath_ImageSwap(t *testing.T) {
 	defer dbConn.Close()
 	defer cleanupPartTest()
 
-	// Create Initial Part with Image (Fake content)
+	// Create Initial Part with Image
 	initialImgName := "part_old.jpg"
 	_ = os.WriteFile("./app/uploads/images/"+initialImgName, []byte("dummy"), 0644)
-	_ = os.WriteFile("./app/uploads/images/part_old_thumb.jpg", []byte("dummy"), 0644) // Fake thumb
+	_ = os.WriteFile("./app/uploads/images/part_old_thumb.jpg", []byte("dummy"), 0644)
 
 	id, _ := app.queries.CreatePart(context.Background(), db.CreatePartParams{
 		Name:      "Old Name",
@@ -315,14 +304,169 @@ func TestPartUpdate_HappyPath_ImageSwap(t *testing.T) {
 	}
 
 	// Verify FS
-	// Old Image GONE
 	if _, err := os.Stat("./app/uploads/images/" + initialImgName); !os.IsNotExist(err) {
 		t.Error("Old image was NOT deleted")
 	}
-	// New Image EXISTS
-	// The new path in DB should exist on disk
 	newDiskPath := "." + strings.Replace(p.ImagePath.String, "/uploads", "/app/uploads", 1)
 	if _, err := os.Stat(newDiskPath); os.IsNotExist(err) {
 		t.Errorf("New image not found at %s", newDiskPath)
+	}
+}
+
+func TestPartStockMove_Move(t *testing.T) {
+	app, dbConn := setupPartTest(t)
+	defer dbConn.Close()
+	defer cleanupPartTest()
+	ctx := context.Background()
+
+	// Setup Data: Part, Bin A, Bin B, Stock in Bin A
+	p, _ := app.queries.CreatePart(ctx, db.CreatePartParams{Name: "Part A"})
+	binA, _ := app.queries.CreateBin(ctx, db.CreateBinParams{Name: "Bin A"})
+	binB, _ := app.queries.CreateBin(ctx, db.CreateBinParams{Name: "Bin B"})
+
+	_ = app.queries.CreatePartAssignment(ctx, db.CreatePartAssignmentParams{
+		PartID: p, BinID: sql.NullInt64{Int64: binA, Valid: true}, Quantity: 10,
+	})
+
+	assignID, _ := app.queries.GetAssignmentID(ctx, db.GetAssignmentIDParams{
+		PartID: p, BinID: sql.NullInt64{Int64: binA, Valid: true},
+	})
+
+	// Request: Move from Bin A to Bin B
+	targetPath := fmt.Sprintf("/parts/%d/stock/%d/move", p, assignID)
+	// Create Form Data
+	body := "bin_id=" + strconv.Itoa(int(binB))
+
+	req := httptest.NewRequest("POST", targetPath, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	r := chi.NewRouter()
+	r.Post("/parts/{id}/stock/{assignment_id}/move", app.handlePartStockMove)
+
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusSeeOther {
+		t.Errorf("expected 303, got %d", rr.Code)
+	}
+
+	// Verify
+	// Bin A should be empty (no assignment)
+	_, err := app.queries.GetAssignmentID(ctx, db.GetAssignmentIDParams{
+		PartID: p, BinID: sql.NullInt64{Int64: binA, Valid: true},
+	})
+	if err == nil {
+		t.Error("Source assignment should be gone")
+	}
+
+	// Bin B should have 10
+	assignB, err := app.queries.GetAssignmentID(ctx, db.GetAssignmentIDParams{
+		PartID: p, BinID: sql.NullInt64{Int64: binB, Valid: true},
+	})
+	if err != nil {
+		t.Error("Target assignment missing")
+	}
+	row, _ := app.queries.GetAssignment(ctx, assignB)
+	if row.Quantity != 10 {
+		t.Errorf("Expected 10 in target, got %d", row.Quantity)
+	}
+}
+
+func TestPartStockMove_Merge(t *testing.T) {
+	app, dbConn := setupPartTest(t)
+	defer dbConn.Close()
+	defer cleanupPartTest()
+	ctx := context.Background()
+
+	// Setup: Part, Bin A (10), Bin B (5)
+	p, _ := app.queries.CreatePart(ctx, db.CreatePartParams{Name: "Part A"})
+	binA, _ := app.queries.CreateBin(ctx, db.CreateBinParams{Name: "Bin A"})
+	binB, _ := app.queries.CreateBin(ctx, db.CreateBinParams{Name: "Bin B"})
+
+	_ = app.queries.CreatePartAssignment(ctx, db.CreatePartAssignmentParams{
+		PartID: p, BinID: sql.NullInt64{Int64: binA, Valid: true}, Quantity: 10,
+	})
+	_ = app.queries.CreatePartAssignment(ctx, db.CreatePartAssignmentParams{
+		PartID: p, BinID: sql.NullInt64{Int64: binB, Valid: true}, Quantity: 5,
+	})
+
+	assignA, _ := app.queries.GetAssignmentID(ctx, db.GetAssignmentIDParams{
+		PartID: p, BinID: sql.NullInt64{Int64: binA, Valid: true},
+	})
+
+	// Request: Move from Bin A to Bin B
+	targetPath := fmt.Sprintf("/parts/%d/stock/%d/move", p, assignA)
+	body := "bin_id=" + strconv.Itoa(int(binB))
+
+	req := httptest.NewRequest("POST", targetPath, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	r := chi.NewRouter()
+	r.Post("/parts/{id}/stock/{assignment_id}/move", app.handlePartStockMove)
+
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+
+	// Verify
+	// Bin A gone
+	_, err := app.queries.GetAssignmentID(ctx, db.GetAssignmentIDParams{
+		PartID: p, BinID: sql.NullInt64{Int64: binA, Valid: true},
+	})
+	if err == nil {
+		t.Error("Source assignment should be gone")
+	}
+
+	// Bin B should have 15 (10+5)
+	assignB, _ := app.queries.GetAssignmentID(ctx, db.GetAssignmentIDParams{
+		PartID: p, BinID: sql.NullInt64{Int64: binB, Valid: true},
+	})
+	row, _ := app.queries.GetAssignment(ctx, assignB)
+	if row.Quantity != 15 {
+		t.Errorf("Expected 15 in target, got %d", row.Quantity)
+	}
+}
+
+func TestPartStockMove_Merge_Rollback(t *testing.T) {
+	// This tests atomic rollback.
+	app, dbConn := setupPartTest(t)
+	defer dbConn.Close()
+	defer cleanupPartTest()
+	ctx := context.Background()
+
+	p, _ := app.queries.CreatePart(ctx, db.CreatePartParams{Name: "Part A"})
+	binA, _ := app.queries.CreateBin(ctx, db.CreateBinParams{Name: "Bin A"})
+
+	_ = app.queries.CreatePartAssignment(ctx, db.CreatePartAssignmentParams{
+		PartID: p, BinID: sql.NullInt64{Int64: binA, Valid: true}, Quantity: 10,
+	})
+	assignA, _ := app.queries.GetAssignmentID(ctx, db.GetAssignmentIDParams{
+		PartID: p, BinID: sql.NullInt64{Int64: binA, Valid: true},
+	})
+
+	// Request: Move to Bin 999 (Does not exist)
+	targetPath := fmt.Sprintf("/parts/%d/stock/%d/move", p, assignA)
+	body := "bin_id=999"
+
+	req := httptest.NewRequest("POST", targetPath, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	r := chi.NewRouter()
+	r.Post("/parts/{id}/stock/{assignment_id}/move", app.handlePartStockMove)
+
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+
+	// Expect Error
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500 (FK violation), got %d", rr.Code)
+	}
+
+	// Verify Source Still Exists (Rollback or No-Op)
+	row, err := app.queries.GetAssignment(ctx, assignA)
+	if err != nil {
+		t.Error("Source assignment was deleted despite error!")
+	}
+	if row.Quantity != 10 {
+		t.Error("Source quantity changed!")
 	}
 }
