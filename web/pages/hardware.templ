@@ -36,7 +36,7 @@ templ Hardware(user auth.User, controllers []db.Controller) {
 							<div
 								hx-get={ fmt.Sprintf("/hardware/%d/status", c.ID) }
 								hx-trigger="load, every 10s"
-								class="badge badge-ghost text-xs"
+								class="badge badge-success text-xs"
 							>
 								Checking...
 							</div>

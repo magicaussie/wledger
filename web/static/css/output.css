@@ -3627,6 +3627,12 @@
       --badge-fg: var(--color-primary-content);
     }
   }
+  .badge-success {
+    @layer daisyui.l1.l2 {
+      --badge-color: var(--color-success);
+      --badge-fg: var(--color-success-content);
+    }
+  }
   .badge-warning {
     @layer daisyui.l1.l2 {
       --badge-color: var(--color-warning);

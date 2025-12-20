@@ -120,7 +120,7 @@ func Hardware(user auth.User, controllers []db.Controller) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\" hx-trigger=\"load, every 10s\" class=\"badge badge-ghost text-xs\">Checking...</div></div><div class=\"card-actions justify-end mt-4 pt-4 border-t border-base-content/10\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\" hx-trigger=\"load, every 10s\" class=\"badge badge-success text-xs\">Checking...</div></div><div class=\"card-actions justify-end mt-4 pt-4 border-t border-base-content/10\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
