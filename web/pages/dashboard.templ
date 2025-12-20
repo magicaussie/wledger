@@ -11,25 +11,22 @@ import (
 templ Dashboard(user auth.User, stats db.GetDashboardStatsRow, controllers []components.DashboardController) {
 	@layouts.Base("Dashboard", user) {
 		@components.PageHeader("Dashboard", "", nil)
-		<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-			<div class="stats shadow bg-base-200">
-				<div class="stat">
-					<div class="stat-title">Unique Parts</div>
-					<div class="stat-value text-primary">{ fmt.Sprintf("%d", stats.TotalParts) }</div>
-				</div>
-			</div>
-			<div class="stats shadow bg-base-200">
-				<div class="stat">
-					<div class="stat-title">Total Stock</div>
-					<div class="stat-value text-secondary">{ fmt.Sprintf("%d", int64(stats.TotalItemsInStock)) }</div>
-				</div>
-			</div>
-			<div class="stats shadow bg-base-200">
-				<div class="stat">
-					<div class="stat-title">Controllers</div>
-					<div class="stat-value text-accent">{ fmt.Sprintf("%d", stats.OnlineControllers) } / { fmt.Sprintf("%d", stats.TotalControllers) }</div>
-				</div>
-			</div>
+		<div class="flex flex-col md:flex-row md:flex-wrap justify-center gap-6 mb-8">
+			@components.StatCard(
+				"Unique Parts",
+				fmt.Sprintf("%d", stats.TotalParts),
+				"text-primary",
+			)
+			@components.StatCard(
+				"Total Stock",
+				fmt.Sprintf("%d", int64(stats.TotalItemsInStock)),
+				"text-secondary",
+			)
+			@components.StatCard(
+				"Controllers",
+				fmt.Sprintf("%d / %d", stats.OnlineControllers, stats.TotalControllers),
+				"text-accent",
+			)
 		</div>
 		<div class="space-y-12">
 			if len(controllers) == 0 {
