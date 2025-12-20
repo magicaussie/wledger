@@ -74,6 +74,14 @@ func Dashboard(user auth.User, stats db.GetDashboardStatsRow, controllers []comp
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = components.StatCard(
+				"Total Value",
+				fmt.Sprintf("$%.2f", stats.TotalStockValue),
+				"text-success",
+			).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = components.StatCard(
 				"Controllers",
 				fmt.Sprintf("%d / %d", stats.OnlineControllers, stats.TotalControllers),
 				"text-accent",

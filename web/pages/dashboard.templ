@@ -23,6 +23,11 @@ templ Dashboard(user auth.User, stats db.GetDashboardStatsRow, controllers []com
 				"text-secondary",
 			)
 			@components.StatCard(
+				"Total Value",
+				fmt.Sprintf("$%.2f", stats.TotalStockValue),
+				"text-success",
+			)
+			@components.StatCard(
 				"Controllers",
 				fmt.Sprintf("%d / %d", stats.OnlineControllers, stats.TotalControllers),
 				"text-accent",

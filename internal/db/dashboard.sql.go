@@ -83,17 +83,19 @@ SELECT
     (SELECT COUNT(*) FROM controllers) as total_controllers,
     (SELECT COUNT(*) FROM controllers WHERE is_online = 1) as online_controllers,
     CAST(COALESCE(SUM(pa.quantity), 0) AS INTEGER) as total_items_in_stock,
-    COUNT(DISTINCT CASE WHEN p.is_favorite = 1 THEN p.id END) as favorite_parts
+    COUNT(DISTINCT CASE WHEN p.is_favorite = 1 THEN p.id END) as favorite_parts,
+    COALESCE(SUM(pa.quantity * p.unit_cost), 0.0) as total_stock_value
 FROM parts p
 LEFT JOIN part_assignments pa ON p.id = pa.part_id
 `
 
 type GetDashboardStatsRow struct {
-	TotalParts        int64 `json:"total_parts"`
-	TotalControllers  int64 `json:"total_controllers"`
-	OnlineControllers int64 `json:"online_controllers"`
-	TotalItemsInStock int64 `json:"total_items_in_stock"`
-	FavoriteParts     int64 `json:"favorite_parts"`
+	TotalParts        int64       `json:"total_parts"`
+	TotalControllers  int64       `json:"total_controllers"`
+	OnlineControllers int64       `json:"online_controllers"`
+	TotalItemsInStock int64       `json:"total_items_in_stock"`
+	FavoriteParts     int64       `json:"favorite_parts"`
+	TotalStockValue   interface{} `json:"total_stock_value"`
 }
 
 func (q *Queries) GetDashboardStats(ctx context.Context) (GetDashboardStatsRow, error) {
@@ -105,6 +107,7 @@ func (q *Queries) GetDashboardStats(ctx context.Context) (GetDashboardStatsRow, 
 		&i.OnlineControllers,
 		&i.TotalItemsInStock,
 		&i.FavoriteParts,
+		&i.TotalStockValue,
 	)
 	return i, err
 }

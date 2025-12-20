@@ -2,6 +2,7 @@
 /tmp
 /bin
 main
+server
 
 # Local Database
 /data/*
