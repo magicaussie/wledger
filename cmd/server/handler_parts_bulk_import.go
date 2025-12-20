@@ -38,6 +38,8 @@ func (app *application) handlePartsImport(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	defer r.MultipartForm.RemoveAll()
+
 	// Get Input (File takes precedence over text)
 	var rows []importer.PartImportRow
 

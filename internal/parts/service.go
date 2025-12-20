@@ -110,6 +110,7 @@ func (s *service) CreatePart(ctx context.Context, req CreatePartRequest) (int64,
 	if req.Image != nil && req.Image.File != nil {
 		if mf, ok := req.Image.File.(multipart.File); ok {
 			fileName, err := images.ProcessUpload(mf, req.Image.Header)
+			mf.Close() // Close after processing
 			if err == nil {
 				imagePath = config.UrlPrefixImages + fileName
 			}
@@ -167,6 +168,11 @@ func (s *service) CreatePart(ctx context.Context, req CreatePartRequest) (int64,
 	var uploadedDocs []string
 	for _, du := range req.Documents {
 		savedWebPath, err := s.saveDocument(du.File, du.Header.Filename)
+		// Close if it's a closer (it usually is if it came from multipart)
+		if closer, ok := du.File.(io.Closer); ok {
+			closer.Close()
+		}
+
 		if err != nil {
 			s.cleanupFiles(imagePath, uploadedDocs)
 			return 0, fmt.Errorf("failed to save document %s: %w", du.Header.Filename, err)
@@ -205,6 +211,7 @@ func (s *service) UpdatePart(ctx context.Context, req UpdatePartRequest) error {
 	if req.Image != nil && req.Image.File != nil {
 		if mf, ok := req.Image.File.(multipart.File); ok {
 			fileName, err := images.ProcessUpload(mf, req.Image.Header)
+			mf.Close() // Close after processing
 			if err == nil {
 				newImagePath = config.UrlPrefixImages + fileName
 				uploadedNewImage = true
@@ -281,6 +288,11 @@ func (s *service) UpdatePart(ctx context.Context, req UpdatePartRequest) error {
 	var uploadedDocs []string
 	for _, du := range req.NewDocuments {
 		savedWebPath, err := s.saveDocument(du.File, du.Header.Filename)
+		// Close if it's a closer
+		if closer, ok := du.File.(io.Closer); ok {
+			closer.Close()
+		}
+
 		if err != nil {
 			s.cleanupFiles(uploadedNewImage, newImagePath, uploadedDocs)
 			return fmt.Errorf("failed to save document %s: %w", du.Header.Filename, err)

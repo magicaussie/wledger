@@ -138,6 +138,7 @@ func (app *application) handlePartsCreate(w http.ResponseWriter, r *http.Request
 		http.Error(w, "Request too large", http.StatusBadRequest)
 		return
 	}
+	defer r.MultipartForm.RemoveAll()
 
 	cost, _ := strconv.ParseFloat(r.FormValue("unit_cost"), 64)
 	reorder, _ := strconv.Atoi(r.FormValue("reorder_level"))
@@ -162,7 +163,6 @@ func (app *application) handlePartsCreate(w http.ResponseWriter, r *http.Request
 			File:   file,
 			Header: header,
 		}
-		defer file.Close()
 	}
 
 	// Process Links
@@ -189,7 +189,6 @@ func (app *application) handlePartsCreate(w http.ResponseWriter, r *http.Request
 				File:   f,
 				Header: fh,
 			})
-			defer f.Close()
 		}
 	}
 
@@ -233,6 +232,7 @@ func (app *application) handlePartUpdate(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "Request too large", http.StatusBadRequest)
 		return
 	}
+	defer r.MultipartForm.RemoveAll()
 
 	cost, _ := strconv.ParseFloat(r.FormValue("unit_cost"), 64)
 	reorder, _ := strconv.Atoi(r.FormValue("reorder_level"))
@@ -258,7 +258,6 @@ func (app *application) handlePartUpdate(w http.ResponseWriter, r *http.Request)
 			File:   file,
 			Header: header,
 		}
-		defer file.Close()
 	}
 
 	// Update Existing Links
@@ -304,7 +303,6 @@ func (app *application) handlePartUpdate(w http.ResponseWriter, r *http.Request)
 				File:   f,
 				Header: fh,
 			})
-			defer f.Close()
 		}
 	}
 
