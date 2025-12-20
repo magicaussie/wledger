@@ -156,34 +156,10 @@ templ Settings(user auth.User, s db.Setting, users []db.ListUsersRow) {
 										Interface Colors
 									</h3>
 									<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-										<div class="form-control">
-											<label class="label"><span class="label-text font-medium">Locate Action</span></label>
-											<div class="flex gap-2">
-												<input type="color" name="color_locate" value={ s.ColorLocate.String } class="input p-1 h-10 w-16 cursor-pointer"/>
-												<input type="text" value={ s.ColorLocate.String } class="input input-bordered w-full font-mono uppercase text-sm" readonly/>
-											</div>
-										</div>
-										<div class="form-control">
-											<label class="label"><span class="label-text font-medium">Stock Level: OK</span></label>
-											<div class="flex gap-2">
-												<input type="color" name="color_ok" value={ s.ColorStockOk.String } class="input p-1 h-10 w-16 cursor-pointer"/>
-												<input type="text" value={ s.ColorStockOk.String } class="input input-bordered w-full font-mono uppercase text-sm" readonly/>
-											</div>
-										</div>
-										<div class="form-control">
-											<label class="label"><span class="label-text font-medium">Stock Level: Low</span></label>
-											<div class="flex gap-2">
-												<input type="color" name="color_low" value={ s.ColorStockLow.String } class="input p-1 h-10 w-16 cursor-pointer"/>
-												<input type="text" value={ s.ColorStockLow.String } class="input input-bordered w-full font-mono uppercase text-sm" readonly/>
-											</div>
-										</div>
-										<div class="form-control">
-											<label class="label"><span class="label-text font-medium">Stock Level: Critical</span></label>
-											<div class="flex gap-2">
-												<input type="color" name="color_critical" value={ s.ColorStockCritical.String } class="input p-1 h-10 w-16 cursor-pointer"/>
-												<input type="text" value={ s.ColorStockCritical.String } class="input input-bordered w-full font-mono uppercase text-sm" readonly/>
-											</div>
-										</div>
+										@components.ColorPicker("Locate Action", "color_locate", s.ColorLocate.String)
+										@components.ColorPicker("Stock Level: OK", "color_ok", s.ColorStockOk.String)
+										@components.ColorPicker("Stock Level: Low", "color_low", s.ColorStockLow.String)
+										@components.ColorPicker("Stock Level: Critical", "color_critical", s.ColorStockCritical.String)
 									</div>
 								</div>
 								<div class="card-actions justify-end mt-8 border-t border-base-content/10 pt-6">

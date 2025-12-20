@@ -1,0 +1,24 @@
+package components
+
+templ ColorPicker(label string, name string, value string) {
+	<div class="form-control">
+		<label class="label">
+			<span class="label-text font-medium">{ label }</span>
+		</label>
+		<div class="flex gap-2">
+			<input
+				type="color"
+				name={ name }
+				value={ value }
+				class="input p-1 h-10 w-16 cursor-pointer"
+				oninput="this.nextElementSibling.value = this.value"
+			/>
+			<input
+				type="text"
+				value={ value }
+				class="input input-bordered w-full font-mono uppercase text-sm"
+				readonly
+			/>
+		</div>
+	</div>
+}

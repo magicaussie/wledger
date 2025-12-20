@@ -144,6 +144,7 @@ func main() {
 		r.Get("/hardware", app.handleHardwareList)
 		r.Get("/hardware/{id}/status", app.handleHardwareStatus)
 		r.Get("/hardware/{id}/grid", app.handleHardwareGrid)
+		r.Post("/hardware/off", app.handleGlobalOff)
 	})
 
 	// -------------------------------------------------------------------------
@@ -206,7 +207,6 @@ func main() {
 			r.Post("/hardware", app.handleHardwareCreate)
 			r.Post("/hardware/{id}/delete", app.handleHardwareDelete)
 			r.Post("/hardware/{id}/grid", app.handleHardwareGridSave)
-			r.Post("/hardware/off", app.handleGlobalOff)
 
 			// System Settings Update
 			r.Post("/settings", app.handleSettingsUpdate)
