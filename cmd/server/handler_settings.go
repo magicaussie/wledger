@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/tuxedocurly/wledger/internal/audit"
 	"github.com/tuxedocurly/wledger/internal/auth"
+	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/web/pages"
 	"golang.org/x/crypto/bcrypt"
@@ -108,7 +109,7 @@ func (app *application) handleSettingsUpdate(w http.ResponseWriter, r *http.Requ
 
 // POST /settings/password (Self-Service)
 func (app *application) handleSettingsPassword(w http.ResponseWriter, r *http.Request) {
-	userID := app.session.GetInt64(r.Context(), "user_id")
+	userID := app.session.GetInt64(r.Context(), config.SessionKeyUserID)
 	if userID == 0 {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
@@ -190,7 +191,7 @@ func (app *application) handleUserCreate(w http.ResponseWriter, r *http.Request)
 func (app *application) handleUserDelete(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, _ := strconv.Atoi(idStr)
-	currentUserID := app.session.GetInt64(r.Context(), "user_id")
+	currentUserID := app.session.GetInt64(r.Context(), config.SessionKeyUserID)
 
 	// Prevent self-deletion
 	if int64(id) == currentUserID {
@@ -211,7 +212,7 @@ func (app *application) handleUserDelete(w http.ResponseWriter, r *http.Request)
 func (app *application) handleUserForceReset(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, _ := strconv.Atoi(idStr)
-	currentUserID := app.session.GetInt64(r.Context(), "user_id")
+	currentUserID := app.session.GetInt64(r.Context(), config.SessionKeyUserID)
 
 	// Don't flag yourself (UX preference, use standard change password instead)
 	if int64(id) == currentUserID {

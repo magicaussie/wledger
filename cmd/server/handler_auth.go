@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/tuxedocurly/wledger/internal/auth"
+	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/web/pages"
 )
@@ -11,7 +12,7 @@ import (
 // GET /login
 func (app *application) handleLogin(w http.ResponseWriter, r *http.Request) {
 	// Check if already logged in
-	if app.session.Exists(r.Context(), "user_id") {
+	if app.session.Exists(r.Context(), config.SessionKeyUserID) {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
@@ -57,8 +58,8 @@ func (app *application) handleLoginPost(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Store session data
-	app.session.Put(r.Context(), "user_id", int64(user.ID))
-	app.session.Put(r.Context(), "role", user.Role)
+	app.session.Put(r.Context(), config.SessionKeyUserID, int64(user.ID))
+	app.session.Put(r.Context(), config.SessionKeyRole, user.Role)
 
 	app.logger.Info("user logged in", "email", email)
 	http.Redirect(w, r, "/", http.StatusSeeOther)
@@ -130,8 +131,8 @@ func (app *application) handleSetupPost(w http.ResponseWriter, r *http.Request) 
 
 	// Auto-login the user
 	if err := app.session.RenewToken(r.Context()); err == nil {
-		app.session.Put(r.Context(), "user_id", int64(user.ID))
-		app.session.Put(r.Context(), "role", user.Role)
+		app.session.Put(r.Context(), config.SessionKeyUserID, int64(user.ID))
+		app.session.Put(r.Context(), config.SessionKeyRole, user.Role)
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 	} else {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
@@ -140,7 +141,7 @@ func (app *application) handleSetupPost(w http.ResponseWriter, r *http.Request) 
 
 // GET /force-reset
 func (app *application) handleForceReset(w http.ResponseWriter, r *http.Request) {
-	userID := app.session.GetInt64(r.Context(), "user_id")
+	userID := app.session.GetInt64(r.Context(), config.SessionKeyUserID)
 	user, err := app.queries.GetUser(r.Context(), userID)
 
 	if err != nil || !user.ChangePasswordRequired.Bool {
@@ -153,7 +154,7 @@ func (app *application) handleForceReset(w http.ResponseWriter, r *http.Request)
 
 // POST /force-reset
 func (app *application) handleForceResetPost(w http.ResponseWriter, r *http.Request) {
-	userID := app.session.GetInt64(r.Context(), "user_id")
+	userID := app.session.GetInt64(r.Context(), config.SessionKeyUserID)
 
 	newPw := r.FormValue("new_password")
 	confirmPw := r.FormValue("confirm_password")

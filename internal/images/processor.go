@@ -11,16 +11,12 @@ import (
 	"time"
 
 	"github.com/disintegration/imaging"
-)
-
-const (
-	// Disk paths (relative to project root)
-	UploadDirImages = "./app/uploads/images"
+	"github.com/tuxedocurly/wledger/internal/config"
 )
 
 func Init() error {
 	// Ensure directory exists on startup
-	return os.MkdirAll(UploadDirImages, 0755)
+	return os.MkdirAll(config.DirUploadsImages, 0755)
 }
 
 // ProcessUpload handles the file upload, resize, and saving
@@ -61,7 +57,7 @@ func ProcessUpload(file multipart.File, header *multipart.FileHeader) (string, e
 }
 
 func saveJPG(img image.Image, name string) error {
-	path := filepath.Join(UploadDirImages, name)
+	path := filepath.Join(config.DirUploadsImages, name)
 	out, err := os.Create(path)
 	if err != nil {
 		return err
@@ -86,10 +82,10 @@ func DeleteByWebPath(webPath string) {
 	}
 
 	// Delete Main Image
-	os.Remove(filepath.Join(UploadDirImages, fileName))
+	os.Remove(filepath.Join(config.DirUploadsImages, fileName))
 
 	// Delete Thumbnail
 	ext := filepath.Ext(fileName)
 	base := strings.TrimSuffix(fileName, ext)
-	os.Remove(filepath.Join(UploadDirImages, base+"_thumb.jpg"))
+	os.Remove(filepath.Join(config.DirUploadsImages, base+"_thumb.jpg"))
 }

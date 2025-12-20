@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/tuxedocurly/wledger/internal/audit"
+	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/images"
 )
@@ -110,7 +111,7 @@ func (s *service) CreatePart(ctx context.Context, req CreatePartRequest) (int64,
 		if mf, ok := req.Image.File.(multipart.File); ok {
 			fileName, err := images.ProcessUpload(mf, req.Image.Header)
 			if err == nil {
-				imagePath = "/uploads/images/" + fileName
+				imagePath = config.UrlPrefixImages + fileName
 			}
 		}
 	}
@@ -205,7 +206,7 @@ func (s *service) UpdatePart(ctx context.Context, req UpdatePartRequest) error {
 		if mf, ok := req.Image.File.(multipart.File); ok {
 			fileName, err := images.ProcessUpload(mf, req.Image.Header)
 			if err == nil {
-				newImagePath = "/uploads/images/" + fileName
+				newImagePath = config.UrlPrefixImages + fileName
 				uploadedNewImage = true
 			}
 		}
@@ -320,9 +321,10 @@ func (s *service) DeletePart(ctx context.Context, id int64) error {
 	docs, err := s.queries.GetPartDocs(ctx, id)
 	if err == nil {
 		for _, doc := range docs {
-			if strings.HasPrefix(doc.FilePath, "/uploads/") {
-				relativePath := filepath.Join("app", doc.FilePath)
-				os.Remove(relativePath)
+			if strings.HasPrefix(doc.FilePath, config.UrlPrefixUploads) {
+				relPath := strings.TrimPrefix(doc.FilePath, config.UrlPrefixUploads)
+				diskPath := filepath.Join(config.DirUploads, relPath)
+				os.Remove(diskPath)
 			}
 		}
 	}
@@ -435,10 +437,11 @@ func (s *service) DeleteLink(ctx context.Context, id int64) error {
 func (s *service) DeleteDoc(ctx context.Context, id int64) error {
 	doc, err := s.queries.GetPartDoc(ctx, id)
 	if err == nil {
-		relativePath := "." + strings.Replace(doc.FilePath, "/uploads", "/app/uploads", 1)
-		err := os.Remove(relativePath)
+		relPath := strings.TrimPrefix(doc.FilePath, config.UrlPrefixUploads)
+		diskPath := filepath.Join(config.DirUploads, relPath)
+		err := os.Remove(diskPath)
 		if err != nil {
-			s.logger.Warn("failed to delete doc file", "path", relativePath, "error", err)
+			s.logger.Warn("failed to delete doc file", "path", diskPath, "error", err)
 		}
 	}
 
@@ -446,8 +449,7 @@ func (s *service) DeleteDoc(ctx context.Context, id int64) error {
 }
 
 func (s *service) saveDocument(src io.Reader, filename string) (string, error) {
-	uploadDir := "./app/uploads/docs"
-	if err := os.MkdirAll(uploadDir, 0755); err != nil {
+	if err := os.MkdirAll(config.DirUploadsDocs, 0755); err != nil {
 		return "", err
 	}
 
@@ -461,7 +463,7 @@ func (s *service) saveDocument(src io.Reader, filename string) (string, error) {
 	}, base)
 
 	cleanName := fmt.Sprintf("%s_%d%s", base, time.Now().Unix(), ext)
-	destPath := filepath.Join(uploadDir, cleanName)
+	destPath := filepath.Join(config.DirUploadsDocs, cleanName)
 
 	dst, err := os.Create(destPath)
 	if err != nil {
@@ -473,7 +475,7 @@ func (s *service) saveDocument(src io.Reader, filename string) (string, error) {
 		return "", err
 	}
 
-	return "/uploads/docs/" + cleanName, nil
+	return config.UrlPrefixDocs + cleanName, nil
 }
 
 func (s *service) cleanupFiles(args ...interface{}) {
@@ -496,7 +498,8 @@ func (s *service) cleanupFiles(args ...interface{}) {
 		images.DeleteByWebPath(imagePath)
 	}
 	for _, p := range docs {
-		relPath := "." + strings.Replace(p, "/uploads", "/app/uploads", 1)
+		rel := strings.TrimPrefix(p, config.UrlPrefixUploads)
+		relPath := filepath.Join(config.DirUploads, rel)
 		os.Remove(relPath)
 	}
 }

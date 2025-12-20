@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/tuxedocurly/wledger/internal/auth"
+	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/web/components"
 )
 
@@ -42,11 +43,14 @@ func (app *application) handleBackupRestore(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Parse Upload
-	err := r.ParseMultipartForm(100 << 20) // 100 MB memory buffer
+	err := r.ParseMultipartForm(config.MaxUploadSizeBackup) // 100 MB memory buffer
 	if err != nil {
 		components.ImportResult(false, "Upload too large or invalid: "+err.Error(), nil).Render(r.Context(), w)
 		return
 	}
+
+	// Clean up files after request
+	defer r.MultipartForm.RemoveAll()
 
 	file, header, err := r.FormFile("backup_file")
 	if err != nil {

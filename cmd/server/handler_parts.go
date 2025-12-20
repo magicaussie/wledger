@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/tuxedocurly/wledger/internal/auth"
+	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/parts"
 	"github.com/tuxedocurly/wledger/web/components"
@@ -132,7 +133,7 @@ func (app *application) handlePartsNew(w http.ResponseWriter, r *http.Request) {
 
 // POST /parts
 func (app *application) handlePartsCreate(w http.ResponseWriter, r *http.Request) {
-	err := r.ParseMultipartForm(20 << 20) // 20MB limit
+	err := r.ParseMultipartForm(config.MaxUploadSizeParts) // 100MB
 	if err != nil {
 		http.Error(w, "Request too large", http.StatusBadRequest)
 		return
@@ -227,7 +228,7 @@ func (app *application) handlePartEdit(w http.ResponseWriter, r *http.Request) {
 func (app *application) handlePartUpdate(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
 
-	err := r.ParseMultipartForm(20 << 20)
+	err := r.ParseMultipartForm(config.MaxUploadSizeParts)
 	if err != nil {
 		http.Error(w, "Request too large", http.StatusBadRequest)
 		return

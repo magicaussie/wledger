@@ -58,7 +58,7 @@ func setupPartTest(t *testing.T) (*application, *sql.DB) {
 }
 
 func cleanupPartTest() {
-	_ = os.RemoveAll("./app/uploads")
+	_ = os.RemoveAll("./app")
 }
 
 // Helper to create a multipart request

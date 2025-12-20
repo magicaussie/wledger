@@ -14,6 +14,7 @@ import (
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/internal/backup"
+	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/images"
 	"github.com/tuxedocurly/wledger/internal/logger"
@@ -39,8 +40,8 @@ func main() {
 	log.Info("Starting WLEDger V2...")
 
 	// Database
-	os.MkdirAll("./data", 0755)
-	database, err := db.Open("./data/wledger.db")
+	os.MkdirAll(config.DirData, 0755)
+	database, err := db.Open(config.DirDatabase)
 	if err != nil {
 		log.Error("Failed to open database", "error", err)
 		os.Exit(1)
@@ -68,7 +69,7 @@ func main() {
 	wledClient := wled.New()
 
 	// Backup Service
-	backupService := backup.NewService(database, queries, "./app/uploads", log)
+	backupService := backup.NewService(database, queries, config.DirUploads, log)
 
 	// Parts Service
 	partsService := parts.NewService(database, queries, log)
@@ -106,12 +107,11 @@ func main() {
 	}
 
 	// Static Files
-	workDir, _ := os.Getwd()
-	filesDir := http.Dir(workDir + "/web/static")
-	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(filesDir)))
+	filesDir := http.Dir(config.DirStatic)
+	r.Handle(config.UrlPrefixStatic+"*", http.StripPrefix(config.UrlPrefixStatic, http.FileServer(filesDir)))
 
-	uploadsDir := http.Dir(workDir + "/app/uploads")
-	r.Handle("/uploads/*", http.StripPrefix("/uploads/", http.FileServer(uploadsDir)))
+	uploadsDir := http.Dir(config.DirUploads)
+	r.Handle(config.UrlPrefixUploads+"*", http.StripPrefix(config.UrlPrefixUploads, http.FileServer(uploadsDir)))
 
 	// -------------------------------------------------------------------------
 	// PUBLIC ROUTES

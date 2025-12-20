@@ -69,8 +69,8 @@ Chip,NE555,10,$1.50`,
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			reader := strings.NewReader(tc.csvContent)
-		
-rows, err := ParsePartsCSV(reader)
+
+			rows, err := ParsePartsCSV(reader)
 
 			if tc.expectError {
 				if err == nil {

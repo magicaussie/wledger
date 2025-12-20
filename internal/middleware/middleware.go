@@ -9,13 +9,14 @@ import (
 
 	"github.com/alexedwards/scs/v2"
 	"github.com/tuxedocurly/wledger/internal/auth"
+	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/internal/db"
 )
 
 type ContextKey string
 
 const (
-	UserContextKey ContextKey = "user_id"
+	UserContextKey ContextKey = ContextKey(config.SessionKeyUserID)
 )
 
 type Manager struct {
@@ -52,7 +53,7 @@ func (m *Manager) RequestLogger(next http.Handler) http.Handler {
 func (m *Manager) RequireAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Use GetInt to match how Login stores user_id
-		userID := m.Session.GetInt64(r.Context(), "user_id")
+		userID := m.Session.GetInt64(r.Context(), config.SessionKeyUserID)
 		if userID == 0 {
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
 			return
@@ -68,7 +69,7 @@ func (m *Manager) RequireAuth(next http.Handler) http.Handler {
 func (m *Manager) RequireReadAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Determine Identity
-		userID := m.Session.GetInt64(r.Context(), "user_id")
+		userID := m.Session.GetInt64(r.Context(), config.SessionKeyUserID)
 		var user auth.User
 
 		if userID > 0 {
@@ -110,7 +111,7 @@ func (m *Manager) RequireReadAuth(next http.Handler) http.Handler {
 func (m *Manager) FirstRunCheck(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
-		if path == "/setup" || strings.HasPrefix(path, "/static/") || path == "/health" {
+		if path == "/setup" || strings.HasPrefix(path, config.UrlPrefixStatic) || path == "/health" {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -136,7 +137,7 @@ func (m *Manager) RequirePasswordChange(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Skip checks for the reset page itself, logout, and static files
 		path := r.URL.Path
-		if path == "/force-reset" || path == "/logout" || strings.HasPrefix(path, "/static/") {
+		if path == "/force-reset" || path == "/logout" || strings.HasPrefix(path, config.UrlPrefixStatic) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -147,7 +148,7 @@ func (m *Manager) RequirePasswordChange(next http.Handler) http.Handler {
 
 		// If not in context, try Session directly (fallback)
 		if !ok || userID == 0 {
-			userID = m.Session.GetInt64(r.Context(), "user_id")
+			userID = m.Session.GetInt64(r.Context(), config.SessionKeyUserID)
 		}
 
 		// If still 0, user is definitely not logged in
@@ -184,7 +185,7 @@ func (m *Manager) RequireRole(acceptedRoles ...string) func(http.Handler) http.H
 			// Get User ID (Check Context first, then Session)
 			userID, ok := r.Context().Value(UserContextKey).(int64)
 			if !ok || userID == 0 {
-				userID = m.Session.GetInt64(r.Context(), "user_id")
+				userID = m.Session.GetInt64(r.Context(), config.SessionKeyUserID)
 			}
 
 			if userID == 0 {
@@ -225,7 +226,7 @@ func (m *Manager) RequireRole(acceptedRoles ...string) func(http.Handler) http.H
 func (m *Manager) Authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Check Session for ID
-		userID := m.Session.GetInt64(r.Context(), "user_id")
+		userID := m.Session.GetInt64(r.Context(), config.SessionKeyUserID)
 
 		// If no ID in session, they are a Guest
 		if userID == 0 {

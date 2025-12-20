@@ -8,6 +8,7 @@ import (
 
 	"github.com/tuxedocurly/wledger/internal/audit"
 	"github.com/tuxedocurly/wledger/internal/auth"
+	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/importer"
 	"github.com/tuxedocurly/wledger/web/components"
@@ -31,7 +32,7 @@ func (app *application) handlePartsImport(w http.ResponseWriter, r *http.Request
 	}
 
 	// Parse Form
-	err := r.ParseMultipartForm(10 << 20) // 10 MB
+	err := r.ParseMultipartForm(config.MaxUploadSizeImport) // 100 MB
 	if err != nil {
 		components.ImportResult(false, "Failed to parse form: "+err.Error(), nil).Render(r.Context(), w)
 		return
