@@ -12,7 +12,7 @@ templ PartEdit(user auth.User, part db.Part, links []db.PartLink, docs []db.Part
 	@layouts.Base("Edit Part", user) {
 		<div class="max-w-4xl mx-auto w-full">
 			@components.PageHeader(
-				fmt.Sprintf("Edit: %s", part.Name),
+				part.Name,
 				"",
 				[]components.Breadcrumb{
 					{Label: "Inventory", URL: "/parts"},

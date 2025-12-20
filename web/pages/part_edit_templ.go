@@ -54,7 +54,7 @@ func PartEdit(user auth.User, part db.Part, links []db.PartLink, docs []db.PartD
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = components.PageHeader(
-				fmt.Sprintf("Edit: %s", part.Name),
+				part.Name,
 				"",
 				[]components.Breadcrumb{
 					{Label: "Inventory", URL: "/parts"},
