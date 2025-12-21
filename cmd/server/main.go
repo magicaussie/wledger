@@ -20,6 +20,7 @@ import (
 	"github.com/tuxedocurly/wledger/internal/logger"
 	"github.com/tuxedocurly/wledger/internal/middleware"
 	"github.com/tuxedocurly/wledger/internal/parts"
+	"github.com/tuxedocurly/wledger/internal/tags"
 	"github.com/tuxedocurly/wledger/internal/wled"
 )
 
@@ -32,6 +33,7 @@ type application struct {
 	database *sql.DB
 	backup   backup.Service
 	parts    parts.Service
+	tags     tags.Service
 }
 
 func main() {
@@ -71,8 +73,11 @@ func main() {
 	// Backup Service
 	backupService := backup.NewService(database, queries, config.DirUploads, log)
 
+	// Tags Service
+	tagsService := tags.NewService(database, queries)
+
 	// Parts Service
-	partsService := parts.NewService(database, queries, log)
+	partsService := parts.NewService(database, queries, log, tagsService)
 
 	// app struct
 	app := &application{
@@ -83,6 +88,7 @@ func main() {
 		database: database,
 		backup:   backupService,
 		parts:    partsService,
+		tags:     tagsService,
 	}
 
 	// Middleware Manager

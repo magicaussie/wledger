@@ -37,11 +37,11 @@ SELECT * FROM part_ai_prompts ORDER BY id;
 INSERT INTO parts (
     id, name, description, part_number, manufacturer, supplier, 
     unit_cost, reorder_level, min_stock_threshold, 
-    image_path, barcode_data, is_favorite, created_at, updated_at
+    image_path, barcode_data, is_favorite, tags, created_at, updated_at
 ) VALUES (
     ?, ?, ?, ?, ?, ?, 
     ?, ?, ?, 
-    ?, ?, ?, ?, ?
+    ?, ?, ?, ?, ?, ?
 );
 
 -- name: RestorePartLink :exec

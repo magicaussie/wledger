@@ -338,6 +338,7 @@ func (s *service) restoreData(ctx context.Context, qtx *db.Queries, manifest Man
 			ImagePath:         p.ImagePath,
 			BarcodeData:       p.BarcodeData,
 			IsFavorite:        p.IsFavorite,
+			Tags:              p.Tags,
 			CreatedAt:         p.CreatedAt,
 			UpdatedAt:         p.UpdatedAt,
 		}); err != nil {

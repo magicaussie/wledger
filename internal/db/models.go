@@ -56,6 +56,7 @@ type Part struct {
 	BarcodeData       sql.NullString  `json:"barcode_data"`
 	ImagePath         sql.NullString  `json:"image_path"`
 	IsFavorite        sql.NullBool    `json:"is_favorite"`
+	Tags              sql.NullString  `json:"tags"`
 	CreatedAt         sql.NullTime    `json:"created_at"`
 	UpdatedAt         sql.NullTime    `json:"updated_at"`
 }

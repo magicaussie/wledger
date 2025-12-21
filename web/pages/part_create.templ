@@ -7,7 +7,7 @@ import (
 	"github.com/tuxedocurly/wledger/web/layouts"
 )
 
-templ PartCreate(user auth.User) {
+templ PartCreate(user auth.User, allTags []db.Tag) {
 	@layouts.Base("Create Part", user) {
 		<div class="max-w-4xl mx-auto w-full">
 			@components.PageHeader(
@@ -18,7 +18,7 @@ templ PartCreate(user auth.User) {
 					{Label: "Create New"},
 				},
 			)
-			@components.PartForm(db.Part{}, []db.PartLink{}, []db.PartDoc{}, "/parts", false)
+			@components.PartForm(db.Part{}, nil, allTags, []db.PartLink{}, []db.PartDoc{}, "/parts", false)
 		</div>
 	}
 }

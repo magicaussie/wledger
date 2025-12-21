@@ -7,11 +7,13 @@ import (
 
 // PartForm renders the shared form for Creating and Editing parts.
 // - part: The existing part data (empty if creating)
+// - tags: Current tags for the part
+// - allTags: All existing tags for suggestions
 // - links: Existing links (empty if creating)
 // - docs: Existing documents (empty if creating)
 // - action: The URL to POST to (e.g., "/parts" or "/parts/1/update")
 // - isEdit: Boolean to toggle specific "Edit Mode" features like deleting existing files
-templ PartForm(part db.Part, links []db.PartLink, docs []db.PartDoc, action string, isEdit bool) {
+templ PartForm(part db.Part, tags []db.Tag, allTags []db.Tag, links []db.PartLink, docs []db.PartDoc, action string, isEdit bool) {
 	<form
 		action={ templ.SafeURL(action) }
 		method="POST"
@@ -32,6 +34,7 @@ templ PartForm(part db.Part, links []db.PartLink, docs []db.PartDoc, action stri
 						<label class="label pt-0 pb-2"><span class="label-text font-medium">Part Name</span></label>
 						<input type="text" name="name" value={ part.Name } placeholder="e.g. ESP32-WROOM-32" class="input input-bordered w-full" required/>
 					</div>
+					@TagInput(tags, allTags)
 					<div class="form-control w-full md:col-span-2">
 						<label class="label pt-0 pb-2"><span class="label-text font-medium">Description</span></label>
 						<textarea

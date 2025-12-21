@@ -25,6 +25,7 @@ import (
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/images"
 	"github.com/tuxedocurly/wledger/internal/parts"
+	"github.com/tuxedocurly/wledger/internal/tags"
 )
 
 // Reusing setup logic from handler_hardware_test.go
@@ -47,11 +48,15 @@ func setupPartTest(t *testing.T) (*application, *sql.DB) {
 
 	queries := db.New(dbConn)
 
+	tagsService := tags.NewService(dbConn, queries)
+	partsService := parts.NewService(dbConn, queries, logger, tagsService)
+
 	app := &application{
 		logger:   logger,
 		queries:  queries,
 		database: dbConn,
-		parts:    parts.NewService(dbConn, queries, logger),
+		parts:    partsService,
+		tags:     tagsService,
 	}
 
 	return app, dbConn
@@ -150,6 +155,66 @@ func TestPartCreate_HappyPath(t *testing.T) {
 	docs, _ := os.ReadDir("./app/uploads/docs")
 	if len(docs) == 0 {
 		t.Error("expected doc file to be created")
+	}
+}
+
+func TestPartCreate_WithTags(t *testing.T) {
+	app, dbConn := setupPartTest(t)
+	defer dbConn.Close()
+	defer cleanupPartTest()
+
+	// Prepare Request with Tags
+	req := createMultipartRequest(t, "/parts", "POST", map[string]string{
+		"name":         "Tagged Part",
+		"barcode_data": "1002",
+		"unit_cost":    "5.00",
+		"tags":         "Esp32, WiFi,  MODULE ", // Mixed case and spacing
+	}, map[string]string{})
+
+	rr := httptest.NewRecorder()
+	app.handlePartsCreate(rr, req)
+
+	// Check Redirect
+	if rr.Code != http.StatusSeeOther {
+		t.Errorf("expected 303, got %d. Body: %s", rr.Code, rr.Body.String())
+	}
+
+	// Verify Part Created
+	var partID int64
+	err := dbConn.QueryRow("SELECT id FROM parts WHERE name = ?", "Tagged Part").Scan(&partID)
+	if err != nil {
+		t.Fatalf("failed to find created part: %v", err)
+	}
+
+	// Verify Tags Created
+	rows, err := dbConn.Query("SELECT name FROM tags ORDER BY name")
+	if err != nil {
+		t.Fatalf("failed to query tags: %v", err)
+	}
+	defer rows.Close()
+
+	var tagNames []string
+	for rows.Next() {
+		var name string
+		rows.Scan(&name)
+		tagNames = append(tagNames, name)
+	}
+
+	expectedTags := []string{"esp32", "module", "wifi"}
+	if len(tagNames) != 3 {
+		t.Errorf("expected 3 tags, got %d: %v", len(tagNames), tagNames)
+	}
+	for i, name := range tagNames {
+		if name != expectedTags[i] {
+			t.Errorf("expected tag %s, got %s", expectedTags[i], name)
+		}
+	}
+
+	// Verify Part-Tag Association
+	var count int
+	dbConn.QueryRow("SELECT count(*) FROM part_tags WHERE part_id = ?", partID).Scan(&count)
+	if count != 3 {
+		t.Errorf("expected 3 tag associations, got %d", count)
 	}
 }
 

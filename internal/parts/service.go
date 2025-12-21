@@ -16,6 +16,7 @@ import (
 	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/images"
+	"github.com/tuxedocurly/wledger/internal/tags"
 )
 
 type Service interface {
@@ -55,6 +56,7 @@ type CreatePartRequest struct {
 	Image             *DocUpload
 	Links             []LinkDTO
 	Documents         []DocUpload
+	Tags              []string
 }
 
 type UpdatePartRequest struct {
@@ -72,6 +74,7 @@ type UpdatePartRequest struct {
 	ExistingLinks     []LinkDTO
 	NewLinks          []LinkDTO
 	NewDocuments      []DocUpload
+	Tags              []string
 }
 
 type AssignStockRequest struct {
@@ -95,13 +98,15 @@ type service struct {
 	database *sql.DB
 	queries  *db.Queries
 	logger   *slog.Logger
+	tags     tags.Service
 }
 
-func NewService(database *sql.DB, queries *db.Queries, logger *slog.Logger) Service {
+func NewService(database *sql.DB, queries *db.Queries, logger *slog.Logger, tags tags.Service) Service {
 	return &service{
 		database: database,
 		queries:  queries,
 		logger:   logger,
+		tags:     tags,
 	}
 }
 
@@ -188,6 +193,11 @@ func (s *service) CreatePart(ctx context.Context, req CreatePartRequest) (int64,
 			s.cleanupFiles(imagePath, uploadedDocs)
 			return 0, fmt.Errorf("failed to create doc record: %w", err)
 		}
+	}
+
+	if err := s.tags.SyncTags(ctx, qtx, newID, req.Tags); err != nil {
+		s.cleanupFiles(imagePath, uploadedDocs)
+		return 0, fmt.Errorf("failed to sync tags: %w", err)
 	}
 
 	audit.Log(ctx, qtx, "CREATE", "PART", newID, "Created part "+req.Name, nil, nil)
@@ -299,20 +309,25 @@ func (s *service) UpdatePart(ctx context.Context, req UpdatePartRequest) error {
 		}
 
 		uploadedDocs = append(uploadedDocs, savedWebPath)
-		err = qtx.CreatePartDoc(ctx, db.CreatePartDocParams{
-			PartID:   req.ID,
-			FilePath: savedWebPath,
-			FileName: du.Header.Filename,
-		})
-		if err != nil {
-			s.cleanupFiles(uploadedNewImage, newImagePath, uploadedDocs)
-			return fmt.Errorf("failed to create doc record: %w", err)
-		}
-	}
-
-	audit.Log(ctx, qtx, "UPDATE", "PART", req.ID, "Updated details", nil, nil)
-
-	if err := tx.Commit(); err != nil {
+				err = qtx.CreatePartDoc(ctx, db.CreatePartDocParams{
+					PartID:   req.ID,
+					FilePath: savedWebPath,
+					FileName: du.Header.Filename,
+				})
+						if err != nil {
+							s.cleanupFiles(uploadedNewImage, newImagePath, uploadedDocs)
+							return fmt.Errorf("failed to create doc record: %w", err)
+						}
+					}
+				
+					if err := s.tags.SyncTags(ctx, qtx, req.ID, req.Tags); err != nil {
+						s.cleanupFiles(uploadedNewImage, newImagePath, uploadedDocs)
+						return fmt.Errorf("failed to sync tags: %w", err)
+					}
+				
+					audit.Log(ctx, qtx, "UPDATE", "PART", req.ID, "Updated details", nil, nil)
+				
+			if err := tx.Commit(); err != nil {
 		s.cleanupFiles(uploadedNewImage, newImagePath, uploadedDocs)
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}

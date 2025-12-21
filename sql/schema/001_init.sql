@@ -78,6 +78,7 @@ CREATE TABLE IF NOT EXISTS parts (
     barcode_data TEXT UNIQUE, -- Unique constraint ensures no part barcode overlap
     image_path TEXT, -- Local path relative to /app/uploads
     is_favorite BOOLEAN DEFAULT 0,
+    tags TEXT, -- Denormalized cache for FTS
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -90,6 +91,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS parts_fts USING fts5(
     manufacturer,
     supplier,
     barcode_data,
+    tags,
     content='parts',
     content_rowid='id'
 );

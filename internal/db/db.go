@@ -24,6 +24,9 @@ func New(db DBTX) *Queries {
 func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	q := Queries{db: db}
 	var err error
+	if q.addTagToPartStmt, err = db.PrepareContext(ctx, addTagToPart); err != nil {
+		return nil, fmt.Errorf("error preparing query AddTagToPart: %w", err)
+	}
 	if q.cleanupSessionsStmt, err = db.PrepareContext(ctx, cleanupSessions); err != nil {
 		return nil, fmt.Errorf("error preparing query CleanupSessions: %w", err)
 	}
@@ -53,6 +56,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.createSessionStmt, err = db.PrepareContext(ctx, createSession); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateSession: %w", err)
+	}
+	if q.createTagStmt, err = db.PrepareContext(ctx, createTag); err != nil {
+		return nil, fmt.Errorf("error preparing query CreateTag: %w", err)
 	}
 	if q.createUserStmt, err = db.PrepareContext(ctx, createUser); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateUser: %w", err)
@@ -86,6 +92,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.deleteSessionStmt, err = db.PrepareContext(ctx, deleteSession); err != nil {
 		return nil, fmt.Errorf("error preparing query DeleteSession: %w", err)
+	}
+	if q.deleteUnusedTagsStmt, err = db.PrepareContext(ctx, deleteUnusedTags); err != nil {
+		return nil, fmt.Errorf("error preparing query DeleteUnusedTags: %w", err)
 	}
 	if q.deleteUserStmt, err = db.PrepareContext(ctx, deleteUser); err != nil {
 		return nil, fmt.Errorf("error preparing query DeleteUser: %w", err)
@@ -159,6 +168,12 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.getSettingsStmt, err = db.PrepareContext(ctx, getSettings); err != nil {
 		return nil, fmt.Errorf("error preparing query GetSettings: %w", err)
 	}
+	if q.getTagByNameStmt, err = db.PrepareContext(ctx, getTagByName); err != nil {
+		return nil, fmt.Errorf("error preparing query GetTagByName: %w", err)
+	}
+	if q.getTagsForPartStmt, err = db.PrepareContext(ctx, getTagsForPart); err != nil {
+		return nil, fmt.Errorf("error preparing query GetTagsForPart: %w", err)
+	}
 	if q.getUserStmt, err = db.PrepareContext(ctx, getUser); err != nil {
 		return nil, fmt.Errorf("error preparing query GetUser: %w", err)
 	}
@@ -168,6 +183,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.initSettingsStmt, err = db.PrepareContext(ctx, initSettings); err != nil {
 		return nil, fmt.Errorf("error preparing query InitSettings: %w", err)
 	}
+	if q.listAllTagsStmt, err = db.PrepareContext(ctx, listAllTags); err != nil {
+		return nil, fmt.Errorf("error preparing query ListAllTags: %w", err)
+	}
 	if q.listPartsStmt, err = db.PrepareContext(ctx, listParts); err != nil {
 		return nil, fmt.Errorf("error preparing query ListParts: %w", err)
 	}
@@ -176,6 +194,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.reassignPartAssignmentStmt, err = db.PrepareContext(ctx, reassignPartAssignment); err != nil {
 		return nil, fmt.Errorf("error preparing query ReassignPartAssignment: %w", err)
+	}
+	if q.removeTagsFromPartStmt, err = db.PrepareContext(ctx, removeTagsFromPart); err != nil {
+		return nil, fmt.Errorf("error preparing query RemoveTagsFromPart: %w", err)
 	}
 	if q.restoreAuditLogStmt, err = db.PrepareContext(ctx, restoreAuditLog); err != nil {
 		return nil, fmt.Errorf("error preparing query RestoreAuditLog: %w", err)
@@ -245,6 +266,11 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 
 func (q *Queries) Close() error {
 	var err error
+	if q.addTagToPartStmt != nil {
+		if cerr := q.addTagToPartStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing addTagToPartStmt: %w", cerr)
+		}
+	}
 	if q.cleanupSessionsStmt != nil {
 		if cerr := q.cleanupSessionsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing cleanupSessionsStmt: %w", cerr)
@@ -293,6 +319,11 @@ func (q *Queries) Close() error {
 	if q.createSessionStmt != nil {
 		if cerr := q.createSessionStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing createSessionStmt: %w", cerr)
+		}
+	}
+	if q.createTagStmt != nil {
+		if cerr := q.createTagStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing createTagStmt: %w", cerr)
 		}
 	}
 	if q.createUserStmt != nil {
@@ -348,6 +379,11 @@ func (q *Queries) Close() error {
 	if q.deleteSessionStmt != nil {
 		if cerr := q.deleteSessionStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing deleteSessionStmt: %w", cerr)
+		}
+	}
+	if q.deleteUnusedTagsStmt != nil {
+		if cerr := q.deleteUnusedTagsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing deleteUnusedTagsStmt: %w", cerr)
 		}
 	}
 	if q.deleteUserStmt != nil {
@@ -470,6 +506,16 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing getSettingsStmt: %w", cerr)
 		}
 	}
+	if q.getTagByNameStmt != nil {
+		if cerr := q.getTagByNameStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getTagByNameStmt: %w", cerr)
+		}
+	}
+	if q.getTagsForPartStmt != nil {
+		if cerr := q.getTagsForPartStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getTagsForPartStmt: %w", cerr)
+		}
+	}
 	if q.getUserStmt != nil {
 		if cerr := q.getUserStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getUserStmt: %w", cerr)
@@ -485,6 +531,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing initSettingsStmt: %w", cerr)
 		}
 	}
+	if q.listAllTagsStmt != nil {
+		if cerr := q.listAllTagsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listAllTagsStmt: %w", cerr)
+		}
+	}
 	if q.listPartsStmt != nil {
 		if cerr := q.listPartsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing listPartsStmt: %w", cerr)
@@ -498,6 +549,11 @@ func (q *Queries) Close() error {
 	if q.reassignPartAssignmentStmt != nil {
 		if cerr := q.reassignPartAssignmentStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing reassignPartAssignmentStmt: %w", cerr)
+		}
+	}
+	if q.removeTagsFromPartStmt != nil {
+		if cerr := q.removeTagsFromPartStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing removeTagsFromPartStmt: %w", cerr)
 		}
 	}
 	if q.restoreAuditLogStmt != nil {
@@ -644,6 +700,7 @@ func (q *Queries) queryRow(ctx context.Context, stmt *sql.Stmt, query string, ar
 type Queries struct {
 	db                               DBTX
 	tx                               *sql.Tx
+	addTagToPartStmt                 *sql.Stmt
 	cleanupSessionsStmt              *sql.Stmt
 	countUsersStmt                   *sql.Stmt
 	createAuditLogStmt               *sql.Stmt
@@ -654,6 +711,7 @@ type Queries struct {
 	createPartDocStmt                *sql.Stmt
 	createPartLinkStmt               *sql.Stmt
 	createSessionStmt                *sql.Stmt
+	createTagStmt                    *sql.Stmt
 	createUserStmt                   *sql.Stmt
 	deleteAssignmentStmt             *sql.Stmt
 	deleteBinStmt                    *sql.Stmt
@@ -665,6 +723,7 @@ type Queries struct {
 	deletePartDocStmt                *sql.Stmt
 	deletePartLinkStmt               *sql.Stmt
 	deleteSessionStmt                *sql.Stmt
+	deleteUnusedTagsStmt             *sql.Stmt
 	deleteUserStmt                   *sql.Stmt
 	getAllAuditLogsStmt              *sql.Stmt
 	getAllBinsStmt                   *sql.Stmt
@@ -689,12 +748,16 @@ type Queries struct {
 	getPartLinksStmt                 *sql.Stmt
 	getSessionStmt                   *sql.Stmt
 	getSettingsStmt                  *sql.Stmt
+	getTagByNameStmt                 *sql.Stmt
+	getTagsForPartStmt               *sql.Stmt
 	getUserStmt                      *sql.Stmt
 	getUserByEmailStmt               *sql.Stmt
 	initSettingsStmt                 *sql.Stmt
+	listAllTagsStmt                  *sql.Stmt
 	listPartsStmt                    *sql.Stmt
 	listUsersStmt                    *sql.Stmt
 	reassignPartAssignmentStmt       *sql.Stmt
+	removeTagsFromPartStmt           *sql.Stmt
 	restoreAuditLogStmt              *sql.Stmt
 	restoreBinStmt                   *sql.Stmt
 	restoreControllerStmt            *sql.Stmt
@@ -722,6 +785,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 	return &Queries{
 		db:                               tx,
 		tx:                               tx,
+		addTagToPartStmt:                 q.addTagToPartStmt,
 		cleanupSessionsStmt:              q.cleanupSessionsStmt,
 		countUsersStmt:                   q.countUsersStmt,
 		createAuditLogStmt:               q.createAuditLogStmt,
@@ -732,6 +796,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		createPartDocStmt:                q.createPartDocStmt,
 		createPartLinkStmt:               q.createPartLinkStmt,
 		createSessionStmt:                q.createSessionStmt,
+		createTagStmt:                    q.createTagStmt,
 		createUserStmt:                   q.createUserStmt,
 		deleteAssignmentStmt:             q.deleteAssignmentStmt,
 		deleteBinStmt:                    q.deleteBinStmt,
@@ -743,6 +808,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		deletePartDocStmt:                q.deletePartDocStmt,
 		deletePartLinkStmt:               q.deletePartLinkStmt,
 		deleteSessionStmt:                q.deleteSessionStmt,
+		deleteUnusedTagsStmt:             q.deleteUnusedTagsStmt,
 		deleteUserStmt:                   q.deleteUserStmt,
 		getAllAuditLogsStmt:              q.getAllAuditLogsStmt,
 		getAllBinsStmt:                   q.getAllBinsStmt,
@@ -767,12 +833,16 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		getPartLinksStmt:                 q.getPartLinksStmt,
 		getSessionStmt:                   q.getSessionStmt,
 		getSettingsStmt:                  q.getSettingsStmt,
+		getTagByNameStmt:                 q.getTagByNameStmt,
+		getTagsForPartStmt:               q.getTagsForPartStmt,
 		getUserStmt:                      q.getUserStmt,
 		getUserByEmailStmt:               q.getUserByEmailStmt,
 		initSettingsStmt:                 q.initSettingsStmt,
+		listAllTagsStmt:                  q.listAllTagsStmt,
 		listPartsStmt:                    q.listPartsStmt,
 		listUsersStmt:                    q.listUsersStmt,
 		reassignPartAssignmentStmt:       q.reassignPartAssignmentStmt,
+		removeTagsFromPartStmt:           q.removeTagsFromPartStmt,
 		restoreAuditLogStmt:              q.restoreAuditLogStmt,
 		restoreBinStmt:                   q.restoreBinStmt,
 		restoreControllerStmt:            q.restoreControllerStmt,

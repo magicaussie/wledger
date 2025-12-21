@@ -282,7 +282,7 @@ func (q *Queries) GetAllPartLinks(ctx context.Context) ([]PartLink, error) {
 }
 
 const getAllParts = `-- name: GetAllParts :many
-SELECT id, name, description, part_number, manufacturer, supplier, unit_cost, reorder_level, min_stock_threshold, barcode_data, image_path, is_favorite, created_at, updated_at FROM parts ORDER BY id
+SELECT id, name, description, part_number, manufacturer, supplier, unit_cost, reorder_level, min_stock_threshold, barcode_data, image_path, is_favorite, tags, created_at, updated_at FROM parts ORDER BY id
 `
 
 func (q *Queries) GetAllParts(ctx context.Context) ([]Part, error) {
@@ -307,6 +307,7 @@ func (q *Queries) GetAllParts(ctx context.Context) ([]Part, error) {
 			&i.BarcodeData,
 			&i.ImagePath,
 			&i.IsFavorite,
+			&i.Tags,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -356,7 +357,7 @@ func (q *Queries) GetAssignmentID(ctx context.Context, arg GetAssignmentIDParams
 }
 
 const getPart = `-- name: GetPart :one
-SELECT id, name, description, part_number, manufacturer, supplier, unit_cost, reorder_level, min_stock_threshold, barcode_data, image_path, is_favorite, created_at, updated_at FROM parts WHERE id = ?
+SELECT id, name, description, part_number, manufacturer, supplier, unit_cost, reorder_level, min_stock_threshold, barcode_data, image_path, is_favorite, tags, created_at, updated_at FROM parts WHERE id = ?
 `
 
 func (q *Queries) GetPart(ctx context.Context, id int64) (Part, error) {
@@ -375,6 +376,7 @@ func (q *Queries) GetPart(ctx context.Context, id int64) (Part, error) {
 		&i.BarcodeData,
 		&i.ImagePath,
 		&i.IsFavorite,
+		&i.Tags,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -518,7 +520,7 @@ func (q *Queries) GetPartLinks(ctx context.Context, partID int64) ([]PartLink, e
 }
 
 const listParts = `-- name: ListParts :many
-SELECT p.id, p.name, p.description, p.part_number, p.manufacturer, p.supplier, p.unit_cost, p.reorder_level, p.min_stock_threshold, p.barcode_data, p.image_path, p.is_favorite, p.created_at, p.updated_at, 
+SELECT p.id, p.name, p.description, p.part_number, p.manufacturer, p.supplier, p.unit_cost, p.reorder_level, p.min_stock_threshold, p.barcode_data, p.image_path, p.is_favorite, p.tags, p.created_at, p.updated_at, 
     CAST(COALESCE(SUM(pa.quantity), 0) AS INTEGER) as total_stock
 FROM parts p
 LEFT JOIN part_assignments pa ON p.id = pa.part_id
@@ -545,6 +547,7 @@ type ListPartsRow struct {
 	BarcodeData       sql.NullString  `json:"barcode_data"`
 	ImagePath         sql.NullString  `json:"image_path"`
 	IsFavorite        sql.NullBool    `json:"is_favorite"`
+	Tags              sql.NullString  `json:"tags"`
 	CreatedAt         sql.NullTime    `json:"created_at"`
 	UpdatedAt         sql.NullTime    `json:"updated_at"`
 	TotalStock        int64           `json:"total_stock"`
@@ -572,6 +575,7 @@ func (q *Queries) ListParts(ctx context.Context, arg ListPartsParams) ([]ListPar
 			&i.BarcodeData,
 			&i.ImagePath,
 			&i.IsFavorite,
+			&i.Tags,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.TotalStock,
@@ -609,11 +613,11 @@ const restorePart = `-- name: RestorePart :exec
 INSERT INTO parts (
     id, name, description, part_number, manufacturer, supplier, 
     unit_cost, reorder_level, min_stock_threshold, 
-    image_path, barcode_data, is_favorite, created_at, updated_at
+    image_path, barcode_data, is_favorite, tags, created_at, updated_at
 ) VALUES (
     ?, ?, ?, ?, ?, ?, 
     ?, ?, ?, 
-    ?, ?, ?, ?, ?
+    ?, ?, ?, ?, ?, ?
 )
 `
 
@@ -630,6 +634,7 @@ type RestorePartParams struct {
 	ImagePath         sql.NullString  `json:"image_path"`
 	BarcodeData       sql.NullString  `json:"barcode_data"`
 	IsFavorite        sql.NullBool    `json:"is_favorite"`
+	Tags              sql.NullString  `json:"tags"`
 	CreatedAt         sql.NullTime    `json:"created_at"`
 	UpdatedAt         sql.NullTime    `json:"updated_at"`
 }
@@ -648,6 +653,7 @@ func (q *Queries) RestorePart(ctx context.Context, arg RestorePartParams) error 
 		arg.ImagePath,
 		arg.BarcodeData,
 		arg.IsFavorite,
+		arg.Tags,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)
@@ -743,7 +749,7 @@ func (q *Queries) RestorePartLink(ctx context.Context, arg RestorePartLinkParams
 }
 
 const searchParts = `-- name: SearchParts :many
-SELECT p.id, p.name, p.description, p.part_number, p.manufacturer, p.supplier, p.unit_cost, p.reorder_level, p.min_stock_threshold, p.barcode_data, p.image_path, p.is_favorite, p.created_at, p.updated_at, 
+SELECT p.id, p.name, p.description, p.part_number, p.manufacturer, p.supplier, p.unit_cost, p.reorder_level, p.min_stock_threshold, p.barcode_data, p.image_path, p.is_favorite, p.tags, p.created_at, p.updated_at, 
     CAST(COALESCE(SUM(pa.quantity), 0) AS INTEGER) as total_stock
 FROM parts_fts fts
 JOIN parts p ON fts.rowid = p.id
@@ -773,6 +779,7 @@ type SearchPartsRow struct {
 	BarcodeData       sql.NullString  `json:"barcode_data"`
 	ImagePath         sql.NullString  `json:"image_path"`
 	IsFavorite        sql.NullBool    `json:"is_favorite"`
+	Tags              sql.NullString  `json:"tags"`
 	CreatedAt         sql.NullTime    `json:"created_at"`
 	UpdatedAt         sql.NullTime    `json:"updated_at"`
 	TotalStock        int64           `json:"total_stock"`
@@ -800,6 +807,7 @@ func (q *Queries) SearchParts(ctx context.Context, arg SearchPartsParams) ([]Sea
 			&i.BarcodeData,
 			&i.ImagePath,
 			&i.IsFavorite,
+			&i.Tags,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.TotalStock,

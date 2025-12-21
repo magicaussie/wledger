@@ -10,6 +10,7 @@ import (
 )
 
 type Querier interface {
+	AddTagToPart(ctx context.Context, arg AddTagToPartParams) error
 	CleanupSessions(ctx context.Context, expiry float64) error
 	CountUsers(ctx context.Context) (int64, error)
 	CreateAuditLog(ctx context.Context, arg CreateAuditLogParams) error
@@ -22,6 +23,7 @@ type Querier interface {
 	// LINKS
 	CreatePartLink(ctx context.Context, arg CreatePartLinkParams) error
 	CreateSession(ctx context.Context, arg CreateSessionParams) error
+	CreateTag(ctx context.Context, name string) (Tag, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error)
 	DeleteAssignment(ctx context.Context, id int64) error
 	DeleteBin(ctx context.Context, id int64) error
@@ -33,6 +35,7 @@ type Querier interface {
 	DeletePartDoc(ctx context.Context, id int64) error
 	DeletePartLink(ctx context.Context, id int64) error
 	DeleteSession(ctx context.Context, token string) error
+	DeleteUnusedTags(ctx context.Context) error
 	DeleteUser(ctx context.Context, id int64) error
 	GetAllAuditLogs(ctx context.Context) ([]AuditLog, error)
 	GetAllBins(ctx context.Context) ([]Bin, error)
@@ -59,12 +62,16 @@ type Querier interface {
 	// SESSION QUERIES
 	GetSession(ctx context.Context, token string) (Session, error)
 	GetSettings(ctx context.Context) (Setting, error)
+	GetTagByName(ctx context.Context, name string) (Tag, error)
+	GetTagsForPart(ctx context.Context, partID int64) ([]Tag, error)
 	GetUser(ctx context.Context, id int64) (User, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	InitSettings(ctx context.Context) error
+	ListAllTags(ctx context.Context) ([]Tag, error)
 	ListParts(ctx context.Context, arg ListPartsParams) ([]ListPartsRow, error)
 	ListUsers(ctx context.Context) ([]ListUsersRow, error)
 	ReassignPartAssignment(ctx context.Context, arg ReassignPartAssignmentParams) error
+	RemoveTagsFromPart(ctx context.Context, partID int64) error
 	RestoreAuditLog(ctx context.Context, arg RestoreAuditLogParams) error
 	RestoreBin(ctx context.Context, arg RestoreBinParams) error
 	RestoreController(ctx context.Context, arg RestoreControllerParams) error

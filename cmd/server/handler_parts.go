@@ -128,7 +128,8 @@ func (app *application) handlePartDetail(w http.ResponseWriter, r *http.Request)
 // GET /parts/new
 func (app *application) handlePartsNew(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUserFromRequest(r)
-	pages.PartCreate(user).Render(r.Context(), w)
+	allTags, _ := app.tags.ListAllTags(r.Context())
+	pages.PartCreate(user, allTags).Render(r.Context(), w)
 }
 
 // POST /parts
@@ -144,6 +145,11 @@ func (app *application) handlePartsCreate(w http.ResponseWriter, r *http.Request
 	reorder, _ := strconv.Atoi(r.FormValue("reorder_level"))
 	minStock, _ := strconv.Atoi(r.FormValue("min_stock"))
 
+	var tagList []string
+	if tagsRaw := r.FormValue("tags"); tagsRaw != "" {
+		tagList = strings.Split(tagsRaw, ",")
+	}
+
 	req := parts.CreatePartRequest{
 		Name:              r.FormValue("name"),
 		Description:       r.FormValue("description"),
@@ -154,6 +160,7 @@ func (app *application) handlePartsCreate(w http.ResponseWriter, r *http.Request
 		UnitCost:          cost,
 		ReorderLevel:      reorder,
 		MinStockThreshold: minStock,
+		Tags:              tagList,
 	}
 
 	// Handle Image Upload
@@ -219,8 +226,10 @@ func (app *application) handlePartEdit(w http.ResponseWriter, r *http.Request) {
 
 	links, _ := app.queries.GetPartLinks(r.Context(), int64(id))
 	docs, _ := app.queries.GetPartDocs(r.Context(), int64(id))
+	tags, _ := app.queries.GetTagsForPart(r.Context(), int64(id))
+	allTags, _ := app.tags.ListAllTags(r.Context())
 
-	pages.PartEdit(user, p, links, docs).Render(r.Context(), w)
+	pages.PartEdit(user, p, tags, allTags, links, docs).Render(r.Context(), w)
 }
 
 // POST /parts/{id}/update
@@ -238,6 +247,11 @@ func (app *application) handlePartUpdate(w http.ResponseWriter, r *http.Request)
 	reorder, _ := strconv.Atoi(r.FormValue("reorder_level"))
 	minStock, _ := strconv.Atoi(r.FormValue("min_stock"))
 
+	var tagList []string
+	if tagsRaw := r.FormValue("tags"); tagsRaw != "" {
+		tagList = strings.Split(tagsRaw, ",")
+	}
+
 	req := parts.UpdatePartRequest{
 		ID:                int64(id),
 		Name:              r.FormValue("name"),
@@ -249,6 +263,7 @@ func (app *application) handlePartUpdate(w http.ResponseWriter, r *http.Request)
 		UnitCost:          cost,
 		ReorderLevel:      reorder,
 		MinStockThreshold: minStock,
+		Tags:              tagList,
 	}
 
 	// Handle Image Upload

@@ -8,7 +8,7 @@ import (
 	"github.com/tuxedocurly/wledger/web/layouts"
 )
 
-templ PartEdit(user auth.User, part db.Part, links []db.PartLink, docs []db.PartDoc) {
+templ PartEdit(user auth.User, part db.Part, tags []db.Tag, allTags []db.Tag, links []db.PartLink, docs []db.PartDoc) {
 	@layouts.Base("Edit Part", user) {
 		<div class="max-w-4xl mx-auto w-full">
 			@components.PageHeader(
@@ -20,7 +20,7 @@ templ PartEdit(user auth.User, part db.Part, links []db.PartLink, docs []db.Part
 					{Label: "Edit"},
 				},
 			)
-			@components.PartForm(part, links, docs, fmt.Sprintf("/parts/%d/update", part.ID), true)
+			@components.PartForm(part, tags, allTags, links, docs, fmt.Sprintf("/parts/%d/update", part.ID), true)
 		</div>
 	}
 }

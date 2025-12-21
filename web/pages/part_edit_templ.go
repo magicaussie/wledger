@@ -16,7 +16,7 @@ import (
 	"github.com/tuxedocurly/wledger/web/layouts"
 )
 
-func PartEdit(user auth.User, part db.Part, links []db.PartLink, docs []db.PartDoc) templ.Component {
+func PartEdit(user auth.User, part db.Part, tags []db.Tag, allTags []db.Tag, links []db.PartLink, docs []db.PartDoc) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -65,7 +65,7 @@ func PartEdit(user auth.User, part db.Part, links []db.PartLink, docs []db.PartD
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = components.PartForm(part, links, docs, fmt.Sprintf("/parts/%d/update", part.ID), true).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = components.PartForm(part, tags, allTags, links, docs, fmt.Sprintf("/parts/%d/update", part.ID), true).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
