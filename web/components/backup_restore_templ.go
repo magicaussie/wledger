@@ -8,6 +8,8 @@ package components
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
+import "github.com/tuxedocurly/wledger/web/icons"
+
 func BackupRestore() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -29,7 +31,47 @@ func BackupRestore() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"card bg-base-200 shadow-xl border border-base-300\"><div class=\"card-body\"><h3 class=\"font-bold text-sm uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2\"><svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-4 w-4\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 011.414.586l4.243 4.243a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2\"></path></svg> Backup & Restore</h3><div class=\"grid grid-cols-1 md:grid-cols-2 gap-6\"><!-- Backup Section --><div class=\"bg-base-100 p-4 rounded-lg border border-base-300 flex flex-col justify-between\"><div><h4 class=\"font-bold text-lg\">Create Backup</h4><p class=\"text-sm opacity-70 mt-1\">Download a ZIP archive containing your entire database and all uploaded assets (images, documents).</p></div><a href=\"/settings/backup/download\" class=\"btn btn-primary mt-4 gap-2\" download><svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-5 w-5\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4\"></path></svg> Download Backup</a></div><!-- Restore Section --><div class=\"bg-base-100 p-4 rounded-lg border border-base-300 flex flex-col justify-between\"><div><h4 class=\"font-bold text-lg text-error\">Restore Backup</h4><p class=\"text-sm opacity-70 mt-1\">Overwrite your current system with a backup file.  <span class=\"font-bold text-error\">This is destructive and cannot be undone.</span></p></div><button onclick=\"restore_modal.showModal()\" class=\"btn btn-outline btn-error mt-4 gap-2\"><svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-5 w-5\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15\"></path></svg> Restore from Backup...</button></div></div></div></div><!-- Restore Modal --><dialog id=\"restore_modal\" class=\"modal\"><div class=\"modal-box bg-base-100 border-2 border-error\"><form method=\"dialog\"><button class=\"btn btn-sm btn-circle btn-ghost absolute right-2 top-2\">✕</button></form><h3 class=\"font-bold text-xl text-error mb-4 flex items-center gap-2\"><svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-6 w-6\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z\"></path></svg> Danger Zone: System Restore</h3><div class=\"alert alert-error text-sm\"><span>You are about to completely wipe the current database and replace it with the backup. All current parts, bins, and settings will be lost.</span></div><form hx-post=\"/settings/backup/restore\" hx-encoding=\"multipart/form-data\" hx-target=\"#restore_result\" hx-swap=\"innerHTML\" class=\"mt-6 space-y-4\"><div class=\"form-control w-full\"><label class=\"label\"><span class=\"label-text font-medium\">Select Backup File</span> <span class=\"label-text-alt\">.zip</span></label> <input type=\"file\" name=\"backup_file\" accept=\".zip\" class=\"file-input file-input-bordered file-input-error w-full\" required></div><div class=\"form-control\"><label class=\"label cursor-pointer justify-start gap-4\"><input type=\"checkbox\" required class=\"checkbox checkbox-error\"> <span class=\"label-text text-xs\">I understand that this action is irreversible.</span></label></div><button type=\"submit\" class=\"btn btn-error w-full\">PERFORM FULL RESTORE</button></form><div id=\"restore_result\" class=\"mt-4\"></div></div><form method=\"dialog\" class=\"modal-backdrop\"><button>close</button></form></dialog>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"card bg-base-200 shadow-xl border border-base-300\"><div class=\"card-body\"><h3 class=\"font-bold text-sm uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = icons.FileIcon(5).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "Backup & Restore</h3><div class=\"grid grid-cols-1 md:grid-cols-2 gap-6\"><!-- Backup Section --><div class=\"bg-base-100 p-4 rounded-lg border border-base-300 flex flex-col justify-between\"><div><h4 class=\"font-bold text-lg\">Create Backup</h4><p class=\"text-sm opacity-70 mt-1\">Download a ZIP archive containing your entire database and all uploaded assets (images, documents).</p></div><a href=\"/settings/backup/download\" class=\"btn btn-primary mt-4 gap-2\" download>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = icons.ImportIcon(5).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "Download</a></div><!-- Restore Section --><div class=\"bg-base-100 p-4 rounded-lg border border-base-300 flex flex-col justify-between\"><div><h4 class=\"font-bold text-lg text-error\">Restore Backup</h4><p class=\"text-sm opacity-70 mt-1\">Overwrite your current system with a backup file.  <span class=\"font-bold text-error\">This is destructive and cannot be undone.</span></p></div><button onclick=\"restore_modal.showModal()\" class=\"btn btn-outline btn-error mt-4 gap-2\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = icons.RestoreIcon(5).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "Restore</button></div></div></div></div><!-- Restore Modal --><dialog id=\"restore_modal\" class=\"modal\"><div class=\"modal-box bg-base-100 border-2 border-error\"><form method=\"dialog\"><button class=\"btn btn-sm btn-circle btn-ghost absolute right-2 top-2\">✕</button></form><h3 class=\"font-bold text-xl text-error mb-4 flex items-center gap-2\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = icons.WarningIcon(5).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "Danger Zone: System Restore")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = icons.WarningIcon(5).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</h3><div class=\"alert alert-error text-sm\"><span>You are about to completely wipe the current database and replace it with the backup. All current parts, bins, users, and settings will be lost.</span></div><form hx-post=\"/settings/backup/restore\" hx-encoding=\"multipart/form-data\" hx-target=\"#restore_result\" hx-swap=\"innerHTML\" class=\"mt-6 space-y-4\"><div class=\"form-control w-full\"><label class=\"label\"><span class=\"label-text font-medium\">Select Backup File</span> <span class=\"label-text-alt\">.zip</span></label> <input type=\"file\" name=\"backup_file\" accept=\".zip\" class=\"file-input file-input-bordered file-input-error w-full\" required></div><div class=\"form-control\"><label class=\"label cursor-pointer justify-start gap-4\"><input type=\"checkbox\" required class=\"checkbox checkbox-error\"> <span class=\"label-text text-xs\">I understand that this action is irreversible.</span></label></div><button type=\"submit\" class=\"btn btn-error w-full\">PERFORM FULL RESTORE</button></form><div id=\"restore_result\" class=\"mt-4\"></div></div><form method=\"dialog\" class=\"modal-backdrop\"><button>close</button></form></dialog>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

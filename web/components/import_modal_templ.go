@@ -29,7 +29,29 @@ func ImportModal() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<dialog id=\"import_parts_modal\" class=\"modal\"><div class=\"modal-box w-11/12 max-w-2xl bg-base-100\"><form method=\"dialog\"><button class=\"btn btn-sm btn-circle btn-ghost absolute right-2 top-2\">✕</button></form><h3 class=\"font-bold text-lg mb-4\">Bulk Import Parts</h3><div class=\"flex justify-between items-center bg-base-200 p-4 rounded-lg mb-6\"><div class=\"text-sm\"><p class=\"font-bold\">Need a template?</p><p class=\"opacity-70\">Download a sample CSV file to get started.</p></div><a href=\"/parts/import/template\" class=\"btn btn-sm btn-outline gap-2\" download><svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-4 w-4\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4\"></path></svg> Download CSV</a></div><form hx-post=\"/parts/import\" hx-encoding=\"multipart/form-data\" hx-target=\"#import_result\" hx-swap=\"innerHTML\" class=\"space-y-6\"><div class=\"form-control w-full\"><label class=\"label\"><span class=\"label-text font-medium\">Upload File</span> <span class=\"label-text-alt\">.csv</span></label> <input type=\"file\" name=\"file\" accept=\".csv\" class=\"file-input file-input-bordered w-full\"></div><div class=\"divider text-xs opacity-50\">OR PASTE CSV DATA (WITH HEADERS)</div><div class=\"form-control w-full\"><textarea name=\"raw_text\" class=\"textarea textarea-bordered font-mono text-xs h-32 w-full\" placeholder=\"Name,Unit Cost,Quantity&#10;Resistor,0.05,100&#10;...\"></textarea></div><div class=\"modal-action\"><button type=\"submit\" class=\"btn btn-primary w-full md:w-auto\">Start Import</button></div></form><div id=\"import_result\" class=\"mt-4\"></div></div><form method=\"dialog\" class=\"modal-backdrop\"><button>close</button></form></dialog>")
+		templ_7745c5c3_Var2 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+			if !templ_7745c5c3_IsBuffer {
+				defer func() {
+					templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+					if templ_7745c5c3_Err == nil {
+						templ_7745c5c3_Err = templ_7745c5c3_BufErr
+					}
+				}()
+			}
+			ctx = templ.InitializeContext(ctx)
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"flex justify-between items-center bg-base-200 p-4 rounded-lg mb-6\"><div class=\"text-sm\"><p class=\"font-bold\">Need a template?</p><p class=\"opacity-70\">Download a sample CSV file to get started.</p></div><a href=\"/parts/import/template\" class=\"btn btn-sm btn-outline gap-2\" download><svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-4 w-4\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4\"></path></svg> Download CSV</a></div><form hx-post=\"/parts/import\" hx-encoding=\"multipart/form-data\" hx-target=\"#import_result\" hx-swap=\"innerHTML\" class=\"space-y-6\"><div class=\"form-control w-full\"><label class=\"label\"><span class=\"label-text font-medium\">Upload File</span> <span class=\"label-text-alt\">.csv</span></label> <input type=\"file\" name=\"file\" accept=\".csv\" class=\"file-input file-input-bordered w-full\"></div><div class=\"divider text-xs opacity-50\">OR PASTE CSV DATA (WITH HEADERS)</div><div class=\"form-control w-full\"><textarea name=\"raw_text\" class=\"textarea textarea-bordered font-mono text-xs h-32 w-full\" placeholder=\"Name,Unit Cost,Quantity&#10;Resistor,0.05,100&#10;...\"></textarea></div><div class=\"modal-action\"><button type=\"submit\" class=\"btn btn-primary w-full md:w-auto\">Start Import</button></div></form><div id=\"import_result\" class=\"mt-4\"></div>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			return nil
+		})
+		templ_7745c5c3_Err = Modal(ModalProps{
+			ID:       "import_parts_modal",
+			Title:    "Bulk Import Parts",
+			BoxClass: "w-11/12 max-w-2xl",
+		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -53,9 +75,9 @@ func ImportResult(success bool, message string, details []string) templ.Componen
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var2 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var2 == nil {
-			templ_7745c5c3_Var2 = templ.NopComponent
+		templ_7745c5c3_Var3 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var3 == nil {
+			templ_7745c5c3_Var3 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
 		if success {
@@ -63,12 +85,12 @@ func ImportResult(success bool, message string, details []string) templ.Componen
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var3 string
-			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(message)
+			var templ_7745c5c3_Var4 string
+			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(message)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/import_modal.templ`, Line: 58, Col: 34}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/import_modal.templ`, Line: 55, Col: 34}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -81,12 +103,12 @@ func ImportResult(success bool, message string, details []string) templ.Componen
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var4 string
-			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(message)
+			var templ_7745c5c3_Var5 string
+			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(message)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/import_modal.templ`, Line: 67, Col: 81}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/import_modal.templ`, Line: 64, Col: 81}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -104,12 +126,12 @@ func ImportResult(success bool, message string, details []string) templ.Componen
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					var templ_7745c5c3_Var5 string
-					templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(d)
+					var templ_7745c5c3_Var6 string
+					templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(d)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/import_modal.templ`, Line: 71, Col: 14}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/import_modal.templ`, Line: 68, Col: 14}
 					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}

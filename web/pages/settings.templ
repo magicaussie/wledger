@@ -5,24 +5,25 @@ import (
 	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/web/components"
+	"github.com/tuxedocurly/wledger/web/icons"
 	"github.com/tuxedocurly/wledger/web/layouts"
 )
 
 templ Settings(user auth.User, s db.Setting, users []db.ListUsersRow) {
 	@layouts.Base("Settings", user) {
 		<div class="max-w-4xl mx-auto w-full">
-			@components.PageHeader("Settings", "Configure application behavior, hardware defaults, and themes.", nil)
+			@components.PageHeader("Settings", "Configure application behavior, hardware defaults, and more.", nil)
 			<div class="space-y-8">
 				if user.IsAdmin() {
 					<div class="card bg-base-200 shadow-xl border border-base-300">
 						<div class="card-body">
 							<div class="flex justify-between items-center mb-4">
 								<h3 class="font-bold text-sm uppercase tracking-wider opacity-50 flex items-center gap-2">
-									<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+									@icons.UsersIcon(5)
 									User Management
 								</h3>
 								<button onclick="user_add_modal.showModal()" class="btn btn-primary px-8 gap-2">
-									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 md:mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+									@icons.PlusIcon(5)
 									<span class="hidden md:inline">Add User</span>
 								</button>
 							</div>
@@ -57,10 +58,10 @@ templ Settings(user auth.User, s db.Setting, users []db.ListUsersRow) {
 													if u.ChangePasswordRequired.Bool {
 														<div class="flex items-center">
 															<div class="md:hidden text-warning" title="Reset Pending">
-																<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+																@icons.WarningIcon(5)
 															</div>
-															<span class="hidden md:inline-flex badge badge-warning badge-sm gap-1">
-																<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+															<span class="hidden md:inline-flex badge badge-warning badge-md gap-1">
+																@icons.WarningIcon(5)
 																Reset Pending
 															</span>
 														</div>
@@ -76,18 +77,18 @@ templ Settings(user auth.User, s db.Setting, users []db.ListUsersRow) {
 														<div class="flex justify-end items-center gap-2">
 															if u.Role != "admin" {
 																<form action={ templ.SafeURL(fmt.Sprintf("/settings/users/%d/reset", u.ID)) } method="POST" onsubmit="return confirm('Force this user to change their password on next login?');">
-																	<button class="btn btn-sm md:btn-xs btn-outline btn-warning px-2 md:px-3" title="Force Reset">
+																	<button class="btn btn-sm md:btn-sm btn-outline btn-warning px-2 md:px-3" title="Force Reset">
 																		<div class="flex items-center gap-1">
-																			<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>
+																			@icons.LockIcon(5)
 																			<span class="hidden md:inline text-[10px] uppercase font-bold">Reset</span>
 																		</div>
 																	</button>
 																</form>
 															}
 															<form action={ templ.SafeURL(fmt.Sprintf("/settings/users/%d/delete", u.ID)) } method="POST" onsubmit="return confirm('Delete this user?');">
-																<button class="btn btn-sm md:btn-xs btn-outline btn-error opacity-70 hover:opacity-100 px-2 md:px-3" title="Delete">
+																<button class="btn btn-sm md:btn-sm btn-outline btn-error opacity-70 hover:opacity-100 px-2 md:px-3" title="Delete">
 																	<div class="flex items-center gap-1">
-																		<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+																		@icons.TrashIcon(5)
 																		<span class="hidden md:inline text-[10px] uppercase font-bold">Delete</span>
 																	</div>
 																</button>
@@ -107,7 +108,7 @@ templ Settings(user auth.User, s db.Setting, users []db.ListUsersRow) {
 							<form action="/settings" method="POST" class="space-y-8">
 								<div>
 									<h3 class="font-bold text-sm uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2">
-										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+										@icons.LockIcon(5)
 										General
 									</h3>
 									<div class="form-control bg-base-100 p-4 rounded-lg border border-base-300">
@@ -126,7 +127,7 @@ templ Settings(user auth.User, s db.Setting, users []db.ListUsersRow) {
 								</div>
 								<div>
 									<h3 class="font-bold text-sm uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2 border-t border-base-content/5 pt-6">
-										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+										@icons.LightningIcon(5)
 										Hardware Automation
 									</h3>
 									<div class="form-control bg-base-100 p-4 rounded-lg border border-base-300">
@@ -152,7 +153,7 @@ templ Settings(user auth.User, s db.Setting, users []db.ListUsersRow) {
 								</div>
 								<div>
 									<h3 class="font-bold text-sm uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2 border-t border-base-content/5 pt-6">
-										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path></svg>
+										@icons.ColorSwatchIcon(5)
 										Interface Colors
 									</h3>
 									<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -164,7 +165,7 @@ templ Settings(user auth.User, s db.Setting, users []db.ListUsersRow) {
 								</div>
 								<div class="card-actions justify-end mt-8 border-t border-base-content/10 pt-6">
 									<button class="btn btn-primary px-8 gap-2">
-										<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+										@icons.ImportIcon(5)
 										Save All Settings
 									</button>
 								</div>
@@ -176,7 +177,7 @@ templ Settings(user auth.User, s db.Setting, users []db.ListUsersRow) {
 				<div class="card bg-base-200 shadow-xl border border-base-300">
 					<div class="card-body">
 						<h3 class="font-bold text-sm uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2">
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+							@icons.LockIcon(5)
 							Change Your Password
 						</h3>
 						<div class="flex justify-center w-full">
@@ -188,7 +189,11 @@ templ Settings(user auth.User, s db.Setting, users []db.ListUsersRow) {
 				</div>
 			</div>
 			if user.IsAdmin() {
-				@components.Modal("user_add_modal", "Add New User", "bg-base-100") {
+				@components.Modal(components.ModalProps{
+					ID:       "user_add_modal",
+					Title:    "Add New User",
+					BoxClass: "bg-base-100",
+				}) {
 					<form action="/settings/users" method="POST" class="space-y-5">
 						<div class="form-control w-full">
 							<label class="label pt-0 pb-2">

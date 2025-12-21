@@ -65,7 +65,10 @@ templ Hardware(user auth.User, controllers []db.Controller) {
 				@components.EmptyState("No controllers found", "Add your first WLED device!", "🔌")
 			}
 		</div>
-		@components.Modal("add_controller_modal", "Add New Controller", "") {
+		@components.Modal(components.ModalProps{
+			ID:    "add_controller_modal",
+			Title: "Add New Controller",
+		}) {
 			<form action="/hardware" method="POST" class="space-y-4">
 				<div class="form-control">
 					<label class="label"><span class="label-text">Name</span></label>

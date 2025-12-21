@@ -3293,6 +3293,12 @@
     font-size: var(--text-xs);
     line-height: var(--tw-leading, var(--text-xs--line-height));
   }
+  .badge-md {
+    @layer daisyui.l1.l2 {
+      --size: calc(var(--size-selector, 0.25rem) * 6);
+      font-size: 0.875rem;
+    }
+  }
   .badge-sm {
     @layer daisyui.l1.l2 {
       --size: calc(var(--size-selector, 0.25rem) * 5);
@@ -3304,6 +3310,9 @@
   }
   .text-\[10px\] {
     font-size: 10px;
+  }
+  .text-\[12px\] {
+    font-size: 12px;
   }
   .leading-relaxed {
     --tw-leading: var(--leading-relaxed);
@@ -4074,12 +4083,12 @@
       line-height: var(--tw-leading, var(--text-lg--line-height));
     }
   }
-  .md\:btn-xs {
+  .md\:btn-sm {
     @media (width >= 48rem) {
       @layer daisyui.l1.l2 {
-        --fontsize: 0.6875rem;
-        --btn-p: 0.5rem;
-        --size: calc(var(--size-field, 0.25rem) * 6);
+        --fontsize: 0.75rem;
+        --btn-p: 0.75rem;
+        --size: calc(var(--size-field, 0.25rem) * 8);
       }
     }
   }

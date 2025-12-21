@@ -1,18 +1,21 @@
 package components
 
+type ModalProps struct {
+	ID         string
+	Title      string
+	TitleClass string // Optional: e.g. "text-warning"
+	BoxClass   string // Optional: e.g. "w-11/12 max-w-5xl"
+}
+
 // Modal renders a standard DaisyUI dialog.
-// id: The unique ID for the dialog element.
-// title: The modal title.
-// boxClass: Optional classes for the modal box (e.g. "w-11/12 max-w-5xl"). Defaults to standard size.
-// content: The body of the modal passed as children.
-templ Modal(id string, title string, boxClass string) {
-	<dialog id={ id } class="modal text-left">
-		<div class={ "modal-box bg-base-100", boxClass }>
+templ Modal(props ModalProps) {
+	<dialog id={ props.ID } class="modal text-left">
+		<div class={ "modal-box bg-base-100", props.BoxClass }>
 			<form method="dialog">
 				<button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
 			</form>
-			if title != "" {
-				<h3 class="font-bold text-lg mb-6">{ title }</h3>
+			if props.Title != "" {
+				<h3 class={ "font-bold text-lg mb-6", props.TitleClass }>{ props.Title }</h3>
 			}
 			{ children... }
 		</div>

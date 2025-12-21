@@ -49,7 +49,7 @@ build:
 	@echo "Building for production..."
 	@templ generate
 	@npx @tailwindcss/cli -i web/static/css/input.css -o web/static/css/output.css --minify
-	@go build -tags fts5 -o bin/wledger cmd/server/main.go
+	@go build -tags fts5 -o bin/wledger ./cmd/server
 	@echo "Build complete: bin/wledger"
 
 # Run tests

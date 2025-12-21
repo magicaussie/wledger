@@ -1,0 +1,39 @@
+package components
+
+import "fmt"
+
+type DeleteButtonProps struct {
+	ID          string // Unique ID for the item (e.g. "123")
+	TargetURL   string // URL for the POST action
+	Message     string // "Are you sure..."
+	ButtonLabel string // Label for the trigger button (e.g. "Delete")
+}
+
+templ DeleteButton(props DeleteButtonProps) {
+	// define a unique ID for the modal based on the part ID
+	// "id" variable cannot be defined inside the return, so use the expression directly in the @Modal call
+	// This ensures that each modal has a unique ID based on the item ID
+	<button
+		type="button"
+		class="btn btn-outline btn-error"
+		@click={ fmt.Sprintf("document.getElementById('delete_modal_%s').showModal()", props.ID) }
+	>
+		<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+		{ props.ButtonLabel }
+	</button>
+	@Modal(ModalProps{ID: fmt.Sprintf("delete_modal_%s", props.ID), Title: "Confirm Delete"}) {
+		<p class="py-4 text-base-content/80">
+			{ props.Message }
+		</p>
+		<div class="modal-action">
+			<form method="dialog">
+				<button class="btn">Cancel</button>
+			</form>
+			<form action={ templ.SafeURL(props.TargetURL) } method="POST">
+				<button type="submit" class="btn btn-error">
+					Confirm
+				</button>
+			</form>
+		</div>
+	}
+}
