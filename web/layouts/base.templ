@@ -3,6 +3,7 @@ package layouts
 import (
 	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/web/components"
+	"github.com/tuxedocurly/wledger/web/icons"
 )
 
 templ Base(title string, user auth.User) {
@@ -43,7 +44,7 @@ templ Base(title string, user auth.User) {
 					<div class="md:hidden flex items-center h-16 px-4 border-b border-base-300 bg-base-200 shrink-0 w-full">
 						<div class="flex-1 flex justify-start">
 							<label for="main-drawer" class="btn btn-square btn-ghost drawer-button">
-								<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-6 h-6 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+								@icons.MainDrawerIcon(6)
 							</label>
 						</div>
 						<div class="shrink-0">

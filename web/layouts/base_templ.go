@@ -11,6 +11,7 @@ import templruntime "github.com/a-h/templ/runtime"
 import (
 	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/web/components"
+	"github.com/tuxedocurly/wledger/web/icons"
 )
 
 func Base(title string, user auth.User) templ.Component {
@@ -41,13 +42,21 @@ func Base(title string, user auth.User) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/layouts/base.templ`, Line: 14, Col: 17}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/layouts/base.templ`, Line: 15, Col: 17}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, " | WLEDger</title><link rel=\"icon\" href=\"/static/img/favicon.ico\"><link href=\"/static/css/output.css\" rel=\"stylesheet\"><script src=\"https://unpkg.com/htmx.org@2.0.4\"></script><script src=\"https://unpkg.com/alpinejs@3.14.8/dist/cdn.min.js\" defer></script><script src=\"https://unpkg.com/html5-qrcode\" type=\"text/javascript\"></script><script>\n                const savedTheme = localStorage.getItem('theme') || 'dark';\n                document.documentElement.setAttribute('data-theme', savedTheme);\n            </script><style id=\"dynamic-colors\">\n            :root {\n                --color-locate: #0000FF;\n                --color-stock-ok: #00FF00;\n                --color-stock-low: #FFFF00;\n                --color-stock-critical: #FF0000;\n            }\n            [x-cloak] { display: none !important; }\n            .custom-scrollbar::-webkit-scrollbar { width: 4px; }\n            .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }\n            .custom-scrollbar::-webkit-scrollbar-thumb { background: oklch(var(--bc) / 0.2); border-radius: 4px; }\n            .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: oklch(var(--bc) / 0.4); }\n            </style></head><body class=\"bg-base-100 text-base-content font-sans\" x-data=\"{}\"><div id=\"toast-container\" class=\"toast toast-end z-[100]\"></div><div class=\"drawer md:drawer-open h-screen overflow-hidden\"><input id=\"main-drawer\" type=\"checkbox\" class=\"drawer-toggle\"><div class=\"drawer-content flex flex-col h-full overflow-hidden\"><div class=\"md:hidden flex items-center h-16 px-4 border-b border-base-300 bg-base-200 shrink-0 w-full\"><div class=\"flex-1 flex justify-start\"><label for=\"main-drawer\" class=\"btn btn-square btn-ghost drawer-button\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 24 24\" class=\"inline-block w-6 h-6 stroke-current\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M4 6h16M4 12h16M4 18h16\"></path></svg></label></div><div class=\"shrink-0\"><a href=\"/\" class=\"flex items-center hover:opacity-80 transition-opacity\"><img src=\"/static/img/wledger-name-rainbow.png\" alt=\"WLEDger\" class=\"h-6 w-auto object-contain\"></a></div><div class=\"flex-1\"></div></div><main id=\"main-content\" class=\"flex-1 overflow-y-auto p-4 md:p-8\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, " | WLEDger</title><link rel=\"icon\" href=\"/static/img/favicon.ico\"><link href=\"/static/css/output.css\" rel=\"stylesheet\"><script src=\"https://unpkg.com/htmx.org@2.0.4\"></script><script src=\"https://unpkg.com/alpinejs@3.14.8/dist/cdn.min.js\" defer></script><script src=\"https://unpkg.com/html5-qrcode\" type=\"text/javascript\"></script><script>\n                const savedTheme = localStorage.getItem('theme') || 'dark';\n                document.documentElement.setAttribute('data-theme', savedTheme);\n            </script><style id=\"dynamic-colors\">\n            :root {\n                --color-locate: #0000FF;\n                --color-stock-ok: #00FF00;\n                --color-stock-low: #FFFF00;\n                --color-stock-critical: #FF0000;\n            }\n            [x-cloak] { display: none !important; }\n            .custom-scrollbar::-webkit-scrollbar { width: 4px; }\n            .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }\n            .custom-scrollbar::-webkit-scrollbar-thumb { background: oklch(var(--bc) / 0.2); border-radius: 4px; }\n            .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: oklch(var(--bc) / 0.4); }\n            </style></head><body class=\"bg-base-100 text-base-content font-sans\" x-data=\"{}\"><div id=\"toast-container\" class=\"toast toast-end z-[100]\"></div><div class=\"drawer md:drawer-open h-screen overflow-hidden\"><input id=\"main-drawer\" type=\"checkbox\" class=\"drawer-toggle\"><div class=\"drawer-content flex flex-col h-full overflow-hidden\"><div class=\"md:hidden flex items-center h-16 px-4 border-b border-base-300 bg-base-200 shrink-0 w-full\"><div class=\"flex-1 flex justify-start\"><label for=\"main-drawer\" class=\"btn btn-square btn-ghost drawer-button\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = icons.MainDrawerIcon(6).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</label></div><div class=\"shrink-0\"><a href=\"/\" class=\"flex items-center hover:opacity-80 transition-opacity\"><img src=\"/static/img/wledger-name-rainbow.png\" alt=\"WLEDger\" class=\"h-6 w-auto object-contain\"></a></div><div class=\"flex-1\"></div></div><main id=\"main-content\" class=\"flex-1 overflow-y-auto p-4 md:p-8\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -55,7 +64,7 @@ func Base(title string, user auth.User) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</main></div><div class=\"drawer-side z-40 h-full\"><label for=\"main-drawer\" aria-label=\"close sidebar\" class=\"drawer-overlay\"></label>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</main></div><div class=\"drawer-side z-40 h-full\"><label for=\"main-drawer\" aria-label=\"close sidebar\" class=\"drawer-overlay\"></label>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -63,7 +72,7 @@ func Base(title string, user auth.User) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</div></div></body></html>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</div></div></body></html>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

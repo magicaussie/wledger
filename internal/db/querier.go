@@ -16,6 +16,7 @@ type Querier interface {
 	CreateAuditLog(ctx context.Context, arg CreateAuditLogParams) error
 	CreateBin(ctx context.Context, arg CreateBinParams) (int64, error)
 	CreateController(ctx context.Context, arg CreateControllerParams) (CreateControllerRow, error)
+	CreateInspirationTemplate(ctx context.Context, arg CreateInspirationTemplateParams) (InspirationTemplate, error)
 	CreatePart(ctx context.Context, arg CreatePartParams) (int64, error)
 	CreatePartAssignment(ctx context.Context, arg CreatePartAssignmentParams) error
 	// DOCUMENTS
@@ -30,6 +31,7 @@ type Querier interface {
 	DeleteBinByLed(ctx context.Context, arg DeleteBinByLedParams) error
 	DeleteBinsByController(ctx context.Context, controllerID sql.NullInt64) error
 	DeleteController(ctx context.Context, id int64) error
+	DeleteInspirationTemplate(ctx context.Context, id int64) error
 	DeletePart(ctx context.Context, id int64) error
 	DeletePartAssignment(ctx context.Context, arg DeletePartAssignmentParams) error
 	DeletePartDoc(ctx context.Context, id int64) error
@@ -39,6 +41,7 @@ type Querier interface {
 	DeleteUser(ctx context.Context, id int64) error
 	GetAllAuditLogs(ctx context.Context) ([]AuditLog, error)
 	GetAllBins(ctx context.Context) ([]Bin, error)
+	GetAllInspirationTemplates(ctx context.Context) ([]InspirationTemplate, error)
 	GetAllPartAiPrompts(ctx context.Context) ([]PartAiPrompt, error)
 	// STOCK ASSIGNMENTS
 	GetAllPartAssignments(ctx context.Context) ([]PartAssignment, error)
@@ -55,11 +58,14 @@ type Querier interface {
 	GetControllers(ctx context.Context) ([]Controller, error)
 	GetDashboardGrid(ctx context.Context) ([]GetDashboardGridRow, error)
 	GetDashboardStats(ctx context.Context) (GetDashboardStatsRow, error)
+	GetInspirationTemplate(ctx context.Context, id int64) (InspirationTemplate, error)
 	GetPart(ctx context.Context, id int64) (Part, error)
 	GetPartAssignments(ctx context.Context, partID int64) ([]GetPartAssignmentsRow, error)
 	GetPartDoc(ctx context.Context, id int64) (PartDoc, error)
 	GetPartDocs(ctx context.Context, partID int64) ([]PartDoc, error)
 	GetPartLinks(ctx context.Context, partID int64) ([]PartLink, error)
+	GetPartsForInspirationAll(ctx context.Context) ([]GetPartsForInspirationAllRow, error)
+	GetPartsForInspirationFiltered(ctx context.Context, tags []string) ([]GetPartsForInspirationFilteredRow, error)
 	// SESSION QUERIES
 	GetSession(ctx context.Context, token string) (Session, error)
 	GetSettings(ctx context.Context) (Setting, error)
@@ -91,6 +97,7 @@ type Querier interface {
 	UpdateControllerConfig(ctx context.Context, arg UpdateControllerConfigParams) error
 	UpdateControllerStatus(ctx context.Context, arg UpdateControllerStatusParams) error
 	UpdateGeneralSettings(ctx context.Context, arg UpdateGeneralSettingsParams) error
+	UpdateInspirationTemplate(ctx context.Context, arg UpdateInspirationTemplateParams) error
 	UpdatePart(ctx context.Context, arg UpdatePartParams) error
 	UpdatePartAssignmentQuantity(ctx context.Context, arg UpdatePartAssignmentQuantityParams) error
 	UpdatePartLink(ctx context.Context, arg UpdatePartLinkParams) error

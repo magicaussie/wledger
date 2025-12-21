@@ -121,7 +121,7 @@ templ CommunityLinks() {
 	<li>
 		<a href="https://github.com/tuxedocurly/wledger/issues/new" target="_blank" class="text-base-content/70">
 			@icons.GithubIcon(5)
-			Report Bug
+			Feedback
 		</a>
 	</li>
 	<li>
@@ -149,6 +149,12 @@ templ NavLinks(user auth.User) {
 		<a href="/parts">
 			@icons.BoxIcon(5)
 			Inventory
+		</a>
+	</li>
+	<li>
+		<a href="/inspiration">
+			@icons.LightbulbIcon(5)
+			Inspiration
 		</a>
 	</li>
 	if user.CanConfigure() {

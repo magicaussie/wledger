@@ -15,7 +15,7 @@ import (
 func Log(ctx context.Context, q *db.Queries, action, entityType string, entityID int64, details string, oldVal, newVal any) {
 	// Extract userID
 	var userID int64
-	if id, ok := ctx.Value(middleware.UserContextKey).(int); ok {
+	if id, ok := ctx.Value(middleware.UserContextKey).(int64); ok {
 		userID = int64(id)
 	}
 

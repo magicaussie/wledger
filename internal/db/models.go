@@ -43,6 +43,13 @@ type Controller struct {
 	CreatedAt  sql.NullTime   `json:"created_at"`
 }
 
+type InspirationTemplate struct {
+	ID              int64        `json:"id"`
+	Title           string       `json:"title"`
+	TemplateContent string       `json:"template_content"`
+	CreatedAt       sql.NullTime `json:"created_at"`
+}
+
 type Part struct {
 	ID                int64           `json:"id"`
 	Name              string          `json:"name"`

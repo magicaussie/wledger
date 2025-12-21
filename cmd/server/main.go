@@ -17,6 +17,7 @@ import (
 	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/images"
+	"github.com/tuxedocurly/wledger/internal/inspiration"
 	"github.com/tuxedocurly/wledger/internal/logger"
 	"github.com/tuxedocurly/wledger/internal/middleware"
 	"github.com/tuxedocurly/wledger/internal/parts"
@@ -26,14 +27,15 @@ import (
 
 // application holds shared dependencies
 type application struct {
-	logger   *slog.Logger
-	queries  *db.Queries
-	session  *scs.SessionManager
-	wled     *wled.Client
-	database *sql.DB
-	backup   backup.Service
-	parts    parts.Service
-	tags     tags.Service
+	logger      *slog.Logger
+	queries     *db.Queries
+	session     *scs.SessionManager
+	wled        *wled.Client
+	database    *sql.DB
+	backup      backup.Service
+	parts       parts.Service
+	tags        tags.Service
+	inspiration inspiration.Service
 }
 
 func main() {
@@ -79,16 +81,20 @@ func main() {
 	// Parts Service
 	partsService := parts.NewService(database, queries, log, tagsService)
 
+	// Inspiration Service
+	inspirationService := inspiration.NewService(queries)
+
 	// app struct
 	app := &application{
-		logger:   log,
-		queries:  queries,
-		session:  sessionManager,
-		wled:     wledClient,
-		database: database,
-		backup:   backupService,
-		parts:    partsService,
-		tags:     tagsService,
+		logger:      log,
+		queries:     queries,
+		session:     sessionManager,
+		wled:        wledClient,
+		database:    database,
+		backup:      backupService,
+		parts:       partsService,
+		tags:        tagsService,
+		inspiration: inspirationService,
 	}
 
 	// Middleware Manager
@@ -151,6 +157,10 @@ func main() {
 		r.Get("/hardware/{id}/status", app.handleHardwareStatus)
 		r.Get("/hardware/{id}/grid", app.handleHardwareGrid)
 		r.Post("/hardware/off", app.handleGlobalOff)
+
+		// Inspiration
+		r.Get("/inspiration", app.handleInspiration)
+		r.Get("/inspiration/{id}/generate", app.handleInspirationGenerate)
 	})
 
 	// -------------------------------------------------------------------------
@@ -188,7 +198,6 @@ func main() {
 			r.Post("/parts/import", app.handlePartsImport)                 // Bulk Import
 
 			r.Get("/parts/{id}/edit", app.handlePartEdit)
-			// UPDATED: Changed from /edit to /update to match the form action
 			r.Post("/parts/{id}/update", app.handlePartUpdate)
 
 			r.Post("/parts/{id}/delete", app.handlePartDelete)
@@ -201,6 +210,13 @@ func main() {
 			r.Post("/parts/{id}/assign", app.handlePartAssign)
 			r.Post("/parts/{id}/stock/{assignment_id}/move", app.handlePartStockMove)
 			r.Post("/parts/{id}/stock/{assignment_id}/delete", app.handlePartStockRemove)
+
+			// Inspiration CRUD
+			r.Get("/inspiration/new", app.handleInspirationNew)
+			r.Post("/inspiration", app.handleInspirationCreate)
+			r.Get("/inspiration/{id}/edit", app.handleInspirationEdit)
+			r.Put("/inspiration/{id}", app.handleInspirationUpdate)
+			r.Delete("/inspiration/{id}", app.handleInspirationDelete)
 		})
 
 		// -----------------------------------------------------------

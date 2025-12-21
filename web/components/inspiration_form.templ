@@ -1,0 +1,131 @@
+package components
+
+import (
+	"fmt"
+	"github.com/tuxedocurly/wledger/internal/db"
+	"github.com/tuxedocurly/wledger/web/icons"
+)
+
+// InspirationFormModal renders a modal for creating or editing an inspiration template.
+// If tmpl is nil, it renders a "Create" form.
+// If tmpl is provided, it renders an "Edit" form.
+templ InspirationFormModal(tmpl *db.InspirationTemplate) {
+	<div class="modal modal-open">
+		<div class="modal-box max-w-2xl relative">
+			<button
+				class="btn btn-sm btn-circle absolute right-2 top-2"
+				onclick="this.closest('.modal').remove()"
+			>✕</button>
+			<h3 class="text-lg font-bold mb-4">
+				if tmpl == nil {
+					Add New Inspiration Prompt
+				} else {
+					Edit Prompt: { tmpl.Title }
+				}
+			</h3>
+			<form
+				if tmpl == nil {
+					hx-post="/inspiration"
+				} else {
+					hx-put={ fmt.Sprintf("/inspiration/%d", tmpl.ID) }
+				}
+				hx-target="closest .modal"
+				hx-swap="outerHTML"
+				class="space-y-4"
+			>
+				<div class="form-control w-full">
+					<label class="label pb-1">
+						<span class="label-text font-medium">Title</span>
+					</label>
+					<input
+						type="text"
+						name="title"
+						placeholder="e.g., Project Ideas"
+						class="input input-bordered w-full"
+						required
+						if tmpl != nil {
+							value={ tmpl.Title }
+						}
+					/>
+				</div>
+				<div class="form-control w-full">
+					<label class="label pb-1">
+						<span class="label-text font-medium">Prompt Template</span>
+					</label>
+					<textarea
+						name="content"
+						class="textarea textarea-bordered h-48 font-mono text-sm w-full"
+						placeholder="Enter your prompt here..."
+						required
+					>
+						if tmpl != nil {
+							{ tmpl.TemplateContent }
+						}
+					</textarea>
+					<label class="label mt-1">
+						<span class="label-text-alt opacity-70">The inventory list will be appended to the end of this text automatically.</span>
+					</label>
+				</div>
+				<div class="modal-action">
+					<button type="button" class="btn" onclick="this.closest('.modal').remove()">Cancel</button>
+					<button type="submit" class="btn btn-primary">
+						if tmpl == nil {
+							Create
+						} else {
+							Save Changes
+						}
+					</button>
+				</div>
+			</form>
+		</div>
+		<!-- Backdrop click to close -->
+		<div class="modal-backdrop" onclick="this.closest('.modal').remove()"></div>
+	</div>
+}
+
+// InspirationCard renders a single inspiration card.
+// This is used for HTMX updates to replace just the card after edit.
+templ InspirationCard(t db.InspirationTemplate, canWrite bool) {
+	<div class="card bg-base-200 shadow-md hover:shadow-lg transition-shadow border border-base-300">
+		<div class="card-body">
+			<div class="flex justify-between items-start">
+				<h2 class="card-title text-primary">
+					{ t.Title }
+				</h2>
+				if canWrite {
+					<div class="flex gap-1">
+						<button
+							class="btn btn-outline btn-primary btn-xs btn-square mr-2"
+							hx-get={ fmt.Sprintf("/inspiration/%d/edit", t.ID) }
+							hx-target="body"
+							hx-swap="beforeend"
+						>
+							@icons.PencilIcon(4)
+						</button>
+						<button
+							class="btn btn-outline btn-error btn-xs btn-square"
+							hx-delete={ fmt.Sprintf("/inspiration/%d", t.ID) }
+							hx-confirm="Are you sure you want to delete this template?"
+							hx-target="closest .card"
+							hx-swap="outerHTML"
+						>
+							@icons.TrashIcon(4)
+						</button>
+					</div>
+				}
+			</div>
+			<p class="text-sm text-gray-500 line-clamp-3 mb-4">
+				{ t.TemplateContent }
+			</p>
+			<div class="card-actions justify-end mt-auto">
+				<button
+					@click={ fmt.Sprintf("copyPrompt(%d)", t.ID) }
+					class="btn btn-primary btn-sm gap-2 w-full md:w-auto"
+				>
+					@icons.ClipboardIcon(4)
+					Copy Prompt
+				</button>
+			</div>
+		</div>
+	</div>
+}

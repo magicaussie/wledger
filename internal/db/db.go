@@ -42,6 +42,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.createControllerStmt, err = db.PrepareContext(ctx, createController); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateController: %w", err)
 	}
+	if q.createInspirationTemplateStmt, err = db.PrepareContext(ctx, createInspirationTemplate); err != nil {
+		return nil, fmt.Errorf("error preparing query CreateInspirationTemplate: %w", err)
+	}
 	if q.createPartStmt, err = db.PrepareContext(ctx, createPart); err != nil {
 		return nil, fmt.Errorf("error preparing query CreatePart: %w", err)
 	}
@@ -78,6 +81,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.deleteControllerStmt, err = db.PrepareContext(ctx, deleteController); err != nil {
 		return nil, fmt.Errorf("error preparing query DeleteController: %w", err)
 	}
+	if q.deleteInspirationTemplateStmt, err = db.PrepareContext(ctx, deleteInspirationTemplate); err != nil {
+		return nil, fmt.Errorf("error preparing query DeleteInspirationTemplate: %w", err)
+	}
 	if q.deletePartStmt, err = db.PrepareContext(ctx, deletePart); err != nil {
 		return nil, fmt.Errorf("error preparing query DeletePart: %w", err)
 	}
@@ -104,6 +110,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.getAllBinsStmt, err = db.PrepareContext(ctx, getAllBins); err != nil {
 		return nil, fmt.Errorf("error preparing query GetAllBins: %w", err)
+	}
+	if q.getAllInspirationTemplatesStmt, err = db.PrepareContext(ctx, getAllInspirationTemplates); err != nil {
+		return nil, fmt.Errorf("error preparing query GetAllInspirationTemplates: %w", err)
 	}
 	if q.getAllPartAiPromptsStmt, err = db.PrepareContext(ctx, getAllPartAiPrompts); err != nil {
 		return nil, fmt.Errorf("error preparing query GetAllPartAiPrompts: %w", err)
@@ -150,6 +159,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.getDashboardStatsStmt, err = db.PrepareContext(ctx, getDashboardStats); err != nil {
 		return nil, fmt.Errorf("error preparing query GetDashboardStats: %w", err)
 	}
+	if q.getInspirationTemplateStmt, err = db.PrepareContext(ctx, getInspirationTemplate); err != nil {
+		return nil, fmt.Errorf("error preparing query GetInspirationTemplate: %w", err)
+	}
 	if q.getPartStmt, err = db.PrepareContext(ctx, getPart); err != nil {
 		return nil, fmt.Errorf("error preparing query GetPart: %w", err)
 	}
@@ -164,6 +176,12 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.getPartLinksStmt, err = db.PrepareContext(ctx, getPartLinks); err != nil {
 		return nil, fmt.Errorf("error preparing query GetPartLinks: %w", err)
+	}
+	if q.getPartsForInspirationAllStmt, err = db.PrepareContext(ctx, getPartsForInspirationAll); err != nil {
+		return nil, fmt.Errorf("error preparing query GetPartsForInspirationAll: %w", err)
+	}
+	if q.getPartsForInspirationFilteredStmt, err = db.PrepareContext(ctx, getPartsForInspirationFiltered); err != nil {
+		return nil, fmt.Errorf("error preparing query GetPartsForInspirationFiltered: %w", err)
 	}
 	if q.getSessionStmt, err = db.PrepareContext(ctx, getSession); err != nil {
 		return nil, fmt.Errorf("error preparing query GetSession: %w", err)
@@ -255,6 +273,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.updateGeneralSettingsStmt, err = db.PrepareContext(ctx, updateGeneralSettings); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateGeneralSettings: %w", err)
 	}
+	if q.updateInspirationTemplateStmt, err = db.PrepareContext(ctx, updateInspirationTemplate); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateInspirationTemplate: %w", err)
+	}
 	if q.updatePartStmt, err = db.PrepareContext(ctx, updatePart); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdatePart: %w", err)
 	}
@@ -303,6 +324,11 @@ func (q *Queries) Close() error {
 	if q.createControllerStmt != nil {
 		if cerr := q.createControllerStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing createControllerStmt: %w", cerr)
+		}
+	}
+	if q.createInspirationTemplateStmt != nil {
+		if cerr := q.createInspirationTemplateStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing createInspirationTemplateStmt: %w", cerr)
 		}
 	}
 	if q.createPartStmt != nil {
@@ -365,6 +391,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing deleteControllerStmt: %w", cerr)
 		}
 	}
+	if q.deleteInspirationTemplateStmt != nil {
+		if cerr := q.deleteInspirationTemplateStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing deleteInspirationTemplateStmt: %w", cerr)
+		}
+	}
 	if q.deletePartStmt != nil {
 		if cerr := q.deletePartStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing deletePartStmt: %w", cerr)
@@ -408,6 +439,11 @@ func (q *Queries) Close() error {
 	if q.getAllBinsStmt != nil {
 		if cerr := q.getAllBinsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getAllBinsStmt: %w", cerr)
+		}
+	}
+	if q.getAllInspirationTemplatesStmt != nil {
+		if cerr := q.getAllInspirationTemplatesStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getAllInspirationTemplatesStmt: %w", cerr)
 		}
 	}
 	if q.getAllPartAiPromptsStmt != nil {
@@ -485,6 +521,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing getDashboardStatsStmt: %w", cerr)
 		}
 	}
+	if q.getInspirationTemplateStmt != nil {
+		if cerr := q.getInspirationTemplateStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getInspirationTemplateStmt: %w", cerr)
+		}
+	}
 	if q.getPartStmt != nil {
 		if cerr := q.getPartStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getPartStmt: %w", cerr)
@@ -508,6 +549,16 @@ func (q *Queries) Close() error {
 	if q.getPartLinksStmt != nil {
 		if cerr := q.getPartLinksStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getPartLinksStmt: %w", cerr)
+		}
+	}
+	if q.getPartsForInspirationAllStmt != nil {
+		if cerr := q.getPartsForInspirationAllStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getPartsForInspirationAllStmt: %w", cerr)
+		}
+	}
+	if q.getPartsForInspirationFilteredStmt != nil {
+		if cerr := q.getPartsForInspirationFilteredStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getPartsForInspirationFilteredStmt: %w", cerr)
 		}
 	}
 	if q.getSessionStmt != nil {
@@ -660,6 +711,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing updateGeneralSettingsStmt: %w", cerr)
 		}
 	}
+	if q.updateInspirationTemplateStmt != nil {
+		if cerr := q.updateInspirationTemplateStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateInspirationTemplateStmt: %w", cerr)
+		}
+	}
 	if q.updatePartStmt != nil {
 		if cerr := q.updatePartStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing updatePartStmt: %w", cerr)
@@ -722,177 +778,191 @@ func (q *Queries) queryRow(ctx context.Context, stmt *sql.Stmt, query string, ar
 }
 
 type Queries struct {
-	db                               DBTX
-	tx                               *sql.Tx
-	addTagToPartStmt                 *sql.Stmt
-	cleanupSessionsStmt              *sql.Stmt
-	countUsersStmt                   *sql.Stmt
-	createAuditLogStmt               *sql.Stmt
-	createBinStmt                    *sql.Stmt
-	createControllerStmt             *sql.Stmt
-	createPartStmt                   *sql.Stmt
-	createPartAssignmentStmt         *sql.Stmt
-	createPartDocStmt                *sql.Stmt
-	createPartLinkStmt               *sql.Stmt
-	createSessionStmt                *sql.Stmt
-	createTagStmt                    *sql.Stmt
-	createUserStmt                   *sql.Stmt
-	deleteAssignmentStmt             *sql.Stmt
-	deleteBinStmt                    *sql.Stmt
-	deleteBinByLedStmt               *sql.Stmt
-	deleteBinsByControllerStmt       *sql.Stmt
-	deleteControllerStmt             *sql.Stmt
-	deletePartStmt                   *sql.Stmt
-	deletePartAssignmentStmt         *sql.Stmt
-	deletePartDocStmt                *sql.Stmt
-	deletePartLinkStmt               *sql.Stmt
-	deleteSessionStmt                *sql.Stmt
-	deleteUnusedTagsStmt             *sql.Stmt
-	deleteUserStmt                   *sql.Stmt
-	getAllAuditLogsStmt              *sql.Stmt
-	getAllBinsStmt                   *sql.Stmt
-	getAllPartAiPromptsStmt          *sql.Stmt
-	getAllPartAssignmentsStmt        *sql.Stmt
-	getAllPartDocsStmt               *sql.Stmt
-	getAllPartLinksStmt              *sql.Stmt
-	getAllPartTagsStmt               *sql.Stmt
-	getAllPartsStmt                  *sql.Stmt
-	getAllUsersStmt                  *sql.Stmt
-	getAssignmentStmt                *sql.Stmt
-	getAssignmentIDStmt              *sql.Stmt
-	getBinStmt                       *sql.Stmt
-	getBinsByControllerStmt          *sql.Stmt
-	getControllerStmt                *sql.Stmt
-	getControllersStmt               *sql.Stmt
-	getDashboardGridStmt             *sql.Stmt
-	getDashboardStatsStmt            *sql.Stmt
-	getPartStmt                      *sql.Stmt
-	getPartAssignmentsStmt           *sql.Stmt
-	getPartDocStmt                   *sql.Stmt
-	getPartDocsStmt                  *sql.Stmt
-	getPartLinksStmt                 *sql.Stmt
-	getSessionStmt                   *sql.Stmt
-	getSettingsStmt                  *sql.Stmt
-	getTagByNameStmt                 *sql.Stmt
-	getTagsForPartStmt               *sql.Stmt
-	getUserStmt                      *sql.Stmt
-	getUserByEmailStmt               *sql.Stmt
-	initSettingsStmt                 *sql.Stmt
-	listAllTagsStmt                  *sql.Stmt
-	listPartsStmt                    *sql.Stmt
-	listUsersStmt                    *sql.Stmt
-	reassignPartAssignmentStmt       *sql.Stmt
-	removeTagsFromPartStmt           *sql.Stmt
-	restoreAuditLogStmt              *sql.Stmt
-	restoreBinStmt                   *sql.Stmt
-	restoreControllerStmt            *sql.Stmt
-	restorePartStmt                  *sql.Stmt
-	restorePartAiPromptStmt          *sql.Stmt
-	restorePartAssignmentStmt        *sql.Stmt
-	restorePartDocStmt               *sql.Stmt
-	restorePartLinkStmt              *sql.Stmt
-	restorePartTagStmt               *sql.Stmt
-	restoreSettingsStmt              *sql.Stmt
-	restoreTagStmt                   *sql.Stmt
-	restoreUserStmt                  *sql.Stmt
-	searchPartsStmt                  *sql.Stmt
-	setPasswordResetFlagStmt         *sql.Stmt
-	updateColorsStmt                 *sql.Stmt
-	updateControllerConfigStmt       *sql.Stmt
-	updateControllerStatusStmt       *sql.Stmt
-	updateGeneralSettingsStmt        *sql.Stmt
-	updatePartStmt                   *sql.Stmt
-	updatePartAssignmentQuantityStmt *sql.Stmt
-	updatePartLinkStmt               *sql.Stmt
-	updateUserPasswordStmt           *sql.Stmt
-	upsertBinStmt                    *sql.Stmt
+	db                                 DBTX
+	tx                                 *sql.Tx
+	addTagToPartStmt                   *sql.Stmt
+	cleanupSessionsStmt                *sql.Stmt
+	countUsersStmt                     *sql.Stmt
+	createAuditLogStmt                 *sql.Stmt
+	createBinStmt                      *sql.Stmt
+	createControllerStmt               *sql.Stmt
+	createInspirationTemplateStmt      *sql.Stmt
+	createPartStmt                     *sql.Stmt
+	createPartAssignmentStmt           *sql.Stmt
+	createPartDocStmt                  *sql.Stmt
+	createPartLinkStmt                 *sql.Stmt
+	createSessionStmt                  *sql.Stmt
+	createTagStmt                      *sql.Stmt
+	createUserStmt                     *sql.Stmt
+	deleteAssignmentStmt               *sql.Stmt
+	deleteBinStmt                      *sql.Stmt
+	deleteBinByLedStmt                 *sql.Stmt
+	deleteBinsByControllerStmt         *sql.Stmt
+	deleteControllerStmt               *sql.Stmt
+	deleteInspirationTemplateStmt      *sql.Stmt
+	deletePartStmt                     *sql.Stmt
+	deletePartAssignmentStmt           *sql.Stmt
+	deletePartDocStmt                  *sql.Stmt
+	deletePartLinkStmt                 *sql.Stmt
+	deleteSessionStmt                  *sql.Stmt
+	deleteUnusedTagsStmt               *sql.Stmt
+	deleteUserStmt                     *sql.Stmt
+	getAllAuditLogsStmt                *sql.Stmt
+	getAllBinsStmt                     *sql.Stmt
+	getAllInspirationTemplatesStmt     *sql.Stmt
+	getAllPartAiPromptsStmt            *sql.Stmt
+	getAllPartAssignmentsStmt          *sql.Stmt
+	getAllPartDocsStmt                 *sql.Stmt
+	getAllPartLinksStmt                *sql.Stmt
+	getAllPartTagsStmt                 *sql.Stmt
+	getAllPartsStmt                    *sql.Stmt
+	getAllUsersStmt                    *sql.Stmt
+	getAssignmentStmt                  *sql.Stmt
+	getAssignmentIDStmt                *sql.Stmt
+	getBinStmt                         *sql.Stmt
+	getBinsByControllerStmt            *sql.Stmt
+	getControllerStmt                  *sql.Stmt
+	getControllersStmt                 *sql.Stmt
+	getDashboardGridStmt               *sql.Stmt
+	getDashboardStatsStmt              *sql.Stmt
+	getInspirationTemplateStmt         *sql.Stmt
+	getPartStmt                        *sql.Stmt
+	getPartAssignmentsStmt             *sql.Stmt
+	getPartDocStmt                     *sql.Stmt
+	getPartDocsStmt                    *sql.Stmt
+	getPartLinksStmt                   *sql.Stmt
+	getPartsForInspirationAllStmt      *sql.Stmt
+	getPartsForInspirationFilteredStmt *sql.Stmt
+	getSessionStmt                     *sql.Stmt
+	getSettingsStmt                    *sql.Stmt
+	getTagByNameStmt                   *sql.Stmt
+	getTagsForPartStmt                 *sql.Stmt
+	getUserStmt                        *sql.Stmt
+	getUserByEmailStmt                 *sql.Stmt
+	initSettingsStmt                   *sql.Stmt
+	listAllTagsStmt                    *sql.Stmt
+	listPartsStmt                      *sql.Stmt
+	listUsersStmt                      *sql.Stmt
+	reassignPartAssignmentStmt         *sql.Stmt
+	removeTagsFromPartStmt             *sql.Stmt
+	restoreAuditLogStmt                *sql.Stmt
+	restoreBinStmt                     *sql.Stmt
+	restoreControllerStmt              *sql.Stmt
+	restorePartStmt                    *sql.Stmt
+	restorePartAiPromptStmt            *sql.Stmt
+	restorePartAssignmentStmt          *sql.Stmt
+	restorePartDocStmt                 *sql.Stmt
+	restorePartLinkStmt                *sql.Stmt
+	restorePartTagStmt                 *sql.Stmt
+	restoreSettingsStmt                *sql.Stmt
+	restoreTagStmt                     *sql.Stmt
+	restoreUserStmt                    *sql.Stmt
+	searchPartsStmt                    *sql.Stmt
+	setPasswordResetFlagStmt           *sql.Stmt
+	updateColorsStmt                   *sql.Stmt
+	updateControllerConfigStmt         *sql.Stmt
+	updateControllerStatusStmt         *sql.Stmt
+	updateGeneralSettingsStmt          *sql.Stmt
+	updateInspirationTemplateStmt      *sql.Stmt
+	updatePartStmt                     *sql.Stmt
+	updatePartAssignmentQuantityStmt   *sql.Stmt
+	updatePartLinkStmt                 *sql.Stmt
+	updateUserPasswordStmt             *sql.Stmt
+	upsertBinStmt                      *sql.Stmt
 }
 
 func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 	return &Queries{
-		db:                               tx,
-		tx:                               tx,
-		addTagToPartStmt:                 q.addTagToPartStmt,
-		cleanupSessionsStmt:              q.cleanupSessionsStmt,
-		countUsersStmt:                   q.countUsersStmt,
-		createAuditLogStmt:               q.createAuditLogStmt,
-		createBinStmt:                    q.createBinStmt,
-		createControllerStmt:             q.createControllerStmt,
-		createPartStmt:                   q.createPartStmt,
-		createPartAssignmentStmt:         q.createPartAssignmentStmt,
-		createPartDocStmt:                q.createPartDocStmt,
-		createPartLinkStmt:               q.createPartLinkStmt,
-		createSessionStmt:                q.createSessionStmt,
-		createTagStmt:                    q.createTagStmt,
-		createUserStmt:                   q.createUserStmt,
-		deleteAssignmentStmt:             q.deleteAssignmentStmt,
-		deleteBinStmt:                    q.deleteBinStmt,
-		deleteBinByLedStmt:               q.deleteBinByLedStmt,
-		deleteBinsByControllerStmt:       q.deleteBinsByControllerStmt,
-		deleteControllerStmt:             q.deleteControllerStmt,
-		deletePartStmt:                   q.deletePartStmt,
-		deletePartAssignmentStmt:         q.deletePartAssignmentStmt,
-		deletePartDocStmt:                q.deletePartDocStmt,
-		deletePartLinkStmt:               q.deletePartLinkStmt,
-		deleteSessionStmt:                q.deleteSessionStmt,
-		deleteUnusedTagsStmt:             q.deleteUnusedTagsStmt,
-		deleteUserStmt:                   q.deleteUserStmt,
-		getAllAuditLogsStmt:              q.getAllAuditLogsStmt,
-		getAllBinsStmt:                   q.getAllBinsStmt,
-		getAllPartAiPromptsStmt:          q.getAllPartAiPromptsStmt,
-		getAllPartAssignmentsStmt:        q.getAllPartAssignmentsStmt,
-		getAllPartDocsStmt:               q.getAllPartDocsStmt,
-		getAllPartLinksStmt:              q.getAllPartLinksStmt,
-		getAllPartTagsStmt:               q.getAllPartTagsStmt,
-		getAllPartsStmt:                  q.getAllPartsStmt,
-		getAllUsersStmt:                  q.getAllUsersStmt,
-		getAssignmentStmt:                q.getAssignmentStmt,
-		getAssignmentIDStmt:              q.getAssignmentIDStmt,
-		getBinStmt:                       q.getBinStmt,
-		getBinsByControllerStmt:          q.getBinsByControllerStmt,
-		getControllerStmt:                q.getControllerStmt,
-		getControllersStmt:               q.getControllersStmt,
-		getDashboardGridStmt:             q.getDashboardGridStmt,
-		getDashboardStatsStmt:            q.getDashboardStatsStmt,
-		getPartStmt:                      q.getPartStmt,
-		getPartAssignmentsStmt:           q.getPartAssignmentsStmt,
-		getPartDocStmt:                   q.getPartDocStmt,
-		getPartDocsStmt:                  q.getPartDocsStmt,
-		getPartLinksStmt:                 q.getPartLinksStmt,
-		getSessionStmt:                   q.getSessionStmt,
-		getSettingsStmt:                  q.getSettingsStmt,
-		getTagByNameStmt:                 q.getTagByNameStmt,
-		getTagsForPartStmt:               q.getTagsForPartStmt,
-		getUserStmt:                      q.getUserStmt,
-		getUserByEmailStmt:               q.getUserByEmailStmt,
-		initSettingsStmt:                 q.initSettingsStmt,
-		listAllTagsStmt:                  q.listAllTagsStmt,
-		listPartsStmt:                    q.listPartsStmt,
-		listUsersStmt:                    q.listUsersStmt,
-		reassignPartAssignmentStmt:       q.reassignPartAssignmentStmt,
-		removeTagsFromPartStmt:           q.removeTagsFromPartStmt,
-		restoreAuditLogStmt:              q.restoreAuditLogStmt,
-		restoreBinStmt:                   q.restoreBinStmt,
-		restoreControllerStmt:            q.restoreControllerStmt,
-		restorePartStmt:                  q.restorePartStmt,
-		restorePartAiPromptStmt:          q.restorePartAiPromptStmt,
-		restorePartAssignmentStmt:        q.restorePartAssignmentStmt,
-		restorePartDocStmt:               q.restorePartDocStmt,
-		restorePartLinkStmt:              q.restorePartLinkStmt,
-		restorePartTagStmt:               q.restorePartTagStmt,
-		restoreSettingsStmt:              q.restoreSettingsStmt,
-		restoreTagStmt:                   q.restoreTagStmt,
-		restoreUserStmt:                  q.restoreUserStmt,
-		searchPartsStmt:                  q.searchPartsStmt,
-		setPasswordResetFlagStmt:         q.setPasswordResetFlagStmt,
-		updateColorsStmt:                 q.updateColorsStmt,
-		updateControllerConfigStmt:       q.updateControllerConfigStmt,
-		updateControllerStatusStmt:       q.updateControllerStatusStmt,
-		updateGeneralSettingsStmt:        q.updateGeneralSettingsStmt,
-		updatePartStmt:                   q.updatePartStmt,
-		updatePartAssignmentQuantityStmt: q.updatePartAssignmentQuantityStmt,
-		updatePartLinkStmt:               q.updatePartLinkStmt,
-		updateUserPasswordStmt:           q.updateUserPasswordStmt,
-		upsertBinStmt:                    q.upsertBinStmt,
+		db:                                 tx,
+		tx:                                 tx,
+		addTagToPartStmt:                   q.addTagToPartStmt,
+		cleanupSessionsStmt:                q.cleanupSessionsStmt,
+		countUsersStmt:                     q.countUsersStmt,
+		createAuditLogStmt:                 q.createAuditLogStmt,
+		createBinStmt:                      q.createBinStmt,
+		createControllerStmt:               q.createControllerStmt,
+		createInspirationTemplateStmt:      q.createInspirationTemplateStmt,
+		createPartStmt:                     q.createPartStmt,
+		createPartAssignmentStmt:           q.createPartAssignmentStmt,
+		createPartDocStmt:                  q.createPartDocStmt,
+		createPartLinkStmt:                 q.createPartLinkStmt,
+		createSessionStmt:                  q.createSessionStmt,
+		createTagStmt:                      q.createTagStmt,
+		createUserStmt:                     q.createUserStmt,
+		deleteAssignmentStmt:               q.deleteAssignmentStmt,
+		deleteBinStmt:                      q.deleteBinStmt,
+		deleteBinByLedStmt:                 q.deleteBinByLedStmt,
+		deleteBinsByControllerStmt:         q.deleteBinsByControllerStmt,
+		deleteControllerStmt:               q.deleteControllerStmt,
+		deleteInspirationTemplateStmt:      q.deleteInspirationTemplateStmt,
+		deletePartStmt:                     q.deletePartStmt,
+		deletePartAssignmentStmt:           q.deletePartAssignmentStmt,
+		deletePartDocStmt:                  q.deletePartDocStmt,
+		deletePartLinkStmt:                 q.deletePartLinkStmt,
+		deleteSessionStmt:                  q.deleteSessionStmt,
+		deleteUnusedTagsStmt:               q.deleteUnusedTagsStmt,
+		deleteUserStmt:                     q.deleteUserStmt,
+		getAllAuditLogsStmt:                q.getAllAuditLogsStmt,
+		getAllBinsStmt:                     q.getAllBinsStmt,
+		getAllInspirationTemplatesStmt:     q.getAllInspirationTemplatesStmt,
+		getAllPartAiPromptsStmt:            q.getAllPartAiPromptsStmt,
+		getAllPartAssignmentsStmt:          q.getAllPartAssignmentsStmt,
+		getAllPartDocsStmt:                 q.getAllPartDocsStmt,
+		getAllPartLinksStmt:                q.getAllPartLinksStmt,
+		getAllPartTagsStmt:                 q.getAllPartTagsStmt,
+		getAllPartsStmt:                    q.getAllPartsStmt,
+		getAllUsersStmt:                    q.getAllUsersStmt,
+		getAssignmentStmt:                  q.getAssignmentStmt,
+		getAssignmentIDStmt:                q.getAssignmentIDStmt,
+		getBinStmt:                         q.getBinStmt,
+		getBinsByControllerStmt:            q.getBinsByControllerStmt,
+		getControllerStmt:                  q.getControllerStmt,
+		getControllersStmt:                 q.getControllersStmt,
+		getDashboardGridStmt:               q.getDashboardGridStmt,
+		getDashboardStatsStmt:              q.getDashboardStatsStmt,
+		getInspirationTemplateStmt:         q.getInspirationTemplateStmt,
+		getPartStmt:                        q.getPartStmt,
+		getPartAssignmentsStmt:             q.getPartAssignmentsStmt,
+		getPartDocStmt:                     q.getPartDocStmt,
+		getPartDocsStmt:                    q.getPartDocsStmt,
+		getPartLinksStmt:                   q.getPartLinksStmt,
+		getPartsForInspirationAllStmt:      q.getPartsForInspirationAllStmt,
+		getPartsForInspirationFilteredStmt: q.getPartsForInspirationFilteredStmt,
+		getSessionStmt:                     q.getSessionStmt,
+		getSettingsStmt:                    q.getSettingsStmt,
+		getTagByNameStmt:                   q.getTagByNameStmt,
+		getTagsForPartStmt:                 q.getTagsForPartStmt,
+		getUserStmt:                        q.getUserStmt,
+		getUserByEmailStmt:                 q.getUserByEmailStmt,
+		initSettingsStmt:                   q.initSettingsStmt,
+		listAllTagsStmt:                    q.listAllTagsStmt,
+		listPartsStmt:                      q.listPartsStmt,
+		listUsersStmt:                      q.listUsersStmt,
+		reassignPartAssignmentStmt:         q.reassignPartAssignmentStmt,
+		removeTagsFromPartStmt:             q.removeTagsFromPartStmt,
+		restoreAuditLogStmt:                q.restoreAuditLogStmt,
+		restoreBinStmt:                     q.restoreBinStmt,
+		restoreControllerStmt:              q.restoreControllerStmt,
+		restorePartStmt:                    q.restorePartStmt,
+		restorePartAiPromptStmt:            q.restorePartAiPromptStmt,
+		restorePartAssignmentStmt:          q.restorePartAssignmentStmt,
+		restorePartDocStmt:                 q.restorePartDocStmt,
+		restorePartLinkStmt:                q.restorePartLinkStmt,
+		restorePartTagStmt:                 q.restorePartTagStmt,
+		restoreSettingsStmt:                q.restoreSettingsStmt,
+		restoreTagStmt:                     q.restoreTagStmt,
+		restoreUserStmt:                    q.restoreUserStmt,
+		searchPartsStmt:                    q.searchPartsStmt,
+		setPasswordResetFlagStmt:           q.setPasswordResetFlagStmt,
+		updateColorsStmt:                   q.updateColorsStmt,
+		updateControllerConfigStmt:         q.updateControllerConfigStmt,
+		updateControllerStatusStmt:         q.updateControllerStatusStmt,
+		updateGeneralSettingsStmt:          q.updateGeneralSettingsStmt,
+		updateInspirationTemplateStmt:      q.updateInspirationTemplateStmt,
+		updatePartStmt:                     q.updatePartStmt,
+		updatePartAssignmentQuantityStmt:   q.updatePartAssignmentQuantityStmt,
+		updatePartLinkStmt:                 q.updatePartLinkStmt,
+		updateUserPasswordStmt:             q.updateUserPasswordStmt,
+		upsertBinStmt:                      q.upsertBinStmt,
 	}
 }
