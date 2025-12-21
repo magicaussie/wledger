@@ -43,6 +43,33 @@ func (q *Queries) DeleteUnusedTags(ctx context.Context) error {
 	return err
 }
 
+const getAllPartTags = `-- name: GetAllPartTags :many
+SELECT part_id, tag_id FROM part_tags
+`
+
+func (q *Queries) GetAllPartTags(ctx context.Context) ([]PartTag, error) {
+	rows, err := q.query(ctx, q.getAllPartTagsStmt, getAllPartTags)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PartTag
+	for rows.Next() {
+		var i PartTag
+		if err := rows.Scan(&i.PartID, &i.TagID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getTagByName = `-- name: GetTagByName :one
 SELECT id, name FROM tags WHERE name = ? LIMIT 1
 `
@@ -117,5 +144,33 @@ DELETE FROM part_tags WHERE part_id = ?
 
 func (q *Queries) RemoveTagsFromPart(ctx context.Context, partID int64) error {
 	_, err := q.exec(ctx, q.removeTagsFromPartStmt, removeTagsFromPart, partID)
+	return err
+}
+
+const restorePartTag = `-- name: RestorePartTag :exec
+INSERT INTO part_tags (part_id, tag_id) VALUES (?, ?)
+`
+
+type RestorePartTagParams struct {
+	PartID int64 `json:"part_id"`
+	TagID  int64 `json:"tag_id"`
+}
+
+func (q *Queries) RestorePartTag(ctx context.Context, arg RestorePartTagParams) error {
+	_, err := q.exec(ctx, q.restorePartTagStmt, restorePartTag, arg.PartID, arg.TagID)
+	return err
+}
+
+const restoreTag = `-- name: RestoreTag :exec
+INSERT INTO tags (id, name) VALUES (?, ?)
+`
+
+type RestoreTagParams struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
+}
+
+func (q *Queries) RestoreTag(ctx context.Context, arg RestoreTagParams) error {
+	_, err := q.exec(ctx, q.restoreTagStmt, restoreTag, arg.ID, arg.Name)
 	return err
 }

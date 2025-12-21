@@ -56,6 +56,8 @@ func (s *service) Export(ctx context.Context, w io.Writer) error {
 	docs, _ := s.queries.GetAllPartDocs(ctx)
 	prompts, _ := s.queries.GetAllPartAiPrompts(ctx)
 	logs, _ := s.queries.GetAllAuditLogs(ctx)
+	tags, _ := s.queries.ListAllTags(ctx)
+	partTags, _ := s.queries.GetAllPartTags(ctx)
 
 	manifest := Manifest{
 		Version:         "1.0",
@@ -69,6 +71,8 @@ func (s *service) Export(ctx context.Context, w io.Writer) error {
 		PartLinks:       links,
 		PartDocs:        docs,
 		PartAiPrompts:   prompts,
+		Tags:            tags,
+		PartTags:        partTags,
 		AuditLogs:       logs,
 	}
 
@@ -245,7 +249,7 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 	}
 
 	tables := []string{
-		"part_assignments", "part_links", "part_docs", "part_ai_prompts", "part_tags",
+		"part_assignments", "part_links", "part_docs", "part_ai_prompts", "part_tags", "tags",
 		"parts", "bins", "controllers", "audit_logs", "sessions", "users", "settings",
 	}
 	for _, table := range tables {
@@ -363,6 +367,19 @@ func (s *service) restoreData(ctx context.Context, qtx *db.Queries, manifest Man
 	for _, p := range manifest.PartAiPrompts {
 		if err := qtx.RestorePartAiPrompt(ctx, db.RestorePartAiPromptParams(p)); err != nil {
 			return fmt.Errorf("prompt restore: %w", err)
+		}
+	}
+	for _, t := range manifest.Tags {
+		if err := qtx.RestoreTag(ctx, db.RestoreTagParams{
+			ID:   t.ID,
+			Name: t.Name,
+		}); err != nil {
+			return fmt.Errorf("tag restore: %w", err)
+		}
+	}
+	for _, pt := range manifest.PartTags {
+		if err := qtx.RestorePartTag(ctx, db.RestorePartTagParams(pt)); err != nil {
+			return fmt.Errorf("part_tag restore: %w", err)
 		}
 	}
 	for _, l := range manifest.AuditLogs {

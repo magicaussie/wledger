@@ -117,6 +117,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.getAllPartLinksStmt, err = db.PrepareContext(ctx, getAllPartLinks); err != nil {
 		return nil, fmt.Errorf("error preparing query GetAllPartLinks: %w", err)
 	}
+	if q.getAllPartTagsStmt, err = db.PrepareContext(ctx, getAllPartTags); err != nil {
+		return nil, fmt.Errorf("error preparing query GetAllPartTags: %w", err)
+	}
 	if q.getAllPartsStmt, err = db.PrepareContext(ctx, getAllParts); err != nil {
 		return nil, fmt.Errorf("error preparing query GetAllParts: %w", err)
 	}
@@ -222,8 +225,14 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.restorePartLinkStmt, err = db.PrepareContext(ctx, restorePartLink); err != nil {
 		return nil, fmt.Errorf("error preparing query RestorePartLink: %w", err)
 	}
+	if q.restorePartTagStmt, err = db.PrepareContext(ctx, restorePartTag); err != nil {
+		return nil, fmt.Errorf("error preparing query RestorePartTag: %w", err)
+	}
 	if q.restoreSettingsStmt, err = db.PrepareContext(ctx, restoreSettings); err != nil {
 		return nil, fmt.Errorf("error preparing query RestoreSettings: %w", err)
+	}
+	if q.restoreTagStmt, err = db.PrepareContext(ctx, restoreTag); err != nil {
+		return nil, fmt.Errorf("error preparing query RestoreTag: %w", err)
 	}
 	if q.restoreUserStmt, err = db.PrepareContext(ctx, restoreUser); err != nil {
 		return nil, fmt.Errorf("error preparing query RestoreUser: %w", err)
@@ -421,6 +430,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing getAllPartLinksStmt: %w", cerr)
 		}
 	}
+	if q.getAllPartTagsStmt != nil {
+		if cerr := q.getAllPartTagsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getAllPartTagsStmt: %w", cerr)
+		}
+	}
 	if q.getAllPartsStmt != nil {
 		if cerr := q.getAllPartsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getAllPartsStmt: %w", cerr)
@@ -596,9 +610,19 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing restorePartLinkStmt: %w", cerr)
 		}
 	}
+	if q.restorePartTagStmt != nil {
+		if cerr := q.restorePartTagStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing restorePartTagStmt: %w", cerr)
+		}
+	}
 	if q.restoreSettingsStmt != nil {
 		if cerr := q.restoreSettingsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing restoreSettingsStmt: %w", cerr)
+		}
+	}
+	if q.restoreTagStmt != nil {
+		if cerr := q.restoreTagStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing restoreTagStmt: %w", cerr)
 		}
 	}
 	if q.restoreUserStmt != nil {
@@ -731,6 +755,7 @@ type Queries struct {
 	getAllPartAssignmentsStmt        *sql.Stmt
 	getAllPartDocsStmt               *sql.Stmt
 	getAllPartLinksStmt              *sql.Stmt
+	getAllPartTagsStmt               *sql.Stmt
 	getAllPartsStmt                  *sql.Stmt
 	getAllUsersStmt                  *sql.Stmt
 	getAssignmentStmt                *sql.Stmt
@@ -766,7 +791,9 @@ type Queries struct {
 	restorePartAssignmentStmt        *sql.Stmt
 	restorePartDocStmt               *sql.Stmt
 	restorePartLinkStmt              *sql.Stmt
+	restorePartTagStmt               *sql.Stmt
 	restoreSettingsStmt              *sql.Stmt
+	restoreTagStmt                   *sql.Stmt
 	restoreUserStmt                  *sql.Stmt
 	searchPartsStmt                  *sql.Stmt
 	setPasswordResetFlagStmt         *sql.Stmt
@@ -816,6 +843,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		getAllPartAssignmentsStmt:        q.getAllPartAssignmentsStmt,
 		getAllPartDocsStmt:               q.getAllPartDocsStmt,
 		getAllPartLinksStmt:              q.getAllPartLinksStmt,
+		getAllPartTagsStmt:               q.getAllPartTagsStmt,
 		getAllPartsStmt:                  q.getAllPartsStmt,
 		getAllUsersStmt:                  q.getAllUsersStmt,
 		getAssignmentStmt:                q.getAssignmentStmt,
@@ -851,7 +879,9 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		restorePartAssignmentStmt:        q.restorePartAssignmentStmt,
 		restorePartDocStmt:               q.restorePartDocStmt,
 		restorePartLinkStmt:              q.restorePartLinkStmt,
+		restorePartTagStmt:               q.restorePartTagStmt,
 		restoreSettingsStmt:              q.restoreSettingsStmt,
+		restoreTagStmt:                   q.restoreTagStmt,
 		restoreUserStmt:                  q.restoreUserStmt,
 		searchPartsStmt:                  q.searchPartsStmt,
 		setPasswordResetFlagStmt:         q.setPasswordResetFlagStmt,

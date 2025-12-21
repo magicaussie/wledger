@@ -44,6 +44,7 @@ type Querier interface {
 	GetAllPartAssignments(ctx context.Context) ([]PartAssignment, error)
 	GetAllPartDocs(ctx context.Context) ([]PartDoc, error)
 	GetAllPartLinks(ctx context.Context) ([]PartLink, error)
+	GetAllPartTags(ctx context.Context) ([]PartTag, error)
 	GetAllParts(ctx context.Context) ([]Part, error)
 	GetAllUsers(ctx context.Context) ([]User, error)
 	GetAssignment(ctx context.Context, id int64) (PartAssignment, error)
@@ -80,7 +81,9 @@ type Querier interface {
 	RestorePartAssignment(ctx context.Context, arg RestorePartAssignmentParams) error
 	RestorePartDoc(ctx context.Context, arg RestorePartDocParams) error
 	RestorePartLink(ctx context.Context, arg RestorePartLinkParams) error
+	RestorePartTag(ctx context.Context, arg RestorePartTagParams) error
 	RestoreSettings(ctx context.Context, arg RestoreSettingsParams) error
+	RestoreTag(ctx context.Context, arg RestoreTagParams) error
 	RestoreUser(ctx context.Context, arg RestoreUserParams) error
 	SearchParts(ctx context.Context, arg SearchPartsParams) ([]SearchPartsRow, error)
 	SetPasswordResetFlag(ctx context.Context, arg SetPasswordResetFlagParams) error

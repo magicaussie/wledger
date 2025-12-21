@@ -21,3 +21,12 @@ ORDER BY t.name ASC;
 
 -- name: DeleteUnusedTags :exec
 DELETE FROM tags WHERE id NOT IN (SELECT DISTINCT tag_id FROM part_tags);
+
+-- name: GetAllPartTags :many
+SELECT * FROM part_tags;
+
+-- name: RestoreTag :exec
+INSERT INTO tags (id, name) VALUES (?, ?);
+
+-- name: RestorePartTag :exec
+INSERT INTO part_tags (part_id, tag_id) VALUES (?, ?);
