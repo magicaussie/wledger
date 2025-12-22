@@ -4001,12 +4001,6 @@
       --badge-fg: var(--color-primary-content);
     }
   }
-  .badge-secondary {
-    @layer daisyui.l1.l2 {
-      --badge-color: var(--color-secondary);
-      --badge-fg: var(--color-secondary-content);
-    }
-  }
   .badge-success {
     @layer daisyui.l1.l2 {
       --badge-color: var(--color-success);
