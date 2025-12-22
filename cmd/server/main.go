@@ -208,6 +208,7 @@ func main() {
 
 			// Stock Management
 			r.Post("/parts/{id}/assign", app.handlePartAssign)
+			r.Post("/parts/{id}/stock/{assignment_id}/adjust", app.handlePartStockAdjust)
 			r.Post("/parts/{id}/stock/{assignment_id}/move", app.handlePartStockMove)
 			r.Post("/parts/{id}/stock/{assignment_id}/delete", app.handlePartStockRemove)
 

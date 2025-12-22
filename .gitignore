@@ -21,6 +21,3 @@ vendor/
 
 # Environment
 .env
-
-/MCP
-/components

@@ -445,3 +445,55 @@ func (app *application) handlePartStockRemove(w http.ResponseWriter, r *http.Req
 
 	http.Redirect(w, r, fmt.Sprintf("/parts/%d", partID), http.StatusSeeOther)
 }
+
+func (app *application) handlePartStockAdjust(w http.ResponseWriter, r *http.Request) {
+	// partID, _ := strconv.Atoi(chi.URLParam(r, "id"))
+	assignmentID, _ := strconv.Atoi(chi.URLParam(r, "assignment_id"))
+	delta, _ := strconv.Atoi(r.URL.Query().Get("delta"))
+
+	if delta == 0 {
+		http.Error(w, "Invalid delta", http.StatusBadRequest)
+		return
+	}
+
+	err := app.parts.AdjustStock(r.Context(), int64(assignmentID), delta)
+	if err != nil {
+		app.logger.Error("failed to adjust stock", "error", err)
+		http.Error(w, "Adjustment failed", http.StatusInternalServerError)
+		return
+	}
+
+	partID, _ := strconv.Atoi(chi.URLParam(r, "id"))
+
+	// If HTMX request, render just the row
+	if r.Header.Get("HX-Request") == "true" {
+		stock, err := app.queries.GetPartAssignments(r.Context(), int64(partID))
+		if err != nil {
+			http.Redirect(w, r, fmt.Sprintf("/parts/%d", partID), http.StatusSeeOther)
+			return
+		}
+
+		var targetRow db.GetPartAssignmentsRow
+		found := false
+		for _, s := range stock {
+			if s.ID == int64(assignmentID) {
+				targetRow = s
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			http.Redirect(w, r, fmt.Sprintf("/parts/%d", partID), http.StatusSeeOther)
+			return
+		}
+
+		controllers, _ := app.queries.GetControllers(r.Context())
+		user := auth.GetUserFromRequest(r)
+
+		pages.StockRow(int64(partID), targetRow, user, controllers).Render(r.Context(), w)
+		return
+	}
+
+	http.Redirect(w, r, fmt.Sprintf("/parts/%d", partID), http.StatusSeeOther)
+}

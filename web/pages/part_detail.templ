@@ -136,7 +136,7 @@ templ PartDetail(user auth.User, part db.Part, stock []db.GetPartAssignmentsRow,
 										<tr>
 											<th>Location</th>
 											<th>Controller</th>
-											<th class="text-right">Qty</th>
+											<th>Qty</th>
 											<th class="text-right w-1">Actions</th>
 										</tr>
 									</thead>
@@ -149,83 +149,7 @@ templ PartDetail(user auth.User, part db.Part, stock []db.GetPartAssignmentsRow,
 											</tr>
 										}
 										for _, s := range stock {
-											<tr>
-												<td class="font-medium">
-													if s.BinName.Valid {
-														<div class="flex items-center gap-2">
-															<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-															{ s.BinName.String }
-														</div>
-													} else {
-														<div class="flex items-center gap-2 text-warning" title="This stock is no longer assigned to a valid bin">
-															<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-															Orphaned
-														</div>
-													}
-												</td>
-												<td class="text-sm opacity-70">
-													if s.ControllerName.Valid {
-														{ s.ControllerName.String }
-													} else {
-														<span class="italic">Unmanaged</span>
-													}
-												</td>
-												<td class="text-right font-mono font-bold">{ fmt.Sprintf("%d", s.Quantity) }</td>
-												<td class="text-right">
-													<div class="flex justify-end gap-1">
-														if s.ControllerID.Valid && s.BinID.Valid {
-															<button
-																hx-post={ fmt.Sprintf("/hardware/%d/locate?bin_id=%d", s.ControllerID.Int64, s.BinID.Int64) }
-																hx-swap="none"
-																class="btn btn-xs btn-ghost text-accent"
-																title="Locate"
-															>
-																@icons.EyeIcon(5)
-															</button>
-														}
-														if user.CanWrite() {
-															if !s.BinName.Valid || !s.ControllerID.Valid {
-																<button
-																	{ templ.Attributes{"onclick": fmt.Sprintf("move_stock_modal_%d.showModal()", s.ID)}... }
-																	class="btn btn-xs btn-outline btn-warning"
-																	title="Reassign to a valid bin"
-																>
-																	Fix
-																</button>
-																@components.MoveStockModal(
-																	fmt.Sprintf("move_stock_modal_%d", s.ID),
-																	"Reassign Orphaned Stock",
-																	fmt.Sprintf("This stock is currently not assigned to any physical bin. Select a new location for these %d items.", s.Quantity),
-																	fmt.Sprintf("/parts/%d/stock/%d/move", part.ID, s.ID),
-																	s.Quantity,
-																	controllers,
-																)
-															} else {
-																<button
-																	{ templ.Attributes{"onclick": fmt.Sprintf("move_stock_modal_%d.showModal()", s.ID)}... }
-																	class="btn btn-xs btn-ghost"
-																	title="Move Stock"
-																>
-																	@icons.MoveIcon(5)
-																</button>
-																@components.MoveStockModal(
-																	fmt.Sprintf("move_stock_modal_%d", s.ID),
-																	"Move Stock",
-																	fmt.Sprintf("Select a new location to move these %d items to.", s.Quantity),
-																	fmt.Sprintf("/parts/%d/stock/%d/move", part.ID, s.ID),
-																	s.Quantity,
-																	controllers,
-																)
-															}
-															<form action={ templ.SafeURL(fmt.Sprintf("/parts/%d/stock/%d/delete", part.ID, s.ID)) } method="POST" onsubmit="return confirm('Remove this stock assignment?');">
-																<button class="btn btn-xs btn-ghost text-error" title="Remove">
-																	@icons.TrashIcon(5)
-																</button>
-															</form>
-														}
-													</div>
-												</td>
-											</tr>
+											@StockRow(part.ID, s, user, controllers)
 										}
 									</tbody>
 								</table>
@@ -339,6 +263,110 @@ templ PartDetail(user auth.User, part db.Part, stock []db.GetPartAssignmentsRow,
 			}
 		</div>
 	}
+}
+
+templ StockRow(partID int64, s db.GetPartAssignmentsRow, user auth.User, controllers []db.Controller) {
+	<tr>
+		<td class="font-medium">
+			if s.BinName.Valid {
+				<div class="flex items-center gap-2">
+					@icons.LocationIcon(5)
+					{ s.BinName.String }
+				</div>
+			} else {
+				<div class="flex items-center gap-2 text-warning" title="This stock is no longer assigned to a valid bin">
+					@icons.WarningIcon(5)
+					Orphaned
+				</div>
+			}
+		</td>
+		<td class="text-sm opacity-70">
+			if s.ControllerName.Valid {
+				{ s.ControllerName.String }
+			} else {
+				<span class="italic">Unmanaged</span>
+			}
+		</td>
+		<td class="text-right font-mono font-bold">
+			if user.CanWrite() {
+				<div class="flex items-center gap-2">
+					<button
+						hx-post={ fmt.Sprintf("/parts/%d/stock/%d/adjust?delta=-1", partID, s.ID) }
+						hx-target="closest tr"
+						hx-swap="outerHTML"
+						class="btn btn-xs btn-circle btn-primary"
+					>
+						@icons.MinusIcon(4)
+					</button>
+					<span>{ fmt.Sprintf("%d", s.Quantity) }</span>
+					<button
+						hx-post={ fmt.Sprintf("/parts/%d/stock/%d/adjust?delta=1", partID, s.ID) }
+						hx-target="closest tr"
+						hx-swap="outerHTML"
+						class="btn btn-xs btn-circle btn-primary"
+					>
+						@icons.PlusIcon(4)
+					</button>
+				</div>
+			} else {
+				{ fmt.Sprintf("%d", s.Quantity) }
+			}
+		</td>
+		<td class="text-right">
+			<div class="flex justify-end gap-1">
+				if s.ControllerID.Valid && s.BinID.Valid {
+					<button
+						hx-post={ fmt.Sprintf("/hardware/%d/locate?bin_id=%d", s.ControllerID.Int64, s.BinID.Int64) }
+						hx-swap="none"
+						class="btn btn-xs btn-ghost text-accent"
+						title="Locate"
+					>
+						@icons.EyeIcon(5)
+					</button>
+				}
+				if user.CanWrite() {
+					if !s.BinName.Valid || !s.ControllerID.Valid {
+						<button
+							{ templ.Attributes{"onclick": fmt.Sprintf("move_stock_modal_%d.showModal()", s.ID)}... }
+							class="btn btn-xs btn-outline btn-warning"
+							title="Reassign to a valid bin"
+						>
+							Fix
+						</button>
+						@components.MoveStockModal(
+							fmt.Sprintf("move_stock_modal_%d", s.ID),
+							"Reassign Orphaned Stock",
+							fmt.Sprintf("This stock is currently not assigned to any physical bin. Select a new location for these %d items.", s.Quantity),
+							fmt.Sprintf("/parts/%d/stock/%d/move", partID, s.ID),
+							s.Quantity,
+							controllers,
+						)
+					} else {
+						<button
+							{ templ.Attributes{"onclick": fmt.Sprintf("move_stock_modal_%d.showModal()", s.ID)}... }
+							class="btn btn-xs btn-ghost"
+							title="Move Stock"
+						>
+							@icons.MoveIcon(5)
+						</button>
+						@components.MoveStockModal(
+							fmt.Sprintf("move_stock_modal_%d", s.ID),
+							"Move Stock",
+							fmt.Sprintf("Select a new location to move these %d items to.", s.Quantity),
+							fmt.Sprintf("/parts/%d/stock/%d/move", partID, s.ID),
+							s.Quantity,
+							controllers,
+						)
+					}
+					<form action={ templ.SafeURL(fmt.Sprintf("/parts/%d/stock/%d/delete", partID, s.ID)) } method="POST" onsubmit="return confirm('Remove this stock assignment?');">
+						<button class="btn btn-xs btn-ghost text-error" title="Remove">
+							@icons.TrashIcon(5)
+						</button>
+					</form>
+				}
+			</div>
+		</td>
+	</tr>
 }
 
 // Helper to sum stock

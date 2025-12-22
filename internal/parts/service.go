@@ -27,6 +27,7 @@ type Service interface {
 	AssignStock(ctx context.Context, req AssignStockRequest) error
 	MoveStock(ctx context.Context, req MoveStockRequest) error
 	RemoveStock(ctx context.Context, req RemoveStockRequest) error
+	AdjustStock(ctx context.Context, assignmentID int64, delta int) error
 
 	DeleteLink(ctx context.Context, id int64) error
 	DeleteDoc(ctx context.Context, id int64) error
@@ -363,18 +364,26 @@ func (s *service) DeletePart(ctx context.Context, id int64) error {
 func (s *service) AssignStock(ctx context.Context, req AssignStockRequest) error {
 	nullBinID := sql.NullInt64{Int64: int64(req.BinID), Valid: true}
 
-	_, err := s.queries.GetAssignmentID(ctx, db.GetAssignmentIDParams{
+	existingID, err := s.queries.GetAssignmentID(ctx, db.GetAssignmentIDParams{
 		PartID: req.PartID,
 		BinID:  nullBinID,
 	})
 
 	if err == nil {
+		// Assignment exists, fetch current quantity
+		existing, err := s.queries.GetAssignment(ctx, existingID)
+		if err != nil {
+			return fmt.Errorf("failed to fetch existing assignment: %w", err)
+		}
+
+		newQty := existing.Quantity + int64(req.Quantity)
 		err = s.queries.UpdatePartAssignmentQuantity(ctx, db.UpdatePartAssignmentQuantityParams{
-			Quantity: int64(req.Quantity),
+			Quantity: newQty,
 			PartID:   req.PartID,
 			BinID:    nullBinID,
 		})
 	} else {
+		// New assignment
 		err = s.queries.CreatePartAssignment(ctx, db.CreatePartAssignmentParams{
 			PartID:   req.PartID,
 			BinID:    nullBinID,
@@ -387,6 +396,36 @@ func (s *service) AssignStock(ctx context.Context, req AssignStockRequest) error
 	}
 
 	audit.Log(ctx, s.queries, "STOCK_ADD", "PART", req.PartID, "Added stock", nil, nil)
+	return nil
+}
+
+func (s *service) AdjustStock(ctx context.Context, assignmentID int64, delta int) error {
+	assignment, err := s.queries.GetAssignment(ctx, assignmentID)
+	if err != nil {
+		return fmt.Errorf("assignment not found: %w", err)
+	}
+
+	newQty := assignment.Quantity + int64(delta)
+	if newQty < 0 {
+		newQty = 0
+	}
+
+	err = s.queries.UpdatePartAssignmentQuantity(ctx, db.UpdatePartAssignmentQuantityParams{
+		Quantity: newQty,
+		PartID:   assignment.PartID,
+		BinID:    assignment.BinID,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	action := "STOCK_INC"
+	if delta < 0 {
+		action = "STOCK_DEC"
+	}
+	audit.Log(ctx, s.queries, action, "PART", assignment.PartID, fmt.Sprintf("Adjusted stock by %d", delta), nil, nil)
+
 	return nil
 }
 
