@@ -1,99 +1,132 @@
 ---
-title: WLEDger Developer Guide
+title: Developer Guide
 layout: default
-nav_order: 5
+nav_order: 3
 ---
 
 # Developer Guide
 
-Welcome! This document explains the architecture, code structure, and development patterns for WLEDger.
+Welcome to the WLEDger V2 Developer Guide. This document details the architecture, project structure, and development workflows.
 
-## Core Architecture & Philosophy
+## Tech Stack
 
-This application is built with a minimal stack philosophy, prioritizing simplicity, robustness, and maintainability.
+WLEDger V2 moves away from the previous stack to a robust, type-safe, and high-performance Go architecture.
 
-* **The Stack:**
-    * **Go (Golang) Backend:** Chosen for performance and single-binary deployment.
-    * **htmx Frontend:** Provides a modern, dynamic UI without a heavy JavaScript framework.
-    * **SQLite Database:** Embedded, server-less, and zero-setup.
-    * **Pico.css:** A class-less CSS framework for clean styling out of the box.
+* **Backend:** [Go 1.25+](https://go.dev/)
+* **Web Framework:** [Chi v5](https://github.com/go-chi/chi) (Router)
+* **Database:** [SQLite](https://www.sqlite.org/) with [FTS5](https://www.sqlite.org/fts5.html) (Full-Text Search).
+* **Data Access:** [SQLC](https://sqlc.dev/) (Type-safe SQL code generation).
+* **Templating:** [Templ](https://templ.guide/) (Type-safe HTML templating for Go).
+* **Frontend Interactivity:** [HTMX](https://htmx.org/) (Server-driven UI updates) + [Alpine.js](https://alpinejs.dev/) (Client-side state for complex UI).
+* **Styling:** [Tailwind CSS v4](https://tailwindcss.com/) + [DaisyUI](https://daisyui.com/).
 
-* **The Architecture: Modular Monolith**
-    * The application follows the **Standard Go Project Layout**. Instead of grouping code by technical layer (e.g. "controllers," "models"), it's grouped by **Feature Domain** (e.g. "parts," "inventory," "hardware"). This makes the codebase easier to navigate and scale.
+## Project Structure
 
-## Code Structure
+The project follows the following layout convention:
 
-* **`cmd/server/main.go`**: The **Entrypoint**.
-    * Initializes dependencies (Database, Templates, WLED Client).
-    * Wires up the Feature Modules.
-    * Starts the HTTP server.
+``` BASH
+wledger/
+├── cmd/
+│   └── server/         # Main entry point (main.go) and HTTP handlers.
+├── internal/           # Private application code.
+│   ├── auth/           # RBAC and Session logic.
+│   ├── db/             # Generated SQLC database code (DO NOT EDIT).
+│   ├── wled/           # WLED API client and integration.
+│   ├── backup/         # Backup & Restore service.
+│   ├── importer/       # CSV Import logic.
+│   └── inspiration/    # LLM Prompt generation logic.
+├── sql/
+│   ├── schema/         # Database schema migrations.
+│   └── queries/        # SQL queries used by SQLC.
+├── web/
+│   ├── components/     # Reusable Templ components (.templ).
+│   ├── pages/          # Full page layouts (.templ).
+│   └── static/         # Static assets (images, generated CSS).
+└── Makefile            # Build and development commands.
+```
 
-* **`internal/core/`**: Shared Utilities.
-    * `errors.go`: Centralized error logging and response helpers (`ServerError`, `ClientError`).
-    * `templates.go`: Shared template execution logic.
+## Development Workflow
 
-* **`internal/models/`**: Data Structures.
-    * Contains pure data structs like `Part`, `Bin`, `WLEDState`.
-    * **Rule:** This package contains *no logic*, only definitions.
+### Prerequisites
 
-* **`internal/store/`**: The **Data Access Layer**.
-    * This is the **only** package that imports `database/sql`.
-    * It implements the interfaces defined by the features.
-    * Files are split by entity: `parts.go`, `bins.go`, `controllers.go`.
+* Go 1.25+
+* Node.js 23+ (for Tailwind CSS generation)
+* Make
 
-* **`internal/wled/`**: The **Hardware Client**.
-    * Responsible for sending JSON payloads to WLED controllers.
+### Running Locally
 
-* **`internal/background/`**: Background Services.
-    * Runs `time.Ticker` loops to execute health checks and cleanup jobs at regular intervals.
+To start the development environment with hot-reloading (Air for Go, Templ watcher, Tailwind watcher):
 
-### Feature Modules (`internal/features/`)
+```bash
+make install_dependencies  # Run once
+make dev
+```
 
-This is where the application logic lives. Each folder is a self-contained module:
+The server will start at `http://localhost:8080`.
 
-* **`parts/`**: Managing the Part Catalog, Images, URLs, Docs, and Categories.
-* **`inventory/`**: Managing Bins and Stock levels.
-* **`hardware/`**: Managing Controllers and WLED settings.
-* **`dashboard/`**: The Stock Dashboard logic and "Locate" functionality.
-* **`settings/`**: The composite Settings page view.
-* **`system/`**: Backup, Restore, and Maintenance tasks.
-* **`inspiration/`**: The LLM prompt generator.
+### Database Changes
 
-**Anatomy of a Feature Module:**
-Each feature folder contains:
-1.  **`handler.go`**: Defines the HTTP handlers, routes, and the local `Store` interface it needs.
-2.  **`handler_test.go`**: Contains unit tests, a local `mockStore`, and test setup helpers.
+1. Modify or add SQL files in `sql/schema/` (for structure) or `sql/queries/` (for operations).
+2. Run the generator:
 
-## Data Flow Example: Locating a Part
-
-1.  **UI:** User clicks "Locate". `htmx` sends `POST /locate/part/1`.
-2.  **Router:** `cmd/server/main.go` directs the request to `dashboard.Handler`.
-3.  **Handler:**
-    * `handleLocatePart` calls `h.store.GetPartLocationsForLocate(1)`.
-4.  **Store:**
-    * `internal/store/dashboard.go` runs the SQL query joining parts, bins, and controllers.
-5.  **Handler:**
-    * Receives the list of LEDs.
-    * Groups them by Controller IP.
-    * Calls `h.wled.SendCommand(...)`.
-6.  **WLED Client:**
-    * `internal/wled/wled.go` sends the JSON payload to the Controller.
-7.  **Response:**
-    * The handler renders the `_locate-stop-button.html` template partial.
-    * htmx swaps the button in the browser.
-
-## Testing
-
-The app is designed for high testability using **Dependency Injection** and **Interface Segregation**.
-
-> **Note:** Tests are a work in progress. If you're a testing guru and want to contribute, send a pull request :)
-
-* **How to Run Tests:**
     ```bash
-    # Run all tests (Unit + Integration)
-    go test -v ./...
+    make generate
     ```
 
-* **Testing Philosophy:**
-    * **`internal/store/*_test.go`**: **Integration Tests.** These use a **real, in-memory SQLite database** (`:memory:`). They verify that the SQL is correct and that database constraints (Foreign Keys, Unique) work as expected.
-    * **`internal/features/*/*_test.go`**: **Unit Tests.** These use **Local Mocks** defined inside the test file. They verify the HTTP logic (status codes, template rendering, error handling) without touching the database or network.
+    This updates the Go code in `internal/db/`.
+
+### UI Changes
+
+1. Edit `.templ` files in `web/`.
+2. If running `make dev`, changes are picked up automatically.
+3. If adding custom CSS classes, edit `web/static/css/input.css`.
+
+## Architecture Highlights
+
+### Database & Search
+
+WLEDger uses SQLite with the **FTS5** extension for lightning-fast search.
+
+* **Triggers:** Database triggers (`sql/schema/002_fts_triggers.sql`) automatically sync changes in the `parts` table to the `parts_fts` virtual table.
+* **Tags:** Tags are denormalized into a searchable string column for performance.
+
+### Authentication (RBAC)
+
+Role-Based Access Control is implemented in `internal/auth/`.
+
+* **Roles:** `admin`, `editor`, `viewer`, `guest`.
+* **Middleware:** `RequireRole("admin")` middleware protects sensitive routes.
+* **Sessions:** Stored in the SQLite database via `scs`.
+
+### WLED Integration
+
+The `internal/wled` package handles communication with controllers.
+
+* **Grid Painter:** This complex UI component (`web/components/grid_painter.templ`) uses **Alpine.js** to handle the interactive grid mapping on the client side, then sends the JSON map to the server.
+
+### Backup System
+
+The backup system (`internal/backup`) creates a ZIP archive containing:
+
+1. `dump.json`: A complete dump of the database tables.
+2. `uploads/`: The directory containing all user-uploaded images and documents.
+Restoring is atomic: the system verifies the ZIP, clears the DB, imports the data, and swaps the image directories.
+
+## Building for Production
+
+To build a simplified, optimized binary:
+
+```bash
+make build
+```
+
+This produces a binary in `bin/wledger`.
+**Note:** The binary requires CGO enabled because of the SQLite driver.
+
+## Contributing
+
+1. Fork the repository.
+2. Create a feature branch (`git checkout -b feature/amazing-feature`).
+3. Commit your changes.
+4. Push to the branch.
+5. Open a Pull Request.

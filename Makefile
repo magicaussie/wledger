@@ -7,6 +7,18 @@ help:
 	@echo "  make generate   - Generate all code (templ, sqlc, tailwind)"
 	@echo "  make clean      - Clean generated files and build artifacts"
 	@echo "  make test       - Run tests"
+	@echo "  make install_dependencies - Install all development dependencies"
+
+# Install all development dependencies
+.PHONY: install_dependencies
+install_dependencies:
+	@echo "Installing Go development tools..."
+	@go install github.com/a-h/templ/cmd/templ@latest
+	@go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+	@go install github.com/cosmtrek/air@latest
+	@echo "Installing Node.js dependencies..."
+	@npm install
+	@echo "Dependencies installed!"
 
 # Run all dev watchers (with initial generation)
 .PHONY: dev
