@@ -15,7 +15,7 @@ install_dependencies:
 	@echo "Installing Go development tools..."
 	@go install github.com/a-h/templ/cmd/templ@latest
 	@go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
-	@go install github.com/cosmtrek/air@latest
+	@go install github.com/air-verse/air@latest
 	@echo "Installing Node.js dependencies..."
 	@npm install
 	@echo "Dependencies installed!"
