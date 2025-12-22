@@ -29,19 +29,29 @@ wledger/
 ├── cmd/
 │   └── server/         # Main entry point (main.go) and HTTP handlers.
 ├── internal/           # Private application code.
+│   ├── audit/          # Record actions into the audit_logs table.
 │   ├── auth/           # RBAC and Session logic.
+│   ├── backup/         # Backup & restore logic.
+│   ├── config/         # Contains constants used throughout the app.
 │   ├── db/             # Generated SQLC database code (DO NOT EDIT).
-│   ├── wled/           # WLED API client and integration.
-│   ├── backup/         # Backup & Restore service.
+│   ├── images/         # Image handling and resizing logic.
 │   ├── importer/       # CSV Import logic.
-│   └── inspiration/    # LLM Prompt generation logic.
+│   ├── inspiration/    # LLM Prompt storage logic.
+│   ├── logger/         # Global app logger using lumberjack.
+│   ├── middleware/     # Handles context passing, auth, and enforces checks (e.g. reset password).
+│   ├── parts/          # Parts service for part CRUD operations.
+│   ├── tags/           # Tags service for tag CRUD operations.
+│   ├── utils/          # Small utilities.
+│   └── wled/           # WLED API client and integration.
 ├── sql/
 │   ├── schema/         # Database schema migrations.
 │   └── queries/        # SQL queries used by SQLC.
 ├── web/
 │   ├── components/     # Reusable Templ components (.templ).
+│   ├── icons/          # Reusable SVG icons (.templ). All icons take a `size int` parameter.
+│   ├── layouts/        # Full page layouts (.templ) meant for "base" templates.
 │   ├── pages/          # Full page layouts (.templ).
-│   └── static/         # Static assets (images, generated CSS).
+│   └── static/         # Static assets (images, generated CSS, Alpine.js).
 └── Makefile            # Build and development commands.
 ```
 
@@ -56,6 +66,8 @@ wledger/
 ### Running Locally
 
 To start the development environment with hot-reloading (Air for Go, Templ watcher, Tailwind watcher):
+
+> See the Makefile for a list of all supported operations.
 
 ```bash
 make install_dependencies  # Run once
@@ -108,9 +120,10 @@ The `internal/wled` package handles communication with controllers.
 
 The backup system (`internal/backup`) creates a ZIP archive containing:
 
-1. `dump.json`: A complete dump of the database tables.
-2. `uploads/`: The directory containing all user-uploaded images and documents.
-Restoring is atomic: the system verifies the ZIP, clears the DB, imports the data, and swaps the image directories.
+1. `human_readable_parts.json`: A complete human-readable dump of user parts.
+2. `restore_data.json`: A complete dump of the SQLite DB tables.
+3. `uploads/`: The directory containing all user-uploaded images and documents.
+Restoring is complete, and destructive: the system verifies the ZIP, clears the current DB, imports the data, and swaps the image directories.
 
 ## Building for Production
 

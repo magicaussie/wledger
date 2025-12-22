@@ -4,7 +4,9 @@ layout: default
 nav_order: 3
 ---
 
-# Hardware Guide
+# Build Guide
+
+WLEDger's full power is realized when paired with a WLED controller, and some LEDs connected to your storage bins, shelves, etc.
 
 WLEDger is flexible. That is, it doesn't care *what* your hardware is, as long as it runs WLED and has addressable LEDs. This guide provides an overview of the components you'll need, three common "paths" you can take to build your physical inventory setup, and the rough cost of each path (in time, and money).
 
@@ -25,7 +27,7 @@ You need a Wi-Fi-enabled microcontroller that can run the WLED firmware.
 * **Basic & Cheap (DIY Power):**
   * **Example:** [WEMOS D1 Mini (ESP8266)](https://amzn.to/4hWNPR2), [ESP32 Dev Board](https://amzn.to/47Wq7Qh)
   * **Pros:** Extremely cheap and widely available.
-  * **Cons:** Requires more wiring and know-how. You must provide your own power and (potentially) a level shifter. These are best for larger or complex setups where you're already using a custom power solution.
+  * **Cons:** Requires more wiring and know-how. You must provide your own power and (potentially) a level shifter. These are best for setups where you're already using a custom power solution (or have a setup so small you don't need one) and want a cheap controller.
 
 > Other options exist in this space, such as the [QinLED Dig series](https://www.drzzs.com/product-category/leds/). This list is not exhaustive. Choose the option that tickles your fancy.
 
@@ -80,13 +82,13 @@ This is the fastest, cleanest, and most "plug-and-play" method. It's designed to
 * **Pros:** Looks professional, very fast to build, minimal wiring.
 * **Cons:** Highest cost, locked into the specific bin size.
 
-> Most of this cost is from sourcing the PCBs. If you're located **outside the United States**, your cost will likely be lower, depending on your country's import taxes and choice of PCB manufacturer.
+> Most of this cost is from sourcing the PCBs. If you're located **outside the United States**, your cost may be higher or lower, depending on your country's import taxes and choice of PCB manufacturer.
 
 | Component | Recommendation |
 | :--- | :--- |
 | **Bins** | [High Quality 8x8 Transparent Bin Organizer](https://amzn.to/43vlFGY) |
 | **MCU** | [Adafruit Sparkle Motion Mini](https://www.adafruit.com/product/6160) |
-| **LEDs** | [8x Custom 8-LED PCBs](/hardware/README.md) (Order from JLCPCB, etc.) |
+| **LEDs** | [8x Custom 8-LED PCBs](/hardware/README.md) (Order from JLCPCB, PCBWay, Seeed Fusion, ...) |
 | **Backer** | A sheet of cardboard, MDF, or thin plywood to attach the PCBs to. |
 | **Power** | 5V 4A+ Power Supply (USB brick, battery pack, etc) |
 | **Wiring** | Wire (22 AWG is good) |
@@ -95,7 +97,7 @@ This is the fastest, cleanest, and most "plug-and-play" method. It's designed to
 
 ## Path 2: The "Cheapest" Build (DIY Wiring)
 
-This is the classic DIY method. It's cheap to build, but requires the most time. You will cut an LED strip into 64 individual pieces and solder them all back together.
+This is the classic DIY method. It's *very* cheap to build, but requires the most time. You will cut an LED strip into 64 individual pieces and solder them all back together.
 
 * **Cost:** Low ($70 USD / 8x8 bin setup)
 * **Time:** High
@@ -118,7 +120,7 @@ This is the classic DIY method. It's cheap to build, but requires the most time.
 1. Cut your backer board to fit the back of the bin cabinet.
 2. Cut your LED strip into 64 individual pixels.
 3. Arrange and glue the 64 pixels onto the backer board.
-4. Painstakingly solder 3 wires (`+5V`, `GND`, `Data`) from one pixel to the next, following the `D_OUT` to `D_IN` flow.
+4. Solder 3 wires (WS2812B) (`+5V`, `GND`, `Data`) from one pixel to the next, following the `D_OUT` to `D_IN` flow. If you have a different number of pins for your LEDs, look up the WLED wiring instructions for your particular LEDs instead.
 
 ---
 
@@ -129,7 +131,7 @@ WLEDger is not just for small part bins. You can use it for *any* storage you wa
 The only rule is: **If WLED can control it, WLEDger can find it.**
 
 * **IKEA KALLAX:** Put a short LED strip in each cube. Use WLEDger to track which cube holds your favorite books, 3D printer filament, or test equipment.
-* **Garage Workshop:** Line your tool drawers with LED strips. Assign `Segment 0` to your screwdriver drawer and `Segment 1` to your wrench drawer.
+* **Garage Workshop:** Line your tool drawers with LED strips. Assign `Bin A1` to your screwdriver drawer and `Bin B1` to your wrench drawer.
 * **Pegboard:** Attach LED pixels behind your most-used tools.
 
 The possibilities are endless.
