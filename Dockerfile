@@ -38,7 +38,7 @@ RUN CGO_ENABLED=1 go build -ldflags="-s -w" -tags fts5 -o wledger ./cmd/server
 
 # Stage 3: Runtime
 FROM alpine:latest
-WORKDIR /app
+WORKDIR /wledger
 
 # Install runtime dependencies
 RUN apk add --no-cache ca-certificates tzdata
@@ -56,13 +56,13 @@ COPY --from=css-builder /build/web/static/css/output.css ./web/static/css/output
 COPY --from=go-builder /build/sql/schema ./sql/schema
 
 # Create necessary directories
-RUN mkdir -p data app/uploads
+RUN mkdir -p data app/uploads app/logs
 
 # Expose port
 EXPOSE 8080
 
 # Define volumes for persistence
-VOLUME ["/app/data", "/app/app/uploads"]
+VOLUME ["/wledger/data", "/wledger/app/uploads", "/wledger/app/logs"]
 
 # Run
 CMD ["./wledger"]

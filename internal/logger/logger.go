@@ -7,23 +7,24 @@ import (
 	"path/filepath"
 
 	"gopkg.in/natefinch/lumberjack.v2"
+	"github.com/tuxedocurly/wledger/internal/config"
+
 )
 
 // New() initializes a new slog.Logger that writes to both stdout and a file
 func New(debug bool) *slog.Logger {
 	// Create the log directory if it doesn't exist
-	logDir := "app/logs"
-	if err := os.MkdirAll(logDir, 0755); err != nil {
+	if err := os.MkdirAll(config.DirLogs, 0755); err != nil {
 		// If logDir can't be created, I won't be able to log to a file - So panic during startup
 		panic("failed to create log directory: " + err.Error())
 	}
 
 	// Configure log rotation parameters using Lumberjack
 	fileWriter := &lumberjack.Logger{
-		Filename:   filepath.Join(logDir, "app.log"),
-		MaxSize:    10,   // Megabytes
-		MaxBackups: 5,    // Number of files
-		MaxAge:     28,   // Days
+		Filename:   filepath.Join(config.DirLogs, "app.log"),
+		MaxSize:    5,   // Megabytes
+		MaxBackups: 3,    // Number of files
+		MaxAge:     14,   // Days
 		Compress:   true, // Compres old logs
 	}
 

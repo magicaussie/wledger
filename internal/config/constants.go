@@ -4,6 +4,7 @@ const (
 	// System Paths (Relative to project root)
 	DirData          = "./data"
 	DirDatabase      = "./data/wledger.db"
+	DirLogs		     = "./app/logs"
 	DirUploads       = "./app/uploads"
 	DirUploadsImages = "./app/uploads/images"
 	DirUploadsDocs   = "./app/uploads/docs"

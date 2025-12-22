@@ -1,0 +1,11 @@
+services:
+  wledger:
+    build: .
+    container_name: wledger
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/wledger/data
+      - ./uploads:/wledger/app/uploads
+      - ./logs:/wledger/app/logs
+    restart: unless-stopped

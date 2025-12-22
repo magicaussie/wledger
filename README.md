@@ -147,11 +147,11 @@ This will start:
 ## 📸 Screenshots
 
 | Part Details | Mobile Scanner |
-|:---:|:---:|
+| :---: | :---: |
 | ![Part Details](https://placehold.co/600x400?text=Part+Details) | ![Mobile Scanner](https://placehold.co/600x400?text=Scanner+UI) |
 
 | Grid View | Dark Mode |
-|:---:|:---:|
+| :---: | :---: |
 | ![Grid View](https://placehold.co/600x400?text=Hardware+Grid) | ![Dark Mode](https://placehold.co/600x400?text=Dark+Mode) |
 
 ---
