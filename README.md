@@ -18,12 +18,12 @@ WLEDger (WLED + Ledger) is a modern, high-performance inventory system designed 
 
 When you search for a component, WLEDger doesn't just tell you "Bin A1" — **it lights up the specific bin on your storage rack.**
 
-## ✨ Core Features
+## Core Features
 
-### 💡 "Pick-to-Light" System
+### 💡 Visual LED Locating System
 Connect your WLED-powered LED strips or matrices to your storage.
 - **Visual Locate:** Click "Locate" on a part, and its bin glows instantly.
-- **Stock Status Colors:** Configure different colors for "In Stock", "Low Stock", and "Critical".
+- **Stock Status Colors:** Configure different colors for "Locate", "In Stock", "Low Stock", and "Critical".
 - **Grid & Strip Support:** Map LEDs to physical bins using linear strips or 2D grids.
 
 ### 📦 Powerful Inventory Management
@@ -32,7 +32,7 @@ Connect your WLED-powered LED strips or matrices to your storage.
 - **Rich Data:** Store datasheets (PDFs), images, supplier links, and cost data.
 - **Tagging:** Organize parts with flexible tagging.
 
-### LLM Inspiration
+### 🧠 LLM Inspiration
 Don't let your parts gather dust.
 
 Create and use prompt templates that export your entire inventory list, or a subset of your inventory filtered by tag. Copy the prompt, and paste it into your favorite LLM.
@@ -71,7 +71,7 @@ Existing tools were either enterprise focused (and not open source) or lacking i
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Option 1: Docker (Recommended)
 
