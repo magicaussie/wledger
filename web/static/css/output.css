@@ -4001,6 +4001,12 @@
       --badge-fg: var(--color-primary-content);
     }
   }
+  .badge-secondary {
+    @layer daisyui.l1.l2 {
+      --badge-color: var(--color-secondary);
+      --badge-fg: var(--color-secondary-content);
+    }
+  }
   .badge-success {
     @layer daisyui.l1.l2 {
       --badge-color: var(--color-success);
@@ -4326,11 +4332,6 @@
   .md\:col-span-3 {
     @media (width >= 48rem) {
       grid-column: span 3 / span 3;
-    }
-  }
-  .md\:mr-1 {
-    @media (width >= 48rem) {
-      margin-right: calc(var(--spacing) * 1);
     }
   }
   .md\:hidden {

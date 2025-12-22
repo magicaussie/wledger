@@ -7,6 +7,7 @@ import (
 	"github.com/tuxedocurly/wledger/web/components"
 	"github.com/tuxedocurly/wledger/web/icons"
 	"github.com/tuxedocurly/wledger/web/layouts"
+	"strings"
 )
 
 templ PartDetail(user auth.User, part db.Part, stock []db.GetPartAssignmentsRow, links []db.PartLink, docs []db.PartDoc, controllers []db.Controller) {
@@ -50,29 +51,44 @@ templ PartDetail(user auth.User, part db.Part, stock []db.GetPartAssignmentsRow,
 						<div class="card-body p-4">
 							<h3 class="font-bold text-xs uppercase tracking-wider opacity-50 mb-3">Specifications</h3>
 							<div class="space-y-3 text-sm">
-								if part.PartNumber.Valid {
+								if part.PartNumber.Valid && part.PartNumber.String != "" {
 									<div class="flex justify-between">
 										<span class="opacity-70">MPN</span>
 										<span class="font-mono">{ part.PartNumber.String }</span>
 									</div>
 								}
-								if part.Manufacturer.Valid {
+								if part.Manufacturer.Valid && part.Manufacturer.String != "" {
 									<div class="flex justify-between">
 										<span class="opacity-70">Manufacturer</span>
 										<span class="font-medium">{ part.Manufacturer.String }</span>
 									</div>
 								}
-								if part.Supplier.Valid {
+								if part.Supplier.Valid && part.Supplier.String != "" {
 									<div class="flex justify-between">
 										<span class="opacity-70">Supplier</span>
 										<span class="font-medium">{ part.Supplier.String }</span>
 									</div>
 								}
-								<div class="divider my-1"></div>
+								if part.BarcodeData.Valid && part.BarcodeData.String != "" {
+									<div class="flex justify-between">
+										<span class="opacity-70">Barcode</span>
+										<span class="font-mono">{ part.BarcodeData.String }</span>
+									</div>
+								}
+								<div class="divider"></div>
 								<div class="flex justify-between">
 									<span class="opacity-70">Unit Cost</span>
 									<span class="font-mono">$ { fmt.Sprintf("%.2f", part.UnitCost.Float64) }</span>
 								</div>
+								if part.Tags.Valid && part.Tags.String != "" {
+									<div class="divider"></div>
+									<span class="flex justify-between opacity-70">Tags</span>
+									<div class="flex flex-wrap gap-1">
+										for tag := range strings.SplitSeq(part.Tags.String, ", ") {
+											<span class="badge badge-info badge-outline badge-sm">{ tag }</span>
+										}
+									</div>
+								}
 							</div>
 						</div>
 					</div>
