@@ -91,16 +91,42 @@ Existing tools were expensive, closed source or lacking in features/WLED integra
 
 The easiest way to run WLEDger is via Docker.
 
+1. Create the directory for your WLEDger docker container: e.g. ~/wledger
+
+2. Inside the folder you created (`~/wledger`) create the following additional folders: `data`, `uploads`, and `logs`. For example:
+
+3. Create a file `docker-compose.yaml` with the following contents:
+
 ```bash
-docker run -d \
-  -p 8080:8080 \
-  -v ./data:/app/data \
-  -v ./uploads:/app/app/uploads \
-  --name wledger \
-  ghcr.io/tuxedocurly/wledger:latest
+services:
+  wledger:
+    # Format: user/repository:tag
+    image: tuxedomakes/wledger:latest
+
+    # A custom name for the container instance.
+    container_name: wledger
+
+    ports:
+      # Maps ports in the format "HOST:CONTAINER"
+      - "8080:8080"
+
+    volumes:
+      # Maps files in the format "HOST_PATH:CONTAINER_PATH"
+      - ./data:/wledger/data
+      - ./uploads:/wledger/app/uploads
+      - ./logs:/wledger/app/logs
+
+    # Restart policy
+    restart: unless-stopped
 ```
 
-Visit `http://localhost:8080` to see your instance.
+Run the following command to start the container:
+
+```BASH
+docker compose up -d
+```
+
+Visit `http://localhost:8080` to see the WLEDger UI.
 
 ### Option 2: Build from Source
 
@@ -130,7 +156,7 @@ make build
 
 ### Development
 
-I use `air` for live reloading and `make` for task orchestration.
+WLEDger uses `air` for live reloading and `make` for task orchestration.
 
 ```bash
 make dev

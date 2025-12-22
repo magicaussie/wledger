@@ -1,11 +1,35 @@
 services:
+  # The name of the service internal to Docker network (can be used by other containers to talk to this one)
   wledger:
-    build: .
+    # The image to download and run.
+    # Format: user/repository:tag
+    # "latest" means it will grab the most recent build from Docker Hub.
+    image: tuxedomakes/wledger:latest
+
+    # A custom name for the container instance.
+    # This makes it easier to find when running commands like 'docker ps' or 'docker logs wledger'.
     container_name: wledger
+
     ports:
+      # Maps ports in the format "HOST:CONTAINER"
+      # 8080 (Left): The port you open on your computer (http://localhost:8080)
+      # 8080 (Right): The port the app inside the container is listening on
       - "8080:8080"
+
     volumes:
+      # Maps files in the format "HOST_PATH:CONTAINER_PATH"
+      # Persists data so it isn't lost when the container updates or deletes.
+
+      # Map the local './data' folder to the internal '/wledger/data' database folder
       - ./data:/wledger/data
+
+      # Map the local './uploads' folder to where the app stores user uploaded files
       - ./uploads:/wledger/app/uploads
+
+      # Map the local './logs' folder so you can read log files without entering the container
       - ./logs:/wledger/app/logs
+
+    # Restart policy
+    # "unless-stopped" means the container will automatically start up if the server reboots
+    # or if the app crashes, but NOT if you manually run 'docker-compose down'.
     restart: unless-stopped

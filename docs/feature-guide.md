@@ -30,17 +30,17 @@ At its heart, WLEDger is a robust database for your electronic components.
 * **Quantity Tracking:** specific counts for each location.
 * **Min Stock & Reorder Levels:** Adjustable indicators for when your stock is getting low.
 
-### ⚡ Fast Search
+### Fast Search
 
 WLEDger uses **SQLite FTS5** (Full-Text Search) to provide instant results.
 
 * **Universal Search:** The search bar queries Names, Descriptions, Tags, Manufacturer, Serial Number, and Part Number fields simultaneously.
 * **Result Ranking:** Find the parts most relevant to your search with built in search ranking.
-* **Instant Filtering:** Results update instantly as you type.
+* **Instant Filtering:** Results update instantly as you type from any page.
 
 ### Dashboard
 
-The dashboard provides stats about your entire inventory and WLED hardware setup(s) at a glance.
+The dashboard provides stats about your entire inventory and WLED controllers at a glance.
 
 * **Multiple Controllers:** Visualize the status of the parts in your inventory (Critical, Low, OK), organized per-bin & per-controller. There's no need to physically check your bins anymore!
 * **Stats:** View total part count, inventory value, and online controller status in one place.
