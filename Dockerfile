@@ -52,6 +52,9 @@ COPY --from=go-builder /build/web/static ./web/static
 # Then overwrite the CSS with the minified version from css-builder
 COPY --from=css-builder /build/web/static/css/output.css ./web/static/css/output.css
 
+# Copy database schema for migrations
+COPY --from=go-builder /build/sql/schema ./sql/schema
+
 # Create necessary directories
 RUN mkdir -p data app/uploads
 
