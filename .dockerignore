@@ -1,0 +1,12 @@
+.git
+.github
+.vscode
+bin
+tmp
+data
+app/logs
+app/uploads
+node_modules
+web/static/css/output.css
+*_templ.go
+.env
