@@ -95,7 +95,7 @@ If you prefer to run the binary directly or are developing on WLEDger, you'll ne
 
 ---
 
-## 🔌 Hardware Setup
+## Hardware Setup
 
 To get the full experience, you'll need to connect WLEDger to a WLED controller.
 

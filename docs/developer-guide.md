@@ -27,32 +27,27 @@ The project follows the following layout convention:
 ``` BASH
 wledger/
 ├── cmd/
-│   └── server/         # Main entry point (main.go) and HTTP handlers.
+│   └── server/         # Main entry point (main.go).
 ├── internal/           # Private application code.
 │   ├── audit/          # Record actions into the audit_logs table.
 │   ├── auth/           # RBAC and Session logic.
 │   ├── backup/         # Backup & restore logic.
 │   ├── config/         # Contains constants used throughout the app.
-│   ├── db/             # Generated SQLC database code (DO NOT EDIT).
+│   ├── db/             # Generated SQLC database code and migration runner.
+│   ├── handler/        # HTTP Handlers (decoupled from main).
 │   ├── images/         # Image handling and resizing logic.
 │   ├── importer/       # CSV Import logic.
 │   ├── inspiration/    # LLM Prompt storage logic.
-│   ├── logger/         # Global app logger using lumberjack.
-│   ├── middleware/     # Handles context passing, auth, and enforces checks (e.g. reset password).
+│   ├── logger/         # Global app logger with dynamic level switching.
+│   ├── middleware/     # Handles context passing, auth, and enforces checks.
 │   ├── parts/          # Parts service for part CRUD operations.
+│   ├── router/         # Chi router configuration and route registration.
 │   ├── tags/           # Tags service for tag CRUD operations.
 │   ├── utils/          # Small utilities.
 │   └── wled/           # WLED API client and integration.
 ├── sql/
-│   ├── schema/         # Database schema migrations.
+│   ├── schema/         # Database schema migrations (managed by goose).
 │   └── queries/        # SQL queries used by SQLC.
-├── web/
-│   ├── components/     # Reusable Templ components (.templ).
-│   ├── icons/          # Reusable SVG icons (.templ). All icons take a `size int` parameter.
-│   ├── layouts/        # Full page layouts (.templ) meant for "base" templates.
-│   ├── pages/          # Full page layouts (.templ).
-│   └── static/         # Static assets (images, generated CSS, Alpine.js).
-└── Makefile            # Build and development commands.
 ```
 
 ## Development Workflow
@@ -78,20 +73,13 @@ The server will start at `http://localhost:8080`.
 
 ### Database Changes
 
-1. Modify or add SQL files in `sql/schema/` (for structure) or `sql/queries/` (for operations).
-2. Run the generator:
+1.  **Schema Migrations:** WLEDger uses [goose](https://github.com/pressly/goose) for migrations. Add a new SQL file to `sql/schema/` using the naming convention `00X_description.sql`.
+2.  **SQL Queries:** Modify or add SQL files in `sql/queries/`.
+3.  **Generate Code:** Run the generator to update the Go code in `internal/db/`:
 
     ```bash
     make generate
     ```
-
-    This updates the Go code in `internal/db/`.
-
-### UI Changes
-
-1. Edit `.templ` files in `web/`.
-2. If running `make dev`, changes are picked up automatically.
-3. If adding custom CSS classes, edit `web/static/css/input.css`.
 
 ## Architecture Highlights
 
@@ -99,31 +87,23 @@ The server will start at `http://localhost:8080`.
 
 WLEDger uses SQLite with the **FTS5** extension for lightning-fast search.
 
-* **Triggers:** Database triggers (`sql/schema/002_fts_triggers.sql`) automatically sync changes in the `parts` table to the `parts_fts` virtual table.
-* **Tags:** Tags are denormalized into a searchable string column for performance.
+*   **Migrations:** Managed by `goose`, migrations are embedded into the binary and run automatically on startup.
+*   **Triggers:** Database triggers (`sql/schema/002_fts_triggers.sql`) automatically sync changes in the `parts` table to the `parts_fts` virtual table.
+*   **Tags:** Tags are denormalized into a searchable string column for performance.
 
-### Authentication (RBAC)
+### Handlers & Routing
 
-Role-Based Access Control is implemented in `internal/auth/`.
+HTTP logic is strictly separated from the application entry point.
 
-* **Roles:** `admin`, `editor`, `viewer`, `guest`.
-* **Middleware:** `RequireRole("admin")` middleware protects sensitive routes.
-* **Sessions:** Stored in the SQLite database via `scs`.
+*   **Router:** Located in `internal/router`, it configures middleware and registers routes.
+*   **Handlers:** Located in `internal/handler`, these are organized by domain (auth, parts, settings, etc.) and receive dependencies via struct injection.
 
-### WLED Integration
+### Logging
 
-The `internal/wled` package handles communication with controllers.
+WLEDger uses `slog` with a custom wrapper in `internal/logger`.
 
-* **Grid Painter:** This complex UI component (`web/components/grid_painter.templ`) uses **Alpine.js** to handle the interactive grid mapping on the client side, then sends the JSON map to the server.
-
-### Backup System
-
-The backup system (`internal/backup`) creates a ZIP archive containing:
-
-1. `human_readable_parts.json`: A complete human-readable dump of user parts.
-2. `restore_data.json`: A complete dump of the SQLite DB tables.
-3. `uploads/`: The directory containing all user-uploaded images and documents.
-Restoring is complete, and destructive: the system verifies the ZIP, clears the current DB, imports the data, and swaps the image directories.
+*   **Dynamic Levels:** The log level can be switched between `INFO` and `DEBUG` at runtime without restarting the application.
+*   **Output:** Logs are written to both `stdout` and a rotating file in `app/logs/app.log`.
 
 ## Building for Production
 

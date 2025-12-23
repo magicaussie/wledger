@@ -8,7 +8,7 @@ nav_order: 4
 
 This guide covers the core features of WLEDger V2, helping you get the most out of your inventory system.
 
-## 📦 Inventory Management
+## Inventory Management
 
 At its heart, WLEDger is a robust database for your electronic components.
 
@@ -47,7 +47,7 @@ The dashboard provides stats about your entire inventory and WLED controllers at
 
 ---
 
-## 💡 Hardware Integration (WLED)
+## Hardware Integration (WLED)
 
 This is what makes WLEDger special: connecting your digitally managed inventory to physical LEDs.
 
@@ -72,7 +72,7 @@ Setting up LED mapping can be tedious. The **Grid Painter** makes it visual and 
 
 ---
 
-## 🤖 Inspiration (LLM Prompts)
+## Inspiration (LLM Prompts)
 
 Not sure what to build with all that stuff? WLEDger can help you create prompts using *your inventor* for use with your favorite LLM tool.
 
@@ -84,24 +84,47 @@ Not sure what to build with all that stuff? WLEDger can help you create prompts 
 
 ---
 
-## 🛠 Data Tools
+## Data & System Tools
 
-Your data belongs to you. WLEDger provides powerful tools to manage it.
+
+
+Your data belongs to you, and WLEDger provides tools to manage it and troubleshoot issues.
+
+
 
 ### Bulk Import
 
+
+
 * **CSV Import:** Import inventory from other software or spreadsheets easily. Upload a CSV file, or copy and paste raw CSV into the Import UI directly.
+
+
 
 ### Backup & Restore
 
+
+
 * **Full System Export:** Create a single `.zip` file containing:
+
   * **Database Dump:** A complete JSON export of all your data.
+
   * **Assets:** All uploaded images and datasheets.
+
 * **Atomic Restore:** Restore your entire system from a backup file with one click. *Note: This overwrites ALL current data.*
+
+
+
+### Troubleshooting
+
+
+
+* **Debug Mode:** Enable "Debug Logs" in the General Settings to increase the verbosity of application logs. This is useful for troubleshooting hardware connection issues or complex inventory operations.
+
+
 
 ---
 
-## 🔐 User Management
+## User Management
 
 Secure your inventory with Role-Based Access Control (RBAC).
 
