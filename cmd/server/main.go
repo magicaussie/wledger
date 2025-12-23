@@ -151,6 +151,7 @@ func main() {
 		r.Get("/parts/bins_options", app.handleBinOptions)
 		// Locate (Viewers, if permission is enabled, can light up parts)
 		r.Post("/hardware/{id}/locate", app.handleHardwareLocate)
+		r.Post("/parts/{id}/locate", app.handlePartLocate)
 
 		// Hardware (Read)
 		r.Get("/hardware", app.handleHardwareList)

@@ -1,0 +1,19 @@
+package components
+
+import (
+	"fmt"
+	"github.com/tuxedocurly/wledger/web/icons"
+)
+
+templ LocateButton(controllerID int64, binID int64, className string) {
+	<object class="inline-block" onClick="event.preventDefault(); event.stopPropagation()">
+		<button
+			hx-post={ fmt.Sprintf("/hardware/%d/locate?bin_id=%d", controllerID, binID) }
+			hx-swap="none"
+			class={ "btn btn-ghost text-accent z-10", className }
+			title="Locate"
+		>
+			@icons.EyeIcon(5)
+		</button>
+	</object>
+}

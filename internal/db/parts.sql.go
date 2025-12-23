@@ -389,6 +389,8 @@ SELECT
     pa.quantity, 
     b.id as bin_id, 
     b.name as bin_name,
+    b.led_index,
+    b.width,
     c.name as controller_name,
     c.id as controller_id,
     c.ip_address as controller_ip
@@ -403,6 +405,8 @@ type GetPartAssignmentsRow struct {
 	Quantity       int64          `json:"quantity"`
 	BinID          sql.NullInt64  `json:"bin_id"`
 	BinName        sql.NullString `json:"bin_name"`
+	LedIndex       sql.NullInt64  `json:"led_index"`
+	Width          sql.NullInt64  `json:"width"`
 	ControllerName sql.NullString `json:"controller_name"`
 	ControllerID   sql.NullInt64  `json:"controller_id"`
 	ControllerIp   sql.NullString `json:"controller_ip"`
@@ -422,6 +426,8 @@ func (q *Queries) GetPartAssignments(ctx context.Context, partID int64) ([]GetPa
 			&i.Quantity,
 			&i.BinID,
 			&i.BinName,
+			&i.LedIndex,
+			&i.Width,
 			&i.ControllerName,
 			&i.ControllerID,
 			&i.ControllerIp,
@@ -521,7 +527,18 @@ func (q *Queries) GetPartLinks(ctx context.Context, partID int64) ([]PartLink, e
 
 const listParts = `-- name: ListParts :many
 SELECT p.id, p.name, p.description, p.part_number, p.manufacturer, p.supplier, p.unit_cost, p.reorder_level, p.min_stock_threshold, p.barcode_data, p.image_path, p.is_favorite, p.tags, p.created_at, p.updated_at, 
-    CAST(COALESCE(SUM(pa.quantity), 0) AS INTEGER) as total_stock
+    CAST(COALESCE(SUM(pa.quantity), 0) AS INTEGER) as total_stock,
+    (SELECT pa2.bin_id 
+     FROM part_assignments pa2 
+     WHERE pa2.part_id = p.id AND pa2.quantity > 0 
+     ORDER BY pa2.quantity DESC, pa2.id ASC 
+     LIMIT 1) as locate_bin_id,
+    (SELECT b2.controller_id 
+     FROM part_assignments pa2 
+     JOIN bins b2 ON pa2.bin_id = b2.id
+     WHERE pa2.part_id = p.id AND pa2.quantity > 0 
+     ORDER BY pa2.quantity DESC, pa2.id ASC 
+     LIMIT 1) as locate_controller_id
 FROM parts p
 LEFT JOIN part_assignments pa ON p.id = pa.part_id
 GROUP BY p.id
@@ -535,22 +552,24 @@ type ListPartsParams struct {
 }
 
 type ListPartsRow struct {
-	ID                int64           `json:"id"`
-	Name              string          `json:"name"`
-	Description       sql.NullString  `json:"description"`
-	PartNumber        sql.NullString  `json:"part_number"`
-	Manufacturer      sql.NullString  `json:"manufacturer"`
-	Supplier          sql.NullString  `json:"supplier"`
-	UnitCost          sql.NullFloat64 `json:"unit_cost"`
-	ReorderLevel      sql.NullInt64   `json:"reorder_level"`
-	MinStockThreshold sql.NullInt64   `json:"min_stock_threshold"`
-	BarcodeData       sql.NullString  `json:"barcode_data"`
-	ImagePath         sql.NullString  `json:"image_path"`
-	IsFavorite        sql.NullBool    `json:"is_favorite"`
-	Tags              sql.NullString  `json:"tags"`
-	CreatedAt         sql.NullTime    `json:"created_at"`
-	UpdatedAt         sql.NullTime    `json:"updated_at"`
-	TotalStock        int64           `json:"total_stock"`
+	ID                 int64           `json:"id"`
+	Name               string          `json:"name"`
+	Description        sql.NullString  `json:"description"`
+	PartNumber         sql.NullString  `json:"part_number"`
+	Manufacturer       sql.NullString  `json:"manufacturer"`
+	Supplier           sql.NullString  `json:"supplier"`
+	UnitCost           sql.NullFloat64 `json:"unit_cost"`
+	ReorderLevel       sql.NullInt64   `json:"reorder_level"`
+	MinStockThreshold  sql.NullInt64   `json:"min_stock_threshold"`
+	BarcodeData        sql.NullString  `json:"barcode_data"`
+	ImagePath          sql.NullString  `json:"image_path"`
+	IsFavorite         sql.NullBool    `json:"is_favorite"`
+	Tags               sql.NullString  `json:"tags"`
+	CreatedAt          sql.NullTime    `json:"created_at"`
+	UpdatedAt          sql.NullTime    `json:"updated_at"`
+	TotalStock         int64           `json:"total_stock"`
+	LocateBinID        sql.NullInt64   `json:"locate_bin_id"`
+	LocateControllerID sql.NullInt64   `json:"locate_controller_id"`
 }
 
 func (q *Queries) ListParts(ctx context.Context, arg ListPartsParams) ([]ListPartsRow, error) {
@@ -579,6 +598,8 @@ func (q *Queries) ListParts(ctx context.Context, arg ListPartsParams) ([]ListPar
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.TotalStock,
+			&i.LocateBinID,
+			&i.LocateControllerID,
 		); err != nil {
 			return nil, err
 		}
@@ -750,7 +771,18 @@ func (q *Queries) RestorePartLink(ctx context.Context, arg RestorePartLinkParams
 
 const searchParts = `-- name: SearchParts :many
 SELECT p.id, p.name, p.description, p.part_number, p.manufacturer, p.supplier, p.unit_cost, p.reorder_level, p.min_stock_threshold, p.barcode_data, p.image_path, p.is_favorite, p.tags, p.created_at, p.updated_at, 
-    CAST(COALESCE(SUM(pa.quantity), 0) AS INTEGER) as total_stock
+    CAST(COALESCE(SUM(pa.quantity), 0) AS INTEGER) as total_stock,
+    (SELECT pa2.bin_id 
+     FROM part_assignments pa2 
+     WHERE pa2.part_id = p.id AND pa2.quantity > 0 
+     ORDER BY pa2.quantity DESC, pa2.id ASC 
+     LIMIT 1) as locate_bin_id,
+    (SELECT b2.controller_id 
+     FROM part_assignments pa2 
+     JOIN bins b2 ON pa2.bin_id = b2.id
+     WHERE pa2.part_id = p.id AND pa2.quantity > 0 
+     ORDER BY pa2.quantity DESC, pa2.id ASC 
+     LIMIT 1) as locate_controller_id
 FROM parts_fts fts
 JOIN parts p ON fts.rowid = p.id
 LEFT JOIN part_assignments pa ON p.id = pa.part_id
@@ -767,22 +799,24 @@ type SearchPartsParams struct {
 }
 
 type SearchPartsRow struct {
-	ID                int64           `json:"id"`
-	Name              string          `json:"name"`
-	Description       sql.NullString  `json:"description"`
-	PartNumber        sql.NullString  `json:"part_number"`
-	Manufacturer      sql.NullString  `json:"manufacturer"`
-	Supplier          sql.NullString  `json:"supplier"`
-	UnitCost          sql.NullFloat64 `json:"unit_cost"`
-	ReorderLevel      sql.NullInt64   `json:"reorder_level"`
-	MinStockThreshold sql.NullInt64   `json:"min_stock_threshold"`
-	BarcodeData       sql.NullString  `json:"barcode_data"`
-	ImagePath         sql.NullString  `json:"image_path"`
-	IsFavorite        sql.NullBool    `json:"is_favorite"`
-	Tags              sql.NullString  `json:"tags"`
-	CreatedAt         sql.NullTime    `json:"created_at"`
-	UpdatedAt         sql.NullTime    `json:"updated_at"`
-	TotalStock        int64           `json:"total_stock"`
+	ID                 int64           `json:"id"`
+	Name               string          `json:"name"`
+	Description        sql.NullString  `json:"description"`
+	PartNumber         sql.NullString  `json:"part_number"`
+	Manufacturer       sql.NullString  `json:"manufacturer"`
+	Supplier           sql.NullString  `json:"supplier"`
+	UnitCost           sql.NullFloat64 `json:"unit_cost"`
+	ReorderLevel       sql.NullInt64   `json:"reorder_level"`
+	MinStockThreshold  sql.NullInt64   `json:"min_stock_threshold"`
+	BarcodeData        sql.NullString  `json:"barcode_data"`
+	ImagePath          sql.NullString  `json:"image_path"`
+	IsFavorite         sql.NullBool    `json:"is_favorite"`
+	Tags               sql.NullString  `json:"tags"`
+	CreatedAt          sql.NullTime    `json:"created_at"`
+	UpdatedAt          sql.NullTime    `json:"updated_at"`
+	TotalStock         int64           `json:"total_stock"`
+	LocateBinID        sql.NullInt64   `json:"locate_bin_id"`
+	LocateControllerID sql.NullInt64   `json:"locate_controller_id"`
 }
 
 func (q *Queries) SearchParts(ctx context.Context, arg SearchPartsParams) ([]SearchPartsRow, error) {
@@ -811,6 +845,8 @@ func (q *Queries) SearchParts(ctx context.Context, arg SearchPartsParams) ([]Sea
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.TotalStock,
+			&i.LocateBinID,
+			&i.LocateControllerID,
 		); err != nil {
 			return nil, err
 		}

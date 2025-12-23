@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/tuxedocurly/wledger/internal/auth"
@@ -496,4 +498,65 @@ func (app *application) handlePartStockAdjust(w http.ResponseWriter, r *http.Req
 	}
 
 	http.Redirect(w, r, fmt.Sprintf("/parts/%d", partID), http.StatusSeeOther)
+}
+
+// POST /parts/{id}/locate
+func (app *application) handlePartLocate(w http.ResponseWriter, r *http.Request) {
+	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
+
+	// Fetch Settings (Needed for Color and Timeout config)
+	settings, err := app.queries.GetSettings(r.Context())
+	if err != nil {
+		// Fallback defaults if DB fails
+		settings.ColorLocate.String = "#0000FF"
+		settings.EnableLocateTimeout.Bool = false
+		settings.LocateTimeoutSeconds.Int64 = 0
+	}
+
+	// Get all assignments
+	assignments, err := app.queries.GetPartAssignments(r.Context(), int64(id))
+	if err != nil {
+		app.logger.Error("failed to get part assignments", "error", err)
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+
+	foundAny := false
+	for _, a := range assignments {
+		if !a.ControllerIp.Valid || a.ControllerIp.String == "" || !a.LedIndex.Valid {
+			continue
+		}
+
+		foundAny = true
+		ledIndex := int(a.LedIndex.Int64)
+		width := int(a.Width.Int64)
+		if width < 1 {
+			width = 1
+		}
+
+		// Trigger WLED
+		err := app.wled.LightUp(r.Context(), a.ControllerIp.String, ledIndex, width, settings.ColorLocate.String)
+		if err != nil {
+			app.logger.Error("failed to locate bin", "error", err, "ip", a.ControllerIp.String)
+		}
+
+		// Handle Auto-Off Timer
+		if settings.EnableLocateTimeout.Bool && settings.LocateTimeoutSeconds.Int64 > 0 {
+			timeoutDuration := time.Duration(settings.LocateTimeoutSeconds.Int64) * time.Second
+
+			go func(ip string, idx, count int, duration time.Duration) {
+				time.Sleep(duration)
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+
+				_ = app.wled.LightUp(ctx, ip, idx, count, "#000000")
+			}(a.ControllerIp.String, ledIndex, width, timeoutDuration)
+		}
+	}
+
+	if !foundAny {
+		// No valid assignments found to locate, move on
+	}
+
+	w.WriteHeader(http.StatusOK)
 }

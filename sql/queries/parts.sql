@@ -3,7 +3,18 @@ SELECT * FROM parts WHERE id = ?;
 
 -- name: ListParts :many
 SELECT p.*, 
-    CAST(COALESCE(SUM(pa.quantity), 0) AS INTEGER) as total_stock
+    CAST(COALESCE(SUM(pa.quantity), 0) AS INTEGER) as total_stock,
+    (SELECT pa2.bin_id 
+     FROM part_assignments pa2 
+     WHERE pa2.part_id = p.id AND pa2.quantity > 0 
+     ORDER BY pa2.quantity DESC, pa2.id ASC 
+     LIMIT 1) as locate_bin_id,
+    (SELECT b2.controller_id 
+     FROM part_assignments pa2 
+     JOIN bins b2 ON pa2.bin_id = b2.id
+     WHERE pa2.part_id = p.id AND pa2.quantity > 0 
+     ORDER BY pa2.quantity DESC, pa2.id ASC 
+     LIMIT 1) as locate_controller_id
 FROM parts p
 LEFT JOIN part_assignments pa ON p.id = pa.part_id
 GROUP BY p.id
@@ -12,7 +23,18 @@ LIMIT ? OFFSET ?;
 
 -- name: SearchParts :many
 SELECT p.*, 
-    CAST(COALESCE(SUM(pa.quantity), 0) AS INTEGER) as total_stock
+    CAST(COALESCE(SUM(pa.quantity), 0) AS INTEGER) as total_stock,
+    (SELECT pa2.bin_id 
+     FROM part_assignments pa2 
+     WHERE pa2.part_id = p.id AND pa2.quantity > 0 
+     ORDER BY pa2.quantity DESC, pa2.id ASC 
+     LIMIT 1) as locate_bin_id,
+    (SELECT b2.controller_id 
+     FROM part_assignments pa2 
+     JOIN bins b2 ON pa2.bin_id = b2.id
+     WHERE pa2.part_id = p.id AND pa2.quantity > 0 
+     ORDER BY pa2.quantity DESC, pa2.id ASC 
+     LIMIT 1) as locate_controller_id
 FROM parts_fts fts
 JOIN parts p ON fts.rowid = p.id
 LEFT JOIN part_assignments pa ON p.id = pa.part_id
@@ -121,6 +143,8 @@ SELECT
     pa.quantity, 
     b.id as bin_id, 
     b.name as bin_name,
+    b.led_index,
+    b.width,
     c.name as controller_name,
     c.id as controller_id,
     c.ip_address as controller_ip

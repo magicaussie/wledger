@@ -2523,6 +2523,9 @@
       gap: calc(0.25rem * 2);
     }
   }
+  .-mt-1 {
+    margin-top: calc(var(--spacing) * -1);
+  }
   .mt-0\.5 {
     margin-top: calc(var(--spacing) * 0.5);
   }
@@ -2602,6 +2605,9 @@
         }
       }
     }
+  }
+  .-mr-2 {
+    margin-right: calc(var(--spacing) * -2);
   }
   .mr-2 {
     margin-right: calc(var(--spacing) * 2);

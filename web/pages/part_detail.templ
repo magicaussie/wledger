@@ -331,14 +331,7 @@ templ StockRow(partID int64, s db.GetPartAssignmentsRow, user auth.User, control
 		<td class="text-right">
 			<div class="flex justify-end gap-1">
 				if s.ControllerID.Valid && s.BinID.Valid {
-					<button
-						hx-post={ fmt.Sprintf("/hardware/%d/locate?bin_id=%d", s.ControllerID.Int64, s.BinID.Int64) }
-						hx-swap="none"
-						class="btn btn-xs btn-ghost text-accent"
-						title="Locate"
-					>
-						@icons.EyeIcon(5)
-					</button>
+					@components.LocateButton(s.ControllerID.Int64, s.BinID.Int64, "btn-xs")
 				}
 				if user.CanWrite() {
 					if !s.BinName.Valid || !s.ControllerID.Valid {
