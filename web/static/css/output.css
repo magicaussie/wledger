@@ -53,6 +53,8 @@
     --radius-lg: 0.5rem;
     --radius-xl: 0.75rem;
     --drop-shadow-md: 0 3px 3px rgb(0 0 0 / 0.12);
+    --ease-out: cubic-bezier(0, 0, 0.2, 1);
+    --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
     --default-transition-duration: 150ms;
     --default-transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
     --default-font-family: var(--font-sans);
@@ -3090,6 +3092,9 @@
   .max-w-xs {
     max-width: var(--container-xs);
   }
+  .min-w-0 {
+    min-width: calc(var(--spacing) * 0);
+  }
   .min-w-32 {
     min-width: calc(var(--spacing) * 32);
   }
@@ -3723,6 +3728,9 @@
   .break-all {
     word-break: break-all;
   }
+  .whitespace-normal {
+    white-space: normal;
+  }
   .whitespace-nowrap {
     white-space: nowrap;
   }
@@ -4073,12 +4081,6 @@
     @layer daisyui.l1.l2.l3 {
       --btn-color: var(--color-error);
       --btn-fg: var(--color-error-content);
-    }
-  }
-  .btn-neutral {
-    @layer daisyui.l1.l2.l3 {
-      --btn-color: var(--color-neutral);
-      --btn-fg: var(--color-neutral-content);
     }
   }
   .btn-primary {

@@ -112,31 +112,33 @@ templ Settings(user auth.User, s db.Setting, users []db.ListUsersRow) {
 										General
 									</h3>
 									<div class="form-control bg-base-100 p-4 rounded-lg border border-base-300">
-										<label class="label cursor-pointer justify-start gap-4">
+										<label class="label cursor-pointer justify-start gap-4 items-center">
 											<input
 												type="checkbox"
 												name="require_auth"
-												class="toggle toggle-primary"
+												class="toggle toggle-primary mt-1"
 												if s.RequireAuthForRead.Bool {
 													checked
 												}
 											/>
-											<span class="label-text font-medium">Require Login for Read-Only Access</span>
+											<div class="flex flex-col flex-1 min-w-0">
+												<span class="label-text font-medium whitespace-normal">Require Login for Read-Only Access</span>
+											</div>
 										</label>
 									</div>
 									<div class="form-control bg-base-100 p-4 rounded-lg border border-base-300 mt-2">
-										<label class="label cursor-pointer justify-start gap-4">
+										<label class="label cursor-pointer justify-start gap-4 items-start">
 											<input
 												type="checkbox"
 												name="enable_debug_logs"
-												class="toggle toggle-primary"
+												class="toggle toggle-primary mt-1"
 												if s.EnableDebugLogs.Bool {
 													checked
 												}
 											/>
-											<div class="flex flex-col">
+											<div class="flex flex-col flex-1 min-w-0">
 												<span class="label-text font-medium">Enable Debug Logs</span>
-												<span class="label-text-alt opacity-50">Captures more verbose information for troubleshooting.</span>
+												<span class="label-text-alt opacity-50 whitespace-normal">Captures more verbose information for troubleshooting.</span>
 											</div>
 										</label>
 									</div>
@@ -162,8 +164,8 @@ templ Settings(user auth.User, s db.Setting, users []db.ListUsersRow) {
 											<span class="text-sm opacity-70">Turn off after:</span>
 											<div class="join">
 												<input type="number" name="locate_timeout" value={ fmt.Sprintf("%d", s.LocateTimeoutSeconds.Int64) } class="input input-sm input-bordered join-item w-24" min="1"/>
-												<span class="btn btn-sm btn-neutral join-item no-animation">Seconds</span>
 											</div>
+											<span class="text-sm opacity-70">Seconds</span>
 										</div>
 									</div>
 								</div>
@@ -247,7 +249,7 @@ templ Settings(user auth.User, s db.Setting, users []db.ListUsersRow) {
 				}
 			}
 			<div class="text-center mt-12 opacity-30 text-xs pb-8">
-				<p>WLEDger V2.0.0</p>
+				<p>WLEDger v2</p>
 			</div>
 		</div>
 	}

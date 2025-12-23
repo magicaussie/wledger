@@ -257,7 +257,7 @@ func Settings(user auth.User, s db.Setting, users []db.ListUsersRow) templ.Compo
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "General</h3><div class=\"form-control bg-base-100 p-4 rounded-lg border border-base-300\"><label class=\"label cursor-pointer justify-start gap-4\"><input type=\"checkbox\" name=\"require_auth\" class=\"toggle toggle-primary\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "General</h3><div class=\"form-control bg-base-100 p-4 rounded-lg border border-base-300\"><label class=\"label cursor-pointer justify-start gap-4 items-center\"><input type=\"checkbox\" name=\"require_auth\" class=\"toggle toggle-primary mt-1\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -267,7 +267,7 @@ func Settings(user auth.User, s db.Setting, users []db.ListUsersRow) templ.Compo
 						return templ_7745c5c3_Err
 					}
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "> <span class=\"label-text font-medium\">Require Login for Read-Only Access</span></label></div><div class=\"form-control bg-base-100 p-4 rounded-lg border border-base-300 mt-2\"><label class=\"label cursor-pointer justify-start gap-4\"><input type=\"checkbox\" name=\"enable_debug_logs\" class=\"toggle toggle-primary\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "><div class=\"flex flex-col flex-1 min-w-0\"><span class=\"label-text font-medium whitespace-normal\">Require Login for Read-Only Access</span></div></label></div><div class=\"form-control bg-base-100 p-4 rounded-lg border border-base-300 mt-2\"><label class=\"label cursor-pointer justify-start gap-4 items-start\"><input type=\"checkbox\" name=\"enable_debug_logs\" class=\"toggle toggle-primary mt-1\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -277,7 +277,7 @@ func Settings(user auth.User, s db.Setting, users []db.ListUsersRow) templ.Compo
 						return templ_7745c5c3_Err
 					}
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "><div class=\"flex flex-col\"><span class=\"label-text font-medium\">Enable Debug Logs</span> <span class=\"label-text-alt opacity-50\">Captures more verbose information for troubleshooting.</span></div></label></div></div><div><h3 class=\"font-bold text-sm uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2 border-t border-base-content/5 pt-6\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "><div class=\"flex flex-col flex-1 min-w-0\"><span class=\"label-text font-medium\">Enable Debug Logs</span> <span class=\"label-text-alt opacity-50 whitespace-normal\">Captures more verbose information for troubleshooting.</span></div></label></div></div><div><h3 class=\"font-bold text-sm uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2 border-t border-base-content/5 pt-6\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -302,13 +302,13 @@ func Settings(user auth.User, s db.Setting, users []db.ListUsersRow) templ.Compo
 				var templ_7745c5c3_Var9 string
 				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", s.LocateTimeoutSeconds.Int64))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/settings.templ`, Line: 164, Col: 110}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/settings.templ`, Line: 166, Col: 110}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "\" class=\"input input-sm input-bordered join-item w-24\" min=\"1\"> <span class=\"btn btn-sm btn-neutral join-item no-animation\">Seconds</span></div></div></div></div><div><h3 class=\"font-bold text-sm uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2 border-t border-base-content/5 pt-6\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "\" class=\"input input-sm input-bordered join-item w-24\" min=\"1\"></div><span class=\"text-sm opacity-70\">Seconds</span></div></div></div><div><h3 class=\"font-bold text-sm uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2 border-t border-base-content/5 pt-6\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -401,7 +401,7 @@ func Settings(user auth.User, s db.Setting, users []db.ListUsersRow) templ.Compo
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "<div class=\"text-center mt-12 opacity-30 text-xs pb-8\"><p>WLEDger V2.0.0</p></div></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "<div class=\"text-center mt-12 opacity-30 text-xs pb-8\"><p>WLEDger v2</p></div></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
