@@ -213,6 +213,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.listUsersStmt, err = db.PrepareContext(ctx, listUsers); err != nil {
 		return nil, fmt.Errorf("error preparing query ListUsers: %w", err)
 	}
+	if q.markInspirationSeedsAppliedStmt, err = db.PrepareContext(ctx, markInspirationSeedsApplied); err != nil {
+		return nil, fmt.Errorf("error preparing query MarkInspirationSeedsApplied: %w", err)
+	}
 	if q.reassignPartAssignmentStmt, err = db.PrepareContext(ctx, reassignPartAssignment); err != nil {
 		return nil, fmt.Errorf("error preparing query ReassignPartAssignment: %w", err)
 	}
@@ -611,6 +614,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing listUsersStmt: %w", cerr)
 		}
 	}
+	if q.markInspirationSeedsAppliedStmt != nil {
+		if cerr := q.markInspirationSeedsAppliedStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing markInspirationSeedsAppliedStmt: %w", cerr)
+		}
+	}
 	if q.reassignPartAssignmentStmt != nil {
 		if cerr := q.reassignPartAssignmentStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing reassignPartAssignmentStmt: %w", cerr)
@@ -843,6 +851,7 @@ type Queries struct {
 	listAllTagsStmt                    *sql.Stmt
 	listPartsStmt                      *sql.Stmt
 	listUsersStmt                      *sql.Stmt
+	markInspirationSeedsAppliedStmt    *sql.Stmt
 	reassignPartAssignmentStmt         *sql.Stmt
 	removeTagsFromPartStmt             *sql.Stmt
 	restoreAuditLogStmt                *sql.Stmt
@@ -938,6 +947,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		listAllTagsStmt:                    q.listAllTagsStmt,
 		listPartsStmt:                      q.listPartsStmt,
 		listUsersStmt:                      q.listUsersStmt,
+		markInspirationSeedsAppliedStmt:    q.markInspirationSeedsAppliedStmt,
 		reassignPartAssignmentStmt:         q.reassignPartAssignmentStmt,
 		removeTagsFromPartStmt:             q.removeTagsFromPartStmt,
 		restoreAuditLogStmt:                q.restoreAuditLogStmt,

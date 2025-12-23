@@ -77,6 +77,7 @@ type Querier interface {
 	ListAllTags(ctx context.Context) ([]Tag, error)
 	ListParts(ctx context.Context, arg ListPartsParams) ([]ListPartsRow, error)
 	ListUsers(ctx context.Context) ([]ListUsersRow, error)
+	MarkInspirationSeedsApplied(ctx context.Context) error
 	ReassignPartAssignment(ctx context.Context, arg ReassignPartAssignmentParams) error
 	RemoveTagsFromPart(ctx context.Context, partID int64) error
 	RestoreAuditLog(ctx context.Context, arg RestoreAuditLogParams) error

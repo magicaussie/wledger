@@ -22,6 +22,19 @@ SET require_auth_for_read = ?, locate_timeout_seconds = ?, enable_locate_timeout
 WHERE id = 1;
 
 -- name: UpdateColors :exec
+
 UPDATE settings
+
 SET color_locate = ?, color_stock_ok = ?, color_stock_low = ?, color_stock_critical = ?, updated_at = CURRENT_TIMESTAMP
+
+WHERE id = 1;
+
+
+
+-- name: MarkInspirationSeedsApplied :exec
+
+UPDATE settings
+
+SET inspiration_seeds_applied = 1, updated_at = CURRENT_TIMESTAMP
+
 WHERE id = 1;

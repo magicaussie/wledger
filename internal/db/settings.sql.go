@@ -11,7 +11,7 @@ import (
 )
 
 const getSettings = `-- name: GetSettings :one
-SELECT id, require_auth_for_read, locate_timeout_seconds, enable_locate_timeout, enable_debug_logs, color_locate, color_stock_ok, color_stock_low, color_stock_critical, created_at, updated_at FROM settings WHERE id = 1
+SELECT id, require_auth_for_read, locate_timeout_seconds, enable_locate_timeout, enable_debug_logs, color_locate, color_stock_ok, color_stock_low, color_stock_critical, created_at, updated_at, inspiration_seeds_applied FROM settings WHERE id = 1
 `
 
 func (q *Queries) GetSettings(ctx context.Context) (Setting, error) {
@@ -29,6 +29,7 @@ func (q *Queries) GetSettings(ctx context.Context) (Setting, error) {
 		&i.ColorStockCritical,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.InspirationSeedsApplied,
 	)
 	return i, err
 }
@@ -40,6 +41,20 @@ VALUES (1, 1, '#0000FF', '#00FF00', '#FFFF00', '#FF0000', 10, 1, 0)
 
 func (q *Queries) InitSettings(ctx context.Context) error {
 	_, err := q.exec(ctx, q.initSettingsStmt, initSettings)
+	return err
+}
+
+const markInspirationSeedsApplied = `-- name: MarkInspirationSeedsApplied :exec
+
+UPDATE settings
+
+SET inspiration_seeds_applied = 1, updated_at = CURRENT_TIMESTAMP
+
+WHERE id = 1
+`
+
+func (q *Queries) MarkInspirationSeedsApplied(ctx context.Context) error {
+	_, err := q.exec(ctx, q.markInspirationSeedsAppliedStmt, markInspirationSeedsApplied)
 	return err
 }
 
@@ -85,8 +100,11 @@ func (q *Queries) RestoreSettings(ctx context.Context, arg RestoreSettingsParams
 }
 
 const updateColors = `-- name: UpdateColors :exec
+
 UPDATE settings
+
 SET color_locate = ?, color_stock_ok = ?, color_stock_low = ?, color_stock_critical = ?, updated_at = CURRENT_TIMESTAMP
+
 WHERE id = 1
 `
 

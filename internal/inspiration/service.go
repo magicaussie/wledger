@@ -16,6 +16,7 @@ type Service interface {
 	CreateTemplate(ctx context.Context, title, content string) (db.InspirationTemplate, error)
 	UpdateTemplate(ctx context.Context, id int64, title, content string) error
 	DeleteTemplate(ctx context.Context, id int64) error
+	SeedTemplates(ctx context.Context) error
 }
 
 type service struct {

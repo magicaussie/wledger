@@ -81,6 +81,10 @@ func main() {
 
 	// Inspiration Service
 	inspirationService := inspiration.NewService(queries)
+	// Seed the initial inspiration templates
+	if err := inspirationService.SeedTemplates(context.Background()); err != nil {
+		log.Error("Failed to seed inspiration templates", "error", err)
+	}
 
 	// Initialize Image Processor
 	if err := images.Init(); err != nil {

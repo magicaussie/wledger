@@ -172,10 +172,3 @@ CREATE TABLE IF NOT EXISTS inspiration_templates (
     template_content TEXT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
-
--- Seed Default Templates
-INSERT OR IGNORE INTO inspiration_templates (id, title, template_content) VALUES 
-(1, 'Project Ideas', 'Based on the following list of electronic components, suggest 5 creative project ideas I could build. For each project, list the key components from the list that would be used and briefly explain how it works.\n\nInventory:\n'),
-(2, 'Use Together', 'I have the following components in my inventory. Please identify which of these parts commonly work well together or are often used in the same circuits. Provide 3 examples of sub-circuits or modules I could form with them.\n\nInventory:\n'),
-(3, 'Learning Path', 'Analyze the following list of components and suggest a \"Learning Path\". What fundamental electronics or programming concepts can I learn by experimenting with these specific parts? Group the concepts by difficulty level (Beginner, Intermediate, Advanced).\n\nInventory:\n'),
-(4, 'Datasheet Summary', 'For the integrated circuits and sensors in the following list, provide a very brief \"Datasheet Summary\". Include the operating voltage, communication protocol (if any, like I2C/SPI), and one key feature for each.\n\nInventory:\n');

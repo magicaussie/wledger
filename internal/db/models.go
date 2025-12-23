@@ -123,17 +123,18 @@ type Session struct {
 }
 
 type Setting struct {
-	ID                   int64          `json:"id"`
-	RequireAuthForRead   sql.NullBool   `json:"require_auth_for_read"`
-	LocateTimeoutSeconds sql.NullInt64  `json:"locate_timeout_seconds"`
-	EnableLocateTimeout  sql.NullBool   `json:"enable_locate_timeout"`
-	EnableDebugLogs      sql.NullBool   `json:"enable_debug_logs"`
-	ColorLocate          sql.NullString `json:"color_locate"`
-	ColorStockOk         sql.NullString `json:"color_stock_ok"`
-	ColorStockLow        sql.NullString `json:"color_stock_low"`
-	ColorStockCritical   sql.NullString `json:"color_stock_critical"`
-	CreatedAt            sql.NullTime   `json:"created_at"`
-	UpdatedAt            sql.NullTime   `json:"updated_at"`
+	ID                      int64          `json:"id"`
+	RequireAuthForRead      sql.NullBool   `json:"require_auth_for_read"`
+	LocateTimeoutSeconds    sql.NullInt64  `json:"locate_timeout_seconds"`
+	EnableLocateTimeout     sql.NullBool   `json:"enable_locate_timeout"`
+	EnableDebugLogs         sql.NullBool   `json:"enable_debug_logs"`
+	ColorLocate             sql.NullString `json:"color_locate"`
+	ColorStockOk            sql.NullString `json:"color_stock_ok"`
+	ColorStockLow           sql.NullString `json:"color_stock_low"`
+	ColorStockCritical      sql.NullString `json:"color_stock_critical"`
+	CreatedAt               sql.NullTime   `json:"created_at"`
+	UpdatedAt               sql.NullTime   `json:"updated_at"`
+	InspirationSeedsApplied sql.NullBool   `json:"inspiration_seeds_applied"`
 }
 
 type Tag struct {
