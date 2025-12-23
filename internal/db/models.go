@@ -110,6 +110,7 @@ type PartsFt struct {
 	Manufacturer sql.NullString  `json:"manufacturer"`
 	Supplier     sql.NullString  `json:"supplier"`
 	BarcodeData  sql.NullString  `json:"barcode_data"`
+	Tags         sql.NullString  `json:"tags"`
 	PartsFts     sql.NullString  `json:"parts_fts"`
 	Rowid        sql.NullInt64   `json:"rowid"`
 	Rank         sql.NullFloat64 `json:"rank"`

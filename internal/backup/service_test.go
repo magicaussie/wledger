@@ -16,7 +16,7 @@ import (
 	"github.com/tuxedocurly/wledger/internal/db"
 )
 
-// setupTestDB creates an in memory DB and applies the schema
+// setupTestDB creates an in memory DB and applies the schema using db.Migrate
 func setupTestDB(t *testing.T) (*sql.DB, *db.Queries, func()) {
 	// Open in-memory DB
 	// cache=shared ensures different connections see the same in-memory DB
@@ -25,19 +25,9 @@ func setupTestDB(t *testing.T) (*sql.DB, *db.Queries, func()) {
 		t.Fatalf("failed to open db: %v", err)
 	}
 
-	// Read schema files
-	// internal/backup -> ../../sql/schema
-	schemaPath := "../../sql/schema"
-	files := []string{"001_init.sql", "002_fts_triggers.sql"}
-
-	for _, file := range files {
-		content, err := os.ReadFile(filepath.Join(schemaPath, file))
-		if err != nil {
-			t.Fatalf("failed to read schema file %s: %v", file, err)
-		}
-		if _, err := conn.Exec(string(content)); err != nil {
-			t.Fatalf("failed to apply schema %s: %v", file, err)
-		}
+	// Apply migrations automatically
+	if err := db.Migrate(conn); err != nil {
+		t.Fatalf("failed to migrate test db: %v", err)
 	}
 
 	// Create queries helper
@@ -270,12 +260,9 @@ func TestRestore_RollbackOnDBError(t *testing.T) {
 
 	// Verify Rollback
 
-	s, err := queries.GetSettings(ctx)
+	_, err = queries.GetSettings(ctx)
 	if err != nil {
 		t.Errorf("Settings missing after rollback: %v", err)
-	}
-	if s.RequireAuthForRead.Bool {
-		// Default is false/null, assuming InitSettings sets defaults.
 	}
 
 	// FS: "test.txt" should still exist, "should_not_exist.txt" should NOT exist.

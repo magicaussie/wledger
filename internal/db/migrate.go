@@ -1,50 +1,28 @@
 package db
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"log/slog"
-	"os"
-	"path/filepath"
-	"sort"
+
+	"github.com/pressly/goose/v3"
+	"github.com/tuxedocurly/wledger/sql/schema"
 )
 
-// Migrate reads SQL files from the disk (sql/schema) and applies them.
+// Migrate applies the schema migrations to the database.
 func Migrate(db *sql.DB) error {
-	schemaDir := "sql/schema"
+	goose.SetBaseFS(schema.Migrations)
 
-	files, err := os.ReadDir(schemaDir)
-	if err != nil {
-		return fmt.Errorf("failed to read schema directory: %w", err)
+	if err := goose.SetDialect("sqlite3"); err != nil {
+		return fmt.Errorf("failed to set goose dialect: %w", err)
 	}
 
-	// Sort by name
-	sort.Slice(files, func(i, j int) bool {
-		return files[i].Name() < files[j].Name()
-	})
-
-	for _, file := range files {
-		if file.IsDir() {
-			continue
-		}
-
-		// Skip the sqlc workaround file
-		if file.Name() == "999_sqlc.sql" {
-			continue
-		}
-
-		slog.Info("applying migration", "file", file.Name())
-		path := filepath.Join(schemaDir, file.Name())
-
-		content, err := os.ReadFile(path)
-		if err != nil {
-			return fmt.Errorf("failed to read migration %s: %w", file.Name(), err)
-		}
-
-		if _, err := db.ExecContext(context.Background(), string(content)); err != nil {
-			return fmt.Errorf("failed to apply migration %s: %w", file.Name(), err)
-		}
+	slog.Info("running database migrations")
+	// Goose will look for migrations in the current directory of the FS provided.
+	// Since files in sql/schema are embedded as the root of schema.Migrations,
+	// use "." as the directory.
+	if err := goose.Up(db, "."); err != nil {
+		return fmt.Errorf("failed to run migrations: %w", err)
 	}
 
 	return nil

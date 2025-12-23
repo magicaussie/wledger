@@ -3,14 +3,12 @@ package db_test
 import (
 	"context"
 	"database/sql"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/tuxedocurly/wledger/internal/db"
 )
 
-// setupTestDB creates an in memory DB and applies the schema
+// setupTestDB creates an in memory DB and applies the schema using db.Migrate
 func setupTestDB(t *testing.T) (*db.Queries, func()) {
 	// Open in-memory DB
 	// cache=shared ensures different connections see the same in-memory DB
@@ -19,25 +17,15 @@ func setupTestDB(t *testing.T) (*db.Queries, func()) {
 		t.Fatalf("failed to open db: %v", err)
 	}
 
-	// Read schema files
-	// assuming test runs from package directory, need to go up to the root
-	schemaPath := "../../sql/schema"
-	files := []string{"001_init.sql", "002_fts_triggers.sql"}
-
-	for _, file := range files {
-		context, err := os.ReadFile(filepath.Join(schemaPath, file))
-		if err != nil {
-			t.Fatalf("failed to read schema file %s: %v", file, err)
-		}
-		if _, err := conn.Exec(string(context)); err != nil {
-			t.Fatalf("failed to apply schema %s: %v", file, err)
-		}
+	// Apply migrations automatically
+	if err := db.Migrate(conn); err != nil {
+		t.Fatalf("failed to migrate test db: %v", err)
 	}
 
 	// Create queries helper
 	q := db.New(conn)
 
-	// return celanup function
+	// return cleanup function
 	return q, func() {
 		conn.Close()
 	}

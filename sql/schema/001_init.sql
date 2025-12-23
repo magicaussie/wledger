@@ -1,3 +1,4 @@
+-- +goose Up
 -- Enable Foreign Keys
 PRAGMA foreign_keys = ON;
 

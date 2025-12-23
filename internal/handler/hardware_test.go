@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"path/filepath"
 	"strconv"
 	"testing"
 
@@ -26,21 +25,10 @@ func openTestDB(t *testing.T) *sql.DB {
 	return dbConn
 }
 
-// setupTestSchema applies the schema files to the test database.
+// setupTestSchema applies migrations using db.Migrate
 func setupTestSchema(t *testing.T, dbConn *sql.DB) {
-	// Schema path relative to internal/handler
-	schemaDir := "../../sql/schema"
-
-	files := []string{"001_init.sql", "002_fts_triggers.sql"}
-	for _, f := range files {
-		path := filepath.Join(schemaDir, f)
-		content, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("failed to read schema file %s: %v", path, err)
-		}
-		if _, err := dbConn.Exec(string(content)); err != nil {
-			t.Fatalf("failed to apply schema %s: %v", f, err)
-		}
+	if err := db.Migrate(dbConn); err != nil {
+		t.Fatalf("failed to migrate test db: %v", err)
 	}
 }
 
@@ -65,6 +53,7 @@ func TestControllerDeleteCascadesToBins(t *testing.T) {
 	ctrl, err := queries.CreateController(ctx, db.CreateControllerParams{
 		Name:      "TestController",
 		IpAddress: "192.168.1.100",
+		Port:      sql.NullInt64{Int64: 80, Valid: true},
 	})
 	if err != nil {
 		t.Fatalf("failed to create controller: %v", err)

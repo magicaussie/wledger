@@ -1,6 +1,8 @@
 version: "2"
 sql:
-  - schema: "sql/schema"
+  - schema: 
+      - "sql/schema"
+      - "sql/sqlc_helpers/fts_definitions.sql"
     queries: "sql/queries"
     engine: "sqlite"
     gen:
