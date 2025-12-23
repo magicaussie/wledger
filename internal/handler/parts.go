@@ -1,4 +1,4 @@
-package main
+package handler
 
 import (
 	"context"
@@ -21,7 +21,7 @@ import (
 // --- LIST & DETAIL ---
 
 // GET /parts
-func (app *application) handlePartsList(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandlePartsList(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUserFromRequest(r)
 	search := r.URL.Query().Get("q")
 	pageStr := r.URL.Query().Get("page")
@@ -42,7 +42,7 @@ func (app *application) handlePartsList(w http.ResponseWriter, r *http.Request) 
 	if search != "" {
 		// FTS5 Search
 		query := search + "*"
-		rows, searchErr := app.queries.SearchParts(r.Context(), db.SearchPartsParams{
+		rows, searchErr := h.Queries.SearchParts(r.Context(), db.SearchPartsParams{
 			PartsFts: sql.NullString{String: query, Valid: true},
 			Limit:    int64(limit),
 			Offset:   int64(offset),
@@ -66,7 +66,7 @@ func (app *application) handlePartsList(w http.ResponseWriter, r *http.Request) 
 		}
 	} else {
 		// Standard List
-		rows, listErr := app.queries.ListParts(r.Context(), db.ListPartsParams{
+		rows, listErr := h.Queries.ListParts(r.Context(), db.ListPartsParams{
 			Limit:  int64(limit),
 			Offset: int64(offset),
 		})
@@ -89,7 +89,7 @@ func (app *application) handlePartsList(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if err != nil {
-		app.logger.Error("failed to fetch parts", "error", err)
+		h.Logger.Error("failed to fetch parts", "error", err)
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
@@ -105,20 +105,20 @@ func (app *application) handlePartsList(w http.ResponseWriter, r *http.Request) 
 }
 
 // GET /parts/{id}
-func (app *application) handlePartDetail(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandlePartDetail(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUserFromRequest(r)
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
 
-	p, err := app.queries.GetPart(r.Context(), int64(id))
+	p, err := h.Queries.GetPart(r.Context(), int64(id))
 	if err != nil {
 		http.Error(w, "Part not found", http.StatusNotFound)
 		return
 	}
 
-	stock, _ := app.queries.GetPartAssignments(r.Context(), int64(id))
-	links, _ := app.queries.GetPartLinks(r.Context(), int64(id))
-	docs, _ := app.queries.GetPartDocs(r.Context(), int64(id))
-	controllers, _ := app.queries.GetControllers(r.Context())
+	stock, _ := h.Queries.GetPartAssignments(r.Context(), int64(id))
+	links, _ := h.Queries.GetPartLinks(r.Context(), int64(id))
+	docs, _ := h.Queries.GetPartDocs(r.Context(), int64(id))
+	controllers, _ := h.Queries.GetControllers(r.Context())
 
 	pages.PartDetail(user, p, stock, links, docs, controllers).Render(r.Context(), w)
 }
@@ -128,14 +128,14 @@ func (app *application) handlePartDetail(w http.ResponseWriter, r *http.Request)
 // -----------------------------------------------------------
 
 // GET /parts/new
-func (app *application) handlePartsNew(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandlePartsNew(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUserFromRequest(r)
-	allTags, _ := app.tags.ListAllTags(r.Context())
+	allTags, _ := h.Tags.ListAllTags(r.Context())
 	pages.PartCreate(user, allTags).Render(r.Context(), w)
 }
 
 // POST /parts
-func (app *application) handlePartsCreate(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandlePartsCreate(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseMultipartForm(config.MaxUploadSizeParts) // 100MB
 	if err != nil {
 		http.Error(w, "Request too large", http.StatusBadRequest)
@@ -201,12 +201,12 @@ func (app *application) handlePartsCreate(w http.ResponseWriter, r *http.Request
 		}
 	}
 
-	newID, err := app.parts.CreatePart(r.Context(), req)
+	newID, err := h.Parts.CreatePart(r.Context(), req)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
 			http.Error(w, "Part already exists (check barcode)", http.StatusConflict)
 		} else {
-			app.logger.Error("failed to create part", "error", err)
+			h.Logger.Error("failed to create part", "error", err)
 			http.Error(w, "Database error", http.StatusInternalServerError)
 		}
 		return
@@ -216,26 +216,26 @@ func (app *application) handlePartsCreate(w http.ResponseWriter, r *http.Request
 }
 
 // GET /parts/{id}/edit
-func (app *application) handlePartEdit(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandlePartEdit(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUserFromRequest(r)
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
 
-	p, err := app.queries.GetPart(r.Context(), int64(id))
+	p, err := h.Queries.GetPart(r.Context(), int64(id))
 	if err != nil {
 		http.Error(w, "Part not found", http.StatusNotFound)
 		return
 	}
 
-	links, _ := app.queries.GetPartLinks(r.Context(), int64(id))
-	docs, _ := app.queries.GetPartDocs(r.Context(), int64(id))
-	tags, _ := app.queries.GetTagsForPart(r.Context(), int64(id))
-	allTags, _ := app.tags.ListAllTags(r.Context())
+	links, _ := h.Queries.GetPartLinks(r.Context(), int64(id))
+	docs, _ := h.Queries.GetPartDocs(r.Context(), int64(id))
+	tags, _ := h.Queries.GetTagsForPart(r.Context(), int64(id))
+	allTags, _ := h.Tags.ListAllTags(r.Context())
 
 	pages.PartEdit(user, p, tags, allTags, links, docs).Render(r.Context(), w)
 }
 
 // POST /parts/{id}/update
-func (app *application) handlePartUpdate(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandlePartUpdate(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
 
 	err := r.ParseMultipartForm(config.MaxUploadSizeParts)
@@ -323,9 +323,9 @@ func (app *application) handlePartUpdate(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	err = app.parts.UpdatePart(r.Context(), req)
+	err = h.Parts.UpdatePart(r.Context(), req)
 	if err != nil {
-		app.logger.Error("failed to update part", "error", err)
+		h.Logger.Error("failed to update part", "error", err)
 		http.Error(w, "Update failed", http.StatusInternalServerError)
 		return
 	}
@@ -334,13 +334,13 @@ func (app *application) handlePartUpdate(w http.ResponseWriter, r *http.Request)
 }
 
 // POST /parts/{id}/delete
-func (app *application) handlePartDelete(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandlePartDelete(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
 	partID := int64(id)
 
-	err := app.parts.DeletePart(r.Context(), partID)
+	err := h.Parts.DeletePart(r.Context(), partID)
 	if err != nil {
-		app.logger.Error("failed to delete part", "error", err)
+		h.Logger.Error("failed to delete part", "error", err)
 		http.Error(w, "Delete failed", http.StatusInternalServerError)
 		return
 	}
@@ -353,16 +353,16 @@ func (app *application) handlePartDelete(w http.ResponseWriter, r *http.Request)
 // -----------------------------------------------------------
 
 // DELETE /parts/links/{id}
-func (app *application) handleLinkDelete(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandleLinkDelete(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
-	_ = app.parts.DeleteLink(r.Context(), int64(id))
+	_ = h.Parts.DeleteLink(r.Context(), int64(id))
 	w.WriteHeader(http.StatusOK)
 }
 
 // DELETE /parts/docs/{id}
-func (app *application) handleDocDelete(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandleDocDelete(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
-	_ = app.parts.DeleteDoc(r.Context(), int64(id))
+	_ = h.Parts.DeleteDoc(r.Context(), int64(id))
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -370,9 +370,9 @@ func (app *application) handleDocDelete(w http.ResponseWriter, r *http.Request) 
 // STOCK & BINS
 // -----------------------------------------------------------
 
-func (app *application) handleBinOptions(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandleBinOptions(w http.ResponseWriter, r *http.Request) {
 	cid, _ := strconv.Atoi(r.URL.Query().Get("controller_id"))
-	bins, err := app.queries.GetBinsByController(r.Context(), sql.NullInt64{Int64: int64(cid), Valid: true})
+	bins, err := h.Queries.GetBinsByController(r.Context(), sql.NullInt64{Int64: int64(cid), Valid: true})
 	if err != nil {
 		components.BinOptions([]db.Bin{}).Render(r.Context(), w)
 		return
@@ -380,7 +380,7 @@ func (app *application) handleBinOptions(w http.ResponseWriter, r *http.Request)
 	components.BinOptions(bins).Render(r.Context(), w)
 }
 
-func (app *application) handlePartAssign(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandlePartAssign(w http.ResponseWriter, r *http.Request) {
 	partID, _ := strconv.Atoi(chi.URLParam(r, "id"))
 	binID, _ := strconv.Atoi(r.FormValue("bin_id"))
 	qty, _ := strconv.Atoi(r.FormValue("quantity"))
@@ -390,14 +390,14 @@ func (app *application) handlePartAssign(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	err := app.parts.AssignStock(r.Context(), parts.AssignStockRequest{
+	err := h.Parts.AssignStock(r.Context(), parts.AssignStockRequest{
 		PartID:   int64(partID),
 		BinID:    int64(binID),
 		Quantity: qty,
 	})
 
 	if err != nil {
-		app.logger.Error("failed to assign stock", "error", err)
+		h.Logger.Error("failed to assign stock", "error", err)
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
@@ -405,7 +405,7 @@ func (app *application) handlePartAssign(w http.ResponseWriter, r *http.Request)
 	http.Redirect(w, r, fmt.Sprintf("/parts/%d", partID), http.StatusSeeOther)
 }
 
-func (app *application) handlePartStockMove(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandlePartStockMove(w http.ResponseWriter, r *http.Request) {
 	partID, _ := strconv.Atoi(chi.URLParam(r, "id"))
 	assignmentID, _ := strconv.Atoi(chi.URLParam(r, "assignment_id"))
 	targetBinID, _ := strconv.Atoi(r.FormValue("bin_id"))
@@ -415,14 +415,14 @@ func (app *application) handlePartStockMove(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	err := app.parts.MoveStock(r.Context(), parts.MoveStockRequest{
+	err := h.Parts.MoveStock(r.Context(), parts.MoveStockRequest{
 		PartID:       int64(partID),
 		AssignmentID: int64(assignmentID),
 		TargetBinID:  int64(targetBinID),
 	})
 
 	if err != nil {
-		app.logger.Error("failed to move stock", "error", err)
+		h.Logger.Error("failed to move stock", "error", err)
 		http.Error(w, "Move failed", http.StatusInternalServerError)
 		return
 	}
@@ -430,17 +430,17 @@ func (app *application) handlePartStockMove(w http.ResponseWriter, r *http.Reque
 	http.Redirect(w, r, fmt.Sprintf("/parts/%d", partID), http.StatusSeeOther)
 }
 
-func (app *application) handlePartStockRemove(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandlePartStockRemove(w http.ResponseWriter, r *http.Request) {
 	partID, _ := strconv.Atoi(chi.URLParam(r, "id"))
 	assignmentID, _ := strconv.Atoi(chi.URLParam(r, "assignment_id"))
 
-	err := app.parts.RemoveStock(r.Context(), parts.RemoveStockRequest{
+	err := h.Parts.RemoveStock(r.Context(), parts.RemoveStockRequest{
 		PartID:       int64(partID),
 		AssignmentID: int64(assignmentID),
 	})
 
 	if err != nil {
-		app.logger.Error("failed to remove stock", "error", err)
+		h.Logger.Error("failed to remove stock", "error", err)
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
@@ -448,7 +448,7 @@ func (app *application) handlePartStockRemove(w http.ResponseWriter, r *http.Req
 	http.Redirect(w, r, fmt.Sprintf("/parts/%d", partID), http.StatusSeeOther)
 }
 
-func (app *application) handlePartStockAdjust(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandlePartStockAdjust(w http.ResponseWriter, r *http.Request) {
 	// partID, _ := strconv.Atoi(chi.URLParam(r, "id"))
 	assignmentID, _ := strconv.Atoi(chi.URLParam(r, "assignment_id"))
 	delta, _ := strconv.Atoi(r.URL.Query().Get("delta"))
@@ -458,9 +458,9 @@ func (app *application) handlePartStockAdjust(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	err := app.parts.AdjustStock(r.Context(), int64(assignmentID), delta)
+	err := h.Parts.AdjustStock(r.Context(), int64(assignmentID), delta)
 	if err != nil {
-		app.logger.Error("failed to adjust stock", "error", err)
+		h.Logger.Error("failed to adjust stock", "error", err)
 		http.Error(w, "Adjustment failed", http.StatusInternalServerError)
 		return
 	}
@@ -469,7 +469,7 @@ func (app *application) handlePartStockAdjust(w http.ResponseWriter, r *http.Req
 
 	// If HTMX request, render just the row
 	if r.Header.Get("HX-Request") == "true" {
-		stock, err := app.queries.GetPartAssignments(r.Context(), int64(partID))
+		stock, err := h.Queries.GetPartAssignments(r.Context(), int64(partID))
 		if err != nil {
 			http.Redirect(w, r, fmt.Sprintf("/parts/%d", partID), http.StatusSeeOther)
 			return
@@ -490,7 +490,7 @@ func (app *application) handlePartStockAdjust(w http.ResponseWriter, r *http.Req
 			return
 		}
 
-		controllers, _ := app.queries.GetControllers(r.Context())
+		controllers, _ := h.Queries.GetControllers(r.Context())
 		user := auth.GetUserFromRequest(r)
 
 		pages.StockRow(int64(partID), targetRow, user, controllers).Render(r.Context(), w)
@@ -501,11 +501,11 @@ func (app *application) handlePartStockAdjust(w http.ResponseWriter, r *http.Req
 }
 
 // POST /parts/{id}/locate
-func (app *application) handlePartLocate(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandlePartLocate(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
 
 	// Fetch Settings (Needed for Color and Timeout config)
-	settings, err := app.queries.GetSettings(r.Context())
+	settings, err := h.Queries.GetSettings(r.Context())
 	if err != nil {
 		// Fallback defaults if DB fails
 		settings.ColorLocate.String = "#0000FF"
@@ -514,9 +514,9 @@ func (app *application) handlePartLocate(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Get all assignments
-	assignments, err := app.queries.GetPartAssignments(r.Context(), int64(id))
+	assignments, err := h.Queries.GetPartAssignments(r.Context(), int64(id))
 	if err != nil {
-		app.logger.Error("failed to get part assignments", "error", err)
+		h.Logger.Error("failed to get part assignments", "error", err)
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
@@ -535,9 +535,9 @@ func (app *application) handlePartLocate(w http.ResponseWriter, r *http.Request)
 		}
 
 		// Trigger WLED
-		err := app.wled.LightUp(r.Context(), a.ControllerIp.String, ledIndex, width, settings.ColorLocate.String)
+		err := h.WLED.LightUp(r.Context(), a.ControllerIp.String, ledIndex, width, settings.ColorLocate.String)
 		if err != nil {
-			app.logger.Error("failed to locate bin", "error", err, "ip", a.ControllerIp.String)
+			h.Logger.Error("failed to locate bin", "error", err, "ip", a.ControllerIp.String)
 		}
 
 		// Handle Auto-Off Timer
@@ -549,7 +549,7 @@ func (app *application) handlePartLocate(w http.ResponseWriter, r *http.Request)
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
 
-				_ = app.wled.LightUp(ctx, ip, idx, count, "#000000")
+				_ = h.WLED.LightUp(ctx, ip, idx, count, "#000000")
 			}(a.ControllerIp.String, ledIndex, width, timeoutDuration)
 		}
 	}

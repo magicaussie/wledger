@@ -1,4 +1,4 @@
-package main
+package handler
 
 import (
 	"context"
@@ -28,7 +28,7 @@ func openTestDB(t *testing.T) *sql.DB {
 
 // setupTestSchema applies the schema files to the test database.
 func setupTestSchema(t *testing.T, dbConn *sql.DB) {
-	// Schema path relative to cmd/server
+	// Schema path relative to internal/handler
 	schemaDir := "../../sql/schema"
 
 	files := []string{"001_init.sql", "002_fts_triggers.sql"}
@@ -53,10 +53,10 @@ func TestControllerDeleteCascadesToBins(t *testing.T) {
 	queries := db.New(dbConn)
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	app := &application{
-		logger:   logger,
-		queries:  queries,
-		database: dbConn,
+	h := &Handler{
+		Logger:   logger,
+		Queries:  queries,
+		Database: dbConn,
 	}
 
 	ctx := context.Background()
@@ -95,9 +95,9 @@ func TestControllerDeleteCascadesToBins(t *testing.T) {
 	}
 
 	// Delete Controller via HTTP Handler
-	// This exercises the `handleHardwareDelete` method, ensuring the transaction logic works.
+	// This exercises the `HandleHardwareDelete` method, ensuring the transaction logic works.
 	r := chi.NewRouter()
-	r.Post("/hardware/{id}/delete", app.handleHardwareDelete)
+	r.Post("/hardware/{id}/delete", h.HandleHardwareDelete)
 
 	target := "/hardware/" + strconv.Itoa(int(ctrl.ID)) + "/delete"
 	req := httptest.NewRequest(http.MethodPost, target, nil)
@@ -107,7 +107,7 @@ func TestControllerDeleteCascadesToBins(t *testing.T) {
 
 	// Check Handler Response
 	if rr.Code != http.StatusSeeOther {
-		t.Errorf("handler returned wrong status code: got %v want %v", rr.Code, http.StatusSeeOther)
+		t.Errorf("Handler returned wrong status code: got %v want %v", rr.Code, http.StatusSeeOther)
 	}
 
 	// Assertions

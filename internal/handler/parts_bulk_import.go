@@ -1,4 +1,4 @@
-package main
+package handler
 
 import (
 	"database/sql"
@@ -15,7 +15,7 @@ import (
 )
 
 // GET /parts/import/template
-func (app *application) handlePartsImportTemplate(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandlePartsImportTemplate(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/csv")
 	w.Header().Set("Content-Disposition", "attachment;filename=wledger_import_template.csv")
 	w.Write([]byte("Name,Description,Part Number,Manufacturer,Supplier,Unit Cost,Reorder Level,Min Stock,Barcode,Quantity\n"))
@@ -23,7 +23,7 @@ func (app *application) handlePartsImportTemplate(w http.ResponseWriter, r *http
 }
 
 // POST /parts/import
-func (app *application) handlePartsImport(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandlePartsImport(w http.ResponseWriter, r *http.Request) {
 	// Authorization
 	user := auth.GetUserFromRequest(r)
 	if !user.CanWrite() {
@@ -68,13 +68,13 @@ func (app *application) handlePartsImport(w http.ResponseWriter, r *http.Request
 	}
 
 	// Database Transaction
-	tx, err := app.database.Begin()
+	tx, err := h.Database.Begin()
 	if err != nil {
 		components.ImportResult(false, "Database error: "+err.Error(), nil).Render(r.Context(), w)
 		return
 	}
 	defer tx.Rollback()
-	qtx := app.queries.WithTx(tx)
+	qtx := h.Queries.WithTx(tx)
 
 	count := 0
 	for _, row := range rows {
@@ -121,7 +121,7 @@ func (app *application) handlePartsImport(w http.ResponseWriter, r *http.Request
 	}
 
 	// Audit Log
-	audit.Log(r.Context(), app.queries, "IMPORT", "PARTS", 0, fmt.Sprintf("Bulk imported %d parts", count), nil, nil)
+	audit.Log(r.Context(), h.Queries, "IMPORT", "PARTS", 0, fmt.Sprintf("Bulk imported %d parts", count), nil, nil)
 
 	// Success Response
 	msg := fmt.Sprintf("Successfully imported %d parts.", count)

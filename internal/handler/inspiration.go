@@ -1,4 +1,4 @@
-package main
+package handler
 
 import (
 	"fmt"
@@ -12,22 +12,22 @@ import (
 	"github.com/tuxedocurly/wledger/web/pages"
 )
 
-// handleInspiration renders the main inspiration page
-func (app *application) handleInspiration(w http.ResponseWriter, r *http.Request) {
+// HandleInspiration renders the main inspiration page
+func (h *Handler) HandleInspiration(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// Fetch all templates
-	templates, err := app.inspiration.GetAllTemplates(ctx)
+	templates, err := h.Inspiration.GetAllTemplates(ctx)
 	if err != nil {
-		app.logger.Error("Failed to fetch inspiration templates", "error", err)
+		h.Logger.Error("Failed to fetch inspiration templates", "error", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 
 	// Fetch all tags for the filter dropdown
-	allTags, err := app.queries.ListAllTags(ctx)
+	allTags, err := h.Queries.ListAllTags(ctx)
 	if err != nil {
-		app.logger.Error("Failed to fetch tags for inspiration filter", "error", err)
+		h.Logger.Error("Failed to fetch tags for inspiration filter", "error", err)
 		// The app can still proceed without tags, just won't be able to filter
 	}
 
@@ -43,8 +43,8 @@ func (app *application) handleInspiration(w http.ResponseWriter, r *http.Request
 	pages.Inspiration(templates, tagNames, user).Render(ctx, w)
 }
 
-// handleInspirationGenerate constructs the prompt based on the template and filters
-func (app *application) handleInspirationGenerate(w http.ResponseWriter, r *http.Request) {
+// HandleInspirationGenerate constructs the prompt based on the template and filters
+func (h *Handler) HandleInspirationGenerate(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
@@ -60,9 +60,9 @@ func (app *application) handleInspirationGenerate(w http.ResponseWriter, r *http
 		tagFilters = strings.Split(tagsParam, ",")
 	}
 
-	prompt, err := app.inspiration.ConstructPrompt(ctx, id, tagFilters)
+	prompt, err := h.Inspiration.ConstructPrompt(ctx, id, tagFilters)
 	if err != nil {
-		app.logger.Error("Failed to construct prompt", "error", err, "template_id", id)
+		h.Logger.Error("Failed to construct prompt", "error", err, "template_id", id)
 		http.Error(w, "Failed to generate prompt", http.StatusInternalServerError)
 		return
 	}
@@ -72,11 +72,11 @@ func (app *application) handleInspirationGenerate(w http.ResponseWriter, r *http
 	fmt.Fprint(w, prompt)
 }
 
-func (app *application) handleInspirationNew(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandleInspirationNew(w http.ResponseWriter, r *http.Request) {
 	components.InspirationFormModal(nil).Render(r.Context(), w)
 }
 
-func (app *application) handleInspirationCreate(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandleInspirationCreate(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Bad Request", http.StatusBadRequest)
 		return
@@ -85,9 +85,9 @@ func (app *application) handleInspirationCreate(w http.ResponseWriter, r *http.R
 	title := r.FormValue("title")
 	content := r.FormValue("content")
 
-	_, err := app.inspiration.CreateTemplate(r.Context(), title, content)
+	_, err := h.Inspiration.CreateTemplate(r.Context(), title, content)
 	if err != nil {
-		app.logger.Error("Failed to create inspiration template", "error", err)
+		h.Logger.Error("Failed to create inspiration template", "error", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
@@ -96,7 +96,7 @@ func (app *application) handleInspirationCreate(w http.ResponseWriter, r *http.R
 	w.WriteHeader(http.StatusOK)
 }
 
-func (app *application) handleInspirationEdit(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandleInspirationEdit(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
@@ -104,7 +104,7 @@ func (app *application) handleInspirationEdit(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	tmpl, err := app.inspiration.GetTemplate(r.Context(), id)
+	tmpl, err := h.Inspiration.GetTemplate(r.Context(), id)
 	if err != nil {
 		http.Error(w, "Not Found", http.StatusNotFound)
 		return
@@ -113,7 +113,7 @@ func (app *application) handleInspirationEdit(w http.ResponseWriter, r *http.Req
 	components.InspirationFormModal(&tmpl).Render(r.Context(), w)
 }
 
-func (app *application) handleInspirationUpdate(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandleInspirationUpdate(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
@@ -129,9 +129,9 @@ func (app *application) handleInspirationUpdate(w http.ResponseWriter, r *http.R
 	title := r.FormValue("title")
 	content := r.FormValue("content")
 
-	err = app.inspiration.UpdateTemplate(r.Context(), id, title, content)
+	err = h.Inspiration.UpdateTemplate(r.Context(), id, title, content)
 	if err != nil {
-		app.logger.Error("Failed to update inspiration template", "error", err)
+		h.Logger.Error("Failed to update inspiration template", "error", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
@@ -140,7 +140,7 @@ func (app *application) handleInspirationUpdate(w http.ResponseWriter, r *http.R
 	w.WriteHeader(http.StatusOK)
 }
 
-func (app *application) handleInspirationDelete(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandleInspirationDelete(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
@@ -148,9 +148,9 @@ func (app *application) handleInspirationDelete(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	err = app.inspiration.DeleteTemplate(r.Context(), id)
+	err = h.Inspiration.DeleteTemplate(r.Context(), id)
 	if err != nil {
-		app.logger.Error("Failed to delete inspiration template", "error", err)
+		h.Logger.Error("Failed to delete inspiration template", "error", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}

@@ -1,4 +1,4 @@
-package main
+package handler
 
 import (
 	"context"
@@ -16,13 +16,13 @@ import (
 )
 
 // GET /hardware
-func (app *application) handleHardwareList(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandleHardwareList(w http.ResponseWriter, r *http.Request) {
 	// Get User
 	user := auth.GetUserFromRequest(r)
 
-	controllers, err := app.queries.GetControllers(r.Context())
+	controllers, err := h.Queries.GetControllers(r.Context())
 	if err != nil {
-		app.logger.Error("failed to fetch hardware", "error", err)
+		h.Logger.Error("failed to fetch hardware", "error", err)
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
@@ -32,13 +32,13 @@ func (app *application) handleHardwareList(w http.ResponseWriter, r *http.Reques
 }
 
 // POST /hardware
-func (app *application) handleHardwareCreate(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandleHardwareCreate(w http.ResponseWriter, r *http.Request) {
 	name := r.FormValue("name")
 	ip := r.FormValue("ip_address")
 
 	// Ensure IP is not empty
 	if ip == "" {
-		app.logger.Error("attempted to create controller with empty IP")
+		h.Logger.Error("attempted to create controller with empty IP")
 		http.Error(w, "IP Address is required", http.StatusBadRequest)
 		return
 	}
@@ -49,40 +49,40 @@ func (app *application) handleHardwareCreate(w http.ResponseWriter, r *http.Requ
 		port = 80
 	}
 
-	_, err := app.queries.CreateController(r.Context(), db.CreateControllerParams{
+	_, err := h.Queries.CreateController(r.Context(), db.CreateControllerParams{
 		Name:      name,
 		IpAddress: ip,
 		Port:      sql.NullInt64{Int64: int64(port), Valid: true},
 	})
 
 	if err != nil {
-		app.logger.Error("failed to create controller", "error", err)
+		h.Logger.Error("failed to create controller", "error", err)
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
 
-	audit.Log(r.Context(), app.queries, "CREATE", "HARDWARE", 0, "Added controller "+name, nil, nil)
+	audit.Log(r.Context(), h.Queries, "CREATE", "HARDWARE", 0, "Added controller "+name, nil, nil)
 	http.Redirect(w, r, "/hardware", http.StatusSeeOther)
 }
 
 // POST /hardware/{id}/delete
-func (app *application) handleHardwareDelete(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandleHardwareDelete(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, _ := strconv.Atoi(idStr)
 
-	tx, err := app.database.Begin()
+	tx, err := h.Database.Begin()
 	if err != nil {
-		app.logger.Error("failed to start transaction", "error", err)
+		h.Logger.Error("failed to start transaction", "error", err)
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
 	defer tx.Rollback()
-	qtx := app.queries.WithTx(tx)
+	qtx := h.Queries.WithTx(tx)
 
 	// Delete Bins First (Manual Cascade)
 	err = qtx.DeleteBinsByController(r.Context(), sql.NullInt64{Int64: int64(id), Valid: true})
 	if err != nil {
-		app.logger.Error("failed to delete controller bins", "error", err)
+		h.Logger.Error("failed to delete controller bins", "error", err)
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
@@ -90,36 +90,36 @@ func (app *application) handleHardwareDelete(w http.ResponseWriter, r *http.Requ
 	// Delete Controller
 	err = qtx.DeleteController(r.Context(), int64(id))
 	if err != nil {
-		app.logger.Error("failed to delete controller", "error", err)
+		h.Logger.Error("failed to delete controller", "error", err)
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
 
 	if err := tx.Commit(); err != nil {
-		app.logger.Error("failed to commit transaction", "error", err)
+		h.Logger.Error("failed to commit transaction", "error", err)
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
 
-	audit.Log(r.Context(), app.queries, "DELETE", "HARDWARE", int64(id), "Deleted controller", nil, nil)
+	audit.Log(r.Context(), h.Queries, "DELETE", "HARDWARE", int64(id), "Deleted controller", nil, nil)
 	http.Redirect(w, r, "/hardware", http.StatusSeeOther)
 }
 
 // GET /hardware/{id}/status
-func (app *application) handleHardwareStatus(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandleHardwareStatus(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, _ := strconv.Atoi(idStr)
 
-	c, err := app.queries.GetController(r.Context(), int64(id))
+	c, err := h.Queries.GetController(r.Context(), int64(id))
 	if err != nil {
 		http.Error(w, "Not found", http.StatusNotFound)
 		return
 	}
 
-	online, _ := app.wled.Ping(r.Context(), c.IpAddress)
+	online, _ := h.WLED.Ping(r.Context(), c.IpAddress)
 
 	if online != c.IsOnline.Bool {
-		_ = app.queries.UpdateControllerStatus(r.Context(), db.UpdateControllerStatusParams{
+		_ = h.Queries.UpdateControllerStatus(r.Context(), db.UpdateControllerStatusParams{
 			IsOnline: sql.NullBool{Bool: online, Valid: true},
 			ID:       c.ID,
 		})
@@ -133,20 +133,20 @@ func (app *application) handleHardwareStatus(w http.ResponseWriter, r *http.Requ
 }
 
 // GET /hardware/{id}/grid
-func (app *application) handleHardwareGrid(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandleHardwareGrid(w http.ResponseWriter, r *http.Request) {
 	// Get User
 	user := auth.GetUserFromRequest(r)
 
 	idStr := chi.URLParam(r, "id")
 	id, _ := strconv.Atoi(idStr)
 
-	c, err := app.queries.GetController(r.Context(), int64(id))
+	c, err := h.Queries.GetController(r.Context(), int64(id))
 	if err != nil {
 		http.Error(w, "Not found", http.StatusNotFound)
 		return
 	}
 
-	bins, err := app.queries.GetBinsByController(r.Context(), sql.NullInt64{Int64: int64(id), Valid: true})
+	bins, err := h.Queries.GetBinsByController(r.Context(), sql.NullInt64{Int64: int64(id), Valid: true})
 	if err != nil {
 		bins = []db.Bin{}
 	}
@@ -164,7 +164,7 @@ type gridCellData struct {
 }
 
 // POST /hardware/{id}/grid
-func (app *application) handleHardwareGridSave(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandleHardwareGridSave(w http.ResponseWriter, r *http.Request) {
 	controllerID, _ := strconv.Atoi(chi.URLParam(r, "id"))
 	ctx := r.Context()
 
@@ -172,23 +172,23 @@ func (app *application) handleHardwareGridSave(w http.ResponseWriter, r *http.Re
 	gridDataJSON := r.FormValue("grid_data")
 	var newCells []gridCellData
 	if err := json.Unmarshal([]byte(gridDataJSON), &newCells); err != nil {
-		app.logger.Error("failed to parse grid json", "error", err)
+		h.Logger.Error("failed to parse grid json", "error", err)
 		http.Error(w, "Invalid Grid JSON", http.StatusBadRequest)
 		return
 	}
 
-	tx, err := app.database.Begin()
+	tx, err := h.Database.Begin()
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
 	defer tx.Rollback()
-	qtx := app.queries.WithTx(tx)
+	qtx := h.Queries.WithTx(tx)
 
 	// Fetch Existing Bins
 	existingBins, err := qtx.GetBinsByController(ctx, sql.NullInt64{Int64: int64(controllerID), Valid: true})
 	if err != nil {
-		app.logger.Error("failed to fetch existing bins", "error", err)
+		h.Logger.Error("failed to fetch existing bins", "error", err)
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
@@ -224,7 +224,7 @@ func (app *application) handleHardwareGridSave(w http.ResponseWriter, r *http.Re
 				GridY:        sql.NullInt64{Int64: int64(cell.Y), Valid: true},
 			})
 			if err != nil {
-				app.logger.Error("failed to update bin", "led", ledIdx, "error", err)
+				h.Logger.Error("failed to update bin", "led", ledIdx, "error", err)
 				http.Error(w, "Save failed", http.StatusInternalServerError)
 				return
 			}
@@ -242,7 +242,7 @@ func (app *application) handleHardwareGridSave(w http.ResponseWriter, r *http.Re
 				GridY:        sql.NullInt64{Int64: int64(cell.Y), Valid: true},
 			})
 			if err != nil {
-				app.logger.Error("failed to create bin", "led", ledIdx, "error", err)
+				h.Logger.Error("failed to create bin", "led", ledIdx, "error", err)
 				http.Error(w, "Save failed", http.StatusInternalServerError)
 				return
 			}
@@ -251,14 +251,14 @@ func (app *application) handleHardwareGridSave(w http.ResponseWriter, r *http.Re
 
 	// Handle Deletions (Orphan Logic)
 	// Any bins remaining in existingMap were NOT in the new payload.
-	// Delete them. The DB Schema (ON DELETE SET NULL) handles orphaning stock automatically.
+	// Delete them. The DB Schema (ON DELETE SET NULL) Handles orphaning stock automatically.
 	for _, binToDelete := range existingMap {
 		err := qtx.DeleteBinByLed(ctx, db.DeleteBinByLedParams{
 			ControllerID: sql.NullInt64{Int64: int64(controllerID), Valid: true},
 			LedIndex:     binToDelete.LedIndex,
 		})
 		if err != nil {
-			app.logger.Error("failed to delete removed bin", "id", binToDelete.ID, "error", err)
+			h.Logger.Error("failed to delete removed bin", "id", binToDelete.ID, "error", err)
 			// Continue deleting others even if one fails
 		}
 	}
@@ -282,31 +282,31 @@ func (app *application) handleHardwareGridSave(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	audit.Log(ctx, app.queries, "UPDATE", "HARDWARE", int64(controllerID), "Updated LED Grid Layout", nil, nil)
+	audit.Log(ctx, h.Queries, "UPDATE", "HARDWARE", int64(controllerID), "Updated LED Grid Layout", nil, nil)
 	http.Redirect(w, r, "/hardware", http.StatusSeeOther)
 }
 
 // POST /hardware/off
-func (app *application) handleGlobalOff(w http.ResponseWriter, r *http.Request) {
-	controllers, err := app.queries.GetControllers(r.Context())
+func (h *Handler) HandleGlobalOff(w http.ResponseWriter, r *http.Request) {
+	controllers, err := h.Queries.GetControllers(r.Context())
 	if err != nil {
-		app.logger.Error("failed to list controllers", "error", err)
+		h.Logger.Error("failed to list controllers", "error", err)
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
 
-	app.logger.Info("triggering global off", "controllers", len(controllers))
+	h.Logger.Info("triggering global off", "controllers", len(controllers))
 
 	for _, c := range controllers {
 		go func(ctrlName, ip string) {
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
 
-			err := app.wled.Clear(ctx, ip)
+			err := h.WLED.Clear(ctx, ip)
 			if err != nil {
-				app.logger.Error("failed to clear controller", "name", ctrlName, "ip", ip, "error", err)
+				h.Logger.Error("failed to clear controller", "name", ctrlName, "ip", ip, "error", err)
 			} else {
-				app.logger.Info("cleared controller", "name", ctrlName, "ip", ip)
+				h.Logger.Info("cleared controller", "name", ctrlName, "ip", ip)
 			}
 		}(c.Name, c.IpAddress)
 	}
@@ -315,13 +315,13 @@ func (app *application) handleGlobalOff(w http.ResponseWriter, r *http.Request) 
 }
 
 // POST /hardware/{id}/locate
-func (app *application) handleHardwareLocate(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandleHardwareLocate(w http.ResponseWriter, r *http.Request) {
 	cidStr := chi.URLParam(r, "id")
 	cid, _ := strconv.Atoi(cidStr)
 	binID, _ := strconv.Atoi(r.URL.Query().Get("bin_id"))
 
 	// Fetch Settings (Needed for Color and Timeout config)
-	settings, err := app.queries.GetSettings(r.Context())
+	settings, err := h.Queries.GetSettings(r.Context())
 	if err != nil {
 		// Fallback defaults if DB fails
 		settings.ColorLocate.String = "#0000FF"
@@ -330,16 +330,16 @@ func (app *application) handleHardwareLocate(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Retrieve Hardware Details
-	controller, err := app.queries.GetController(r.Context(), int64(cid))
+	controller, err := h.Queries.GetController(r.Context(), int64(cid))
 	if err != nil {
-		app.logger.Error("locate failed: controller not found", "cid", cid)
+		h.Logger.Error("locate failed: controller not found", "cid", cid)
 		http.Error(w, "Controller not found", http.StatusNotFound)
 		return
 	}
 
-	bin, err := app.queries.GetBin(r.Context(), int64(binID))
+	bin, err := h.Queries.GetBin(r.Context(), int64(binID))
 	if err != nil {
-		app.logger.Error("locate failed: bin not found", "binID", binID)
+		h.Logger.Error("locate failed: bin not found", "binID", binID)
 		http.Error(w, "Bin not found", http.StatusNotFound)
 		return
 	}
@@ -352,10 +352,10 @@ func (app *application) handleHardwareLocate(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Trigger WLED
-	err = app.wled.LightUp(r.Context(), controller.IpAddress, ledIndex, width, settings.ColorLocate.String)
+	err = h.WLED.LightUp(r.Context(), controller.IpAddress, ledIndex, width, settings.ColorLocate.String)
 	if err != nil {
 		// Don't return error to client, just log it
-		app.logger.Error("failed to locate bin", "error", err, "ip", controller.IpAddress)
+		h.Logger.Error("failed to locate bin", "error", err, "ip", controller.IpAddress)
 	}
 
 	// Handle Auto-Off Timer
@@ -369,7 +369,7 @@ func (app *application) handleHardwareLocate(w http.ResponseWriter, r *http.Requ
 			defer cancel()
 
 			// Turn off (using black)
-			_ = app.wled.LightUp(ctx, ip, idx, count, "#000000")
+			_ = h.WLED.LightUp(ctx, ip, idx, count, "#000000")
 		}(controller.IpAddress, ledIndex, width, timeoutDuration)
 	}
 

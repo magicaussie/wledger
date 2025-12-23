@@ -21,3 +21,7 @@ vendor/
 
 # Environment
 .env
+.env.*
+
+# Conductor
+conductor/

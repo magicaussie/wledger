@@ -1,4 +1,4 @@
-package main
+package handler
 
 import (
 	"net/http"
@@ -11,22 +11,22 @@ import (
 )
 
 // GET /
-func (app *application) handleDashboard(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandleDashboard(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUserFromRequest(r)
 	ctx := r.Context()
 
 	// Fetch Stats (Existing functionality)
-	stats, err := app.queries.GetDashboardStats(ctx)
+	stats, err := h.Queries.GetDashboardStats(ctx)
 	if err != nil {
-		app.logger.Error("failed to get dashboard stats", "error", err)
+		h.Logger.Error("failed to get dashboard stats", "error", err)
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
 
 	// Fetch Grid Data (New functionality)
-	gridRows, err := app.queries.GetDashboardGrid(ctx)
+	gridRows, err := h.Queries.GetDashboardGrid(ctx)
 	if err != nil {
-		app.logger.Error("failed to fetch dashboard grid", "error", err)
+		h.Logger.Error("failed to fetch dashboard grid", "error", err)
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}

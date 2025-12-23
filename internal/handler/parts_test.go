@@ -1,4 +1,4 @@
-package main
+package handler
 
 import (
 	"bytes"
@@ -28,8 +28,8 @@ import (
 	"github.com/tuxedocurly/wledger/internal/tags"
 )
 
-// Reusing setup logic from handler_hardware_test.go
-func setupPartTest(t *testing.T) (*application, *sql.DB) {
+// Reusing setup logic from Handler_hardware_test.go
+func setupPartTest(t *testing.T) (*Handler, *sql.DB) {
 	// Setup DB
 	dbConn := openTestDB(t)
 	setupTestSchema(t, dbConn)
@@ -51,15 +51,15 @@ func setupPartTest(t *testing.T) (*application, *sql.DB) {
 	tagsService := tags.NewService(dbConn, queries)
 	partsService := parts.NewService(dbConn, queries, logger, tagsService)
 
-	app := &application{
-		logger:   logger,
-		queries:  queries,
-		database: dbConn,
-		parts:    partsService,
-		tags:     tagsService,
+	h := &Handler{
+		Logger:   logger,
+		Queries:  queries,
+		Database: dbConn,
+		Parts:    partsService,
+		Tags:     tagsService,
 	}
 
-	return app, dbConn
+	return h, dbConn
 }
 
 func cleanupPartTest() {
@@ -111,7 +111,7 @@ func createMultipartRequest(t *testing.T, uri, method string, fields map[string]
 }
 
 func TestPartCreate_HappyPath(t *testing.T) {
-	app, dbConn := setupPartTest(t)
+	h, dbConn := setupPartTest(t)
 	defer dbConn.Close()
 	defer cleanupPartTest()
 
@@ -126,7 +126,7 @@ func TestPartCreate_HappyPath(t *testing.T) {
 	})
 
 	rr := httptest.NewRecorder()
-	app.handlePartsCreate(rr, req)
+	h.HandlePartsCreate(rr, req)
 
 	// Check Redirect
 	if rr.Code != http.StatusSeeOther {
@@ -159,7 +159,7 @@ func TestPartCreate_HappyPath(t *testing.T) {
 }
 
 func TestPartCreate_WithTags(t *testing.T) {
-	app, dbConn := setupPartTest(t)
+	h, dbConn := setupPartTest(t)
 	defer dbConn.Close()
 	defer cleanupPartTest()
 
@@ -172,7 +172,7 @@ func TestPartCreate_WithTags(t *testing.T) {
 	}, map[string]string{})
 
 	rr := httptest.NewRecorder()
-	app.handlePartsCreate(rr, req)
+	h.HandlePartsCreate(rr, req)
 
 	// Check Redirect
 	if rr.Code != http.StatusSeeOther {
@@ -189,7 +189,7 @@ func TestPartCreate_WithTags(t *testing.T) {
 	// Verify Tags Created
 	rows, err := dbConn.Query("SELECT name FROM tags ORDER BY name")
 	if err != nil {
-		t.Fatalf("failed to query tags: %v", err)
+		t.Fatalf("failed to query Tags: %v", err)
 	}
 	defer rows.Close()
 
@@ -219,12 +219,12 @@ func TestPartCreate_WithTags(t *testing.T) {
 }
 
 func TestPartCreate_RollbackOnError(t *testing.T) {
-	app, dbConn := setupPartTest(t)
+	h, dbConn := setupPartTest(t)
 	defer dbConn.Close()
 	defer cleanupPartTest()
 
 	// Create a part to occupy barcode "1001"
-	_, _ = app.queries.CreatePart(context.Background(), db.CreatePartParams{
+	_, _ = h.Queries.CreatePart(context.Background(), db.CreatePartParams{
 		Name: "Existing Part", BarcodeData: sql.NullString{String: "1001", Valid: true},
 	})
 
@@ -238,10 +238,10 @@ func TestPartCreate_RollbackOnError(t *testing.T) {
 	})
 
 	rr := httptest.NewRecorder()
-	app.handlePartsCreate(rr, req)
+	h.HandlePartsCreate(rr, req)
 
-	// Expect Error (Conflict or Internal Server Error handled by handler)
-	// The handler catches UNIQUE constraint and returns 409 Conflict
+	// Expect Error (Conflict or Internal Server Error Handled by Handler)
+	// The Handler catches UNIQUE constraint and returns 409 Conflict
 	if rr.Code != http.StatusConflict {
 		t.Errorf("expected 409 Conflict, got %d", rr.Code)
 	}
@@ -266,7 +266,7 @@ func TestPartCreate_RollbackOnError(t *testing.T) {
 }
 
 func TestPartUpdate_RollbackOnError(t *testing.T) {
-	app, dbConn := setupPartTest(t)
+	h, dbConn := setupPartTest(t)
 	defer dbConn.Close()
 	defer cleanupPartTest()
 
@@ -275,7 +275,7 @@ func TestPartUpdate_RollbackOnError(t *testing.T) {
 	initialImgName := "initial.jpg"
 	_ = os.WriteFile("./app/uploads/images/"+initialImgName, []byte("dummy"), 0644)
 
-	id, err := app.queries.CreatePart(context.Background(), db.CreatePartParams{
+	id, err := h.Queries.CreatePart(context.Background(), db.CreatePartParams{
 		Name:      "Original Part",
 		ImagePath: sql.NullString{String: "/uploads/images/" + initialImgName, Valid: true},
 	})
@@ -284,7 +284,7 @@ func TestPartUpdate_RollbackOnError(t *testing.T) {
 	}
 
 	// Create another part to conflict with
-	_, _ = app.queries.CreatePart(context.Background(), db.CreatePartParams{
+	_, _ = h.Queries.CreatePart(context.Background(), db.CreatePartParams{
 		Name: "Blocker", BarcodeData: sql.NullString{String: "9999", Valid: true},
 	})
 
@@ -298,7 +298,7 @@ func TestPartUpdate_RollbackOnError(t *testing.T) {
 
 	// Setup Router
 	r := chi.NewRouter()
-	r.Post("/parts/{id}/update", app.handlePartUpdate)
+	r.Post("/parts/{id}/update", h.HandlePartUpdate)
 
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
@@ -309,7 +309,7 @@ func TestPartUpdate_RollbackOnError(t *testing.T) {
 	}
 
 	// Verify DB state
-	p, _ := app.queries.GetPart(context.Background(), id)
+	p, _ := h.Queries.GetPart(context.Background(), id)
 	if p.Name != "Original Part" {
 		t.Errorf("DB modified despite rollback! Name: %s", p.Name)
 	}
@@ -331,7 +331,7 @@ func TestPartUpdate_RollbackOnError(t *testing.T) {
 }
 
 func TestPartUpdate_HappyPath_ImageSwap(t *testing.T) {
-	app, dbConn := setupPartTest(t)
+	h, dbConn := setupPartTest(t)
 	defer dbConn.Close()
 	defer cleanupPartTest()
 
@@ -340,7 +340,7 @@ func TestPartUpdate_HappyPath_ImageSwap(t *testing.T) {
 	_ = os.WriteFile("./app/uploads/images/"+initialImgName, []byte("dummy"), 0644)
 	_ = os.WriteFile("./app/uploads/images/part_old_thumb.jpg", []byte("dummy"), 0644)
 
-	id, _ := app.queries.CreatePart(context.Background(), db.CreatePartParams{
+	id, _ := h.Queries.CreatePart(context.Background(), db.CreatePartParams{
 		Name:      "Old Name",
 		ImagePath: sql.NullString{String: "/uploads/images/" + initialImgName, Valid: true},
 	})
@@ -353,7 +353,7 @@ func TestPartUpdate_HappyPath_ImageSwap(t *testing.T) {
 	})
 
 	r := chi.NewRouter()
-	r.Post("/parts/{id}/update", app.handlePartUpdate)
+	r.Post("/parts/{id}/update", h.HandlePartUpdate)
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
 
@@ -362,7 +362,7 @@ func TestPartUpdate_HappyPath_ImageSwap(t *testing.T) {
 	}
 
 	// Verify DB
-	p, _ := app.queries.GetPart(context.Background(), id)
+	p, _ := h.Queries.GetPart(context.Background(), id)
 	if p.Name != "New Name" {
 		t.Error("Name not updated")
 	}
@@ -381,21 +381,21 @@ func TestPartUpdate_HappyPath_ImageSwap(t *testing.T) {
 }
 
 func TestPartStockMove_Move(t *testing.T) {
-	app, dbConn := setupPartTest(t)
+	h, dbConn := setupPartTest(t)
 	defer dbConn.Close()
 	defer cleanupPartTest()
 	ctx := context.Background()
 
 	// Setup Data: Part, Bin A, Bin B, Stock in Bin A
-	p, _ := app.queries.CreatePart(ctx, db.CreatePartParams{Name: "Part A"})
-	binA, _ := app.queries.CreateBin(ctx, db.CreateBinParams{Name: "Bin A"})
-	binB, _ := app.queries.CreateBin(ctx, db.CreateBinParams{Name: "Bin B"})
+	p, _ := h.Queries.CreatePart(ctx, db.CreatePartParams{Name: "Part A"})
+	binA, _ := h.Queries.CreateBin(ctx, db.CreateBinParams{Name: "Bin A"})
+	binB, _ := h.Queries.CreateBin(ctx, db.CreateBinParams{Name: "Bin B"})
 
-	_ = app.queries.CreatePartAssignment(ctx, db.CreatePartAssignmentParams{
+	_ = h.Queries.CreatePartAssignment(ctx, db.CreatePartAssignmentParams{
 		PartID: p, BinID: sql.NullInt64{Int64: binA, Valid: true}, Quantity: 10,
 	})
 
-	assignID, _ := app.queries.GetAssignmentID(ctx, db.GetAssignmentIDParams{
+	assignID, _ := h.Queries.GetAssignmentID(ctx, db.GetAssignmentIDParams{
 		PartID: p, BinID: sql.NullInt64{Int64: binA, Valid: true},
 	})
 
@@ -408,7 +408,7 @@ func TestPartStockMove_Move(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	r := chi.NewRouter()
-	r.Post("/parts/{id}/stock/{assignment_id}/move", app.handlePartStockMove)
+	r.Post("/parts/{id}/stock/{assignment_id}/move", h.HandlePartStockMove)
 
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
@@ -419,7 +419,7 @@ func TestPartStockMove_Move(t *testing.T) {
 
 	// Verify
 	// Bin A should be empty (no assignment)
-	_, err := app.queries.GetAssignmentID(ctx, db.GetAssignmentIDParams{
+	_, err := h.Queries.GetAssignmentID(ctx, db.GetAssignmentIDParams{
 		PartID: p, BinID: sql.NullInt64{Int64: binA, Valid: true},
 	})
 	if err == nil {
@@ -427,37 +427,37 @@ func TestPartStockMove_Move(t *testing.T) {
 	}
 
 	// Bin B should have 10
-	assignB, err := app.queries.GetAssignmentID(ctx, db.GetAssignmentIDParams{
+	assignB, err := h.Queries.GetAssignmentID(ctx, db.GetAssignmentIDParams{
 		PartID: p, BinID: sql.NullInt64{Int64: binB, Valid: true},
 	})
 	if err != nil {
 		t.Error("Target assignment missing")
 	}
-	row, _ := app.queries.GetAssignment(ctx, assignB)
+	row, _ := h.Queries.GetAssignment(ctx, assignB)
 	if row.Quantity != 10 {
 		t.Errorf("Expected 10 in target, got %d", row.Quantity)
 	}
 }
 
 func TestPartStockMove_Merge(t *testing.T) {
-	app, dbConn := setupPartTest(t)
+	h, dbConn := setupPartTest(t)
 	defer dbConn.Close()
 	defer cleanupPartTest()
 	ctx := context.Background()
 
 	// Setup: Part, Bin A (10), Bin B (5)
-	p, _ := app.queries.CreatePart(ctx, db.CreatePartParams{Name: "Part A"})
-	binA, _ := app.queries.CreateBin(ctx, db.CreateBinParams{Name: "Bin A"})
-	binB, _ := app.queries.CreateBin(ctx, db.CreateBinParams{Name: "Bin B"})
+	p, _ := h.Queries.CreatePart(ctx, db.CreatePartParams{Name: "Part A"})
+	binA, _ := h.Queries.CreateBin(ctx, db.CreateBinParams{Name: "Bin A"})
+	binB, _ := h.Queries.CreateBin(ctx, db.CreateBinParams{Name: "Bin B"})
 
-	_ = app.queries.CreatePartAssignment(ctx, db.CreatePartAssignmentParams{
+	_ = h.Queries.CreatePartAssignment(ctx, db.CreatePartAssignmentParams{
 		PartID: p, BinID: sql.NullInt64{Int64: binA, Valid: true}, Quantity: 10,
 	})
-	_ = app.queries.CreatePartAssignment(ctx, db.CreatePartAssignmentParams{
+	_ = h.Queries.CreatePartAssignment(ctx, db.CreatePartAssignmentParams{
 		PartID: p, BinID: sql.NullInt64{Int64: binB, Valid: true}, Quantity: 5,
 	})
 
-	assignA, _ := app.queries.GetAssignmentID(ctx, db.GetAssignmentIDParams{
+	assignA, _ := h.Queries.GetAssignmentID(ctx, db.GetAssignmentIDParams{
 		PartID: p, BinID: sql.NullInt64{Int64: binA, Valid: true},
 	})
 
@@ -469,14 +469,14 @@ func TestPartStockMove_Merge(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	r := chi.NewRouter()
-	r.Post("/parts/{id}/stock/{assignment_id}/move", app.handlePartStockMove)
+	r.Post("/parts/{id}/stock/{assignment_id}/move", h.HandlePartStockMove)
 
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
 
 	// Verify
 	// Bin A gone
-	_, err := app.queries.GetAssignmentID(ctx, db.GetAssignmentIDParams{
+	_, err := h.Queries.GetAssignmentID(ctx, db.GetAssignmentIDParams{
 		PartID: p, BinID: sql.NullInt64{Int64: binA, Valid: true},
 	})
 	if err == nil {
@@ -484,10 +484,10 @@ func TestPartStockMove_Merge(t *testing.T) {
 	}
 
 	// Bin B should have 15 (10+5)
-	assignB, _ := app.queries.GetAssignmentID(ctx, db.GetAssignmentIDParams{
+	assignB, _ := h.Queries.GetAssignmentID(ctx, db.GetAssignmentIDParams{
 		PartID: p, BinID: sql.NullInt64{Int64: binB, Valid: true},
 	})
-	row, _ := app.queries.GetAssignment(ctx, assignB)
+	row, _ := h.Queries.GetAssignment(ctx, assignB)
 	if row.Quantity != 15 {
 		t.Errorf("Expected 15 in target, got %d", row.Quantity)
 	}
@@ -495,18 +495,18 @@ func TestPartStockMove_Merge(t *testing.T) {
 
 func TestPartStockMove_Merge_Rollback(t *testing.T) {
 	// This tests atomic rollback.
-	app, dbConn := setupPartTest(t)
+	h, dbConn := setupPartTest(t)
 	defer dbConn.Close()
 	defer cleanupPartTest()
 	ctx := context.Background()
 
-	p, _ := app.queries.CreatePart(ctx, db.CreatePartParams{Name: "Part A"})
-	binA, _ := app.queries.CreateBin(ctx, db.CreateBinParams{Name: "Bin A"})
+	p, _ := h.Queries.CreatePart(ctx, db.CreatePartParams{Name: "Part A"})
+	binA, _ := h.Queries.CreateBin(ctx, db.CreateBinParams{Name: "Bin A"})
 
-	_ = app.queries.CreatePartAssignment(ctx, db.CreatePartAssignmentParams{
+	_ = h.Queries.CreatePartAssignment(ctx, db.CreatePartAssignmentParams{
 		PartID: p, BinID: sql.NullInt64{Int64: binA, Valid: true}, Quantity: 10,
 	})
-	assignA, _ := app.queries.GetAssignmentID(ctx, db.GetAssignmentIDParams{
+	assignA, _ := h.Queries.GetAssignmentID(ctx, db.GetAssignmentIDParams{
 		PartID: p, BinID: sql.NullInt64{Int64: binA, Valid: true},
 	})
 
@@ -518,7 +518,7 @@ func TestPartStockMove_Merge_Rollback(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	r := chi.NewRouter()
-	r.Post("/parts/{id}/stock/{assignment_id}/move", app.handlePartStockMove)
+	r.Post("/parts/{id}/stock/{assignment_id}/move", h.HandlePartStockMove)
 
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
@@ -529,7 +529,7 @@ func TestPartStockMove_Merge_Rollback(t *testing.T) {
 	}
 
 	// Verify Source Still Exists (Rollback or No-Op)
-	row, err := app.queries.GetAssignment(ctx, assignA)
+	row, err := h.Queries.GetAssignment(ctx, assignA)
 	if err != nil {
 		t.Error("Source assignment was deleted despite error!")
 	}

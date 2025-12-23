@@ -1,4 +1,4 @@
-package main
+package handler
 
 import (
 	"net/http"
@@ -10,15 +10,15 @@ import (
 )
 
 // GET /login
-func (app *application) handleLogin(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	// Check if already logged in
-	if app.session.Exists(r.Context(), config.SessionKeyUserID) {
+	if h.Session.Exists(r.Context(), config.SessionKeyUserID) {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
 
 	// Check if guest access is allowed
-	settings, err := app.queries.GetSettings(r.Context())
+	settings, err := h.Queries.GetSettings(r.Context())
 	allowGuest := false
 	if err == nil {
 		// If RequireAuthForRead is FALSE, then Guest is TRUE
@@ -29,16 +29,16 @@ func (app *application) handleLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 // POST /login
-func (app *application) handleLoginPost(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandleLoginPost(w http.ResponseWriter, r *http.Request) {
 	email := r.FormValue("email")
 	password := r.FormValue("password")
 
 	// Get settings for re-rendering if needed
-	settings, _ := app.queries.GetSettings(r.Context())
+	settings, _ := h.Queries.GetSettings(r.Context())
 	allowGuest := !settings.RequireAuthForRead.Bool
 
 	// Find user
-	user, err := app.queries.GetUserByEmail(r.Context(), email)
+	user, err := h.Queries.GetUserByEmail(r.Context(), email)
 	if err != nil {
 		// Generic error message for security purposes
 		pages.Login("Invalid email or password", allowGuest).Render(r.Context(), w)
@@ -52,29 +52,29 @@ func (app *application) handleLoginPost(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Login success - Renew token
-	if err := app.session.RenewToken(r.Context()); err != nil {
+	if err := h.Session.RenewToken(r.Context()); err != nil {
 		http.Error(w, "Session error", http.StatusInternalServerError)
 		return
 	}
 
 	// Store session data
-	app.session.Put(r.Context(), config.SessionKeyUserID, int64(user.ID))
-	app.session.Put(r.Context(), config.SessionKeyRole, user.Role)
+	h.Session.Put(r.Context(), config.SessionKeyUserID, int64(user.ID))
+	h.Session.Put(r.Context(), config.SessionKeyRole, user.Role)
 
-	app.logger.Info("user logged in", "email", email)
+	h.Logger.Info("user logged in", "email", email)
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
 // POST /logout
-func (app *application) handleLogout(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 	// Destroy wipes the data, Renew creates a fresh ID
-	err := app.session.Destroy(r.Context())
+	err := h.Session.Destroy(r.Context())
 	if err != nil {
 		http.Error(w, "Session error", http.StatusInternalServerError)
 		return
 	}
 
-	err = app.session.RenewToken(r.Context())
+	err = h.Session.RenewToken(r.Context())
 	if err != nil {
 		http.Error(w, "Session error", http.StatusInternalServerError)
 		return
@@ -84,9 +84,9 @@ func (app *application) handleLogout(w http.ResponseWriter, r *http.Request) {
 }
 
 // GET /setup
-func (app *application) handleSetup(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandleSetup(w http.ResponseWriter, r *http.Request) {
 	// Don't show setup form if setup is already done
-	count, _ := app.queries.CountUsers(r.Context())
+	count, _ := h.Queries.CountUsers(r.Context())
 	if count > 0 {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
@@ -96,12 +96,12 @@ func (app *application) handleSetup(w http.ResponseWriter, r *http.Request) {
 }
 
 // POST /setup
-func (app *application) handleSetupPost(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandleSetupPost(w http.ResponseWriter, r *http.Request) {
 	email := r.FormValue("email")
 	password := r.FormValue("password")
 
 	// Check count (Race condition prevention)
-	count, _ := app.queries.CountUsers(r.Context())
+	count, _ := h.Queries.CountUsers(r.Context())
 	if count > 0 {
 		http.Error(w, "Setup already completed", http.StatusForbidden)
 		return
@@ -115,24 +115,24 @@ func (app *application) handleSetupPost(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Create admin user
-	user, err := app.queries.CreateUser(r.Context(), db.CreateUserParams{
+	user, err := h.Queries.CreateUser(r.Context(), db.CreateUserParams{
 		Email:        email,
 		PasswordHash: hash,
 		Role:         "admin",
 	})
 	if err != nil {
-		app.logger.Error("failed to create admin", "error", err)
+		h.Logger.Error("failed to create admin", "error", err)
 		http.Error(w, "Failed to create user", http.StatusInternalServerError)
 		return
 	}
 
 	// Init settings
-	_ = app.queries.InitSettings(r.Context())
+	_ = h.Queries.InitSettings(r.Context())
 
 	// Auto-login the user
-	if err := app.session.RenewToken(r.Context()); err == nil {
-		app.session.Put(r.Context(), config.SessionKeyUserID, int64(user.ID))
-		app.session.Put(r.Context(), config.SessionKeyRole, user.Role)
+	if err := h.Session.RenewToken(r.Context()); err == nil {
+		h.Session.Put(r.Context(), config.SessionKeyUserID, int64(user.ID))
+		h.Session.Put(r.Context(), config.SessionKeyRole, user.Role)
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 	} else {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
@@ -140,9 +140,9 @@ func (app *application) handleSetupPost(w http.ResponseWriter, r *http.Request) 
 }
 
 // GET /force-reset
-func (app *application) handleForceReset(w http.ResponseWriter, r *http.Request) {
-	userID := app.session.GetInt64(r.Context(), config.SessionKeyUserID)
-	user, err := app.queries.GetUser(r.Context(), userID)
+func (h *Handler) HandleForceReset(w http.ResponseWriter, r *http.Request) {
+	userID := h.Session.GetInt64(r.Context(), config.SessionKeyUserID)
+	user, err := h.Queries.GetUser(r.Context(), userID)
 
 	if err != nil || !user.ChangePasswordRequired.Bool {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
@@ -153,15 +153,15 @@ func (app *application) handleForceReset(w http.ResponseWriter, r *http.Request)
 }
 
 // POST /force-reset
-func (app *application) handleForceResetPost(w http.ResponseWriter, r *http.Request) {
-	userID := app.session.GetInt64(r.Context(), config.SessionKeyUserID)
+func (h *Handler) HandleForceResetPost(w http.ResponseWriter, r *http.Request) {
+	userID := h.Session.GetInt64(r.Context(), config.SessionKeyUserID)
 
 	newPw := r.FormValue("new_password")
 	confirmPw := r.FormValue("confirm_password")
 
 	if newPw != confirmPw {
 		// TODO: maybe pass an error message here?
-		// validation is handled in the force_reset.templ
+		// validation is Handled in the force_reset.templ
 		// so probably not needed.
 		pages.ForceReset().Render(r.Context(), w)
 		return
@@ -174,17 +174,17 @@ func (app *application) handleForceResetPost(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// Update password AND clear password reset flag (handled by SQL)
-	err = app.queries.UpdateUserPassword(r.Context(), db.UpdateUserPasswordParams{
+	// Update password AND clear password reset flag (Handled by SQL)
+	err = h.Queries.UpdateUserPassword(r.Context(), db.UpdateUserPasswordParams{
 		PasswordHash: hash,
 		ID:           userID,
 	})
 	if err != nil {
-		app.logger.Error("failed to update password", "error", err)
+		h.Logger.Error("failed to update password", "error", err)
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
 
-	app.logger.Info("user completed forced password reset", "user_id", userID)
+	h.Logger.Info("user completed forced password reset", "user_id", userID)
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }

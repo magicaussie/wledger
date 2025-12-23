@@ -1,4 +1,4 @@
-package main
+package handler
 
 import (
 	"fmt"
@@ -11,7 +11,7 @@ import (
 )
 
 // GET /settings/backup/download
-func (app *application) handleBackupDownload(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandleBackupDownload(w http.ResponseWriter, r *http.Request) {
 	// Admin Only
 	user := auth.GetUserFromRequest(r)
 	if !user.IsAdmin() {
@@ -25,8 +25,8 @@ func (app *application) handleBackupDownload(w http.ResponseWriter, r *http.Requ
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
 
 	// Stream Backup to Response
-	if err := app.backup.Export(r.Context(), w); err != nil {
-		app.logger.Error("failed to generate backup", "error", err)
+	if err := h.Backup.Export(r.Context(), w); err != nil {
+		h.Logger.Error("failed to generate backup", "error", err)
 		// Since headers are already sent, a clean error response can't be sent.
 		// The zip might be corrupted on the client side if this fails mid-stream.
 		return
@@ -34,7 +34,7 @@ func (app *application) handleBackupDownload(w http.ResponseWriter, r *http.Requ
 }
 
 // POST /settings/backup/restore
-func (app *application) handleBackupRestore(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandleBackupRestore(w http.ResponseWriter, r *http.Request) {
 	// Admin Only
 	user := auth.GetUserFromRequest(r)
 	if !user.IsAdmin() {
@@ -60,8 +60,8 @@ func (app *application) handleBackupRestore(w http.ResponseWriter, r *http.Reque
 	defer file.Close()
 
 	// Execute Restore via Service
-	if err := app.backup.Restore(r.Context(), file, header.Size); err != nil {
-		app.logger.Error("restore failed", "error", err)
+	if err := h.Backup.Restore(r.Context(), file, header.Size); err != nil {
+		h.Logger.Error("restore failed", "error", err)
 		components.ImportResult(false, "Restore failed: "+err.Error(), nil).Render(r.Context(), w)
 		return
 	}

@@ -2,41 +2,26 @@ package main
 
 import (
 	"context"
-	"database/sql"
-	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"time"
 
 	"github.com/alexedwards/scs/v2"
-	"github.com/go-chi/chi/v5"
-	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/internal/backup"
 	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/internal/db"
+	"github.com/tuxedocurly/wledger/internal/handler"
 	"github.com/tuxedocurly/wledger/internal/images"
 	"github.com/tuxedocurly/wledger/internal/inspiration"
 	"github.com/tuxedocurly/wledger/internal/logger"
 	"github.com/tuxedocurly/wledger/internal/middleware"
 	"github.com/tuxedocurly/wledger/internal/parts"
+	"github.com/tuxedocurly/wledger/internal/router"
 	"github.com/tuxedocurly/wledger/internal/tags"
 	"github.com/tuxedocurly/wledger/internal/wled"
 )
-
-// application holds shared dependencies
-type application struct {
-	logger      *slog.Logger
-	queries     *db.Queries
-	session     *scs.SessionManager
-	wled        *wled.Client
-	database    *sql.DB
-	backup      backup.Service
-	parts       parts.Service
-	tags        tags.Service
-	inspiration inspiration.Service
-}
 
 func main() {
 	// Logger init
@@ -84,165 +69,30 @@ func main() {
 	// Inspiration Service
 	inspirationService := inspiration.NewService(queries)
 
-	// app struct
-	app := &application{
-		logger:      log,
-		queries:     queries,
-		session:     sessionManager,
-		wled:        wledClient,
-		database:    database,
-		backup:      backupService,
-		parts:       partsService,
-		tags:        tagsService,
-		inspiration: inspirationService,
-	}
-
-	// Middleware Manager
-	mw := middleware.New(queries, sessionManager, log)
-
-	// Router Setup
-	r := chi.NewRouter()
-
-	// Global Middlewares
-	r.Use(chimiddleware.RequestID)
-	r.Use(chimiddleware.RealIP)
-	r.Use(chimiddleware.Recoverer)
-	r.Use(mw.RequestLogger)
-	r.Use(sessionManager.LoadAndSave)
-	r.Use(mw.Authenticate)
-	r.Use(mw.FirstRunCheck)
-
 	// Initialize Image Processor
 	if err := images.Init(); err != nil {
 		log.Error("Failed to init images", "error", err)
 		os.Exit(1)
 	}
 
-	// Static Files
-	filesDir := http.Dir(config.DirStatic)
-	r.Handle(config.UrlPrefixStatic+"*", http.StripPrefix(config.UrlPrefixStatic, http.FileServer(filesDir)))
+	// Handler instantiation
+	h := handler.New(
+		log,
+		queries,
+		sessionManager,
+		wledClient,
+		database,
+		backupService,
+		partsService,
+		tagsService,
+		inspirationService,
+	)
 
-	uploadsDir := http.Dir(config.DirUploads)
-	r.Handle(config.UrlPrefixUploads+"*", http.StripPrefix(config.UrlPrefixUploads, http.FileServer(uploadsDir)))
+	// Middleware Manager
+	mw := middleware.New(queries, sessionManager, log)
 
-	// -------------------------------------------------------------------------
-	// PUBLIC ROUTES
-	// -------------------------------------------------------------------------
-	r.Get("/setup", app.handleSetup)
-	r.Post("/setup", app.handleSetupPost)
-	r.Get("/login", app.handleLogin)
-	r.Post("/login", app.handleLoginPost)
-	r.Post("/logout", app.handleLogout)
-
-	// -------------------------------------------------------------------------
-	// READ-ONLY GROUP ROUTES (Protected by RequireReadAuth + RequirePasswordChange)
-	// -------------------------------------------------------------------------
-	// These routes respect the "Require Login for Read" setting.
-	r.Group(func(r chi.Router) {
-		r.Use(mw.RequireReadAuth)
-		r.Use(mw.RequirePasswordChange)
-
-		// Dashboard
-		r.Get("/", app.handleDashboard)
-
-		// Parts (Read)
-		r.Get("/parts", app.handlePartsList)
-		r.Get("/parts/{id}", app.handlePartDetail)
-		r.Get("/parts/bins_options", app.handleBinOptions)
-		// Locate (Viewers, if permission is enabled, can light up parts)
-		r.Post("/hardware/{id}/locate", app.handleHardwareLocate)
-		r.Post("/parts/{id}/locate", app.handlePartLocate)
-
-		// Hardware (Read)
-		r.Get("/hardware", app.handleHardwareList)
-		r.Get("/hardware/{id}/status", app.handleHardwareStatus)
-		r.Get("/hardware/{id}/grid", app.handleHardwareGrid)
-		r.Post("/hardware/off", app.handleGlobalOff)
-
-		// Inspiration
-		r.Get("/inspiration", app.handleInspiration)
-		r.Get("/inspiration/{id}/generate", app.handleInspirationGenerate)
-	})
-
-	// -------------------------------------------------------------------------
-	// WRITE / PROTECTED GROUP ROUTES
-	// -------------------------------------------------------------------------
-	// These routes ALWAYS require a logged-in user
-	r.Group(func(r chi.Router) {
-		// Base Gates
-		r.Use(mw.RequireAuth)           // Must be logged in
-		r.Use(mw.RequirePasswordChange) // Must not have pending reset
-
-		// -----------------------------------------------------------
-		// OPEN ROUTES (Any logged-in user)
-		// -----------------------------------------------------------
-		// Force Reset
-		r.Get("/force-reset", app.handleForceReset)
-		r.Post("/force-reset", app.handleForceResetPost)
-
-		// Settings View (Needed so users can access "Change Password")
-		r.Get("/settings", app.handleSettings)
-
-		// Self-Service Password Change
-		r.Post("/settings/password", app.handleSettingsPassword)
-
-		// -----------------------------------------------------------
-		// INVENTORY MANAGEMENT ROUTES (Editors & Admins)
-		// -----------------------------------------------------------
-		r.Group(func(r chi.Router) {
-			r.Use(mw.RequireRole("editor", "admin"))
-
-			// Parts CRUD
-			r.Get("/parts/new", app.handlePartsNew)
-			r.Post("/parts", app.handlePartsCreate)
-			r.Get("/parts/import/template", app.handlePartsImportTemplate) // Download Bulk Import Template
-			r.Post("/parts/import", app.handlePartsImport)                 // Bulk Import
-
-			r.Get("/parts/{id}/edit", app.handlePartEdit)
-			r.Post("/parts/{id}/update", app.handlePartUpdate)
-
-			r.Post("/parts/{id}/delete", app.handlePartDelete)
-
-			// Sub-Resources (HTMX Deletion)
-			r.Delete("/parts/links/{id}", app.handleLinkDelete)
-			r.Delete("/parts/docs/{id}", app.handleDocDelete)
-
-			// Stock Management
-			r.Post("/parts/{id}/assign", app.handlePartAssign)
-			r.Post("/parts/{id}/stock/{assignment_id}/adjust", app.handlePartStockAdjust)
-			r.Post("/parts/{id}/stock/{assignment_id}/move", app.handlePartStockMove)
-			r.Post("/parts/{id}/stock/{assignment_id}/delete", app.handlePartStockRemove)
-
-			// Inspiration CRUD
-			r.Get("/inspiration/new", app.handleInspirationNew)
-			r.Post("/inspiration", app.handleInspirationCreate)
-			r.Get("/inspiration/{id}/edit", app.handleInspirationEdit)
-			r.Put("/inspiration/{id}", app.handleInspirationUpdate)
-			r.Delete("/inspiration/{id}", app.handleInspirationDelete)
-		})
-
-		// -----------------------------------------------------------
-		// SYSTEM ADMINISTRATION ROUTES (Admins Only)
-		// -----------------------------------------------------------
-		r.Group(func(r chi.Router) {
-			r.Use(mw.RequireRole("admin"))
-
-			// Hardware Configuration
-			r.Post("/hardware", app.handleHardwareCreate)
-			r.Post("/hardware/{id}/delete", app.handleHardwareDelete)
-			r.Post("/hardware/{id}/grid", app.handleHardwareGridSave)
-
-			// System Settings Update
-			r.Post("/settings", app.handleSettingsUpdate)
-			r.Get("/settings/backup/download", app.handleBackupDownload)
-			r.Post("/settings/backup/restore", app.handleBackupRestore)
-
-			// User Management
-			r.Post("/settings/users", app.handleUserCreate)
-			r.Post("/settings/users/{id}/delete", app.handleUserDelete)
-			r.Post("/settings/users/{id}/reset", app.handleUserForceReset)
-		})
-	})
+	// Router Setup
+	r := router.New(mw, sessionManager, h)
 
 	// Start Server
 	port := "8080"

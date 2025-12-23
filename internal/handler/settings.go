@@ -1,4 +1,4 @@
-package main
+package handler
 
 import (
 	"database/sql"
@@ -15,7 +15,7 @@ import (
 )
 
 // GET /settings
-func (app *application) handleSettings(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandleSettings(w http.ResponseWriter, r *http.Request) {
 	// Get User
 	user := auth.GetUserFromRequest(r)
 
@@ -26,17 +26,17 @@ func (app *application) handleSettings(w http.ResponseWriter, r *http.Request) {
 	// Fetch Admin Data (Only if User is Admin)
 	// Viewers/Editors don't need this data since the template hides those sections.
 	if user.IsAdmin() {
-		settings, err = app.queries.GetSettings(r.Context())
+		settings, err = h.Queries.GetSettings(r.Context())
 		if err != nil {
-			app.logger.Error("failed to get settings", "error", err)
+			h.Logger.Error("failed to get settings", "error", err)
 			// If settings table is empty/broken, consider handling it gracefully,
 			// but for now, log it
 			// TODO: implement graceful handling
 		}
 
-		users, err = app.queries.ListUsers(r.Context())
+		users, err = h.Queries.ListUsers(r.Context())
 		if err != nil {
-			app.logger.Error("failed to list users", "error", err)
+			h.Logger.Error("failed to list users", "error", err)
 			users = []db.ListUsersRow{}
 		}
 	} else {
@@ -49,7 +49,7 @@ func (app *application) handleSettings(w http.ResponseWriter, r *http.Request) {
 }
 
 // POST /settings
-func (app *application) handleSettingsUpdate(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandleSettingsUpdate(w http.ResponseWriter, r *http.Request) {
 	requireAuth := r.FormValue("require_auth") == "on"
 	enableTimeout := r.FormValue("enable_timeout") == "on"
 	timeout, _ := strconv.Atoi(r.FormValue("locate_timeout"))
@@ -62,15 +62,15 @@ func (app *application) handleSettingsUpdate(w http.ResponseWriter, r *http.Requ
 	ctx := r.Context()
 
 	// Start Transaction
-	tx, err := app.database.Begin()
+	tx, err := h.Database.Begin()
 	if err != nil {
-		app.logger.Error("failed to begin transaction", "error", err)
+		h.Logger.Error("failed to begin transaction", "error", err)
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
 	defer tx.Rollback()
 
-	qtx := app.queries.WithTx(tx)
+	qtx := h.Queries.WithTx(tx)
 
 	err = qtx.UpdateGeneralSettings(ctx, db.UpdateGeneralSettingsParams{
 		RequireAuthForRead:   sql.NullBool{Bool: requireAuth, Valid: true},
@@ -78,7 +78,7 @@ func (app *application) handleSettingsUpdate(w http.ResponseWriter, r *http.Requ
 		EnableLocateTimeout:  sql.NullBool{Bool: enableTimeout, Valid: true},
 	})
 	if err != nil {
-		app.logger.Error("failed to update general settings", "error", err)
+		h.Logger.Error("failed to update general settings", "error", err)
 		http.Error(w, "Update failed", http.StatusInternalServerError)
 		return
 	}
@@ -90,7 +90,7 @@ func (app *application) handleSettingsUpdate(w http.ResponseWriter, r *http.Requ
 		ColorStockCritical: sql.NullString{String: colorCritical, Valid: true},
 	})
 	if err != nil {
-		app.logger.Error("failed to update color settings", "error", err)
+		h.Logger.Error("failed to update color settings", "error", err)
 		http.Error(w, "Update failed", http.StatusInternalServerError)
 		return
 	}
@@ -99,7 +99,7 @@ func (app *application) handleSettingsUpdate(w http.ResponseWriter, r *http.Requ
 	audit.Log(ctx, qtx, "UPDATE", "SETTINGS", 1, "Updated system configuration", nil, nil)
 
 	if err := tx.Commit(); err != nil {
-		app.logger.Error("failed to commit settings update", "error", err)
+		h.Logger.Error("failed to commit settings update", "error", err)
 		http.Error(w, "Commit failed", http.StatusInternalServerError)
 		return
 	}
@@ -108,8 +108,8 @@ func (app *application) handleSettingsUpdate(w http.ResponseWriter, r *http.Requ
 }
 
 // POST /settings/password (Self-Service)
-func (app *application) handleSettingsPassword(w http.ResponseWriter, r *http.Request) {
-	userID := app.session.GetInt64(r.Context(), config.SessionKeyUserID)
+func (h *Handler) HandleSettingsPassword(w http.ResponseWriter, r *http.Request) {
+	userID := h.Session.GetInt64(r.Context(), config.SessionKeyUserID)
 	if userID == 0 {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
@@ -120,12 +120,12 @@ func (app *application) handleSettingsPassword(w http.ResponseWriter, r *http.Re
 	confirmPw := r.FormValue("confirm_password")
 
 	if newPw != confirmPw {
-		app.logger.Warn("password change failed: mismatch")
+		h.Logger.Warn("password change failed: mismatch")
 		http.Redirect(w, r, "/settings", http.StatusSeeOther)
 		return
 	}
 
-	user, err := app.queries.GetUser(r.Context(), userID)
+	user, err := h.Queries.GetUser(r.Context(), userID)
 	if err != nil {
 		http.Error(w, "Server Error", http.StatusInternalServerError)
 		return
@@ -133,7 +133,7 @@ func (app *application) handleSettingsPassword(w http.ResponseWriter, r *http.Re
 
 	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(currentPw))
 	if err != nil {
-		app.logger.Warn("password change failed: wrong current password", "user_id", userID)
+		h.Logger.Warn("password change failed: wrong current password", "user_id", userID)
 		http.Redirect(w, r, "/settings", http.StatusSeeOther)
 		return
 	}
@@ -144,7 +144,7 @@ func (app *application) handleSettingsPassword(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	err = app.queries.UpdateUserPassword(r.Context(), db.UpdateUserPasswordParams{
+	err = h.Queries.UpdateUserPassword(r.Context(), db.UpdateUserPasswordParams{
 		PasswordHash: string(hashedBytes),
 		ID:           userID,
 	})
@@ -157,7 +157,7 @@ func (app *application) handleSettingsPassword(w http.ResponseWriter, r *http.Re
 }
 
 // POST /settings/users (Create User)
-func (app *application) handleUserCreate(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandleUserCreate(w http.ResponseWriter, r *http.Request) {
 	email := r.FormValue("email")
 	role := r.FormValue("role")
 	tempPw := r.FormValue("temp_password")
@@ -169,7 +169,7 @@ func (app *application) handleUserCreate(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	_, err = app.queries.CreateUser(r.Context(), db.CreateUserParams{
+	_, err = h.Queries.CreateUser(r.Context(), db.CreateUserParams{
 		Email:                  email,
 		PasswordHash:           string(hashedBytes),
 		Role:                   role,
@@ -177,42 +177,42 @@ func (app *application) handleUserCreate(w http.ResponseWriter, r *http.Request)
 	})
 
 	if err != nil {
-		app.logger.Error("failed to create user", "error", err)
+		h.Logger.Error("failed to create user", "error", err)
 		// Assuming error is duplicate email
 		http.Redirect(w, r, "/settings", http.StatusSeeOther)
 		return
 	}
 
-	app.logger.Info("created user", "email", email, "role", role)
+	h.Logger.Info("created user", "email", email, "role", role)
 	http.Redirect(w, r, "/settings", http.StatusSeeOther)
 }
 
 // POST /settings/users/{id}/delete
-func (app *application) handleUserDelete(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandleUserDelete(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, _ := strconv.Atoi(idStr)
-	currentUserID := app.session.GetInt64(r.Context(), config.SessionKeyUserID)
+	currentUserID := h.Session.GetInt64(r.Context(), config.SessionKeyUserID)
 
 	// Prevent self-deletion
 	if int64(id) == currentUserID {
-		app.logger.Warn("prevented self-deletion", "user_id", id)
+		h.Logger.Warn("prevented self-deletion", "user_id", id)
 		http.Redirect(w, r, "/settings", http.StatusSeeOther)
 		return
 	}
 
-	err := app.queries.DeleteUser(r.Context(), int64(id))
+	err := h.Queries.DeleteUser(r.Context(), int64(id))
 	if err != nil {
-		app.logger.Error("failed to delete user", "error", err)
+		h.Logger.Error("failed to delete user", "error", err)
 	}
 
 	http.Redirect(w, r, "/settings", http.StatusSeeOther)
 }
 
 // POST /settings/users/{id}/reset
-func (app *application) handleUserForceReset(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandleUserForceReset(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, _ := strconv.Atoi(idStr)
-	currentUserID := app.session.GetInt64(r.Context(), config.SessionKeyUserID)
+	currentUserID := h.Session.GetInt64(r.Context(), config.SessionKeyUserID)
 
 	// Don't flag yourself (UX preference, use standard change password instead)
 	if int64(id) == currentUserID {
@@ -220,17 +220,17 @@ func (app *application) handleUserForceReset(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	err := app.queries.SetPasswordResetFlag(r.Context(), db.SetPasswordResetFlagParams{
+	err := h.Queries.SetPasswordResetFlag(r.Context(), db.SetPasswordResetFlagParams{
 		ChangePasswordRequired: sql.NullBool{Bool: true, Valid: true},
 		ID:                     int64(id),
 	})
 
 	if err != nil {
-		app.logger.Error("failed to force password reset", "error", err, "target_id", id)
+		h.Logger.Error("failed to force password reset", "error", err, "target_id", id)
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
 
-	app.logger.Info("admin triggered force password reset", "target_id", id)
+	h.Logger.Info("admin triggered force password reset", "target_id", id)
 	http.Redirect(w, r, "/settings", http.StatusSeeOther)
 }
