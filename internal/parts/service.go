@@ -112,13 +112,18 @@ func NewService(database *sql.DB, queries *db.Queries, logger *slog.Logger, tags
 }
 
 func (s *service) CreatePart(ctx context.Context, req CreatePartRequest) (int64, error) {
+	s.logger.Debug("starting part creation", "name", req.Name, "barcode", req.BarcodeData)
 	var imagePath string
 	if req.Image != nil && req.Image.File != nil {
+		s.logger.Debug("processing image upload", "name", req.Name)
 		if mf, ok := req.Image.File.(multipart.File); ok {
 			fileName, err := images.ProcessUpload(mf, req.Image.Header)
 			mf.Close() // Close after processing
 			if err == nil {
 				imagePath = config.UrlPrefixImages + fileName
+				s.logger.Debug("image uploaded successfully", "path", imagePath)
+			} else {
+				s.logger.Warn("failed to process image upload", "err", err)
 			}
 		}
 	}
@@ -128,6 +133,7 @@ func (s *service) CreatePart(ctx context.Context, req CreatePartRequest) (int64,
 		if imagePath != "" {
 			images.DeleteByWebPath(imagePath)
 		}
+		s.logger.Error("failed to begin transaction for part creation", "err", err)
 		return 0, fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback()
@@ -153,11 +159,13 @@ func (s *service) CreatePart(ctx context.Context, req CreatePartRequest) (int64,
 		}
 		return 0, err
 	}
+	s.logger.Debug("base part record created", "id", newID)
 
 	for _, l := range req.Links {
 		if l.URL == "" {
 			continue
 		}
+		s.logger.Debug("adding part link", "id", newID, "url", l.URL)
 		err = qtx.CreatePartLink(ctx, db.CreatePartLinkParams{
 			PartID: newID,
 			Url:    l.URL,
@@ -167,12 +175,14 @@ func (s *service) CreatePart(ctx context.Context, req CreatePartRequest) (int64,
 			if imagePath != "" {
 				images.DeleteByWebPath(imagePath)
 			}
+			s.logger.Error("failed to create part link during creation", "err", err, "part_name", req.Name)
 			return 0, fmt.Errorf("failed to create link: %w", err)
 		}
 	}
 
 	var uploadedDocs []string
 	for _, du := range req.Documents {
+		s.logger.Debug("saving part document", "id", newID, "filename", du.Header.Filename)
 		savedWebPath, err := s.saveDocument(du.File, du.Header.Filename)
 		// Close if it's a closer (it usually is if it came from multipart)
 		if closer, ok := du.File.(io.Closer); ok {
@@ -196,6 +206,7 @@ func (s *service) CreatePart(ctx context.Context, req CreatePartRequest) (int64,
 		}
 	}
 
+	s.logger.Debug("syncing tags", "id", newID, "tags", req.Tags)
 	if err := s.tags.SyncTags(ctx, qtx, newID, req.Tags); err != nil {
 		s.cleanupFiles(imagePath, uploadedDocs)
 		return 0, fmt.Errorf("failed to sync tags: %w", err)
@@ -212,6 +223,7 @@ func (s *service) CreatePart(ctx context.Context, req CreatePartRequest) (int64,
 }
 
 func (s *service) UpdatePart(ctx context.Context, req UpdatePartRequest) error {
+	s.logger.Debug("starting part update", "id", req.ID, "name", req.Name)
 	oldPart, err := s.queries.GetPart(ctx, req.ID)
 	if err != nil {
 		return fmt.Errorf("part not found: %w", err)
@@ -220,12 +232,16 @@ func (s *service) UpdatePart(ctx context.Context, req UpdatePartRequest) error {
 	newImagePath := oldPart.ImagePath.String
 	uploadedNewImage := false
 	if req.Image != nil && req.Image.File != nil {
+		s.logger.Debug("processing new image upload", "id", req.ID)
 		if mf, ok := req.Image.File.(multipart.File); ok {
 			fileName, err := images.ProcessUpload(mf, req.Image.Header)
 			mf.Close() // Close after processing
 			if err == nil {
 				newImagePath = config.UrlPrefixImages + fileName
 				uploadedNewImage = true
+				s.logger.Debug("new image uploaded", "id", req.ID, "path", newImagePath)
+			} else {
+				s.logger.Warn("failed to process new image upload", "err", err)
 			}
 		}
 	}
@@ -235,6 +251,7 @@ func (s *service) UpdatePart(ctx context.Context, req UpdatePartRequest) error {
 		if uploadedNewImage {
 			images.DeleteByWebPath(newImagePath)
 		}
+		s.logger.Error("failed to begin transaction for part update", "err", err, "part_id", req.ID)
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback()
@@ -266,6 +283,7 @@ func (s *service) UpdatePart(ctx context.Context, req UpdatePartRequest) error {
 		if l.ID == 0 || l.URL == "" {
 			continue
 		}
+		s.logger.Debug("updating existing link", "id", req.ID, "link_id", l.ID, "url", l.URL)
 		err = qtx.UpdatePartLink(ctx, db.UpdatePartLinkParams{
 			Url:   l.URL,
 			Label: sql.NullString{String: l.Label, Valid: l.Label != ""},
@@ -283,6 +301,7 @@ func (s *service) UpdatePart(ctx context.Context, req UpdatePartRequest) error {
 		if l.URL == "" {
 			continue
 		}
+		s.logger.Debug("creating new link", "id", req.ID, "url", l.URL)
 		err = qtx.CreatePartLink(ctx, db.CreatePartLinkParams{
 			PartID: req.ID,
 			Url:    l.URL,
@@ -298,6 +317,7 @@ func (s *service) UpdatePart(ctx context.Context, req UpdatePartRequest) error {
 
 	var uploadedDocs []string
 	for _, du := range req.NewDocuments {
+		s.logger.Debug("saving new part document", "id", req.ID, "filename", du.Header.Filename)
 		savedWebPath, err := s.saveDocument(du.File, du.Header.Filename)
 		// Close if it's a closer
 		if closer, ok := du.File.(io.Closer); ok {
@@ -321,6 +341,7 @@ func (s *service) UpdatePart(ctx context.Context, req UpdatePartRequest) error {
 						}
 					}
 				
+					s.logger.Debug("syncing tags", "id", req.ID, "tags", req.Tags)
 					if err := s.tags.SyncTags(ctx, qtx, req.ID, req.Tags); err != nil {
 						s.cleanupFiles(uploadedNewImage, newImagePath, uploadedDocs)
 						return fmt.Errorf("failed to sync tags: %w", err)
@@ -362,6 +383,7 @@ func (s *service) DeletePart(ctx context.Context, id int64) error {
 }
 
 func (s *service) AssignStock(ctx context.Context, req AssignStockRequest) error {
+	s.logger.Debug("assigning stock", "part_id", req.PartID, "bin_id", req.BinID, "qty", req.Quantity)
 	nullBinID := sql.NullInt64{Int64: int64(req.BinID), Valid: true}
 
 	existingID, err := s.queries.GetAssignmentID(ctx, db.GetAssignmentIDParams{
@@ -371,8 +393,10 @@ func (s *service) AssignStock(ctx context.Context, req AssignStockRequest) error
 
 	if err == nil {
 		// Assignment exists, fetch current quantity
+		s.logger.Debug("updating existing assignment", "id", existingID)
 		existing, err := s.queries.GetAssignment(ctx, existingID)
 		if err != nil {
+			s.logger.Error("failed to fetch existing assignment for stock addition", "err", err, "part_id", req.PartID, "bin_id", req.BinID)
 			return fmt.Errorf("failed to fetch existing assignment: %w", err)
 		}
 
@@ -384,6 +408,7 @@ func (s *service) AssignStock(ctx context.Context, req AssignStockRequest) error
 		})
 	} else {
 		// New assignment
+		s.logger.Debug("creating new assignment", "part_id", req.PartID, "bin_id", req.BinID)
 		err = s.queries.CreatePartAssignment(ctx, db.CreatePartAssignmentParams{
 			PartID:   req.PartID,
 			BinID:    nullBinID,
@@ -392,6 +417,7 @@ func (s *service) AssignStock(ctx context.Context, req AssignStockRequest) error
 	}
 
 	if err != nil {
+		s.logger.Error("failed to update or create part assignment", "err", err, "part_id", req.PartID, "bin_id", req.BinID)
 		return err
 	}
 
@@ -400,8 +426,10 @@ func (s *service) AssignStock(ctx context.Context, req AssignStockRequest) error
 }
 
 func (s *service) AdjustStock(ctx context.Context, assignmentID int64, delta int) error {
+	s.logger.Debug("adjusting stock", "id", assignmentID, "delta", delta)
 	assignment, err := s.queries.GetAssignment(ctx, assignmentID)
 	if err != nil {
+		s.logger.Error("assignment not found for adjustment", "err", err, "assignment_id", assignmentID)
 		return fmt.Errorf("assignment not found: %w", err)
 	}
 
@@ -430,8 +458,10 @@ func (s *service) AdjustStock(ctx context.Context, assignmentID int64, delta int
 }
 
 func (s *service) MoveStock(ctx context.Context, req MoveStockRequest) error {
+	s.logger.Debug("moving stock", "part_id", req.PartID, "assignment_id", req.AssignmentID, "target_bin_id", req.TargetBinID)
 	tx, err := s.database.Begin()
 	if err != nil {
+		s.logger.Error("failed to begin transaction for stock move", "err", err, "part_id", req.PartID)
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback()
@@ -440,15 +470,18 @@ func (s *service) MoveStock(ctx context.Context, req MoveStockRequest) error {
 
 	source, err := qtx.GetAssignment(ctx, req.AssignmentID)
 	if err != nil {
+		s.logger.Error("source assignment not found for stock move", "err", err, "assignment_id", req.AssignmentID)
 		return fmt.Errorf("source assignment not found: %w", err)
 	}
 
+	s.logger.Debug("checking if target bin already has an assignment for this part", "part_id", req.PartID, "bin_id", req.TargetBinID)
 	targetID, err := qtx.GetAssignmentID(ctx, db.GetAssignmentIDParams{
 		PartID: req.PartID,
 		BinID:  sql.NullInt64{Int64: req.TargetBinID, Valid: true},
 	})
 
 	if err == nil {
+		s.logger.Debug("merging stock into existing target assignment", "target_id", targetID)
 		target, err := qtx.GetAssignment(ctx, targetID)
 		if err != nil {
 			return fmt.Errorf("failed to fetch target for merge: %w", err)
@@ -472,6 +505,7 @@ func (s *service) MoveStock(ctx context.Context, req MoveStockRequest) error {
 
 		audit.Log(ctx, qtx, "STOCK_MERGE", "PART", req.PartID, fmt.Sprintf("Merged stock into bin %d", req.TargetBinID), nil, nil)
 	} else {
+		s.logger.Debug("reassigning assignment to new bin")
 		err = qtx.ReassignPartAssignment(ctx, db.ReassignPartAssignmentParams{
 			BinID: sql.NullInt64{Int64: req.TargetBinID, Valid: true},
 			ID:    req.AssignmentID,
@@ -507,7 +541,7 @@ func (s *service) DeleteDoc(ctx context.Context, id int64) error {
 		diskPath := filepath.Join(config.DirUploads, relPath)
 		err := os.Remove(diskPath)
 		if err != nil {
-			s.logger.Warn("failed to delete doc file", "path", diskPath, "error", err)
+			s.logger.Warn("failed to delete doc file", "path", diskPath, "err", err)
 		}
 	}
 

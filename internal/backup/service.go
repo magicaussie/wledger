@@ -41,6 +41,7 @@ func NewService(database *sql.DB, queries *db.Queries, uploadsDir string, logger
 }
 
 func (s *service) Export(ctx context.Context, w io.Writer) error {
+	s.logger.Debug("starting system backup export")
 	// Fetch Data
 	settings, err := s.queries.GetSettings(ctx)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -80,6 +81,7 @@ func (s *service) Export(ctx context.Context, w io.Writer) error {
 	defer zw.Close()
 
 	// Add restore_data.json
+	s.logger.Debug("adding restore_data.json to backup")
 	fJson, err := zw.Create("restore_data.json")
 	if err != nil {
 		return fmt.Errorf("failed to create json entry: %w", err)
@@ -91,6 +93,7 @@ func (s *service) Export(ctx context.Context, w io.Writer) error {
 	}
 
 	// add human_readable_parts.csv
+	s.logger.Debug("adding human_readable_parts.csv to backup")
 	fCsv, err := zw.Create("human_readable_parts.csv")
 	if err == nil {
 		cw := csv.NewWriter(fCsv)
@@ -119,10 +122,12 @@ func (s *service) Export(ctx context.Context, w io.Writer) error {
 	}
 
 	// Add Uploads
+	s.logger.Debug("collecting upload files for backup", "dir", s.uploadsDir)
 	err = filepath.Walk(s.uploadsDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			// If uploads dir doesn't exist, just skip
 			if os.IsNotExist(err) {
+				s.logger.Debug("uploads directory not found, skipping", "path", s.uploadsDir)
 				return nil
 			}
 			return err
@@ -134,6 +139,7 @@ func (s *service) Export(ctx context.Context, w io.Writer) error {
 		relInZip, _ := filepath.Rel(s.uploadsDir, path)
 		zipPath := filepath.Join("uploads", relInZip)
 
+		s.logger.Debug("adding file to backup zip", "path", path, "zip_path", zipPath)
 		zf, err := zw.Create(zipPath)
 		if err != nil {
 			return err
@@ -150,7 +156,7 @@ func (s *service) Export(ctx context.Context, w io.Writer) error {
 	})
 
 	if err != nil {
-		s.logger.Error("backup failed to zip uploads", "error", err)
+		s.logger.Error("backup failed to zip uploads", "err", err)
 		// don't fail the whole backup for this, but maybe we should?
 		// Keeping existing behavior: return nil if zip succeeds generally
 	}
@@ -161,6 +167,7 @@ func (s *service) Export(ctx context.Context, w io.Writer) error {
 }
 
 func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64) error {
+	s.logger.Debug("starting system restore", "size", size)
 	zr, err := zip.NewReader(zipReader, size)
 	if err != nil {
 		return fmt.Errorf("invalid ZIP file: %w", err)
@@ -172,6 +179,7 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 
 	for _, f := range zr.File {
 		if f.Name == "restore_data.json" {
+			s.logger.Debug("found restore_data.json in backup")
 			rc, err := f.Open()
 			if err != nil {
 				return fmt.Errorf("failed to open restore_data.json: %w", err)
@@ -197,9 +205,11 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 	appDir := filepath.Dir(s.uploadsDir)
 	tempDir := filepath.Join(appDir, fmt.Sprintf("restore_tmp_%d", timestamp))
 
+	s.logger.Debug("extracting uploads to temp directory", "temp_dir", tempDir)
 	defer os.RemoveAll(tempDir)
 
 	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		s.logger.Error("failed to create temp restore directory", "err", err, "path", tempDir)
 		return fmt.Errorf("failed to create temp restore dir: %w", err)
 	}
 
@@ -210,27 +220,33 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 
 			// Security check
 			if !strings.HasPrefix(filepath.Clean(targetPath), tempDir) {
+				s.logger.Warn("security block: zip entry attempts to escape temp directory", "entry", f.Name)
 				continue
 			}
 
+			s.logger.Debug("extracting file", "zip_path", f.Name, "target_path", targetPath)
 			if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+				s.logger.Error("failed to create temp restore subdirectory", "err", err, "path", filepath.Dir(targetPath))
 				return fmt.Errorf("failed to create temp subdir: %w", err)
 			}
 
 			outFile, err := os.Create(targetPath)
 			if err != nil {
+				s.logger.Error("failed to create temp restore file", "err", err, "path", targetPath)
 				return fmt.Errorf("failed to create temp file: %w", err)
 			}
 
 			rc, err := f.Open()
 			if err != nil {
 				outFile.Close()
+				s.logger.Error("failed to open zip file entry for restore", "err", err, "name", f.Name)
 				return fmt.Errorf("failed to open zip file entry: %w", err)
 			}
 			_, err = io.Copy(outFile, rc)
 			rc.Close()
 			outFile.Close()
 			if err != nil {
+				s.logger.Error("failed to write temp restore file", "err", err, "path", targetPath)
 				return fmt.Errorf("failed to write temp file: %w", err)
 			}
 		}
@@ -239,12 +255,14 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 	// Database Restore Transaction
 	tx, err := s.db.Begin()
 	if err != nil {
+		s.logger.Error("failed to begin transaction for restore", "err", err)
 		return fmt.Errorf("db begin error: %w", err)
 	}
 	defer tx.Rollback()
 	qtx := s.queries.WithTx(tx)
 
 	if _, err := tx.ExecContext(ctx, "PRAGMA foreign_keys = OFF"); err != nil {
+		s.logger.Error("failed to disable foreign keys for restore", "err", err)
 		return fmt.Errorf("failed to disable FKs: %w", err)
 	}
 
@@ -254,20 +272,25 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 	}
 	for _, table := range tables {
 		if _, err := tx.ExecContext(ctx, fmt.Sprintf("DELETE FROM %s", table)); err != nil {
+			s.logger.Error("failed to clear table during restore", "err", err, "table", table)
 			return fmt.Errorf("failed to clear table %s: %w", table, err)
 		}
 	}
 
 	// Restore Data
+	s.logger.Debug("restoring database records from manifest")
 	if err := s.restoreData(ctx, qtx, manifest); err != nil {
+		s.logger.Error("failed to restore data records", "err", err)
 		return err
 	}
 
 	if _, err := tx.ExecContext(ctx, "PRAGMA foreign_keys = ON"); err != nil {
+		s.logger.Error("failed to re-enable foreign keys after restore", "err", err)
 		return fmt.Errorf("failed to re-enable FKs: %w", err)
 	}
 
 	if err := tx.Commit(); err != nil {
+		s.logger.Error("failed to commit restore transaction", "err", err)
 		return fmt.Errorf("commit failed: %w", err)
 	}
 
@@ -275,19 +298,20 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 	liveUploads := s.uploadsDir
 	backupUploads := filepath.Join(appDir, fmt.Sprintf("uploads_bak_%d", timestamp))
 
+	s.logger.Debug("performing atomic swap of uploads directory", "live", liveUploads, "backup", backupUploads)
 	if err := os.Rename(liveUploads, backupUploads); err != nil {
 		// If live dir doesn't exist (first run), just ignore
 		if !os.IsNotExist(err) {
-			s.logger.Error("CRITICAL: Failed to move live uploads to backup.", "error", err)
+			s.logger.Error("CRITICAL: Failed to move live uploads to backup.", "err", err)
 			return fmt.Errorf("file system swap failed (DB restored): %w", err)
 		}
 	}
 
 	if err := os.Rename(tempDir, liveUploads); err != nil {
-		s.logger.Error("CRITICAL: Failed to move temp uploads to live.", "error", err)
+		s.logger.Error("CRITICAL: Failed to move temp uploads to live.", "err", err)
 		// Rollback Backup -> Live
 		if recErr := os.Rename(backupUploads, liveUploads); recErr != nil {
-			s.logger.Error("FATAL: Failed to restore backup uploads!", "error", recErr)
+			s.logger.Error("FATAL: Failed to restore backup uploads!", "err", recErr)
 		}
 		return fmt.Errorf("file system error during swap: %w", err)
 	}

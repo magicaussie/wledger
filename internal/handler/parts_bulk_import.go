@@ -27,6 +27,7 @@ func (h *Handler) HandlePartsImport(w http.ResponseWriter, r *http.Request) {
 	// Authorization
 	user := auth.GetUserFromRequest(r)
 	if !user.CanWrite() {
+		h.Logger.Warn("unauthorized parts import attempt", "user_id", user.ID, "ip", r.RemoteAddr)
 		http.Error(w, "Unauthorized", http.StatusForbidden)
 		return
 	}
@@ -34,6 +35,7 @@ func (h *Handler) HandlePartsImport(w http.ResponseWriter, r *http.Request) {
 	// Parse Form
 	err := r.ParseMultipartForm(config.MaxUploadSizeImport) // 100 MB
 	if err != nil {
+		h.Logger.Error("failed to parse multipart form for parts import", "err", err)
 		components.ImportResult(false, "Failed to parse form: "+err.Error(), nil).Render(r.Context(), w)
 		return
 	}
@@ -70,6 +72,7 @@ func (h *Handler) HandlePartsImport(w http.ResponseWriter, r *http.Request) {
 	// Database Transaction
 	tx, err := h.Database.Begin()
 	if err != nil {
+		h.Logger.Error("failed to start transaction for parts import", "err", err)
 		components.ImportResult(false, "Database error: "+err.Error(), nil).Render(r.Context(), w)
 		return
 	}
@@ -92,6 +95,7 @@ func (h *Handler) HandlePartsImport(w http.ResponseWriter, r *http.Request) {
 		})
 
 		if err != nil {
+			h.Logger.Error("failed to create part during import", "err", err, "row", row.RowNumber)
 			returnErr := fmt.Sprintf("Row %d Error: %v", row.RowNumber, err)
 			if strings.Contains(err.Error(), "UNIQUE constraint") {
 				returnErr = fmt.Sprintf("Row %d Error: Duplicate Barcode '%s'", row.RowNumber, row.BarcodeData)
@@ -108,6 +112,7 @@ func (h *Handler) HandlePartsImport(w http.ResponseWriter, r *http.Request) {
 				Quantity: int64(row.InitialQuantity),
 			})
 			if err != nil {
+				h.Logger.Error("failed to create part assignment during import", "err", err, "row", row.RowNumber)
 				components.ImportResult(false, fmt.Sprintf("Row %d Error saving stock: %v", row.RowNumber, err), nil).Render(r.Context(), w)
 				return
 			}
@@ -116,6 +121,7 @@ func (h *Handler) HandlePartsImport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := tx.Commit(); err != nil {
+		h.Logger.Error("failed to commit transaction for parts import", "err", err)
 		components.ImportResult(false, "Commit failed: "+err.Error(), nil).Render(r.Context(), w)
 		return
 	}

@@ -10,6 +10,7 @@ import (
 	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/internal/db"
+	"github.com/tuxedocurly/wledger/internal/logger"
 	"github.com/tuxedocurly/wledger/web/pages"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -28,7 +29,7 @@ func (h *Handler) HandleSettings(w http.ResponseWriter, r *http.Request) {
 	if user.IsAdmin() {
 		settings, err = h.Queries.GetSettings(r.Context())
 		if err != nil {
-			h.Logger.Error("failed to get settings", "error", err)
+			h.Logger.Error("failed to get settings", "err", err)
 			// If settings table is empty/broken, consider handling it gracefully,
 			// but for now, log it
 			// TODO: implement graceful handling
@@ -36,7 +37,7 @@ func (h *Handler) HandleSettings(w http.ResponseWriter, r *http.Request) {
 
 		users, err = h.Queries.ListUsers(r.Context())
 		if err != nil {
-			h.Logger.Error("failed to list users", "error", err)
+			h.Logger.Error("failed to list users", "err", err)
 			users = []db.ListUsersRow{}
 		}
 	} else {
@@ -52,6 +53,7 @@ func (h *Handler) HandleSettings(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) HandleSettingsUpdate(w http.ResponseWriter, r *http.Request) {
 	requireAuth := r.FormValue("require_auth") == "on"
 	enableTimeout := r.FormValue("enable_timeout") == "on"
+	enableDebugLogs := r.FormValue("enable_debug_logs") == "on"
 	timeout, _ := strconv.Atoi(r.FormValue("locate_timeout"))
 
 	colorLocate := r.FormValue("color_locate")
@@ -64,7 +66,7 @@ func (h *Handler) HandleSettingsUpdate(w http.ResponseWriter, r *http.Request) {
 	// Start Transaction
 	tx, err := h.Database.Begin()
 	if err != nil {
-		h.Logger.Error("failed to begin transaction", "error", err)
+		h.Logger.Error("failed to begin transaction", "err", err)
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
@@ -76,9 +78,10 @@ func (h *Handler) HandleSettingsUpdate(w http.ResponseWriter, r *http.Request) {
 		RequireAuthForRead:   sql.NullBool{Bool: requireAuth, Valid: true},
 		LocateTimeoutSeconds: sql.NullInt64{Int64: int64(timeout), Valid: true},
 		EnableLocateTimeout:  sql.NullBool{Bool: enableTimeout, Valid: true},
+		EnableDebugLogs:      sql.NullBool{Bool: enableDebugLogs, Valid: true},
 	})
 	if err != nil {
-		h.Logger.Error("failed to update general settings", "error", err)
+		h.Logger.Error("failed to update general settings", "err", err)
 		http.Error(w, "Update failed", http.StatusInternalServerError)
 		return
 	}
@@ -90,7 +93,7 @@ func (h *Handler) HandleSettingsUpdate(w http.ResponseWriter, r *http.Request) {
 		ColorStockCritical: sql.NullString{String: colorCritical, Valid: true},
 	})
 	if err != nil {
-		h.Logger.Error("failed to update color settings", "error", err)
+		h.Logger.Error("failed to update color settings", "err", err)
 		http.Error(w, "Update failed", http.StatusInternalServerError)
 		return
 	}
@@ -99,10 +102,13 @@ func (h *Handler) HandleSettingsUpdate(w http.ResponseWriter, r *http.Request) {
 	audit.Log(ctx, qtx, "UPDATE", "SETTINGS", 1, "Updated system configuration", nil, nil)
 
 	if err := tx.Commit(); err != nil {
-		h.Logger.Error("failed to commit settings update", "error", err)
+		h.Logger.Error("failed to commit settings update", "err", err)
 		http.Error(w, "Commit failed", http.StatusInternalServerError)
 		return
 	}
+
+	// Update Runtime Log Level
+	logger.SetDebug(enableDebugLogs)
 
 	http.Redirect(w, r, "/settings", http.StatusSeeOther)
 }
@@ -177,7 +183,7 @@ func (h *Handler) HandleUserCreate(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		h.Logger.Error("failed to create user", "error", err)
+		h.Logger.Error("failed to create user", "err", err)
 		// Assuming error is duplicate email
 		http.Redirect(w, r, "/settings", http.StatusSeeOther)
 		return
@@ -202,7 +208,7 @@ func (h *Handler) HandleUserDelete(w http.ResponseWriter, r *http.Request) {
 
 	err := h.Queries.DeleteUser(r.Context(), int64(id))
 	if err != nil {
-		h.Logger.Error("failed to delete user", "error", err)
+		h.Logger.Error("failed to delete user", "err", err)
 	}
 
 	http.Redirect(w, r, "/settings", http.StatusSeeOther)
@@ -226,7 +232,7 @@ func (h *Handler) HandleUserForceReset(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		h.Logger.Error("failed to force password reset", "error", err, "target_id", id)
+		h.Logger.Error("failed to force password reset", "err", err, "target_id", id)
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}

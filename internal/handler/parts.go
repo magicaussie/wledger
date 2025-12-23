@@ -89,7 +89,7 @@ func (h *Handler) HandlePartsList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
-		h.Logger.Error("failed to fetch parts", "error", err)
+		h.Logger.Error("failed to fetch parts", "err", err)
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
@@ -111,6 +111,7 @@ func (h *Handler) HandlePartDetail(w http.ResponseWriter, r *http.Request) {
 
 	p, err := h.Queries.GetPart(r.Context(), int64(id))
 	if err != nil {
+		h.Logger.Error("failed to fetch part detail", "err", err, "part_id", id)
 		http.Error(w, "Part not found", http.StatusNotFound)
 		return
 	}
@@ -206,7 +207,7 @@ func (h *Handler) HandlePartsCreate(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
 			http.Error(w, "Part already exists (check barcode)", http.StatusConflict)
 		} else {
-			h.Logger.Error("failed to create part", "error", err)
+			h.Logger.Error("failed to create part", "err", err)
 			http.Error(w, "Database error", http.StatusInternalServerError)
 		}
 		return
@@ -222,6 +223,7 @@ func (h *Handler) HandlePartEdit(w http.ResponseWriter, r *http.Request) {
 
 	p, err := h.Queries.GetPart(r.Context(), int64(id))
 	if err != nil {
+		h.Logger.Error("failed to fetch part for edit", "err", err, "part_id", id)
 		http.Error(w, "Part not found", http.StatusNotFound)
 		return
 	}
@@ -325,7 +327,7 @@ func (h *Handler) HandlePartUpdate(w http.ResponseWriter, r *http.Request) {
 
 	err = h.Parts.UpdatePart(r.Context(), req)
 	if err != nil {
-		h.Logger.Error("failed to update part", "error", err)
+		h.Logger.Error("failed to update part", "err", err)
 		http.Error(w, "Update failed", http.StatusInternalServerError)
 		return
 	}
@@ -340,7 +342,7 @@ func (h *Handler) HandlePartDelete(w http.ResponseWriter, r *http.Request) {
 
 	err := h.Parts.DeletePart(r.Context(), partID)
 	if err != nil {
-		h.Logger.Error("failed to delete part", "error", err)
+		h.Logger.Error("failed to delete part", "err", err)
 		http.Error(w, "Delete failed", http.StatusInternalServerError)
 		return
 	}
@@ -355,14 +357,20 @@ func (h *Handler) HandlePartDelete(w http.ResponseWriter, r *http.Request) {
 // DELETE /parts/links/{id}
 func (h *Handler) HandleLinkDelete(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
-	_ = h.Parts.DeleteLink(r.Context(), int64(id))
+	err := h.Parts.DeleteLink(r.Context(), int64(id))
+	if err != nil {
+		h.Logger.Error("failed to delete part link", "err", err, "link_id", id)
+	}
 	w.WriteHeader(http.StatusOK)
 }
 
 // DELETE /parts/docs/{id}
 func (h *Handler) HandleDocDelete(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
-	_ = h.Parts.DeleteDoc(r.Context(), int64(id))
+	err := h.Parts.DeleteDoc(r.Context(), int64(id))
+	if err != nil {
+		h.Logger.Error("failed to delete part doc", "err", err, "doc_id", id)
+	}
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -374,6 +382,7 @@ func (h *Handler) HandleBinOptions(w http.ResponseWriter, r *http.Request) {
 	cid, _ := strconv.Atoi(r.URL.Query().Get("controller_id"))
 	bins, err := h.Queries.GetBinsByController(r.Context(), sql.NullInt64{Int64: int64(cid), Valid: true})
 	if err != nil {
+		h.Logger.Error("failed to fetch bins for options", "err", err, "controller_id", cid)
 		components.BinOptions([]db.Bin{}).Render(r.Context(), w)
 		return
 	}
@@ -397,7 +406,7 @@ func (h *Handler) HandlePartAssign(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		h.Logger.Error("failed to assign stock", "error", err)
+		h.Logger.Error("failed to assign stock", "err", err)
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
@@ -422,7 +431,7 @@ func (h *Handler) HandlePartStockMove(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		h.Logger.Error("failed to move stock", "error", err)
+		h.Logger.Error("failed to move stock", "err", err)
 		http.Error(w, "Move failed", http.StatusInternalServerError)
 		return
 	}
@@ -440,7 +449,7 @@ func (h *Handler) HandlePartStockRemove(w http.ResponseWriter, r *http.Request) 
 	})
 
 	if err != nil {
-		h.Logger.Error("failed to remove stock", "error", err)
+		h.Logger.Error("failed to remove stock", "err", err)
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
@@ -460,7 +469,7 @@ func (h *Handler) HandlePartStockAdjust(w http.ResponseWriter, r *http.Request) 
 
 	err := h.Parts.AdjustStock(r.Context(), int64(assignmentID), delta)
 	if err != nil {
-		h.Logger.Error("failed to adjust stock", "error", err)
+		h.Logger.Error("failed to adjust stock", "err", err)
 		http.Error(w, "Adjustment failed", http.StatusInternalServerError)
 		return
 	}
@@ -507,6 +516,7 @@ func (h *Handler) HandlePartLocate(w http.ResponseWriter, r *http.Request) {
 	// Fetch Settings (Needed for Color and Timeout config)
 	settings, err := h.Queries.GetSettings(r.Context())
 	if err != nil {
+		h.Logger.Warn("failed to fetch settings for locate, using defaults", "err", err)
 		// Fallback defaults if DB fails
 		settings.ColorLocate.String = "#0000FF"
 		settings.EnableLocateTimeout.Bool = false
@@ -516,7 +526,7 @@ func (h *Handler) HandlePartLocate(w http.ResponseWriter, r *http.Request) {
 	// Get all assignments
 	assignments, err := h.Queries.GetPartAssignments(r.Context(), int64(id))
 	if err != nil {
-		h.Logger.Error("failed to get part assignments", "error", err)
+		h.Logger.Error("failed to get part assignments", "err", err)
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
@@ -537,7 +547,7 @@ func (h *Handler) HandlePartLocate(w http.ResponseWriter, r *http.Request) {
 		// Trigger WLED
 		err := h.WLED.LightUp(r.Context(), a.ControllerIp.String, ledIndex, width, settings.ColorLocate.String)
 		if err != nil {
-			h.Logger.Error("failed to locate bin", "error", err, "ip", a.ControllerIp.String)
+			h.Logger.Error("failed to locate bin", "err", err, "ip", a.ControllerIp.String)
 		}
 
 		// Handle Auto-Off Timer
@@ -555,7 +565,7 @@ func (h *Handler) HandlePartLocate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !foundAny {
-		// No valid assignments found to locate, move on
+		h.Logger.Info("no valid assignments found to locate", "part_id", id)
 	}
 
 	w.WriteHeader(http.StatusOK)

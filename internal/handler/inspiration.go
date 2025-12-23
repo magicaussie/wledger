@@ -19,7 +19,7 @@ func (h *Handler) HandleInspiration(w http.ResponseWriter, r *http.Request) {
 	// Fetch all templates
 	templates, err := h.Inspiration.GetAllTemplates(ctx)
 	if err != nil {
-		h.Logger.Error("Failed to fetch inspiration templates", "error", err)
+		h.Logger.Error("Failed to fetch inspiration templates", "err", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
@@ -27,7 +27,7 @@ func (h *Handler) HandleInspiration(w http.ResponseWriter, r *http.Request) {
 	// Fetch all tags for the filter dropdown
 	allTags, err := h.Queries.ListAllTags(ctx)
 	if err != nil {
-		h.Logger.Error("Failed to fetch tags for inspiration filter", "error", err)
+		h.Logger.Error("Failed to fetch tags for inspiration filter", "err", err)
 		// The app can still proceed without tags, just won't be able to filter
 	}
 
@@ -49,6 +49,7 @@ func (h *Handler) HandleInspirationGenerate(w http.ResponseWriter, r *http.Reque
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
+		h.Logger.Error("failed to parse template id for generation", "err", err, "id_str", idStr)
 		http.Error(w, "Invalid Template ID", http.StatusBadRequest)
 		return
 	}
@@ -62,7 +63,7 @@ func (h *Handler) HandleInspirationGenerate(w http.ResponseWriter, r *http.Reque
 
 	prompt, err := h.Inspiration.ConstructPrompt(ctx, id, tagFilters)
 	if err != nil {
-		h.Logger.Error("Failed to construct prompt", "error", err, "template_id", id)
+		h.Logger.Error("Failed to construct prompt", "err", err, "template_id", id)
 		http.Error(w, "Failed to generate prompt", http.StatusInternalServerError)
 		return
 	}
@@ -78,6 +79,7 @@ func (h *Handler) HandleInspirationNew(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) HandleInspirationCreate(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
+		h.Logger.Error("failed to parse form for inspiration create", "err", err)
 		http.Error(w, "Bad Request", http.StatusBadRequest)
 		return
 	}
@@ -87,7 +89,7 @@ func (h *Handler) HandleInspirationCreate(w http.ResponseWriter, r *http.Request
 
 	_, err := h.Inspiration.CreateTemplate(r.Context(), title, content)
 	if err != nil {
-		h.Logger.Error("Failed to create inspiration template", "error", err)
+		h.Logger.Error("Failed to create inspiration template", "err", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
@@ -100,12 +102,14 @@ func (h *Handler) HandleInspirationEdit(w http.ResponseWriter, r *http.Request) 
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
+		h.Logger.Error("failed to parse template id for edit", "err", err, "id_str", idStr)
 		http.Error(w, "Invalid ID", http.StatusBadRequest)
 		return
 	}
 
 	tmpl, err := h.Inspiration.GetTemplate(r.Context(), id)
 	if err != nil {
+		h.Logger.Error("failed to fetch template for edit", "err", err, "id", id)
 		http.Error(w, "Not Found", http.StatusNotFound)
 		return
 	}
@@ -117,11 +121,13 @@ func (h *Handler) HandleInspirationUpdate(w http.ResponseWriter, r *http.Request
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
+		h.Logger.Error("failed to parse template id for update", "err", err, "id_str", idStr)
 		http.Error(w, "Invalid ID", http.StatusBadRequest)
 		return
 	}
 
 	if err := r.ParseForm(); err != nil {
+		h.Logger.Error("failed to parse form for inspiration update", "err", err, "id", id)
 		http.Error(w, "Bad Request", http.StatusBadRequest)
 		return
 	}
@@ -131,7 +137,7 @@ func (h *Handler) HandleInspirationUpdate(w http.ResponseWriter, r *http.Request
 
 	err = h.Inspiration.UpdateTemplate(r.Context(), id, title, content)
 	if err != nil {
-		h.Logger.Error("Failed to update inspiration template", "error", err)
+		h.Logger.Error("Failed to update inspiration template", "err", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
@@ -144,13 +150,14 @@ func (h *Handler) HandleInspirationDelete(w http.ResponseWriter, r *http.Request
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
+		h.Logger.Error("failed to parse template id for delete", "err", err, "id_str", idStr)
 		http.Error(w, "Invalid ID", http.StatusBadRequest)
 		return
 	}
 
 	err = h.Inspiration.DeleteTemplate(r.Context(), id)
 	if err != nil {
-		h.Logger.Error("Failed to delete inspiration template", "error", err)
+		h.Logger.Error("Failed to delete inspiration template", "err", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}

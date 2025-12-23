@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS settings (
     require_auth_for_read BOOLEAN DEFAULT 1,
     locate_timeout_seconds INTEGER DEFAULT 10, -- Default 10 seconds
     enable_locate_timeout BOOLEAN DEFAULT 0,    -- Default off (indefinite)
+    enable_debug_logs BOOLEAN DEFAULT 0,        -- Debug logging toggle
     
     -- Global Colors
     color_locate TEXT DEFAULT '#0000FF',       -- Blue

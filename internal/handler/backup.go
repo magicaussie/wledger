@@ -15,6 +15,7 @@ func (h *Handler) HandleBackupDownload(w http.ResponseWriter, r *http.Request) {
 	// Admin Only
 	user := auth.GetUserFromRequest(r)
 	if !user.IsAdmin() {
+		h.Logger.Warn("unauthorized backup download attempt", "user_id", user.ID, "ip", r.RemoteAddr)
 		http.Error(w, "Unauthorized", http.StatusForbidden)
 		return
 	}
@@ -26,7 +27,7 @@ func (h *Handler) HandleBackupDownload(w http.ResponseWriter, r *http.Request) {
 
 	// Stream Backup to Response
 	if err := h.Backup.Export(r.Context(), w); err != nil {
-		h.Logger.Error("failed to generate backup", "error", err)
+		h.Logger.Error("failed to generate backup", "err", err)
 		// Since headers are already sent, a clean error response can't be sent.
 		// The zip might be corrupted on the client side if this fails mid-stream.
 		return
@@ -38,6 +39,7 @@ func (h *Handler) HandleBackupRestore(w http.ResponseWriter, r *http.Request) {
 	// Admin Only
 	user := auth.GetUserFromRequest(r)
 	if !user.IsAdmin() {
+		h.Logger.Warn("unauthorized backup restore attempt", "user_id", user.ID, "ip", r.RemoteAddr)
 		http.Error(w, "Unauthorized", http.StatusForbidden)
 		return
 	}
@@ -45,6 +47,7 @@ func (h *Handler) HandleBackupRestore(w http.ResponseWriter, r *http.Request) {
 	// Parse Upload
 	err := r.ParseMultipartForm(config.MaxUploadSizeBackup) // 100 MB memory buffer
 	if err != nil {
+		h.Logger.Error("failed to parse multipart form for backup restore", "err", err)
 		components.ImportResult(false, "Upload too large or invalid: "+err.Error(), nil).Render(r.Context(), w)
 		return
 	}
@@ -54,6 +57,7 @@ func (h *Handler) HandleBackupRestore(w http.ResponseWriter, r *http.Request) {
 
 	file, header, err := r.FormFile("backup_file")
 	if err != nil {
+		h.Logger.Error("failed to get backup file from request", "err", err)
 		components.ImportResult(false, "No file provided", nil).Render(r.Context(), w)
 		return
 	}
@@ -61,7 +65,7 @@ func (h *Handler) HandleBackupRestore(w http.ResponseWriter, r *http.Request) {
 
 	// Execute Restore via Service
 	if err := h.Backup.Restore(r.Context(), file, header.Size); err != nil {
-		h.Logger.Error("restore failed", "error", err)
+		h.Logger.Error("restore failed", "err", err)
 		components.ImportResult(false, "Restore failed: "+err.Error(), nil).Render(r.Context(), w)
 		return
 	}

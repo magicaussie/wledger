@@ -22,7 +22,7 @@ func (h *Handler) HandleHardwareList(w http.ResponseWriter, r *http.Request) {
 
 	controllers, err := h.Queries.GetControllers(r.Context())
 	if err != nil {
-		h.Logger.Error("failed to fetch hardware", "error", err)
+		h.Logger.Error("failed to fetch hardware", "err", err)
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
@@ -56,7 +56,7 @@ func (h *Handler) HandleHardwareCreate(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		h.Logger.Error("failed to create controller", "error", err)
+		h.Logger.Error("failed to create controller", "err", err)
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
@@ -72,7 +72,7 @@ func (h *Handler) HandleHardwareDelete(w http.ResponseWriter, r *http.Request) {
 
 	tx, err := h.Database.Begin()
 	if err != nil {
-		h.Logger.Error("failed to start transaction", "error", err)
+		h.Logger.Error("failed to start transaction", "err", err)
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
@@ -82,7 +82,7 @@ func (h *Handler) HandleHardwareDelete(w http.ResponseWriter, r *http.Request) {
 	// Delete Bins First (Manual Cascade)
 	err = qtx.DeleteBinsByController(r.Context(), sql.NullInt64{Int64: int64(id), Valid: true})
 	if err != nil {
-		h.Logger.Error("failed to delete controller bins", "error", err)
+		h.Logger.Error("failed to delete controller bins", "err", err)
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
@@ -90,13 +90,13 @@ func (h *Handler) HandleHardwareDelete(w http.ResponseWriter, r *http.Request) {
 	// Delete Controller
 	err = qtx.DeleteController(r.Context(), int64(id))
 	if err != nil {
-		h.Logger.Error("failed to delete controller", "error", err)
+		h.Logger.Error("failed to delete controller", "err", err)
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
 
 	if err := tx.Commit(); err != nil {
-		h.Logger.Error("failed to commit transaction", "error", err)
+		h.Logger.Error("failed to commit transaction", "err", err)
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
@@ -112,6 +112,7 @@ func (h *Handler) HandleHardwareStatus(w http.ResponseWriter, r *http.Request) {
 
 	c, err := h.Queries.GetController(r.Context(), int64(id))
 	if err != nil {
+		h.Logger.Error("failed to fetch controller for status check", "err", err, "id", id)
 		http.Error(w, "Not found", http.StatusNotFound)
 		return
 	}
@@ -119,10 +120,13 @@ func (h *Handler) HandleHardwareStatus(w http.ResponseWriter, r *http.Request) {
 	online, _ := h.WLED.Ping(r.Context(), c.IpAddress)
 
 	if online != c.IsOnline.Bool {
-		_ = h.Queries.UpdateControllerStatus(r.Context(), db.UpdateControllerStatusParams{
+		err := h.Queries.UpdateControllerStatus(r.Context(), db.UpdateControllerStatusParams{
 			IsOnline: sql.NullBool{Bool: online, Valid: true},
 			ID:       c.ID,
 		})
+		if err != nil {
+			h.Logger.Error("failed to update controller online status", "err", err, "id", c.ID, "online", online)
+		}
 	}
 
 	if online {
@@ -172,13 +176,14 @@ func (h *Handler) HandleHardwareGridSave(w http.ResponseWriter, r *http.Request)
 	gridDataJSON := r.FormValue("grid_data")
 	var newCells []gridCellData
 	if err := json.Unmarshal([]byte(gridDataJSON), &newCells); err != nil {
-		h.Logger.Error("failed to parse grid json", "error", err)
+		h.Logger.Error("failed to parse grid json", "err", err)
 		http.Error(w, "Invalid Grid JSON", http.StatusBadRequest)
 		return
 	}
 
 	tx, err := h.Database.Begin()
 	if err != nil {
+		h.Logger.Error("failed to start transaction for grid save", "err", err)
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
@@ -188,7 +193,7 @@ func (h *Handler) HandleHardwareGridSave(w http.ResponseWriter, r *http.Request)
 	// Fetch Existing Bins
 	existingBins, err := qtx.GetBinsByController(ctx, sql.NullInt64{Int64: int64(controllerID), Valid: true})
 	if err != nil {
-		h.Logger.Error("failed to fetch existing bins", "error", err)
+		h.Logger.Error("failed to fetch existing bins", "err", err)
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
@@ -224,7 +229,7 @@ func (h *Handler) HandleHardwareGridSave(w http.ResponseWriter, r *http.Request)
 				GridY:        sql.NullInt64{Int64: int64(cell.Y), Valid: true},
 			})
 			if err != nil {
-				h.Logger.Error("failed to update bin", "led", ledIdx, "error", err)
+				h.Logger.Error("failed to update bin", "led", ledIdx, "err", err)
 				http.Error(w, "Save failed", http.StatusInternalServerError)
 				return
 			}
@@ -242,7 +247,7 @@ func (h *Handler) HandleHardwareGridSave(w http.ResponseWriter, r *http.Request)
 				GridY:        sql.NullInt64{Int64: int64(cell.Y), Valid: true},
 			})
 			if err != nil {
-				h.Logger.Error("failed to create bin", "led", ledIdx, "error", err)
+				h.Logger.Error("failed to create bin", "led", ledIdx, "err", err)
 				http.Error(w, "Save failed", http.StatusInternalServerError)
 				return
 			}
@@ -258,7 +263,7 @@ func (h *Handler) HandleHardwareGridSave(w http.ResponseWriter, r *http.Request)
 			LedIndex:     binToDelete.LedIndex,
 		})
 		if err != nil {
-			h.Logger.Error("failed to delete removed bin", "id", binToDelete.ID, "error", err)
+			h.Logger.Error("failed to delete removed bin", "id", binToDelete.ID, "err", err)
 			// Continue deleting others even if one fails
 		}
 	}
@@ -272,6 +277,7 @@ func (h *Handler) HandleHardwareGridSave(w http.ResponseWriter, r *http.Request)
 			ID:         int64(controllerID),
 		})
 		if err != nil {
+			h.Logger.Error("failed to update controller config", "err", err, "id", controllerID)
 			http.Error(w, "Config update failed", http.StatusInternalServerError)
 			return
 		}
@@ -290,7 +296,7 @@ func (h *Handler) HandleHardwareGridSave(w http.ResponseWriter, r *http.Request)
 func (h *Handler) HandleGlobalOff(w http.ResponseWriter, r *http.Request) {
 	controllers, err := h.Queries.GetControllers(r.Context())
 	if err != nil {
-		h.Logger.Error("failed to list controllers", "error", err)
+		h.Logger.Error("failed to list controllers", "err", err)
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
@@ -304,7 +310,7 @@ func (h *Handler) HandleGlobalOff(w http.ResponseWriter, r *http.Request) {
 
 			err := h.WLED.Clear(ctx, ip)
 			if err != nil {
-				h.Logger.Error("failed to clear controller", "name", ctrlName, "ip", ip, "error", err)
+				h.Logger.Error("failed to clear controller", "name", ctrlName, "ip", ip, "err", err)
 			} else {
 				h.Logger.Info("cleared controller", "name", ctrlName, "ip", ip)
 			}
@@ -323,6 +329,7 @@ func (h *Handler) HandleHardwareLocate(w http.ResponseWriter, r *http.Request) {
 	// Fetch Settings (Needed for Color and Timeout config)
 	settings, err := h.Queries.GetSettings(r.Context())
 	if err != nil {
+		h.Logger.Warn("failed to fetch settings for locate, using defaults", "err", err)
 		// Fallback defaults if DB fails
 		settings.ColorLocate.String = "#0000FF"
 		settings.EnableLocateTimeout.Bool = false
@@ -355,7 +362,7 @@ func (h *Handler) HandleHardwareLocate(w http.ResponseWriter, r *http.Request) {
 	err = h.WLED.LightUp(r.Context(), controller.IpAddress, ledIndex, width, settings.ColorLocate.String)
 	if err != nil {
 		// Don't return error to client, just log it
-		h.Logger.Error("failed to locate bin", "error", err, "ip", controller.IpAddress)
+		h.Logger.Error("failed to locate bin", "err", err, "ip", controller.IpAddress)
 	}
 
 	// Handle Auto-Off Timer

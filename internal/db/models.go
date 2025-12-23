@@ -126,6 +126,7 @@ type Setting struct {
 	RequireAuthForRead   sql.NullBool   `json:"require_auth_for_read"`
 	LocateTimeoutSeconds sql.NullInt64  `json:"locate_timeout_seconds"`
 	EnableLocateTimeout  sql.NullBool   `json:"enable_locate_timeout"`
+	EnableDebugLogs      sql.NullBool   `json:"enable_debug_logs"`
 	ColorLocate          sql.NullString `json:"color_locate"`
 	ColorStockOk         sql.NullString `json:"color_stock_ok"`
 	ColorStockLow        sql.NullString `json:"color_stock_low"`

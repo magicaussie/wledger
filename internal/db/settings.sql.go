@@ -11,7 +11,7 @@ import (
 )
 
 const getSettings = `-- name: GetSettings :one
-SELECT id, require_auth_for_read, locate_timeout_seconds, enable_locate_timeout, color_locate, color_stock_ok, color_stock_low, color_stock_critical, created_at, updated_at FROM settings WHERE id = 1
+SELECT id, require_auth_for_read, locate_timeout_seconds, enable_locate_timeout, enable_debug_logs, color_locate, color_stock_ok, color_stock_low, color_stock_critical, created_at, updated_at FROM settings WHERE id = 1
 `
 
 func (q *Queries) GetSettings(ctx context.Context) (Setting, error) {
@@ -22,6 +22,7 @@ func (q *Queries) GetSettings(ctx context.Context) (Setting, error) {
 		&i.RequireAuthForRead,
 		&i.LocateTimeoutSeconds,
 		&i.EnableLocateTimeout,
+		&i.EnableDebugLogs,
 		&i.ColorLocate,
 		&i.ColorStockOk,
 		&i.ColorStockLow,
@@ -33,8 +34,8 @@ func (q *Queries) GetSettings(ctx context.Context) (Setting, error) {
 }
 
 const initSettings = `-- name: InitSettings :exec
-INSERT OR IGNORE INTO settings (id, require_auth_for_read, color_locate, color_stock_ok, color_stock_low, color_stock_critical, locate_timeout_seconds, enable_locate_timeout)
-VALUES (1, 1, '#0000FF', '#00FF00', '#FFFF00', '#FF0000', 10, 1)
+INSERT OR IGNORE INTO settings (id, require_auth_for_read, color_locate, color_stock_ok, color_stock_low, color_stock_critical, locate_timeout_seconds, enable_locate_timeout, enable_debug_logs)
+VALUES (1, 1, '#0000FF', '#00FF00', '#FFFF00', '#FF0000', 10, 1, 0)
 `
 
 func (q *Queries) InitSettings(ctx context.Context) error {
@@ -46,11 +47,11 @@ const restoreSettings = `-- name: RestoreSettings :exec
 INSERT INTO settings (
     id, require_auth_for_read, locate_timeout_seconds, enable_locate_timeout, 
     color_locate, color_stock_ok, color_stock_low, color_stock_critical, 
-    created_at, updated_at
+    created_at, updated_at, enable_debug_logs
 ) VALUES (
     1, ?, ?, ?, 
     ?, ?, ?, ?, 
-    ?, ?
+    ?, ?, ?
 )
 `
 
@@ -64,6 +65,7 @@ type RestoreSettingsParams struct {
 	ColorStockCritical   sql.NullString `json:"color_stock_critical"`
 	CreatedAt            sql.NullTime   `json:"created_at"`
 	UpdatedAt            sql.NullTime   `json:"updated_at"`
+	EnableDebugLogs      sql.NullBool   `json:"enable_debug_logs"`
 }
 
 func (q *Queries) RestoreSettings(ctx context.Context, arg RestoreSettingsParams) error {
@@ -77,6 +79,7 @@ func (q *Queries) RestoreSettings(ctx context.Context, arg RestoreSettingsParams
 		arg.ColorStockCritical,
 		arg.CreatedAt,
 		arg.UpdatedAt,
+		arg.EnableDebugLogs,
 	)
 	return err
 }
@@ -106,7 +109,7 @@ func (q *Queries) UpdateColors(ctx context.Context, arg UpdateColorsParams) erro
 
 const updateGeneralSettings = `-- name: UpdateGeneralSettings :exec
 UPDATE settings 
-SET require_auth_for_read = ?, locate_timeout_seconds = ?, enable_locate_timeout = ?, updated_at = CURRENT_TIMESTAMP
+SET require_auth_for_read = ?, locate_timeout_seconds = ?, enable_locate_timeout = ?, enable_debug_logs = ?, updated_at = CURRENT_TIMESTAMP
 WHERE id = 1
 `
 
@@ -114,9 +117,15 @@ type UpdateGeneralSettingsParams struct {
 	RequireAuthForRead   sql.NullBool  `json:"require_auth_for_read"`
 	LocateTimeoutSeconds sql.NullInt64 `json:"locate_timeout_seconds"`
 	EnableLocateTimeout  sql.NullBool  `json:"enable_locate_timeout"`
+	EnableDebugLogs      sql.NullBool  `json:"enable_debug_logs"`
 }
 
 func (q *Queries) UpdateGeneralSettings(ctx context.Context, arg UpdateGeneralSettingsParams) error {
-	_, err := q.exec(ctx, q.updateGeneralSettingsStmt, updateGeneralSettings, arg.RequireAuthForRead, arg.LocateTimeoutSeconds, arg.EnableLocateTimeout)
+	_, err := q.exec(ctx, q.updateGeneralSettingsStmt, updateGeneralSettings,
+		arg.RequireAuthForRead,
+		arg.LocateTimeoutSeconds,
+		arg.EnableLocateTimeout,
+		arg.EnableDebugLogs,
+	)
 	return err
 }

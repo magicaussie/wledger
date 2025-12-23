@@ -124,6 +124,22 @@ templ Settings(user auth.User, s db.Setting, users []db.ListUsersRow) {
 											<span class="label-text font-medium">Require Login for Read-Only Access</span>
 										</label>
 									</div>
+									<div class="form-control bg-base-100 p-4 rounded-lg border border-base-300 mt-2">
+										<label class="label cursor-pointer justify-start gap-4">
+											<input
+												type="checkbox"
+												name="enable_debug_logs"
+												class="toggle toggle-primary"
+												if s.EnableDebugLogs.Bool {
+													checked
+												}
+											/>
+											<div class="flex flex-col">
+												<span class="label-text font-medium">Enable Debug Logs</span>
+												<span class="label-text-alt opacity-50">Captures more verbose information for troubleshooting.</span>
+											</div>
+										</label>
+									</div>
 								</div>
 								<div>
 									<h3 class="font-bold text-sm uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2 border-t border-base-content/5 pt-6">

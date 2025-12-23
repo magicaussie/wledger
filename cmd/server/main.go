@@ -46,6 +46,19 @@ func main() {
 	// Initialize queries
 	queries := db.New(database)
 
+	// Ensure Settings exist
+	if err := queries.InitSettings(context.Background()); err != nil {
+		log.Error("Failed to initialize settings", "error", err)
+	}
+
+	// Fetch Settings to set Log Level
+	settings, err := queries.GetSettings(context.Background())
+	if err == nil {
+		logger.SetDebug(settings.EnableDebugLogs.Bool)
+	} else {
+		log.Error("Failed to fetch settings for log level", "error", err)
+	}
+
 	// Session Manager
 	sessionManager := scs.New()
 	sessionManager.Store = auth.NewStore(queries)

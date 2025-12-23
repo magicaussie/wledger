@@ -87,6 +87,7 @@ func (m *Manager) RequireReadAuth(next http.Handler) http.Handler {
 		// Fetch Settings
 		s, err := m.Queries.GetSettings(r.Context())
 		if err != nil {
+			m.Logger.Error("failed to fetch settings for read auth check", "err", err)
 			// Fail secure
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
 			return
@@ -94,6 +95,7 @@ func (m *Manager) RequireReadAuth(next http.Handler) http.Handler {
 
 		// Authorization Check
 		if !user.CanRead(s) {
+			m.Logger.Warn("denied read access", "user_id", userID, "ip", r.RemoteAddr, "path", r.URL.Path)
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
 			return
 		}
@@ -118,7 +120,7 @@ func (m *Manager) FirstRunCheck(next http.Handler) http.Handler {
 
 		count, err := m.Queries.CountUsers(r.Context())
 		if err != nil {
-			m.Logger.Error("failed to count users", "error", err)
+			m.Logger.Error("failed to count users for first run check", "err", err)
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -161,14 +163,14 @@ func (m *Manager) RequirePasswordChange(next http.Handler) http.Handler {
 		// Check DB for require password change Flag
 		user, err := m.Queries.GetUser(r.Context(), userID)
 		if err != nil {
-			m.Logger.Error("RequirePasswordChange: Failed to fetch user", "error", err, "user_id", userID)
+			m.Logger.Error("failed to fetch user for password change check", "err", err, "user_id", userID)
 			// if it can't be verified, force login to be safe
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
 			return
 		}
 
 		if user.ChangePasswordRequired.Bool {
-			m.Logger.Info("RequirePasswordChange: Redirecting to force-reset", "user_id", userID)
+			m.Logger.Info("redirecting to force-reset", "user_id", userID)
 			http.Redirect(w, r, "/force-reset", http.StatusSeeOther)
 			return
 		}
@@ -196,7 +198,7 @@ func (m *Manager) RequireRole(acceptedRoles ...string) func(http.Handler) http.H
 			// Fetch User to get Role
 			user, err := m.Queries.GetUser(r.Context(), userID)
 			if err != nil {
-				m.Logger.Error("RequireRole: failed to fetch user", "error", err)
+				m.Logger.Error("failed to fetch user for role check", "err", err, "user_id", userID)
 				http.Error(w, "Server Error", http.StatusInternalServerError)
 				return
 			}
@@ -211,7 +213,7 @@ func (m *Manager) RequireRole(acceptedRoles ...string) func(http.Handler) http.H
 			}
 
 			if !allowed {
-				m.Logger.Warn("Access denied: insufficient role", "user_id", userID, "role", user.Role, "required", acceptedRoles)
+				m.Logger.Warn("access denied: insufficient role", "user_id", userID, "role", user.Role, "required", acceptedRoles, "path", r.URL.Path)
 				http.Error(w, "Forbidden: Insufficient Permissions", http.StatusForbidden)
 				return
 			}
@@ -242,7 +244,7 @@ func (m *Manager) Authenticate(next http.Handler) http.Handler {
 			// If DB fails (e.g., user deleted but session remains), destroy session,
 			// downgrade to Guest, log it as info/warn, not error, to avoid log spam on stale sessions
 			_ = m.Session.Destroy(r.Context())
-			m.Logger.Warn("Authenticate: failed to fetch user for session", "user_id", userID, "error", err)
+			m.Logger.Warn("authentication failed: user not found for session", "user_id", userID, "err", err)
 			ctx := auth.WithUser(r.Context(), auth.Guest())
 			next.ServeHTTP(w, r.WithContext(ctx))
 			return
