@@ -2,6 +2,7 @@ package logger
 
 import (
 	"log/slog"
+	"os"
 	"testing"
 )
 
@@ -26,6 +27,11 @@ func TestDynamicLogLevel(t *testing.T) {
 }
 
 func TestNew(t *testing.T) {
+	// Cleanup the created app directory after test
+	t.Cleanup(func() {
+		os.RemoveAll("app")
+	})
+
 	// Testing New() mainly for coverage as it has side effects (mkdir, file write)
 	l1 := New(true)
 	if l1 == nil {

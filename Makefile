@@ -9,13 +9,6 @@ help:
 	@echo "  make test       - Run tests"
 	@echo "  make install_dependencies - Install all development dependencies"
 
-# Ensure go binaries are in PATH
-GOPATH := $(shell go env GOPATH)
-ifeq ($(GOPATH),)
-GOPATH := $(HOME)/go
-endif
-export PATH := $(GOPATH)/bin:$(PATH)
-
 # Install all development dependencies
 .PHONY: install_dependencies
 install_dependencies:
