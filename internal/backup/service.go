@@ -57,6 +57,20 @@ func (s *service) Export(ctx context.Context, w io.Writer) error {
 	docs, _ := s.queries.GetAllPartDocs(ctx)
 	prompts, _ := s.queries.GetAllPartAiPrompts(ctx)
 	logs, _ := s.queries.GetAllAuditLogs(ctx)
+	var auditLogs []db.AuditLog
+	for _, l := range logs {
+		auditLogs = append(auditLogs, db.AuditLog{
+			ID:         l.ID,
+			UserID:     l.UserID,
+			ActionType: l.ActionType,
+			EntityType: l.EntityType,
+			EntityID:   l.EntityID,
+			Details:    l.Details,
+			OldValue:   json.RawMessage(l.OldValue),
+			NewValue:   json.RawMessage(l.NewValue),
+			CreatedAt:  l.CreatedAt,
+		})
+	}
 	tags, _ := s.queries.ListAllTags(ctx)
 	partTags, _ := s.queries.GetAllPartTags(ctx)
 
@@ -74,7 +88,7 @@ func (s *service) Export(ctx context.Context, w io.Writer) error {
 		PartAiPrompts:   prompts,
 		Tags:            tags,
 		PartTags:        partTags,
-		AuditLogs:       logs,
+		AuditLogs:       auditLogs,
 	}
 
 	zw := zip.NewWriter(w)

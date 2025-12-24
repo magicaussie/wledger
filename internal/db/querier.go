@@ -40,7 +40,7 @@ type Querier interface {
 	DeleteSession(ctx context.Context, token string) error
 	DeleteUnusedTags(ctx context.Context) error
 	DeleteUser(ctx context.Context, id int64) error
-	GetAllAuditLogs(ctx context.Context) ([]AuditLog, error)
+	GetAllAuditLogs(ctx context.Context) ([]GetAllAuditLogsRow, error)
 	GetAllBins(ctx context.Context) ([]Bin, error)
 	GetAllInspirationTemplates(ctx context.Context) ([]InspirationTemplate, error)
 	GetAllPartAiPrompts(ctx context.Context) ([]PartAiPrompt, error)

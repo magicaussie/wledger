@@ -49,7 +49,7 @@ func (h *Handler) HandleHardwareCreate(w http.ResponseWriter, r *http.Request) {
 		port = 80
 	}
 
-	_, err := h.Queries.CreateController(r.Context(), db.CreateControllerParams{
+	controller, err := h.Queries.CreateController(r.Context(), db.CreateControllerParams{
 		Name:      name,
 		IpAddress: ip,
 		Port:      sql.NullInt64{Int64: int64(port), Valid: true},
@@ -61,7 +61,12 @@ func (h *Handler) HandleHardwareCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	audit.Log(r.Context(), h.Queries, "CREATE", "HARDWARE", 0, "Added controller "+name, nil, nil)
+	summary := map[string]any{
+		"id":         controller.ID,
+		"name":       controller.Name,
+		"ip_address": controller.IpAddress,
+	}
+	audit.Log(r.Context(), h.Queries, "CREATE", "HARDWARE", controller.ID, "Added controller "+name, nil, summary)
 	http.Redirect(w, r, "/hardware", http.StatusSeeOther)
 }
 
@@ -69,6 +74,13 @@ func (h *Handler) HandleHardwareCreate(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) HandleHardwareDelete(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, _ := strconv.Atoi(idStr)
+
+	// Fetch before delete
+	c, err := h.Queries.GetController(r.Context(), int64(id))
+	if err != nil {
+		http.Error(w, "Controller not found", http.StatusNotFound)
+		return
+	}
 
 	tx, err := h.Database.Begin()
 	if err != nil {
@@ -101,7 +113,12 @@ func (h *Handler) HandleHardwareDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	audit.Log(r.Context(), h.Queries, "DELETE", "HARDWARE", int64(id), "Deleted controller", nil, nil)
+	summary := map[string]any{
+		"id":         c.ID,
+		"name":       c.Name,
+		"ip_address": c.IpAddress,
+	}
+	audit.Log(r.Context(), h.Queries, "DELETE", "HARDWARE", int64(id), "Deleted controller", summary, nil)
 	http.Redirect(w, r, "/hardware", http.StatusSeeOther)
 }
 
@@ -288,7 +305,10 @@ func (h *Handler) HandleHardwareGridSave(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	audit.Log(ctx, h.Queries, "UPDATE", "HARDWARE", int64(controllerID), "Updated LED Grid Layout", nil, nil)
+	audit.Log(ctx, h.Queries, "UPDATE", "HARDWARE", int64(controllerID), "Updated LED Grid Layout",
+		map[string]any{"led_count": len(existingBins)}, // old state
+		map[string]any{"led_count": maxLedIndex + 1})   // new state
+
 	http.Redirect(w, r, "/hardware", http.StatusSeeOther)
 }
 

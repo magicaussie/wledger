@@ -1,5 +1,16 @@
 -- name: GetAllAuditLogs :many
-SELECT * FROM audit_logs ORDER BY id;
+SELECT 
+    id, 
+    user_id, 
+    action_type, 
+    entity_type, 
+    entity_id, 
+    details, 
+    CAST(COALESCE(old_value, '{}') AS BLOB) as old_value, 
+    CAST(COALESCE(new_value, '{}') AS BLOB) as new_value, 
+    created_at 
+FROM audit_logs 
+ORDER BY id;
 
 -- name: RestoreAuditLog :exec
 INSERT INTO audit_logs (

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -11,8 +12,11 @@ import (
 	"testing"
 
 	"github.com/alexedwards/scs/v2"
+	"github.com/go-chi/chi/v5"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/internal/db"
+	"github.com/tuxedocurly/wledger/internal/middleware"
 )
 
 func TestHandleSettingsUpdate(t *testing.T) {
@@ -68,5 +72,112 @@ func TestHandleSettingsUpdate(t *testing.T) {
 	}
 	if s.LocateTimeoutSeconds.Int64 != 15 {
 		t.Errorf("expected locate_timeout to be 15, got %d", s.LocateTimeoutSeconds.Int64)
+	}
+}
+
+func TestSettingsAuditLogging(t *testing.T) {
+	// Setup
+	dbConn := openTestDB(t)
+	defer dbConn.Close()
+	setupTestSchema(t, dbConn)
+
+	queries := db.New(dbConn)
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	session := scs.New()
+
+	h := &Handler{
+		Logger:   logger,
+		Queries:  queries,
+		Database: dbConn,
+		Session:  session,
+	}
+
+	queries.InitSettings(context.Background())
+
+	queries.CreateUser(context.Background(), db.CreateUserParams{Email: "admin@test.com", Role: "admin"})
+	ctx := context.WithValue(context.Background(), middleware.UserContextKey, int64(1))
+
+	// Update Settings
+	r := chi.NewRouter()
+	r.Post("/settings", h.HandleSettingsUpdate)
+
+	// change something from default (require_auth is default true, debug false)
+	form := url.Values{}
+	form.Add("require_auth", "off")     // Changed
+	form.Add("enable_debug_logs", "on") // Changed
+	req := httptest.NewRequest(http.MethodPost, "/settings", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+
+	logs, _ := queries.GetAllAuditLogs(ctx)
+	if len(logs) != 1 {
+		t.Fatalf("expected 1 log after settings update, got %d", len(logs))
+	}
+	// Clear logs
+	dbConn.ExecContext(ctx, "DELETE FROM audit_logs")
+
+	req1b := httptest.NewRequest(http.MethodPost, "/settings", strings.NewReader(form.Encode()))
+	req1b.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req1b = req1b.WithContext(ctx)
+	rr1b := httptest.NewRecorder()
+	r.ServeHTTP(rr1b, req1b)
+
+	logsNoChange, _ := queries.GetAllAuditLogs(ctx)
+	if len(logsNoChange) != 0 {
+		t.Errorf("expected 0 logs after no-op update, got %d", len(logsNoChange))
+	}
+
+	// Create User
+	// Clear logs again to avoid counting old logs
+	dbConn.ExecContext(ctx, "DELETE FROM audit_logs")
+
+	r2 := chi.NewRouter()
+	r2.Post("/settings/users", h.HandleUserCreate)
+	form2 := url.Values{}
+	form2.Add("email", "newuser@test.com")
+	form2.Add("role", "viewer")
+	form2.Add("temp_password", "password123")
+
+	req2 := httptest.NewRequest(http.MethodPost, "/settings/users", strings.NewReader(form2.Encode()))
+	req2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req2 = req2.WithContext(ctx)
+	rr2 := httptest.NewRecorder()
+	r2.ServeHTTP(rr2, req2)
+
+	logs, _ = queries.GetAllAuditLogs(ctx)
+	if len(logs) != 1 {
+		t.Fatalf("expected 1 log after user create, got %d", len(logs))
+	}
+	userLog := logs[0]
+	var userNew map[string]any
+	json.Unmarshal(userLog.NewValue, &userNew)
+	if userNew["email"] != "newuser@test.com" {
+		t.Errorf("expected summary in user create log")
+	}
+
+	userDeleteHandler := session.LoadAndSave(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		session.Put(r.Context(), config.SessionKeyUserID, int64(1))
+		h.HandleUserDelete(w, r)
+	}))
+
+	r3 := chi.NewRouter()
+	r3.Post("/settings/users/{id}/delete", userDeleteHandler.ServeHTTP)
+
+	req3 := httptest.NewRequest(http.MethodPost, "/settings/users/2/delete", nil)
+	req3 = req3.WithContext(ctx)
+	rr3 := httptest.NewRecorder()
+	r3.ServeHTTP(rr3, req3)
+
+	logs, _ = queries.GetAllAuditLogs(ctx)
+	if len(logs) != 2 {
+		t.Fatalf("expected 2 logs after user delete, got %d", len(logs))
+	}
+	userDeleteLog := logs[1]
+	var userDelOld map[string]any
+	json.Unmarshal(userDeleteLog.OldValue, &userDelOld)
+	if userDelOld["email"] != "newuser@test.com" {
+		t.Errorf("expected summary in user delete log")
 	}
 }

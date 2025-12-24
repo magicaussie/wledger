@@ -78,18 +78,41 @@ func (q *Queries) CreateAuditLog(ctx context.Context, arg CreateAuditLogParams) 
 }
 
 const getAllAuditLogs = `-- name: GetAllAuditLogs :many
-SELECT id, user_id, action_type, entity_type, entity_id, details, old_value, new_value, created_at FROM audit_logs ORDER BY id
+SELECT 
+    id, 
+    user_id, 
+    action_type, 
+    entity_type, 
+    entity_id, 
+    details, 
+    CAST(COALESCE(old_value, '{}') AS BLOB) as old_value, 
+    CAST(COALESCE(new_value, '{}') AS BLOB) as new_value, 
+    created_at 
+FROM audit_logs 
+ORDER BY id
 `
 
-func (q *Queries) GetAllAuditLogs(ctx context.Context) ([]AuditLog, error) {
+type GetAllAuditLogsRow struct {
+	ID         int64          `json:"id"`
+	UserID     sql.NullInt64  `json:"user_id"`
+	ActionType string         `json:"action_type"`
+	EntityType string         `json:"entity_type"`
+	EntityID   int64          `json:"entity_id"`
+	Details    sql.NullString `json:"details"`
+	OldValue   []byte         `json:"old_value"`
+	NewValue   []byte         `json:"new_value"`
+	CreatedAt  sql.NullTime   `json:"created_at"`
+}
+
+func (q *Queries) GetAllAuditLogs(ctx context.Context) ([]GetAllAuditLogsRow, error) {
 	rows, err := q.query(ctx, q.getAllAuditLogsStmt, getAllAuditLogs)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []AuditLog
+	var items []GetAllAuditLogsRow
 	for rows.Next() {
-		var i AuditLog
+		var i GetAllAuditLogsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,

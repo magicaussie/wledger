@@ -63,6 +63,12 @@ func (h *Handler) HandleSettingsUpdate(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
+	// Fetch current settings for diff
+	current, err := h.Queries.GetSettings(ctx)
+	if err != nil {
+		h.Logger.Error("failed to fetch current settings for diff", "err", err)
+	}
+
 	// Start Transaction
 	tx, err := h.Database.Begin()
 	if err != nil {
@@ -98,8 +104,46 @@ func (h *Handler) HandleSettingsUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Add Audit Log
-	audit.Log(ctx, qtx, "UPDATE", "SETTINGS", 1, "Updated system configuration", nil, nil)
+	// Calculate Diff
+	oldDiff := make(map[string]any)
+	newDiff := make(map[string]any)
+
+	if current.RequireAuthForRead.Bool != requireAuth {
+		oldDiff["require_auth"] = current.RequireAuthForRead.Bool
+		newDiff["require_auth"] = requireAuth
+	}
+	if current.EnableDebugLogs.Bool != enableDebugLogs {
+		oldDiff["enable_debug_logs"] = current.EnableDebugLogs.Bool
+		newDiff["enable_debug_logs"] = enableDebugLogs
+	}
+	if current.EnableLocateTimeout.Bool != enableTimeout {
+		oldDiff["enable_timeout"] = current.EnableLocateTimeout.Bool
+		newDiff["enable_timeout"] = enableTimeout
+	}
+	if int(current.LocateTimeoutSeconds.Int64) != timeout {
+		oldDiff["locate_timeout"] = current.LocateTimeoutSeconds.Int64
+		newDiff["locate_timeout"] = timeout
+	}
+	if current.ColorLocate.String != colorLocate {
+		oldDiff["color_locate"] = current.ColorLocate.String
+		newDiff["color_locate"] = colorLocate
+	}
+	if current.ColorStockOk.String != colorOk {
+		oldDiff["color_ok"] = current.ColorStockOk.String
+		newDiff["color_ok"] = colorOk
+	}
+	if current.ColorStockLow.String != colorLow {
+		oldDiff["color_low"] = current.ColorStockLow.String
+		newDiff["color_low"] = colorLow
+	}
+	if current.ColorStockCritical.String != colorCritical {
+		oldDiff["color_critical"] = current.ColorStockCritical.String
+		newDiff["color_critical"] = colorCritical
+	}
+
+	if len(oldDiff) > 0 {
+		audit.Log(ctx, qtx, "UPDATE", "SETTINGS", 1, "Updated system configuration", oldDiff, newDiff)
+	}
 
 	if err := tx.Commit(); err != nil {
 		h.Logger.Error("failed to commit settings update", "err", err)
@@ -175,7 +219,16 @@ func (h *Handler) HandleUserCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = h.Queries.CreateUser(r.Context(), db.CreateUserParams{
+	tx, err := h.Database.Begin()
+	if err != nil {
+		h.Logger.Error("failed to begin transaction", "err", err)
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+	defer tx.Rollback()
+	qtx := h.Queries.WithTx(tx)
+
+	user, err := qtx.CreateUser(r.Context(), db.CreateUserParams{
 		Email:                  email,
 		PasswordHash:           string(hashedBytes),
 		Role:                   role,
@@ -186,6 +239,15 @@ func (h *Handler) HandleUserCreate(w http.ResponseWriter, r *http.Request) {
 		h.Logger.Error("failed to create user", "err", err)
 		// Assuming error is duplicate email
 		http.Redirect(w, r, "/settings", http.StatusSeeOther)
+		return
+	}
+
+	audit.Log(r.Context(), qtx, "CREATE", "USER", user.ID, "Created user", nil, 
+		map[string]any{"email": user.Email, "role": user.Role})
+
+	if err := tx.Commit(); err != nil {
+		h.Logger.Error("failed to commit user creation", "err", err)
+		http.Error(w, "Commit failed", http.StatusInternalServerError)
 		return
 	}
 
@@ -206,7 +268,14 @@ func (h *Handler) HandleUserDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.Queries.DeleteUser(r.Context(), int64(id))
+	// Fetch before delete
+	u, err := h.Queries.GetUser(r.Context(), int64(id))
+	if err == nil {
+		audit.Log(r.Context(), h.Queries, "DELETE", "USER", int64(id), "Deleted user", 
+			map[string]any{"email": u.Email, "role": u.Role}, nil)
+	}
+
+	err = h.Queries.DeleteUser(r.Context(), int64(id))
 	if err != nil {
 		h.Logger.Error("failed to delete user", "err", err)
 	}
@@ -236,6 +305,10 @@ func (h *Handler) HandleUserForceReset(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
+
+	audit.Log(r.Context(), h.Queries, "UPDATE", "USER", int64(id), "Forced password reset", 
+		map[string]any{"reset_required": false}, 
+		map[string]any{"reset_required": true})
 
 	h.Logger.Info("admin triggered force password reset", "target_id", id)
 	http.Redirect(w, r, "/settings", http.StatusSeeOther)

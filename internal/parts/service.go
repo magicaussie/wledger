@@ -212,7 +212,12 @@ func (s *service) CreatePart(ctx context.Context, req CreatePartRequest) (int64,
 		return 0, fmt.Errorf("failed to sync tags: %w", err)
 	}
 
-	audit.Log(ctx, qtx, "CREATE", "PART", newID, "Created part "+req.Name, nil, nil)
+	summary := map[string]any{
+		"id":          newID,
+		"name":        req.Name,
+		"part_number": req.PartNumber,
+	}
+	audit.Log(ctx, qtx, "CREATE", "PART", newID, "Created part "+req.Name, nil, summary)
 
 	if err := tx.Commit(); err != nil {
 		s.cleanupFiles(imagePath, uploadedDocs)
@@ -346,9 +351,52 @@ func (s *service) UpdatePart(ctx context.Context, req UpdatePartRequest) error {
 						s.cleanupFiles(uploadedNewImage, newImagePath, uploadedDocs)
 						return fmt.Errorf("failed to sync tags: %w", err)
 					}
-				
-					audit.Log(ctx, qtx, "UPDATE", "PART", req.ID, "Updated details", nil, nil)
-				
+
+					// Calculate Diff
+					oldDiff := make(map[string]any)
+					newDiff := make(map[string]any)
+
+					if oldPart.Name != req.Name {
+						oldDiff["name"] = oldPart.Name
+						newDiff["name"] = req.Name
+					}
+					if oldPart.Description.String != req.Description {
+						oldDiff["description"] = oldPart.Description.String
+						newDiff["description"] = req.Description
+					}
+					if oldPart.PartNumber.String != req.PartNumber {
+						oldDiff["part_number"] = oldPart.PartNumber.String
+						newDiff["part_number"] = req.PartNumber
+					}
+					if oldPart.Manufacturer.String != req.Manufacturer {
+						oldDiff["manufacturer"] = oldPart.Manufacturer.String
+						newDiff["manufacturer"] = req.Manufacturer
+					}
+					if oldPart.Supplier.String != req.Supplier {
+						oldDiff["supplier"] = oldPart.Supplier.String
+						newDiff["supplier"] = req.Supplier
+					}
+					if oldPart.BarcodeData.String != req.BarcodeData {
+						oldDiff["barcode_data"] = oldPart.BarcodeData.String
+						newDiff["barcode_data"] = req.BarcodeData
+					}
+					if oldPart.UnitCost.Float64 != req.UnitCost {
+						oldDiff["unit_cost"] = oldPart.UnitCost.Float64
+						newDiff["unit_cost"] = req.UnitCost
+					}
+					if int(oldPart.ReorderLevel.Int64) != req.ReorderLevel {
+						oldDiff["reorder_level"] = oldPart.ReorderLevel.Int64
+						newDiff["reorder_level"] = req.ReorderLevel
+					}
+					if int(oldPart.MinStockThreshold.Int64) != req.MinStockThreshold {
+						oldDiff["min_stock"] = oldPart.MinStockThreshold.Int64
+						newDiff["min_stock"] = req.MinStockThreshold
+					}
+
+					if len(oldDiff) > 0 {
+						audit.Log(ctx, qtx, "UPDATE", "PART", req.ID, "Updated details", oldDiff, newDiff)
+					}
+
 			if err := tx.Commit(); err != nil {
 		s.cleanupFiles(uploadedNewImage, newImagePath, uploadedDocs)
 		return fmt.Errorf("failed to commit transaction: %w", err)
@@ -363,7 +411,11 @@ func (s *service) UpdatePart(ctx context.Context, req UpdatePartRequest) error {
 
 func (s *service) DeletePart(ctx context.Context, id int64) error {
 	p, err := s.queries.GetPart(ctx, id)
-	if err == nil && p.ImagePath.Valid {
+	if err != nil {
+		return err
+	}
+
+	if p.ImagePath.Valid {
 		images.DeleteByWebPath(p.ImagePath.String)
 	}
 
@@ -378,7 +430,12 @@ func (s *service) DeletePart(ctx context.Context, id int64) error {
 		}
 	}
 
-	audit.Log(ctx, s.queries, "DELETE", "PART", id, "Deleted part", nil, nil)
+	summary := map[string]any{
+		"id":          p.ID,
+		"name":        p.Name,
+		"part_number": p.PartNumber.String,
+	}
+	audit.Log(ctx, s.queries, "DELETE", "PART", id, "Deleted part", summary, nil)
 	return s.queries.DeletePart(ctx, id)
 }
 
@@ -406,6 +463,11 @@ func (s *service) AssignStock(ctx context.Context, req AssignStockRequest) error
 			PartID:   req.PartID,
 			BinID:    nullBinID,
 		})
+		
+		audit.Log(ctx, s.queries, "STOCK_ADD", "PART", req.PartID, "Added stock to existing bin", 
+			map[string]any{"quantity": existing.Quantity}, 
+			map[string]any{"quantity": newQty})
+
 	} else {
 		// New assignment
 		s.logger.Debug("creating new assignment", "part_id", req.PartID, "bin_id", req.BinID)
@@ -414,6 +476,9 @@ func (s *service) AssignStock(ctx context.Context, req AssignStockRequest) error
 			BinID:    nullBinID,
 			Quantity: int64(req.Quantity),
 		})
+		
+		audit.Log(ctx, s.queries, "STOCK_ADD", "PART", req.PartID, "Added stock to new bin", nil, 
+			map[string]any{"bin_id": req.BinID, "quantity": req.Quantity})
 	}
 
 	if err != nil {
@@ -421,7 +486,6 @@ func (s *service) AssignStock(ctx context.Context, req AssignStockRequest) error
 		return err
 	}
 
-	audit.Log(ctx, s.queries, "STOCK_ADD", "PART", req.PartID, "Added stock", nil, nil)
 	return nil
 }
 
@@ -452,7 +516,9 @@ func (s *service) AdjustStock(ctx context.Context, assignmentID int64, delta int
 	if delta < 0 {
 		action = "STOCK_DEC"
 	}
-	audit.Log(ctx, s.queries, action, "PART", assignment.PartID, fmt.Sprintf("Adjusted stock by %d", delta), nil, nil)
+	audit.Log(ctx, s.queries, action, "PART", assignment.PartID, fmt.Sprintf("Adjusted stock by %d", delta), 
+		map[string]any{"quantity": assignment.Quantity}, 
+		map[string]any{"quantity": newQty})
 
 	return nil
 }
@@ -503,7 +569,9 @@ func (s *service) MoveStock(ctx context.Context, req MoveStockRequest) error {
 			return fmt.Errorf("failed to delete source stock after merge: %w", err)
 		}
 
-		audit.Log(ctx, qtx, "STOCK_MERGE", "PART", req.PartID, fmt.Sprintf("Merged stock into bin %d", req.TargetBinID), nil, nil)
+		audit.Log(ctx, qtx, "STOCK_MERGE", "PART", req.PartID, fmt.Sprintf("Merged stock into bin %d", req.TargetBinID), 
+			map[string]any{"bin_id": source.BinID.Int64, "quantity": source.Quantity},
+			map[string]any{"bin_id": req.TargetBinID, "quantity": newQty}) // newQty is total in target
 	} else {
 		s.logger.Debug("reassigning assignment to new bin")
 		err = qtx.ReassignPartAssignment(ctx, db.ReassignPartAssignmentParams{
@@ -514,19 +582,29 @@ func (s *service) MoveStock(ctx context.Context, req MoveStockRequest) error {
 			return fmt.Errorf("failed to move stock: %w", err)
 		}
 
-		audit.Log(ctx, qtx, "STOCK_MOVE", "PART", req.PartID, fmt.Sprintf("Moved stock to bin %d", req.TargetBinID), nil, nil)
+		audit.Log(ctx, qtx, "STOCK_MOVE", "PART", req.PartID, fmt.Sprintf("Moved stock to bin %d", req.TargetBinID), 
+			map[string]any{"bin_id": source.BinID.Int64}, 
+			map[string]any{"bin_id": req.TargetBinID})
 	}
 
 	return tx.Commit()
 }
 
 func (s *service) RemoveStock(ctx context.Context, req RemoveStockRequest) error {
-	err := s.queries.DeleteAssignment(ctx, req.AssignmentID)
+	assignment, err := s.queries.GetAssignment(ctx, req.AssignmentID)
+	if err == nil {
+		audit.Log(ctx, s.queries, "STOCK_REMOVE", "PART", req.PartID, "Removed stock", 
+			map[string]any{
+				"bin_id": assignment.BinID.Int64,
+				"quantity": assignment.Quantity,
+			}, nil)
+	}
+
+	err = s.queries.DeleteAssignment(ctx, req.AssignmentID)
 	if err != nil {
 		return err
 	}
 
-	audit.Log(ctx, s.queries, "STOCK_REMOVE", "PART", req.PartID, "Removed stock", nil, nil)
 	return nil
 }
 

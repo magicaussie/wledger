@@ -3,16 +3,21 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 
+	"github.com/alexedwards/scs/v2"
 	"github.com/go-chi/chi/v5"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/tuxedocurly/wledger/internal/db"
+	"github.com/tuxedocurly/wledger/internal/middleware"
 )
 
 // openTestDB opens an in-memory database with Foreign Keys enabled.
@@ -119,5 +124,102 @@ func TestControllerDeleteCascadesToBins(t *testing.T) {
 	}
 	if count != 0 {
 		t.Errorf("Ghost Bins Detected! Expected 0 total bins, got %d. They may have been orphaned.", count)
+	}
+}
+
+func TestHardwareAuditLogging(t *testing.T) {
+	// Setup
+	dbConn := openTestDB(t)
+	defer dbConn.Close()
+	setupTestSchema(t, dbConn)
+
+	queries := db.New(dbConn)
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	session := scs.New()
+
+	h := &Handler{
+		Logger:   logger,
+		Queries:  queries,
+		Database: dbConn,
+		Session:  session,
+	}
+
+	// Mock Admin Context
+	queries.CreateUser(context.Background(), db.CreateUserParams{Email: "admin@test.com", Role: "admin"})
+	ctx := context.WithValue(context.Background(), middleware.UserContextKey, int64(1))
+
+	// Create Controller
+	r := chi.NewRouter()
+	r.Post("/hardware", h.HandleHardwareCreate)
+
+	form := url.Values{}
+	form.Add("name", "Audit Ctrl")
+	form.Add("ip_address", "10.0.0.1")
+	form.Add("port", "80")
+
+	req := httptest.NewRequest(http.MethodPost, "/hardware", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+
+	// Verify Create Log
+	logs, _ := queries.GetAllAuditLogs(ctx)
+	if len(logs) != 1 {
+		t.Fatalf("expected 1 log after create, got %d", len(logs))
+	}
+	createLog := logs[0]
+	var createNew map[string]any
+	json.Unmarshal(createLog.NewValue, &createNew)
+	if createNew["name"] != "Audit Ctrl" || createNew["ip_address"] != "10.0.0.1" {
+		t.Errorf("expected summary in create log, got %s", string(createLog.NewValue))
+	}
+
+	// Update Grid (Grid Save)
+	ctrl, _ := queries.GetControllers(ctx)
+	id := ctrl[0].ID
+
+	r2 := chi.NewRouter()
+	r2.Post("/hardware/{id}/grid", h.HandleHardwareGridSave)
+
+	gridData := `[{"x":0,"y":0,"led_index":0,"name":"A1"}]`
+	configData := `{"type":"grid","rows":1,"cols":1}`
+	form2 := url.Values{}
+	form2.Add("grid_data", gridData)
+	form2.Add("config_data", configData)
+
+	req2 := httptest.NewRequest(http.MethodPost, "/hardware/"+strconv.Itoa(int(id))+"/grid", strings.NewReader(form2.Encode()))
+	req2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req2 = req2.WithContext(ctx)
+	rr2 := httptest.NewRecorder()
+	r2.ServeHTTP(rr2, req2)
+
+	logs, _ = queries.GetAllAuditLogs(ctx)
+	if len(logs) != 2 {
+		t.Fatalf("expected 2 logs after grid update, got %d", len(logs))
+	}
+	gridLog := logs[1]
+
+	if len(gridLog.NewValue) < 5 { // Check if empty
+		t.Errorf("expected rich log for grid update, got empty")
+	}
+
+	// Delete Controller
+	r3 := chi.NewRouter()
+	r3.Post("/hardware/{id}/delete", h.HandleHardwareDelete)
+	req3 := httptest.NewRequest(http.MethodPost, "/hardware/"+strconv.Itoa(int(id))+"/delete", nil)
+	req3 = req3.WithContext(ctx)
+	rr3 := httptest.NewRecorder()
+	r3.ServeHTTP(rr3, req3)
+
+	logs, _ = queries.GetAllAuditLogs(ctx)
+	if len(logs) != 3 {
+		t.Fatalf("expected 3 logs after delete, got %d", len(logs))
+	}
+	deleteLog := logs[2]
+	var deleteOld map[string]any
+	json.Unmarshal(deleteLog.OldValue, &deleteOld)
+	if deleteOld["name"] != "Audit Ctrl" {
+		t.Errorf("expected summary in delete log, got %s", string(deleteLog.OldValue))
 	}
 }
