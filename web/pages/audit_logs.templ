@@ -27,15 +27,15 @@ templ AuditLogs(user auth.User, logs []db.ListAuditLogsRow, users []db.ListUsers
 					<form action="/audit-logs" method="GET" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 items-end">
 						<div class="form-control">
 							<label class="label pt-0 pb-1">
-								<span class="label-text text-xs font-bold uppercase opacity-50">Search</span>
+								<span class="label-text text-md font-bold uppercase opacity-50">Search</span>
 							</label>
-							<input type="text" name="search" value={ filters.Search.String } class="input input-bordered input-sm w-full" placeholder="Search details..."/>
+							<input type="text" name="search" value={ filters.Search.String } class="input input-bordered input-md w-full" placeholder="Search details..."/>
 						</div>
 						<div class="form-control">
 							<label class="label pt-0 pb-1">
-								<span class="label-text text-xs font-bold uppercase opacity-50">Action</span>
+								<span class="label-text text-md font-bold uppercase opacity-50">Action</span>
 							</label>
-							<select name="action_type" class="select select-bordered select-sm w-full">
+							<select name="action_type" class="select select-bordered select-md w-full">
 								<option value="">All Actions</option>
 								<option value="CREATE" selected?={ filters.ActionType.String == "CREATE" }>CREATE</option>
 								<option value="UPDATE" selected?={ filters.ActionType.String == "UPDATE" }>UPDATE</option>
@@ -45,9 +45,9 @@ templ AuditLogs(user auth.User, logs []db.ListAuditLogsRow, users []db.ListUsers
 						</div>
 						<div class="form-control">
 							<label class="label pt-0 pb-1">
-								<span class="label-text text-xs font-bold uppercase opacity-50">User</span>
+								<span class="label-text text-md font-bold uppercase opacity-50">User</span>
 							</label>
-							<select name="user_id" class="select select-bordered select-sm w-full">
+							<select name="user_id" class="select select-bordered select-md w-full">
 								<option value="">All Users</option>
 								for _, u := range users {
 									<option value={ fmt.Sprintf("%d", u.ID) } selected?={ filters.UserID.Valid && filters.UserID.Int64 == u.ID }>{ u.Email }</option>
@@ -56,9 +56,9 @@ templ AuditLogs(user auth.User, logs []db.ListAuditLogsRow, users []db.ListUsers
 						</div>
 						<div class="form-control">
 							<label class="label pt-0 pb-1">
-								<span class="label-text text-xs font-bold uppercase opacity-50">Entity</span>
+								<span class="label-text text-md font-bold uppercase opacity-50">Entity</span>
 							</label>
-							<select name="entity_type" class="select select-bordered select-sm w-full">
+							<select name="entity_type" class="select select-bordered select-md w-full">
 								<option value="">All Entities</option>
 								<option value="PART" selected?={ filters.EntityType.String == "PART" }>PART</option>
 								<option value="BIN" selected?={ filters.EntityType.String == "BIN" }>BIN</option>
@@ -68,8 +68,8 @@ templ AuditLogs(user auth.User, logs []db.ListAuditLogsRow, users []db.ListUsers
 							</select>
 						</div>
 						<div class="flex gap-2 lg:col-span-2">
-							<button type="submit" class="btn btn-primary btn-sm flex-1">Filter</button>
-							<a href="/audit-logs" class="btn btn-ghost btn-sm">Reset</a>
+							<button type="submit" class="btn btn-primary btn-md flex-1">Filter</button>
+							<a href="/audit-logs" class="btn btn-outline btn-primary btn-md">Reset</a>
 						</div>
 					</form>
 				</div>

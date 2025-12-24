@@ -2554,6 +2554,18 @@
   .mx-auto {
     margin-inline: auto;
   }
+  .input-md {
+    @layer daisyui.l1.l2 {
+      --size: calc(var(--size-field, 0.25rem) * 10);
+      font-size: max(var(--font-size, 0.875rem), 0.875rem);
+      &[type="number"] {
+        &::-webkit-inner-spin-button {
+          margin-block: calc(0.25rem * -3);
+          margin-inline-end: calc(0.25rem * -3);
+        }
+      }
+    }
+  }
   .input-sm {
     @layer daisyui.l1.l2 {
       --size: calc(var(--size-field, 0.25rem) * 8);
@@ -3575,6 +3587,16 @@
       font-weight: 600;
     }
   }
+  .select-md {
+    @layer daisyui.l1.l2 {
+      --size: calc(var(--size-field, 0.25rem) * 10);
+      font-size: 0.875rem;
+      option {
+        padding-inline: calc(0.25rem * 3);
+        padding-block: calc(0.25rem * 1.5);
+      }
+    }
+  }
   .select-sm {
     @layer daisyui.l1.l2 {
       --size: calc(var(--size-field, 0.25rem) * 8);
@@ -4105,6 +4127,13 @@
           --btn-noise: none;
         }
       }
+    }
+  }
+  .btn-md {
+    @layer daisyui.l1.l2 {
+      --fontsize: 0.875rem;
+      --btn-p: 1rem;
+      --size: calc(var(--size-field, 0.25rem) * 10);
     }
   }
   .btn-sm {

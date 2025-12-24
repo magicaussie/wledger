@@ -72,7 +72,7 @@ func AuditLogs(user auth.User, logs []db.ListAuditLogsRow, users []db.ListUsersR
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<!-- Filters --><div class=\"card bg-base-200 shadow-sm border border-base-300 mb-6\"><div class=\"card-body p-4\"><form action=\"/audit-logs\" method=\"GET\" class=\"grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 items-end\"><div class=\"form-control\"><label class=\"label pt-0 pb-1\"><span class=\"label-text text-xs font-bold uppercase opacity-50\">Search</span></label> <input type=\"text\" name=\"search\" value=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<!-- Filters --><div class=\"card bg-base-200 shadow-sm border border-base-300 mb-6\"><div class=\"card-body p-4\"><form action=\"/audit-logs\" method=\"GET\" class=\"grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 items-end\"><div class=\"form-control\"><label class=\"label pt-0 pb-1\"><span class=\"label-text text-md font-bold uppercase opacity-50\">Search</span></label> <input type=\"text\" name=\"search\" value=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -85,7 +85,7 @@ func AuditLogs(user auth.User, logs []db.ListAuditLogsRow, users []db.ListUsersR
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\" class=\"input input-bordered input-sm w-full\" placeholder=\"Search details...\"></div><div class=\"form-control\"><label class=\"label pt-0 pb-1\"><span class=\"label-text text-xs font-bold uppercase opacity-50\">Action</span></label> <select name=\"action_type\" class=\"select select-bordered select-sm w-full\"><option value=\"\">All Actions</option> <option value=\"CREATE\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\" class=\"input input-bordered input-md w-full\" placeholder=\"Search details...\"></div><div class=\"form-control\"><label class=\"label pt-0 pb-1\"><span class=\"label-text text-md font-bold uppercase opacity-50\">Action</span></label> <select name=\"action_type\" class=\"select select-bordered select-md w-full\"><option value=\"\">All Actions</option> <option value=\"CREATE\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -125,7 +125,7 @@ func AuditLogs(user auth.User, logs []db.ListAuditLogsRow, users []db.ListUsersR
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, ">ADJUST_STOCK</option></select></div><div class=\"form-control\"><label class=\"label pt-0 pb-1\"><span class=\"label-text text-xs font-bold uppercase opacity-50\">User</span></label> <select name=\"user_id\" class=\"select select-bordered select-sm w-full\"><option value=\"\">All Users</option> ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, ">ADJUST_STOCK</option></select></div><div class=\"form-control\"><label class=\"label pt-0 pb-1\"><span class=\"label-text text-md font-bold uppercase opacity-50\">User</span></label> <select name=\"user_id\" class=\"select select-bordered select-md w-full\"><option value=\"\">All Users</option> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -171,7 +171,7 @@ func AuditLogs(user auth.User, logs []db.ListAuditLogsRow, users []db.ListUsersR
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "</select></div><div class=\"form-control\"><label class=\"label pt-0 pb-1\"><span class=\"label-text text-xs font-bold uppercase opacity-50\">Entity</span></label> <select name=\"entity_type\" class=\"select select-bordered select-sm w-full\"><option value=\"\">All Entities</option> <option value=\"PART\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "</select></div><div class=\"form-control\"><label class=\"label pt-0 pb-1\"><span class=\"label-text text-md font-bold uppercase opacity-50\">Entity</span></label> <select name=\"entity_type\" class=\"select select-bordered select-md w-full\"><option value=\"\">All Entities</option> <option value=\"PART\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -221,7 +221,7 @@ func AuditLogs(user auth.User, logs []db.ListAuditLogsRow, users []db.ListUsersR
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, ">SETTINGS</option></select></div><div class=\"flex gap-2 lg:col-span-2\"><button type=\"submit\" class=\"btn btn-primary btn-sm flex-1\">Filter</button> <a href=\"/audit-logs\" class=\"btn btn-ghost btn-sm\">Reset</a></div></form></div></div><!-- Logs Table --><div class=\"card bg-base-100 shadow-xl border border-base-300 overflow-hidden\"><div class=\"overflow-x-auto\"><table class=\"table table-zebra w-full\"><thead><tr class=\"bg-base-200\"><th>Timestamp</th><th>User</th><th>Action</th><th>Entity</th><th>Details</th><th class=\"text-right\">Data</th></tr></thead> <tbody>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, ">SETTINGS</option></select></div><div class=\"flex gap-2 lg:col-span-2\"><button type=\"submit\" class=\"btn btn-primary btn-md flex-1\">Filter</button> <a href=\"/audit-logs\" class=\"btn btn-outline btn-primary btn-md\">Reset</a></div></form></div></div><!-- Logs Table --><div class=\"card bg-base-100 shadow-xl border border-base-300 overflow-hidden\"><div class=\"overflow-x-auto\"><table class=\"table table-zebra w-full\"><thead><tr class=\"bg-base-200\"><th>Timestamp</th><th>User</th><th>Action</th><th>Entity</th><th>Details</th><th class=\"text-right\">Data</th></tr></thead> <tbody>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
