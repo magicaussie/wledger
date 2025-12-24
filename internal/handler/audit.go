@@ -29,7 +29,7 @@ func (h *Handler) HandleAuditLogs(w http.ResponseWriter, r *http.Request) {
 
 	limit, _ := strconv.Atoi(q.Get("limit"))
 	if limit < 1 {
-		limit = 50
+		limit = 20
 	}
 	if limit > 100 {
 		limit = 100
@@ -65,7 +65,7 @@ func (h *Handler) HandleAuditLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Count for pagination
+	// Count for pagination (Legacy support, maybe can remove if template doesn't use it)
 	countParams := db.CountAuditLogsParams{
 		ActionType: params.ActionType,
 		EntityType: params.EntityType,
@@ -84,5 +84,10 @@ func (h *Handler) HandleAuditLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Render Template
+	if q.Get("scroll") == "true" {
+		pages.AuditLogRows(logs, params, page).Render(r.Context(), w)
+		return
+	}
+
 	pages.AuditLogs(user, logs, users, params, totalCount, page).Render(r.Context(), w)
 }

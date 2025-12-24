@@ -114,4 +114,52 @@ func TestHandleAuditLogs(t *testing.T) {
 	if rr.Code != http.StatusForbidden {
 		t.Errorf("expected 403 Forbidden for viewer, got %d", rr.Code)
 	}
+
+	// Test: Infinite Scroll Partial Render
+	req = httptest.NewRequest(http.MethodGet, "/audit-logs?scroll=true", nil)
+	ctx = auth.WithUser(req.Context(), auth.User{ID: admin.ID, Role: "admin"})
+	req = req.WithContext(ctx)
+
+	rr = httptest.NewRecorder()
+	h.HandleAuditLogs(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected 200 OK, got %d", rr.Code)
+	}
+	body = rr.Body.String()
+	// Should contain rows but NOT the full page header
+	if !strings.Contains(body, "Created Part") {
+		t.Errorf("expected HTML to contain log entries")
+	}
+	if strings.Contains(body, "<html") || strings.Contains(body, "<!DOCTYPE html>") {
+		t.Errorf("expected partial HTML, but got full page wrapper")
+	}
+
+	// Test: Default Batch Size
+	// Create > 20 logs to verify default limit
+	for i := 0; i < 25; i++ {
+		_ = queries.CreateAuditLog(ctx, db.CreateAuditLogParams{
+			ActionType: "UPDATE",
+			EntityType: "PART",
+			EntityID:   int64(i + 100),
+			Details:    sql.NullString{String: "Bulk Log", Valid: true},
+			OldValue:   []byte("{}"),
+			NewValue:   []byte("{}"),
+		})
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/audit-logs", nil)
+	ctx = auth.WithUser(req.Context(), auth.User{ID: admin.ID, Role: "admin"})
+	req = req.WithContext(ctx)
+
+	rr = httptest.NewRecorder()
+	h.HandleAuditLogs(rr, req)
+
+	body = rr.Body.String()
+	// Count occurrences of "Bulk Log"
+	count := strings.Count(body, "Bulk Log")
+
+	if count > 20 {
+		t.Errorf("expected default limit of 20, but found %d items", count)
+	}
 }

@@ -88,72 +88,75 @@ templ AuditLogs(user auth.User, logs []db.ListAuditLogsRow, users []db.ListUsers
 								<th class="text-right">Data</th>
 							</tr>
 						</thead>
-						<tbody>
-							for _, log := range logs {
-								<tr class="hover">
-									<td class="text-xs whitespace-nowrap">
-										if log.CreatedAt.Valid {
-											{ log.CreatedAt.Time.Format("2006-01-02 15:04:05") }
-										}
-									</td>
-									<td>
-										<div class="flex flex-col">
-											<span class="text-sm font-medium">{ log.UserEmail.String }</span>
-										</div>
-									</td>
-									<td>
-										<span class={ "badge badge-sm font-mono " + getActionBadgeClass(log.ActionType) }>
-											{ log.ActionType }
-										</span>
-									</td>
-									<td>
-										<div class="flex flex-col text-xs">
-											<span class="opacity-50">{ log.EntityType }</span>
-											<span class="font-mono">ID: { fmt.Sprintf("%d", log.EntityID) }</span>
-										</div>
-									</td>
-									<td class="max-w-xs truncate text-sm">
-										{ log.Details.String }
-									</td>
-									<td class="text-right">
-										<button
-											class="btn btn-ghost btn-xs"
-											onclick={ openAuditDetail(log.ID, string(log.OldValue), string(log.NewValue)) }
-										>
-											@icons.EyeIcon(5)
-											View
-										</button>
-									</td>
-								</tr>
-							}
-							if len(logs) == 0 {
-								<tr>
-									<td colspan="6" class="text-center py-12 opacity-50">
-										No audit logs found matching your filters.
-									</td>
-								</tr>
-							}
+						<tbody id="audit-logs-table-body">
+							@AuditLogRows(logs, filters, currentPage)
 						</tbody>
 					</table>
 				</div>
 			</div>
-			<!-- Pagination -->
-			if totalCount > filters.Limit {
-				<div class="flex justify-center mt-8 pb-12">
-					<div class="join">
-						for i := 1; i <= int((totalCount + filters.Limit - 1) / filters.Limit); i++ {
-							<a
-								href={ templ.SafeURL(fmt.Sprintf("/audit-logs?page=%d&%s", i, getFilterQuery(filters))) }
-								class={ "join-item", "btn", "btn-sm", templ.KV("btn-active", i == currentPage) }
-							>
-								{ fmt.Sprintf("%d", i) }
-							</a>
-						}
-					</div>
-				</div>
-			}
+			<!-- Infinite Scroll Sentinel is inside AuditLogRows -->
 		</div>
 		@components.AuditDetailModal()
+	}
+}
+
+templ AuditLogRows(logs []db.ListAuditLogsRow, filters db.ListAuditLogsParams, currentPage int) {
+	for _, log := range logs {
+		<tr class="hover">
+			<td class="text-xs whitespace-nowrap">
+				if log.CreatedAt.Valid {
+					{ log.CreatedAt.Time.Format("2006-01-02 15:04:05") }
+				}
+			</td>
+			<td>
+				<div class="flex flex-col">
+					<span class="text-sm font-medium">{ log.UserEmail.String }</span>
+				</div>
+			</td>
+			<td>
+				<span class={ "badge badge-sm font-mono " + getActionBadgeClass(log.ActionType) }>
+					{ log.ActionType }
+				</span>
+			</td>
+			<td>
+				<div class="flex flex-col text-xs">
+					<span class="opacity-50">{ log.EntityType }</span>
+					<span class="font-mono">ID: { fmt.Sprintf("%d", log.EntityID) }</span>
+				</div>
+			</td>
+			<td class="max-w-xs truncate text-sm">
+				{ log.Details.String }
+			</td>
+			<td class="text-right">
+				<button
+					class="btn btn-ghost btn-xs"
+					onclick={ openAuditDetail(log.ID, string(log.OldValue), string(log.NewValue)) }
+				>
+					@icons.EyeIcon(5)
+					View
+				</button>
+			</td>
+		</tr>
+	}
+	if len(logs) == 0 && currentPage == 1 {
+		<tr>
+			<td colspan="6" class="text-center py-12 opacity-50">
+				No audit logs found matching your filters.
+			</td>
+		</tr>
+	}
+	// Sentinel for infinite scroll
+	// If we got a full batch (20), assume there might be more
+	if len(logs) >= 20 {
+		<tr
+			hx-get={ templ.SafeURL(fmt.Sprintf("/audit-logs?page=%d&scroll=true&%s", currentPage+1, getFilterQuery(filters))) }
+			hx-trigger="intersect once"
+			hx-swap="outerHTML"
+		>
+			<td colspan="6" class="text-center py-4">
+				<span class="loading loading-dots loading-md opacity-50"></span>
+			</td>
+		</tr>
 	}
 }
 
