@@ -142,19 +142,25 @@ templ NavLinks(user auth.User) {
 	<li>
 		<a href="/">
 			@icons.FourBoxesIcon(5)
-			Dashboard
+			<span class="ml-3">
+				Dashboard
+			</span>
 		</a>
 	</li>
 	<li>
 		<a href="/parts">
 			@icons.BoxIcon(5)
-			Inventory
+			<span class="ml-3">
+				Inventory
+			</span>
 		</a>
 	</li>
 	<li>
 		<a href="/inspiration">
 			@icons.LightbulbIcon(5)
-			Inspiration
+			<span class="ml-3">
+				Inspiration
+			</span>
 		</a>
 	</li>
 	if user.CanConfigure() {
@@ -162,19 +168,25 @@ templ NavLinks(user auth.User) {
 		<li>
 			<a href="/hardware" hx-boost="false">
 				@icons.MicrochipIcon(5)
-				Hardware
+				<span class="ml-3">
+					Hardware
+				</span>
 			</a>
 		</li>
 		<li>
 			<a href="/audit-logs">
 				@icons.ClipboardIcon(5)
-				Audit Logs
+				<span class="ml-3">
+					Audit Logs
+				</span>
 			</a>
 		</li>
 		<li>
 			<a href="/settings">
 				@icons.GearIcon(5)
-				Settings
+				<span class="ml-3">
+					Settings
+				</span>
 			</a>
 		</li>
 	}
