@@ -1,0 +1,72 @@
+package components
+
+templ AuditDetailModal() {
+	@Modal(ModalProps{
+		ID:       "audit_detail_modal",
+		Title:    "Audit Log Detail",
+		BoxClass: "max-w-5xl",
+	}) {
+		<div id="audit-detail-content" class="space-y-6">
+			<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+				<div class="space-y-2">
+					<h4 class="text-xs font-bold uppercase opacity-50 flex items-center gap-2">
+						<div class="w-2 h-2 rounded-full bg-error"></div>
+						Old Value
+					</h4>
+					<div class="relative group">
+						<pre id="audit-detail-old" class="bg-base-200 p-4 rounded-lg overflow-x-auto text-[10px] font-mono min-h-[200px] border border-base-300"></pre>
+						<button
+							class="btn btn-xs btn-ghost absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+							onclick="copyToClipboard('audit-detail-old')"
+						>
+							Copy
+						</button>
+					</div>
+				</div>
+				<div class="space-y-2">
+					<h4 class="text-xs font-bold uppercase opacity-50 flex items-center gap-2">
+						<div class="w-2 h-2 rounded-full bg-success"></div>
+						New Value
+					</h4>
+					<div class="relative group">
+						<pre id="audit-detail-new" class="bg-base-200 p-4 rounded-lg overflow-x-auto text-[10px] font-mono min-h-[200px] border border-base-300"></pre>
+						<button
+							class="btn btn-xs btn-ghost absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+							onclick="copyToClipboard('audit-detail-new')"
+						>
+							Copy
+						</button>
+					</div>
+				</div>
+			</div>
+		</div>
+		<div class="modal-action">
+			<button class="btn btn-ghost" onclick="audit_detail_modal.close()">Close</button>
+		</div>
+		<script>
+            function copyToClipboard(id) {
+                const text = document.getElementById(id).textContent;
+                navigator.clipboard.writeText(text);
+            }
+
+            window.addEventListener('open-audit-detail', (e) => {
+                const { id, oldVal, newVal } = e.detail;
+                
+                const formatJson = (val) => {
+                    if (!val || val === "null" || val === "{}") return "{}";
+                    try {
+                        const obj = JSON.parse(val);
+                        return JSON.stringify(obj, null, 2);
+                    } catch(e) {
+                        return val;
+                    }
+                };
+
+                document.getElementById('audit-detail-old').textContent = formatJson(oldVal);
+                document.getElementById('audit-detail-new').textContent = formatJson(newVal);
+                
+                audit_detail_modal.showModal();
+            });
+		</script>
+	}
+}

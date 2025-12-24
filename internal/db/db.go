@@ -30,6 +30,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.cleanupSessionsStmt, err = db.PrepareContext(ctx, cleanupSessions); err != nil {
 		return nil, fmt.Errorf("error preparing query CleanupSessions: %w", err)
 	}
+	if q.countAuditLogsStmt, err = db.PrepareContext(ctx, countAuditLogs); err != nil {
+		return nil, fmt.Errorf("error preparing query CountAuditLogs: %w", err)
+	}
 	if q.countUsersStmt, err = db.PrepareContext(ctx, countUsers); err != nil {
 		return nil, fmt.Errorf("error preparing query CountUsers: %w", err)
 	}
@@ -207,6 +210,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.listAllTagsStmt, err = db.PrepareContext(ctx, listAllTags); err != nil {
 		return nil, fmt.Errorf("error preparing query ListAllTags: %w", err)
 	}
+	if q.listAuditLogsStmt, err = db.PrepareContext(ctx, listAuditLogs); err != nil {
+		return nil, fmt.Errorf("error preparing query ListAuditLogs: %w", err)
+	}
 	if q.listPartsStmt, err = db.PrepareContext(ctx, listParts); err != nil {
 		return nil, fmt.Errorf("error preparing query ListParts: %w", err)
 	}
@@ -307,6 +313,11 @@ func (q *Queries) Close() error {
 	if q.cleanupSessionsStmt != nil {
 		if cerr := q.cleanupSessionsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing cleanupSessionsStmt: %w", cerr)
+		}
+	}
+	if q.countAuditLogsStmt != nil {
+		if cerr := q.countAuditLogsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing countAuditLogsStmt: %w", cerr)
 		}
 	}
 	if q.countUsersStmt != nil {
@@ -604,6 +615,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing listAllTagsStmt: %w", cerr)
 		}
 	}
+	if q.listAuditLogsStmt != nil {
+		if cerr := q.listAuditLogsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listAuditLogsStmt: %w", cerr)
+		}
+	}
 	if q.listPartsStmt != nil {
 		if cerr := q.listPartsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing listPartsStmt: %w", cerr)
@@ -790,6 +806,7 @@ type Queries struct {
 	tx                                 *sql.Tx
 	addTagToPartStmt                   *sql.Stmt
 	cleanupSessionsStmt                *sql.Stmt
+	countAuditLogsStmt                 *sql.Stmt
 	countUsersStmt                     *sql.Stmt
 	createAuditLogStmt                 *sql.Stmt
 	createBinStmt                      *sql.Stmt
@@ -849,6 +866,7 @@ type Queries struct {
 	getUserByEmailStmt                 *sql.Stmt
 	initSettingsStmt                   *sql.Stmt
 	listAllTagsStmt                    *sql.Stmt
+	listAuditLogsStmt                  *sql.Stmt
 	listPartsStmt                      *sql.Stmt
 	listUsersStmt                      *sql.Stmt
 	markInspirationSeedsAppliedStmt    *sql.Stmt
@@ -886,6 +904,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		tx:                                 tx,
 		addTagToPartStmt:                   q.addTagToPartStmt,
 		cleanupSessionsStmt:                q.cleanupSessionsStmt,
+		countAuditLogsStmt:                 q.countAuditLogsStmt,
 		countUsersStmt:                     q.countUsersStmt,
 		createAuditLogStmt:                 q.createAuditLogStmt,
 		createBinStmt:                      q.createBinStmt,
@@ -945,6 +964,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		getUserByEmailStmt:                 q.getUserByEmailStmt,
 		initSettingsStmt:                   q.initSettingsStmt,
 		listAllTagsStmt:                    q.listAllTagsStmt,
+		listAuditLogsStmt:                  q.listAuditLogsStmt,
 		listPartsStmt:                      q.listPartsStmt,
 		listUsersStmt:                      q.listUsersStmt,
 		markInspirationSeedsAppliedStmt:    q.markInspirationSeedsAppliedStmt,

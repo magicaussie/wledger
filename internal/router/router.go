@@ -127,6 +127,9 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 		r.Group(func(r chi.Router) {
 			r.Use(mw.RequireRole("admin"))
 
+			// Audit Logs
+			r.Get("/audit-logs", h.HandleAuditLogs)
+
 			// Hardware Configuration
 			r.Post("/hardware", h.HandleHardwareCreate)
 			r.Post("/hardware/{id}/delete", h.HandleHardwareDelete)

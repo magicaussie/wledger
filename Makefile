@@ -42,6 +42,8 @@ dev-tailwind:
 # Watch Go Server
 .PHONY: dev-server
 dev-server:
+# Give Templ/Tailwind a moment to grab locks/ports
+	@sleep 2
 	air -c air.toml
 
 # Generate all code (useful after git pull or initial setup)

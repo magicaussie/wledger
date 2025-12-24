@@ -55,9 +55,11 @@ func TestSeedTemplates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get templates: %v", err)
 	}
-	if len(templates) != 6 {
-		t.Errorf("expected 6 templates to be seeded, got %d", len(templates))
+	// IF-CHANGE:
+	if len(templates) != 3 {
+		t.Errorf("expected 3 templates to be seeded, got %d", len(templates))
 	}
+	// THEN-CHANGE: ./internal/inspiration/templates/
 
 	// Verify flag is set
 	settings, err := q.GetSettings(ctx)

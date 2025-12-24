@@ -8,6 +8,10 @@ tmp_dir = "tmp"
   # The binary to run
   bin = "./tmp/main"
   
+  # Delay in milliseconds after a file change before building.
+  # This allows Templ to finish writing all files.
+  delay = 1000
+
   # Ignore these to prevent loops
   exclude_dir = ["assets", "tmp", "vendor", "node_modules", "web/static", ".git"]
   

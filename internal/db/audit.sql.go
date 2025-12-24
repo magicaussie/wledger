@@ -11,6 +11,41 @@ import (
 	"encoding/json"
 )
 
+const countAuditLogs = `-- name: CountAuditLogs :one
+
+SELECT COUNT(*) FROM audit_logs al
+WHERE 
+    (al.action_type = ?1 OR ?1 IS NULL) AND
+    (al.entity_type = ?2 OR ?2 IS NULL) AND
+    (al.user_id = ?3 OR ?3 IS NULL) AND
+    (al.details LIKE '%' || ?4 || '%' OR ?4 IS NULL) AND
+    (al.created_at >= ?5 OR ?5 IS NULL) AND
+    (al.created_at <= ?6 OR ?6 IS NULL)
+`
+
+type CountAuditLogsParams struct {
+	ActionType sql.NullString `json:"action_type"`
+	EntityType sql.NullString `json:"entity_type"`
+	UserID     sql.NullInt64  `json:"user_id"`
+	Search     sql.NullString `json:"search"`
+	StartDate  sql.NullTime   `json:"start_date"`
+	EndDate    sql.NullTime   `json:"end_date"`
+}
+
+func (q *Queries) CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error) {
+	row := q.queryRow(ctx, q.countAuditLogsStmt, countAuditLogs,
+		arg.ActionType,
+		arg.EntityType,
+		arg.UserID,
+		arg.Search,
+		arg.StartDate,
+		arg.EndDate,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createAuditLog = `-- name: CreateAuditLog :exec
 INSERT INTO audit_logs (
     user_id, action_type, entity_type, entity_id, details, old_value, new_value
@@ -65,6 +100,99 @@ func (q *Queries) GetAllAuditLogs(ctx context.Context) ([]AuditLog, error) {
 			&i.OldValue,
 			&i.NewValue,
 			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAuditLogs = `-- name: ListAuditLogs :many
+
+SELECT 
+    al.id, 
+    al.user_id, 
+    al.action_type, 
+    al.entity_type, 
+    al.entity_id, 
+    al.details, 
+    CAST(COALESCE(al.old_value, '{}') AS BLOB) AS old_value, 
+    CAST(COALESCE(al.new_value, '{}') AS BLOB) AS new_value, 
+    al.created_at,
+    u.email as user_email
+FROM audit_logs al
+LEFT JOIN users u ON al.user_id = u.id
+WHERE 
+    (al.action_type = ?1 OR ?1 IS NULL) AND
+    (al.entity_type = ?2 OR ?2 IS NULL) AND
+    (al.user_id = ?3 OR ?3 IS NULL) AND
+    (al.details LIKE '%' || ?4 || '%' OR ?4 IS NULL) AND
+    (al.created_at >= ?5 OR ?5 IS NULL) AND
+    (al.created_at <= ?6 OR ?6 IS NULL)
+ORDER BY al.created_at DESC
+LIMIT ?8 OFFSET ?7
+`
+
+type ListAuditLogsParams struct {
+	ActionType sql.NullString `json:"action_type"`
+	EntityType sql.NullString `json:"entity_type"`
+	UserID     sql.NullInt64  `json:"user_id"`
+	Search     sql.NullString `json:"search"`
+	StartDate  sql.NullTime   `json:"start_date"`
+	EndDate    sql.NullTime   `json:"end_date"`
+	Offset     int64          `json:"offset"`
+	Limit      int64          `json:"limit"`
+}
+
+type ListAuditLogsRow struct {
+	ID         int64          `json:"id"`
+	UserID     sql.NullInt64  `json:"user_id"`
+	ActionType string         `json:"action_type"`
+	EntityType string         `json:"entity_type"`
+	EntityID   int64          `json:"entity_id"`
+	Details    sql.NullString `json:"details"`
+	OldValue   []byte         `json:"old_value"`
+	NewValue   []byte         `json:"new_value"`
+	CreatedAt  sql.NullTime   `json:"created_at"`
+	UserEmail  sql.NullString `json:"user_email"`
+}
+
+func (q *Queries) ListAuditLogs(ctx context.Context, arg ListAuditLogsParams) ([]ListAuditLogsRow, error) {
+	rows, err := q.query(ctx, q.listAuditLogsStmt, listAuditLogs,
+		arg.ActionType,
+		arg.EntityType,
+		arg.UserID,
+		arg.Search,
+		arg.StartDate,
+		arg.EndDate,
+		arg.Offset,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAuditLogsRow
+	for rows.Next() {
+		var i ListAuditLogsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.ActionType,
+			&i.EntityType,
+			&i.EntityID,
+			&i.Details,
+			&i.OldValue,
+			&i.NewValue,
+			&i.CreatedAt,
+			&i.UserEmail,
 		); err != nil {
 			return nil, err
 		}

@@ -12,6 +12,7 @@ import (
 type Querier interface {
 	AddTagToPart(ctx context.Context, arg AddTagToPartParams) error
 	CleanupSessions(ctx context.Context, expiry float64) error
+	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
 	CountUsers(ctx context.Context) (int64, error)
 	CreateAuditLog(ctx context.Context, arg CreateAuditLogParams) error
 	CreateBin(ctx context.Context, arg CreateBinParams) (int64, error)
@@ -75,6 +76,7 @@ type Querier interface {
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	InitSettings(ctx context.Context) error
 	ListAllTags(ctx context.Context) ([]Tag, error)
+	ListAuditLogs(ctx context.Context, arg ListAuditLogsParams) ([]ListAuditLogsRow, error)
 	ListParts(ctx context.Context, arg ListPartsParams) ([]ListPartsRow, error)
 	ListUsers(ctx context.Context) ([]ListUsersRow, error)
 	MarkInspirationSeedsApplied(ctx context.Context) error
