@@ -26,6 +26,7 @@ import (
 	"github.com/tuxedocurly/wledger/internal/images"
 	"github.com/tuxedocurly/wledger/internal/parts"
 	"github.com/tuxedocurly/wledger/internal/tags"
+	"github.com/tuxedocurly/wledger/internal/uierror"
 )
 
 // Reusing setup logic from Handler_hardware_test.go
@@ -47,6 +48,7 @@ func setupPartTest(t *testing.T) (*Handler, *sql.DB) {
 	_ = images.Init()
 
 	s := db.NewStore(dbConn)
+	uiError := uierror.New(logger)
 
 	tagsService := tags.NewService(dbConn, s)
 	partsService := parts.NewService(dbConn, s, logger, tagsService)
@@ -57,6 +59,7 @@ func setupPartTest(t *testing.T) (*Handler, *sql.DB) {
 		Database: dbConn,
 		Parts:    partsService,
 		Tags:     tagsService,
+		UIError:  uiError,
 	}
 
 	return h, dbConn

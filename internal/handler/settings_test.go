@@ -17,6 +17,7 @@ import (
 	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/middleware"
+	"github.com/tuxedocurly/wledger/internal/uierror"
 )
 
 func TestHandleSettingsUpdate(t *testing.T) {
@@ -27,6 +28,7 @@ func TestHandleSettingsUpdate(t *testing.T) {
 	s := db.NewStore(dbConn)
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	session := scs.New()
+	uiError := uierror.New(logger)
 
 	// Initialize settings
 	s.InitSettings(context.Background())
@@ -36,6 +38,7 @@ func TestHandleSettingsUpdate(t *testing.T) {
 		Queries:  s,
 		Database: dbConn,
 		Session:  session,
+		UIError:  uiError,
 	}
 
 	// Verify initial state (should be false)
@@ -84,12 +87,14 @@ func TestSettingsAuditLogging(t *testing.T) {
 	s := db.NewStore(dbConn)
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	session := scs.New()
+	uiError := uierror.New(logger)
 
 	h := &Handler{
 		Logger:   logger,
 		Queries:  s,
 		Database: dbConn,
 		Session:  session,
+		UIError:  uiError,
 	}
 
 	s.InitSettings(context.Background())

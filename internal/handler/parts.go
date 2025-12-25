@@ -89,8 +89,7 @@ func (h *Handler) HandlePartsList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
-		h.Logger.Error("failed to fetch parts", "err", err)
-		http.Error(w, "Database error", http.StatusInternalServerError)
+		h.UIError.Respond(w, r, err, "Failed to fetch parts", http.StatusInternalServerError)
 		return
 	}
 
@@ -111,8 +110,7 @@ func (h *Handler) HandlePartDetail(w http.ResponseWriter, r *http.Request) {
 
 	p, err := h.Queries.GetPart(r.Context(), int64(id))
 	if err != nil {
-		h.Logger.Error("failed to fetch part detail", "err", err, "part_id", id)
-		http.Error(w, "Part not found", http.StatusNotFound)
+		h.UIError.Respond(w, r, err, "Part not found", http.StatusNotFound)
 		return
 	}
 
@@ -137,9 +135,9 @@ func (h *Handler) HandlePartsNew(w http.ResponseWriter, r *http.Request) {
 
 // POST /parts
 func (h *Handler) HandlePartsCreate(w http.ResponseWriter, r *http.Request) {
-	err := r.ParseMultipartForm(config.MaxUploadSizeParts) // 100MB
+	err := r.ParseMultipartForm(config.MaxUploadSizeParts)
 	if err != nil {
-		http.Error(w, "Request too large", http.StatusBadRequest)
+		h.UIError.Respond(w, r, err, "Request too large", http.StatusBadRequest)
 		return
 	}
 	defer r.MultipartForm.RemoveAll()
@@ -205,10 +203,9 @@ func (h *Handler) HandlePartsCreate(w http.ResponseWriter, r *http.Request) {
 	newID, err := h.Parts.CreatePart(r.Context(), req)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
-			http.Error(w, "Part already exists (check barcode)", http.StatusConflict)
+			h.UIError.Respond(w, r, err, "Part already exists (check barcode)", http.StatusConflict)
 		} else {
-			h.Logger.Error("failed to create part", "err", err)
-			http.Error(w, "Database error", http.StatusInternalServerError)
+			h.UIError.Respond(w, r, err, "Failed to create part", http.StatusInternalServerError)
 		}
 		return
 	}
@@ -223,8 +220,7 @@ func (h *Handler) HandlePartEdit(w http.ResponseWriter, r *http.Request) {
 
 	p, err := h.Queries.GetPart(r.Context(), int64(id))
 	if err != nil {
-		h.Logger.Error("failed to fetch part for edit", "err", err, "part_id", id)
-		http.Error(w, "Part not found", http.StatusNotFound)
+		h.UIError.Respond(w, r, err, "Part not found", http.StatusNotFound)
 		return
 	}
 
@@ -242,7 +238,7 @@ func (h *Handler) HandlePartUpdate(w http.ResponseWriter, r *http.Request) {
 
 	err := r.ParseMultipartForm(config.MaxUploadSizeParts)
 	if err != nil {
-		http.Error(w, "Request too large", http.StatusBadRequest)
+		h.UIError.Respond(w, r, err, "Request too large", http.StatusBadRequest)
 		return
 	}
 	defer r.MultipartForm.RemoveAll()
@@ -327,8 +323,7 @@ func (h *Handler) HandlePartUpdate(w http.ResponseWriter, r *http.Request) {
 
 	err = h.Parts.UpdatePart(r.Context(), req)
 	if err != nil {
-		h.Logger.Error("failed to update part", "err", err)
-		http.Error(w, "Update failed", http.StatusInternalServerError)
+		h.UIError.Respond(w, r, err, "Failed to update part", http.StatusInternalServerError)
 		return
 	}
 
@@ -342,8 +337,7 @@ func (h *Handler) HandlePartDelete(w http.ResponseWriter, r *http.Request) {
 
 	err := h.Parts.DeletePart(r.Context(), partID)
 	if err != nil {
-		h.Logger.Error("failed to delete part", "err", err)
-		http.Error(w, "Delete failed", http.StatusInternalServerError)
+		h.UIError.Respond(w, r, err, "Failed to delete part", http.StatusInternalServerError)
 		return
 	}
 
@@ -395,7 +389,7 @@ func (h *Handler) HandlePartAssign(w http.ResponseWriter, r *http.Request) {
 	qty, _ := strconv.Atoi(r.FormValue("quantity"))
 
 	if binID == 0 || qty <= 0 {
-		http.Error(w, "Invalid input", http.StatusBadRequest)
+		h.UIError.Respond(w, r, nil, "Invalid input: positive quantity and valid bin required", http.StatusBadRequest)
 		return
 	}
 
@@ -406,8 +400,7 @@ func (h *Handler) HandlePartAssign(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		h.Logger.Error("failed to assign stock", "err", err)
-		http.Error(w, "Database error", http.StatusInternalServerError)
+		h.UIError.Respond(w, r, err, "Failed to assign stock", http.StatusInternalServerError)
 		return
 	}
 
@@ -420,7 +413,7 @@ func (h *Handler) HandlePartStockMove(w http.ResponseWriter, r *http.Request) {
 	targetBinID, _ := strconv.Atoi(r.FormValue("bin_id"))
 
 	if targetBinID == 0 {
-		http.Error(w, "Invalid target bin", http.StatusBadRequest)
+		h.UIError.Respond(w, r, nil, "Invalid target bin", http.StatusBadRequest)
 		return
 	}
 
@@ -431,8 +424,7 @@ func (h *Handler) HandlePartStockMove(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		h.Logger.Error("failed to move stock", "err", err)
-		http.Error(w, "Move failed", http.StatusInternalServerError)
+		h.UIError.Respond(w, r, err, "Failed to move stock", http.StatusInternalServerError)
 		return
 	}
 
@@ -449,8 +441,7 @@ func (h *Handler) HandlePartStockRemove(w http.ResponseWriter, r *http.Request) 
 	})
 
 	if err != nil {
-		h.Logger.Error("failed to remove stock", "err", err)
-		http.Error(w, "Database error", http.StatusInternalServerError)
+		h.UIError.Respond(w, r, err, "Failed to remove stock", http.StatusInternalServerError)
 		return
 	}
 
@@ -463,14 +454,13 @@ func (h *Handler) HandlePartStockAdjust(w http.ResponseWriter, r *http.Request) 
 	delta, _ := strconv.Atoi(r.URL.Query().Get("delta"))
 
 	if delta == 0 {
-		http.Error(w, "Invalid delta", http.StatusBadRequest)
+		h.UIError.Respond(w, r, nil, "Invalid delta", http.StatusBadRequest)
 		return
 	}
 
 	err := h.Parts.AdjustStock(r.Context(), int64(assignmentID), delta)
 	if err != nil {
-		h.Logger.Error("failed to adjust stock", "err", err)
-		http.Error(w, "Adjustment failed", http.StatusInternalServerError)
+		h.UIError.Respond(w, r, err, "Failed to adjust stock", http.StatusInternalServerError)
 		return
 	}
 
@@ -526,8 +516,7 @@ func (h *Handler) HandlePartLocate(w http.ResponseWriter, r *http.Request) {
 	// Get all assignments
 	assignments, err := h.Queries.GetPartAssignments(r.Context(), int64(id))
 	if err != nil {
-		h.Logger.Error("failed to get part assignments", "err", err)
-		http.Error(w, "Database error", http.StatusInternalServerError)
+		h.UIError.Respond(w, r, err, "Failed to fetch part locations", http.StatusInternalServerError)
 		return
 	}
 

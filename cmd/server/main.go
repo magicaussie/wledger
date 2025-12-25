@@ -20,6 +20,7 @@ import (
 	"github.com/tuxedocurly/wledger/internal/parts"
 	"github.com/tuxedocurly/wledger/internal/router"
 	"github.com/tuxedocurly/wledger/internal/tags"
+	"github.com/tuxedocurly/wledger/internal/uierror"
 	"github.com/tuxedocurly/wledger/internal/wled"
 )
 
@@ -70,6 +71,9 @@ func main() {
 	// WLED client
 	wledClient := wled.New()
 
+	// UI Error Responder
+	uiErrorResponder := uierror.New(log)
+
 	// Backup Service
 	backupService := backup.NewService(database, store, config.DirUploads, log)
 
@@ -103,10 +107,11 @@ func main() {
 		partsService,
 		tagsService,
 		inspirationService,
+		uiErrorResponder,
 	)
 
 	// Middleware Manager
-	mw := middleware.New(store, sessionManager, log)
+	mw := middleware.New(store, sessionManager, log, uiErrorResponder)
 
 	// Router Setup
 	r := router.New(mw, sessionManager, h)

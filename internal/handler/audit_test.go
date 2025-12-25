@@ -13,6 +13,7 @@ import (
 	"github.com/alexedwards/scs/v2"
 	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/internal/db"
+	"github.com/tuxedocurly/wledger/internal/uierror"
 )
 
 func TestHandleAuditLogs(t *testing.T) {
@@ -25,12 +26,14 @@ func TestHandleAuditLogs(t *testing.T) {
 	s := db.NewStore(dbConn)
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	session := scs.New()
+	uiError := uierror.New(logger)
 
 	h := &Handler{
 		Logger:   logger,
 		Queries:  s,
 		Database: dbConn,
 		Session:  session,
+		UIError:  uiError,
 	}
 
 	ctx := context.Background()

@@ -18,16 +18,14 @@ func (h *Handler) HandleDashboard(w http.ResponseWriter, r *http.Request) {
 	// Fetch Stats (Existing functionality)
 	stats, err := h.Queries.GetDashboardStats(ctx)
 	if err != nil {
-		h.Logger.Error("failed to get dashboard stats", "err", err)
-		http.Error(w, "Database error", http.StatusInternalServerError)
+		h.UIError.Respond(w, r, err, "Failed to load dashboard stats", http.StatusInternalServerError)
 		return
 	}
 
 	// Fetch Grid Data (New functionality)
 	gridRows, err := h.Queries.GetDashboardGrid(ctx)
 	if err != nil {
-		h.Logger.Error("failed to fetch dashboard grid", "err", err)
-		http.Error(w, "Database error", http.StatusInternalServerError)
+		h.UIError.Respond(w, r, err, "Failed to load dashboard grid", http.StatusInternalServerError)
 		return
 	}
 

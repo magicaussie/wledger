@@ -55,8 +55,7 @@ func (h *Handler) HandleLoginPost(w http.ResponseWriter, r *http.Request) {
 
 	// Login success - Renew token
 	if err := h.Session.RenewToken(r.Context()); err != nil {
-		h.Logger.Error("failed to renew session token on login", "err", err, "user_id", user.ID)
-		http.Error(w, "Session error", http.StatusInternalServerError)
+		h.UIError.Respond(w, r, err, "Session renewal failed", http.StatusInternalServerError)
 		return
 	}
 
@@ -73,15 +72,13 @@ func (h *Handler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 	// Destroy wipes the data, Renew creates a fresh ID
 	err := h.Session.Destroy(r.Context())
 	if err != nil {
-		h.Logger.Error("failed to destroy session on logout", "err", err)
-		http.Error(w, "Session error", http.StatusInternalServerError)
+		h.UIError.Respond(w, r, err, "Failed to destroy session", http.StatusInternalServerError)
 		return
 	}
 
 	err = h.Session.RenewToken(r.Context())
 	if err != nil {
-		h.Logger.Error("failed to renew session token after logout", "err", err)
-		http.Error(w, "Session error", http.StatusInternalServerError)
+		h.UIError.Respond(w, r, err, "Failed to renew token", http.StatusInternalServerError)
 		return
 	}
 
@@ -108,16 +105,14 @@ func (h *Handler) HandleSetupPost(w http.ResponseWriter, r *http.Request) {
 	// Check count (Race condition prevention)
 	count, _ := h.Queries.CountUsers(r.Context())
 	if count > 0 {
-		h.Logger.Warn("blocked setup attempt: setup already completed", "ip", r.RemoteAddr)
-		http.Error(w, "Setup already completed", http.StatusForbidden)
+		h.UIError.Respond(w, r, nil, "Setup already completed", http.StatusForbidden)
 		return
 	}
 
 	// Hash password
 	hash, err := auth.HashPassword(password)
 	if err != nil {
-		h.Logger.Error("failed to hash password during setup", "err", err)
-		http.Error(w, "Password error", http.StatusInternalServerError)
+		h.UIError.Respond(w, r, err, "Failed to process password", http.StatusInternalServerError)
 		return
 	}
 
@@ -128,8 +123,7 @@ func (h *Handler) HandleSetupPost(w http.ResponseWriter, r *http.Request) {
 		Role:         "admin",
 	})
 	if err != nil {
-		h.Logger.Error("failed to create admin", "err", err)
-		http.Error(w, "Failed to create user", http.StatusInternalServerError)
+		h.UIError.Respond(w, r, err, "Failed to create initial user", http.StatusInternalServerError)
 		return
 	}
 
@@ -145,8 +139,7 @@ func (h *Handler) HandleSetupPost(w http.ResponseWriter, r *http.Request) {
 		h.Logger.Info("auto-logged in new admin user", "user_id", user.ID)
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 	} else {
-		h.Logger.Error("failed auto-login after setup", "err", err, "user_id", user.ID)
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		h.UIError.Respond(w, r, err, "Auto-login failed after setup", http.StatusInternalServerError)
 	}
 }
 
@@ -182,8 +175,7 @@ func (h *Handler) HandleForceResetPost(w http.ResponseWriter, r *http.Request) {
 	// Use auth helper
 	hash, err := auth.HashPassword(newPw)
 	if err != nil {
-		h.Logger.Error("failed to hash new password during force-reset", "err", err, "user_id", userID)
-		http.Error(w, "Server error", http.StatusInternalServerError)
+		h.UIError.Respond(w, r, err, "Failed to hash new password", http.StatusInternalServerError)
 		return
 	}
 
@@ -193,8 +185,7 @@ func (h *Handler) HandleForceResetPost(w http.ResponseWriter, r *http.Request) {
 		ID:           userID,
 	})
 	if err != nil {
-		h.Logger.Error("failed to update password", "err", err)
-		http.Error(w, "Database error", http.StatusInternalServerError)
+		h.UIError.Respond(w, r, err, "Failed to update password", http.StatusInternalServerError)
 		return
 	}
 

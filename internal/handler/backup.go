@@ -15,8 +15,7 @@ func (h *Handler) HandleBackupDownload(w http.ResponseWriter, r *http.Request) {
 	// Admin Only
 	user := auth.GetUserFromRequest(r)
 	if !user.IsAdmin() {
-		h.Logger.Warn("unauthorized backup download attempt", "user_id", user.ID, "ip", r.RemoteAddr)
-		http.Error(w, "Unauthorized", http.StatusForbidden)
+		h.UIError.Respond(w, r, nil, "Unauthorized", http.StatusForbidden)
 		return
 	}
 
@@ -39,8 +38,7 @@ func (h *Handler) HandleBackupRestore(w http.ResponseWriter, r *http.Request) {
 	// Admin Only
 	user := auth.GetUserFromRequest(r)
 	if !user.IsAdmin() {
-		h.Logger.Warn("unauthorized backup restore attempt", "user_id", user.ID, "ip", r.RemoteAddr)
-		http.Error(w, "Unauthorized", http.StatusForbidden)
+		h.UIError.Respond(w, r, nil, "Unauthorized", http.StatusForbidden)
 		return
 	}
 

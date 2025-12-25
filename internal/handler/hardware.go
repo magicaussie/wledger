@@ -22,8 +22,7 @@ func (h *Handler) HandleHardwareList(w http.ResponseWriter, r *http.Request) {
 
 	controllers, err := h.Queries.GetControllers(r.Context())
 	if err != nil {
-		h.Logger.Error("failed to fetch hardware", "err", err)
-		http.Error(w, "Database error", http.StatusInternalServerError)
+		h.UIError.Respond(w, r, err, "Failed to fetch hardware list", http.StatusInternalServerError)
 		return
 	}
 
@@ -38,8 +37,7 @@ func (h *Handler) HandleHardwareCreate(w http.ResponseWriter, r *http.Request) {
 
 	// Ensure IP is not empty
 	if ip == "" {
-		h.Logger.Error("attempted to create controller with empty IP")
-		http.Error(w, "IP Address is required", http.StatusBadRequest)
+		h.UIError.Respond(w, r, nil, "IP Address is required", http.StatusBadRequest)
 		return
 	}
 
@@ -56,8 +54,7 @@ func (h *Handler) HandleHardwareCreate(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		h.Logger.Error("failed to create controller", "err", err)
-		http.Error(w, "Database error", http.StatusInternalServerError)
+		h.UIError.Respond(w, r, err, "Failed to create controller", http.StatusInternalServerError)
 		return
 	}
 
@@ -78,7 +75,7 @@ func (h *Handler) HandleHardwareDelete(w http.ResponseWriter, r *http.Request) {
 	// Fetch before delete
 	c, err := h.Queries.GetController(r.Context(), int64(id))
 	if err != nil {
-		http.Error(w, "Controller not found", http.StatusNotFound)
+		h.UIError.Respond(w, r, err, "Controller not found", http.StatusNotFound)
 		return
 	}
 
@@ -105,8 +102,7 @@ func (h *Handler) HandleHardwareDelete(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		h.Logger.Error("failed to delete hardware", "err", err)
-		http.Error(w, "Database error", http.StatusInternalServerError)
+		h.UIError.Respond(w, r, err, "Failed to delete hardware", http.StatusInternalServerError)
 		return
 	}
 
@@ -120,8 +116,7 @@ func (h *Handler) HandleHardwareStatus(w http.ResponseWriter, r *http.Request) {
 
 	c, err := h.Queries.GetController(r.Context(), int64(id))
 	if err != nil {
-		h.Logger.Error("failed to fetch controller for status check", "err", err, "id", id)
-		http.Error(w, "Not found", http.StatusNotFound)
+		h.UIError.Respond(w, r, err, "Controller not found", http.StatusNotFound)
 		return
 	}
 
@@ -154,7 +149,7 @@ func (h *Handler) HandleHardwareGrid(w http.ResponseWriter, r *http.Request) {
 
 	c, err := h.Queries.GetController(r.Context(), int64(id))
 	if err != nil {
-		http.Error(w, "Not found", http.StatusNotFound)
+		h.UIError.Respond(w, r, err, "Controller not found", http.StatusNotFound)
 		return
 	}
 
@@ -184,8 +179,7 @@ func (h *Handler) HandleHardwareGridSave(w http.ResponseWriter, r *http.Request)
 	gridDataJSON := r.FormValue("grid_data")
 	var newCells []gridCellData
 	if err := json.Unmarshal([]byte(gridDataJSON), &newCells); err != nil {
-		h.Logger.Error("failed to parse grid json", "err", err)
-		http.Error(w, "Invalid Grid JSON", http.StatusBadRequest)
+		h.UIError.Respond(w, r, err, "Invalid Grid data format", http.StatusBadRequest)
 		return
 	}
 
@@ -280,8 +274,7 @@ func (h *Handler) HandleHardwareGridSave(w http.ResponseWriter, r *http.Request)
 	})
 
 	if err != nil {
-		h.Logger.Error("failed to save grid", "err", err)
-		http.Error(w, "Save failed", http.StatusInternalServerError)
+		h.UIError.Respond(w, r, err, "Failed to save grid layout", http.StatusInternalServerError)
 		return
 	}
 
@@ -292,8 +285,7 @@ func (h *Handler) HandleHardwareGridSave(w http.ResponseWriter, r *http.Request)
 func (h *Handler) HandleGlobalOff(w http.ResponseWriter, r *http.Request) {
 	controllers, err := h.Queries.GetControllers(r.Context())
 	if err != nil {
-		h.Logger.Error("failed to list controllers", "err", err)
-		http.Error(w, "Database error", http.StatusInternalServerError)
+		h.UIError.Respond(w, r, err, "Failed to list controllers", http.StatusInternalServerError)
 		return
 	}
 
@@ -335,15 +327,13 @@ func (h *Handler) HandleHardwareLocate(w http.ResponseWriter, r *http.Request) {
 	// Retrieve Hardware Details
 	controller, err := h.Queries.GetController(r.Context(), int64(cid))
 	if err != nil {
-		h.Logger.Error("locate failed: controller not found", "cid", cid)
-		http.Error(w, "Controller not found", http.StatusNotFound)
+		h.UIError.Respond(w, r, err, "Controller not found", http.StatusNotFound)
 		return
 	}
 
 	bin, err := h.Queries.GetBin(r.Context(), int64(binID))
 	if err != nil {
-		h.Logger.Error("locate failed: bin not found", "binID", binID)
-		http.Error(w, "Bin not found", http.StatusNotFound)
+		h.UIError.Respond(w, r, err, "Bin not found", http.StatusNotFound)
 		return
 	}
 

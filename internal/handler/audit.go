@@ -15,7 +15,7 @@ func (h *Handler) HandleAuditLogs(w http.ResponseWriter, r *http.Request) {
 
 	// Access control - admin only
 	if !user.IsAdmin() {
-		http.Error(w, "Forbidden", http.StatusForbidden)
+		h.UIError.Respond(w, r, nil, "Forbidden", http.StatusForbidden)
 		return
 	}
 
@@ -60,8 +60,7 @@ func (h *Handler) HandleAuditLogs(w http.ResponseWriter, r *http.Request) {
 
 	logs, err := h.Queries.ListAuditLogs(r.Context(), params)
 	if err != nil {
-		h.Logger.Error("failed to list audit logs", "err", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		h.UIError.Respond(w, r, err, "Failed to list audit logs", http.StatusInternalServerError)
 		return
 	}
 

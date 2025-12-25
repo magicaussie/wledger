@@ -10,6 +10,7 @@ import (
 	"github.com/tuxedocurly/wledger/internal/inspiration"
 	"github.com/tuxedocurly/wledger/internal/parts"
 	"github.com/tuxedocurly/wledger/internal/tags"
+	"github.com/tuxedocurly/wledger/internal/uierror"
 	"github.com/tuxedocurly/wledger/internal/wled"
 )
 
@@ -24,6 +25,7 @@ type Handler struct {
 	Parts       parts.Service
 	Tags        tags.Service
 	Inspiration inspiration.Service
+	UIError     *uierror.Responder
 }
 
 // New creates a new Handler with dependencies
@@ -37,6 +39,7 @@ func New(
 	partsService parts.Service,
 	tagsService tags.Service,
 	inspirationService inspiration.Service,
+	uiError *uierror.Responder,
 ) *Handler {
 	return &Handler{
 		Logger:      logger,
@@ -48,6 +51,7 @@ func New(
 		Parts:       partsService,
 		Tags:        tagsService,
 		Inspiration: inspirationService,
+		UIError:     uiError,
 	}
 }
 

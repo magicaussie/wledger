@@ -18,6 +18,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/middleware"
+	"github.com/tuxedocurly/wledger/internal/uierror"
 )
 
 // openTestDB opens an in-memory database with Foreign Keys enabled.
@@ -45,11 +46,13 @@ func TestControllerDeleteCascadesToBins(t *testing.T) {
 
 	s := db.NewStore(dbConn)
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	uiError := uierror.New(logger)
 
 	h := &Handler{
 		Logger:   logger,
 		Queries:  s,
 		Database: dbConn,
+		UIError:  uiError,
 	}
 
 	ctx := context.Background()
@@ -136,12 +139,14 @@ func TestHardwareAuditLogging(t *testing.T) {
 	s := db.NewStore(dbConn)
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	session := scs.New()
+	uiError := uierror.New(logger)
 
 	h := &Handler{
 		Logger:   logger,
 		Queries:  s,
 		Database: dbConn,
 		Session:  session,
+		UIError:  uiError,
 	}
 
 	// Mock Admin Context

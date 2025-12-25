@@ -27,8 +27,7 @@ func (h *Handler) HandlePartsImport(w http.ResponseWriter, r *http.Request) {
 	// Authorization
 	user := auth.GetUserFromRequest(r)
 	if !user.CanWrite() {
-		h.Logger.Warn("unauthorized parts import attempt", "user_id", user.ID, "ip", r.RemoteAddr)
-		http.Error(w, "Unauthorized", http.StatusForbidden)
+		h.UIError.Respond(w, r, nil, "Unauthorized", http.StatusForbidden)
 		return
 	}
 

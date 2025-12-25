@@ -134,8 +134,7 @@ func (h *Handler) HandleSettingsUpdate(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		h.Logger.Error("failed to update settings", "err", err)
-		http.Error(w, "Update failed", http.StatusInternalServerError)
+		h.UIError.Respond(w, r, err, "Failed to update settings", http.StatusInternalServerError)
 		return
 	}
 
@@ -165,7 +164,7 @@ func (h *Handler) HandleSettingsPassword(w http.ResponseWriter, r *http.Request)
 
 	user, err := h.Queries.GetUser(r.Context(), userID)
 	if err != nil {
-		http.Error(w, "Server Error", http.StatusInternalServerError)
+		h.UIError.Respond(w, r, err, "User not found", http.StatusInternalServerError)
 		return
 	}
 
@@ -178,7 +177,7 @@ func (h *Handler) HandleSettingsPassword(w http.ResponseWriter, r *http.Request)
 
 	hashedBytes, err := bcrypt.GenerateFromPassword([]byte(newPw), bcrypt.DefaultCost)
 	if err != nil {
-		http.Error(w, "Server Error", http.StatusInternalServerError)
+		h.UIError.Respond(w, r, err, "Failed to hash new password", http.StatusInternalServerError)
 		return
 	}
 
@@ -187,7 +186,7 @@ func (h *Handler) HandleSettingsPassword(w http.ResponseWriter, r *http.Request)
 		ID:           userID,
 	})
 	if err != nil {
-		http.Error(w, "Database Error", http.StatusInternalServerError)
+		h.UIError.Respond(w, r, err, "Failed to update database", http.StatusInternalServerError)
 		return
 	}
 
@@ -203,7 +202,7 @@ func (h *Handler) HandleUserCreate(w http.ResponseWriter, r *http.Request) {
 	// Hash the temp password
 	hashedBytes, err := bcrypt.GenerateFromPassword([]byte(tempPw), bcrypt.DefaultCost)
 	if err != nil {
-		http.Error(w, "Hashing failed", http.StatusInternalServerError)
+		h.UIError.Respond(w, r, err, "Failed to hash temporary password", http.StatusInternalServerError)
 		return
 	}
 
@@ -282,8 +281,7 @@ func (h *Handler) HandleUserForceReset(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		h.Logger.Error("failed to force password reset", "err", err, "target_id", id)
-		http.Error(w, "Database error", http.StatusInternalServerError)
+		h.UIError.Respond(w, r, err, "Failed to force password reset", http.StatusInternalServerError)
 		return
 	}
 

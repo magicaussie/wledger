@@ -11,6 +11,7 @@ import (
 	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/internal/db"
+	"github.com/tuxedocurly/wledger/internal/uierror"
 )
 
 type ContextKey string
@@ -23,13 +24,15 @@ type Manager struct {
 	Queries db.Store
 	Session *scs.SessionManager
 	Logger  *slog.Logger
+	UIError *uierror.Responder
 }
 
-func New(q db.Store, sm *scs.SessionManager, l *slog.Logger) *Manager {
+func New(q db.Store, sm *scs.SessionManager, l *slog.Logger, uiError *uierror.Responder) *Manager {
 	return &Manager{
 		Queries: q,
 		Session: sm,
 		Logger:  l,
+		UIError: uiError,
 	}
 }
 
@@ -87,9 +90,7 @@ func (m *Manager) RequireReadAuth(next http.Handler) http.Handler {
 		// Fetch Settings
 		s, err := m.Queries.GetSettings(r.Context())
 		if err != nil {
-			m.Logger.Error("failed to fetch settings for read auth check", "err", err)
-			// Fail secure
-			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			m.UIError.Respond(w, r, err, "Failed to load system settings", http.StatusInternalServerError)
 			return
 		}
 
@@ -163,9 +164,7 @@ func (m *Manager) RequirePasswordChange(next http.Handler) http.Handler {
 		// Check DB for require password change Flag
 		user, err := m.Queries.GetUser(r.Context(), userID)
 		if err != nil {
-			m.Logger.Error("failed to fetch user for password change check", "err", err, "user_id", userID)
-			// if it can't be verified, force login to be safe
-			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			m.UIError.Respond(w, r, err, "Failed to verify account status", http.StatusInternalServerError)
 			return
 		}
 
@@ -198,8 +197,7 @@ func (m *Manager) RequireRole(acceptedRoles ...string) func(http.Handler) http.H
 			// Fetch User to get Role
 			user, err := m.Queries.GetUser(r.Context(), userID)
 			if err != nil {
-				m.Logger.Error("failed to fetch user for role check", "err", err, "user_id", userID)
-				http.Error(w, "Server Error", http.StatusInternalServerError)
+				m.UIError.Respond(w, r, err, "Failed to verify permissions", http.StatusInternalServerError)
 				return
 			}
 
@@ -213,8 +211,7 @@ func (m *Manager) RequireRole(acceptedRoles ...string) func(http.Handler) http.H
 			}
 
 			if !allowed {
-				m.Logger.Warn("access denied: insufficient role", "user_id", userID, "role", user.Role, "required", acceptedRoles, "path", r.URL.Path)
-				http.Error(w, "Forbidden: Insufficient Permissions", http.StatusForbidden)
+				m.UIError.Respond(w, r, nil, "Forbidden: Insufficient Permissions", http.StatusForbidden)
 				return
 			}
 
