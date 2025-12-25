@@ -22,13 +22,13 @@ func TestHandleAuditLogs(t *testing.T) {
 	defer dbConn.Close()
 	setupTestSchema(t, dbConn)
 
-	queries := db.New(dbConn)
+	s := db.NewStore(dbConn)
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	session := scs.New()
 
 	h := &Handler{
 		Logger:   logger,
-		Queries:  queries,
+		Queries:  s,
 		Database: dbConn,
 		Session:  session,
 	}
@@ -36,7 +36,7 @@ func TestHandleAuditLogs(t *testing.T) {
 	ctx := context.Background()
 
 	// Setup Users
-	admin, err := queries.CreateUser(ctx, db.CreateUserParams{
+	admin, err := s.CreateUser(ctx, db.CreateUserParams{
 		Email:                  "admin@test.com",
 		Role:                   "admin",
 		PasswordHash:           "hash",
@@ -46,7 +46,7 @@ func TestHandleAuditLogs(t *testing.T) {
 		t.Fatalf("failed to create admin: %v", err)
 	}
 
-	viewer, err := queries.CreateUser(ctx, db.CreateUserParams{
+	viewer, err := s.CreateUser(ctx, db.CreateUserParams{
 		Email:                  "viewer@test.com",
 		Role:                   "viewer",
 		PasswordHash:           "hash",
@@ -57,7 +57,7 @@ func TestHandleAuditLogs(t *testing.T) {
 	}
 
 	// Setup Data
-	err = queries.CreateAuditLog(ctx, db.CreateAuditLogParams{
+	err = s.CreateAuditLog(ctx, db.CreateAuditLogParams{
 		ActionType: "CREATE",
 		EntityType: "PART",
 		EntityID:   1,
@@ -69,7 +69,7 @@ func TestHandleAuditLogs(t *testing.T) {
 		t.Fatalf("failed to create log 1: %v", err)
 	}
 
-	err = queries.CreateAuditLog(ctx, db.CreateAuditLogParams{
+	err = s.CreateAuditLog(ctx, db.CreateAuditLogParams{
 		ActionType: "DELETE",
 		EntityType: "BIN",
 		EntityID:   2,
@@ -138,7 +138,7 @@ func TestHandleAuditLogs(t *testing.T) {
 	// Test: Default Batch Size
 	// Create > 20 logs to verify default limit
 	for i := 0; i < 25; i++ {
-		_ = queries.CreateAuditLog(ctx, db.CreateAuditLogParams{
+		_ = s.CreateAuditLog(ctx, db.CreateAuditLogParams{
 			ActionType: "UPDATE",
 			EntityType: "PART",
 			EntityID:   int64(i + 100),

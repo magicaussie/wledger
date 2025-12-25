@@ -17,7 +17,7 @@ var templateFS embed.FS
 // SeedTemplates checks if templates have been seeded and if not, inserts them.
 func (s *service) SeedTemplates(ctx context.Context) error {
 	// Check if initial inspiration templates are seeded
-	settings, err := s.queries.GetSettings(ctx)
+	settings, err := s.store.GetSettings(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get settings: %w", err)
 	}
@@ -49,7 +49,7 @@ func (s *service) SeedTemplates(ctx context.Context) error {
 		title := formatTitle(entry.Name())
 
 		// Insert
-		_, err = s.queries.CreateInspirationTemplate(ctx, db.CreateInspirationTemplateParams{
+		_, err = s.store.CreateInspirationTemplate(ctx, db.CreateInspirationTemplateParams{
 			Title:           title,
 			TemplateContent: string(content),
 		})
@@ -60,7 +60,7 @@ func (s *service) SeedTemplates(ctx context.Context) error {
 	}
 
 	// Mark as seeded
-	err = s.queries.MarkInspirationSeedsApplied(ctx)
+	err = s.store.MarkInspirationSeedsApplied(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to mark seeds applied: %w", err)
 	}

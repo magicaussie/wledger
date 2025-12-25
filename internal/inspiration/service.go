@@ -20,32 +20,32 @@ type Service interface {
 }
 
 type service struct {
-	queries *db.Queries
+	store db.Store
 }
 
-func NewService(queries *db.Queries) Service {
+func NewService(store db.Store) Service {
 	return &service{
-		queries: queries,
+		store: store,
 	}
 }
 
 func (s *service) GetAllTemplates(ctx context.Context) ([]db.InspirationTemplate, error) {
-	return s.queries.GetAllInspirationTemplates(ctx)
+	return s.store.GetAllInspirationTemplates(ctx)
 }
 
 func (s *service) GetTemplate(ctx context.Context, id int64) (db.InspirationTemplate, error) {
-	return s.queries.GetInspirationTemplate(ctx, id)
+	return s.store.GetInspirationTemplate(ctx, id)
 }
 
 func (s *service) CreateTemplate(ctx context.Context, title, content string) (db.InspirationTemplate, error) {
-	return s.queries.CreateInspirationTemplate(ctx, db.CreateInspirationTemplateParams{
+	return s.store.CreateInspirationTemplate(ctx, db.CreateInspirationTemplateParams{
 		Title:           title,
 		TemplateContent: content,
 	})
 }
 
 func (s *service) UpdateTemplate(ctx context.Context, id int64, title, content string) error {
-	return s.queries.UpdateInspirationTemplate(ctx, db.UpdateInspirationTemplateParams{
+	return s.store.UpdateInspirationTemplate(ctx, db.UpdateInspirationTemplateParams{
 		Title:           title,
 		TemplateContent: content,
 		ID:              id,
@@ -53,12 +53,12 @@ func (s *service) UpdateTemplate(ctx context.Context, id int64, title, content s
 }
 
 func (s *service) DeleteTemplate(ctx context.Context, id int64) error {
-	return s.queries.DeleteInspirationTemplate(ctx, id)
+	return s.store.DeleteInspirationTemplate(ctx, id)
 }
 
 func (s *service) ConstructPrompt(ctx context.Context, templateID int64, tagFilters []string) (string, error) {
 	// Fetch template
-	tmpl, err := s.queries.GetInspirationTemplate(ctx, templateID)
+	tmpl, err := s.store.GetInspirationTemplate(ctx, templateID)
 	if err != nil {
 		return "", fmt.Errorf("failed to get template: %w", err)
 	}
@@ -71,7 +71,7 @@ func (s *service) ConstructPrompt(ctx context.Context, templateID int64, tagFilt
 	}
 
 	if len(tagFilters) > 0 {
-		rows, err := s.queries.GetPartsForInspirationFiltered(ctx, tagFilters)
+		rows, err := s.store.GetPartsForInspirationFiltered(ctx, tagFilters)
 		if err != nil {
 			return "", fmt.Errorf("failed to fetch filtered parts: %w", err)
 		}
@@ -88,7 +88,7 @@ func (s *service) ConstructPrompt(ctx context.Context, templateID int64, tagFilt
 			}{r.Name, r.PartNumber, r.TotalQuantity}
 		}
 	} else {
-		rows, err := s.queries.GetPartsForInspirationAll(ctx)
+		rows, err := s.store.GetPartsForInspirationAll(ctx)
 		if err != nil {
 			return "", fmt.Errorf("failed to fetch all parts: %w", err)
 		}

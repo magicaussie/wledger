@@ -69,65 +69,55 @@ func (h *Handler) HandlePartsImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Database Transaction
-	tx, err := h.Database.Begin()
-	if err != nil {
-		h.Logger.Error("failed to start transaction for parts import", "err", err)
-		components.ImportResult(false, "Database error: "+err.Error(), nil).Render(r.Context(), w)
-		return
-	}
-	defer tx.Rollback()
-	qtx := h.Queries.WithTx(tx)
-
 	count := 0
-	for _, row := range rows {
-		// Insert Part
-		partID, err := qtx.CreatePart(r.Context(), db.CreatePartParams{
-			Name:              row.Name,
-			Description:       sql.NullString{String: row.Description, Valid: row.Description != ""},
-			PartNumber:        sql.NullString{String: row.PartNumber, Valid: row.PartNumber != ""},
-			Manufacturer:      sql.NullString{String: row.Manufacturer, Valid: row.Manufacturer != ""},
-			Supplier:          sql.NullString{String: row.Supplier, Valid: row.Supplier != ""},
-			UnitCost:          sql.NullFloat64{Float64: row.UnitCost, Valid: true},
-			ReorderLevel:      sql.NullInt64{Int64: int64(row.ReorderLevel), Valid: true},
-			MinStockThreshold: sql.NullInt64{Int64: int64(row.MinStockThreshold), Valid: true},
-			BarcodeData:       sql.NullString{String: row.BarcodeData, Valid: row.BarcodeData != ""},
-		})
-
-		if err != nil {
-			h.Logger.Error("failed to create part during import", "err", err, "row", row.RowNumber)
-			returnErr := fmt.Sprintf("Row %d Error: %v", row.RowNumber, err)
-			if strings.Contains(err.Error(), "UNIQUE constraint") {
-				returnErr = fmt.Sprintf("Row %d Error: Duplicate Barcode '%s'", row.RowNumber, row.BarcodeData)
-			}
-			components.ImportResult(false, returnErr, nil).Render(r.Context(), w)
-			return
-		}
-
-		// Insert Orphaned Stock if Quantity > 0
-		if row.InitialQuantity > 0 {
-			err = qtx.CreatePartAssignment(r.Context(), db.CreatePartAssignmentParams{
-				PartID:   partID,
-				BinID:    sql.NullInt64{Valid: false}, // Orphaned
-				Quantity: int64(row.InitialQuantity),
+	err = h.Queries.ExecTx(r.Context(), func(q db.Querier) error {
+		for _, row := range rows {
+			// Insert Part
+			partID, err := q.CreatePart(r.Context(), db.CreatePartParams{
+				Name:              row.Name,
+				Description:       sql.NullString{String: row.Description, Valid: row.Description != ""},
+				PartNumber:        sql.NullString{String: row.PartNumber, Valid: row.PartNumber != ""},
+				Manufacturer:      sql.NullString{String: row.Manufacturer, Valid: row.Manufacturer != ""},
+				Supplier:          sql.NullString{String: row.Supplier, Valid: row.Supplier != ""},
+				UnitCost:          sql.NullFloat64{Float64: row.UnitCost, Valid: true},
+				ReorderLevel:      sql.NullInt64{Int64: int64(row.ReorderLevel), Valid: true},
+				MinStockThreshold: sql.NullInt64{Int64: int64(row.MinStockThreshold), Valid: true},
+				BarcodeData:       sql.NullString{String: row.BarcodeData, Valid: row.BarcodeData != ""},
 			})
-			if err != nil {
-				h.Logger.Error("failed to create part assignment during import", "err", err, "row", row.RowNumber)
-				components.ImportResult(false, fmt.Sprintf("Row %d Error saving stock: %v", row.RowNumber, err), nil).Render(r.Context(), w)
-				return
-			}
-		}
-		count++
-	}
 
-	if err := tx.Commit(); err != nil {
-		h.Logger.Error("failed to commit transaction for parts import", "err", err)
-		components.ImportResult(false, "Commit failed: "+err.Error(), nil).Render(r.Context(), w)
+			if err != nil {
+				h.Logger.Error("failed to create part during import", "err", err, "row", row.RowNumber)
+				returnErr := fmt.Errorf("Row %d Error: %v", row.RowNumber, err)
+				if strings.Contains(err.Error(), "UNIQUE constraint") {
+					returnErr = fmt.Errorf("Row %d Error: Duplicate Barcode '%s'", row.RowNumber, row.BarcodeData)
+				}
+				return returnErr
+			}
+
+			// Insert Orphaned Stock if Quantity > 0
+			if row.InitialQuantity > 0 {
+				err = q.CreatePartAssignment(r.Context(), db.CreatePartAssignmentParams{
+					PartID:   partID,
+					BinID:    sql.NullInt64{Valid: false}, // Orphaned
+					Quantity: int64(row.InitialQuantity),
+				})
+				if err != nil {
+					h.Logger.Error("failed to create part assignment during import", "err", err, "row", row.RowNumber)
+					return fmt.Errorf("Row %d Error saving stock: %v", row.RowNumber, err)
+				}
+			}
+			count++
+		}
+
+		// Audit Log
+		audit.Log(r.Context(), q, "IMPORT", "PARTS", 0, fmt.Sprintf("Bulk imported %d parts", count), nil, nil)
+		return nil
+	})
+
+	if err != nil {
+		components.ImportResult(false, err.Error(), nil).Render(r.Context(), w)
 		return
 	}
-
-	// Audit Log
-	audit.Log(r.Context(), h.Queries, "IMPORT", "PARTS", 0, fmt.Sprintf("Bulk imported %d parts", count), nil, nil)
 
 	// Success Response
 	msg := fmt.Sprintf("Successfully imported %d parts.", count)

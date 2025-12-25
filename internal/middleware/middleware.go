@@ -20,12 +20,12 @@ const (
 )
 
 type Manager struct {
-	Queries *db.Queries
+	Queries db.Store
 	Session *scs.SessionManager
 	Logger  *slog.Logger
 }
 
-func New(q *db.Queries, sm *scs.SessionManager, l *slog.Logger) *Manager {
+func New(q db.Store, sm *scs.SessionManager, l *slog.Logger) *Manager {
 	return &Manager{
 		Queries: q,
 		Session: sm,

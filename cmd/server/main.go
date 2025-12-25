@@ -43,16 +43,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Initialize queries
-	queries := db.New(database)
+	// Initialize store
+	store := db.NewStore(database)
 
 	// Ensure Settings exist
-	if err := queries.InitSettings(context.Background()); err != nil {
+	if err := store.InitSettings(context.Background()); err != nil {
 		log.Error("Failed to initialize settings", "error", err)
 	}
 
 	// Fetch Settings to set Log Level
-	settings, err := queries.GetSettings(context.Background())
+	settings, err := store.GetSettings(context.Background())
 	if err == nil {
 		logger.SetDebug(settings.EnableDebugLogs.Bool)
 	} else {
@@ -61,7 +61,7 @@ func main() {
 
 	// Session Manager
 	sessionManager := scs.New()
-	sessionManager.Store = auth.NewStore(queries)
+	sessionManager.Store = auth.NewStore(store)
 	sessionManager.Lifetime = 24 * time.Hour
 	sessionManager.Cookie.Persist = true
 	sessionManager.Cookie.SameSite = http.SameSiteLaxMode
@@ -71,16 +71,16 @@ func main() {
 	wledClient := wled.New()
 
 	// Backup Service
-	backupService := backup.NewService(database, queries, config.DirUploads, log)
+	backupService := backup.NewService(database, store, config.DirUploads, log)
 
 	// Tags Service
-	tagsService := tags.NewService(database, queries)
+	tagsService := tags.NewService(database, store)
 
 	// Parts Service
-	partsService := parts.NewService(database, queries, log, tagsService)
+	partsService := parts.NewService(database, store, log, tagsService)
 
 	// Inspiration Service
-	inspirationService := inspiration.NewService(queries)
+	inspirationService := inspiration.NewService(store)
 	// Seed the initial inspiration templates
 	if err := inspirationService.SeedTemplates(context.Background()); err != nil {
 		log.Error("Failed to seed inspiration templates", "error", err)
@@ -95,7 +95,7 @@ func main() {
 	// Handler instantiation
 	h := handler.New(
 		log,
-		queries,
+		store,
 		sessionManager,
 		wledClient,
 		database,
@@ -106,7 +106,7 @@ func main() {
 	)
 
 	// Middleware Manager
-	mw := middleware.New(queries, sessionManager, log)
+	mw := middleware.New(store, sessionManager, log)
 
 	// Router Setup
 	r := router.New(mw, sessionManager, h)

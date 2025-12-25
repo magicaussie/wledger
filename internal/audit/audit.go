@@ -12,7 +12,7 @@ import (
 
 // Log records an action to the audit_logs table.
 // Handles JSON marshaling and user extraction automatically
-func Log(ctx context.Context, q *db.Queries, action, entityType string, entityID int64, details string, oldVal, newVal any) {
+func Log(ctx context.Context, q db.Querier, action, entityType string, entityID int64, details string, oldVal, newVal any) {
 	// Extract userID
 	var userID int64
 	if id, ok := ctx.Value(middleware.UserContextKey).(int64); ok {

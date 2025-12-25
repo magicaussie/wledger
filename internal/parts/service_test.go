@@ -14,7 +14,7 @@ import (
 )
 
 // setupTestDB creates an in memory DB and applies the schema using db.Migrate
-func setupTestDB(t *testing.T) (*sql.DB, *db.Queries, func()) {
+func setupTestDB(t *testing.T) (*sql.DB, db.Store, func()) {
 	// Open in-memory DB
 	conn, err := db.Open("file::memory:?cache=shared")
 	if err != nil {
@@ -26,25 +26,25 @@ func setupTestDB(t *testing.T) (*sql.DB, *db.Queries, func()) {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
 
-	// Create queries helper
-	q := db.New(conn)
+	// Create store helper
+	s := db.NewStore(conn)
 
 	// return cleanup function
-	return conn, q, func() {
+	return conn, s, func() {
 		conn.Close()
 	}
 }
 
 func TestPartAuditLogging(t *testing.T) {
-	database, queries, dbCleanup := setupTestDB(t)
+	database, s, dbCleanup := setupTestDB(t)
 	defer dbCleanup()
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	tagSvc := tags.NewService(database, queries)
-	svc := NewService(database, queries, logger, tagSvc)
+	tagSvc := tags.NewService(database, s)
+	svc := NewService(database, s, logger, tagSvc)
 
 	// Create user to satisfy FK
-	_, err := queries.CreateUser(context.Background(), db.CreateUserParams{
+	_, err := s.CreateUser(context.Background(), db.CreateUserParams{
 		Email:        "admin@test.com",
 		PasswordHash: "hash",
 		Role:         "admin",
@@ -66,7 +66,7 @@ func TestPartAuditLogging(t *testing.T) {
 		t.Fatalf("CreatePart failed: %v", err)
 	}
 
-	logs, err := queries.GetAllAuditLogs(ctx)
+	logs, err := s.GetAllAuditLogs(ctx)
 	if err != nil {
 		t.Fatalf("GetAllAuditLogs failed: %v", err)
 	}
@@ -97,7 +97,7 @@ func TestPartAuditLogging(t *testing.T) {
 		t.Fatalf("UpdatePart failed: %v", err)
 	}
 
-	logs, _ = queries.GetAllAuditLogs(ctx)
+	logs, _ = s.GetAllAuditLogs(ctx)
 	if len(logs) != 2 {
 		t.Fatalf("expected 2 audit logs, got %d", len(logs))
 	}
@@ -126,7 +126,7 @@ func TestPartAuditLogging(t *testing.T) {
 		t.Fatalf("DeletePart failed: %v", err)
 	}
 
-	logs, _ = queries.GetAllAuditLogs(ctx)
+	logs, _ = s.GetAllAuditLogs(ctx)
 	if len(logs) != 3 {
 		t.Fatalf("expected 3 audit logs, got %d", len(logs))
 	}
@@ -140,19 +140,19 @@ func TestPartAuditLogging(t *testing.T) {
 }
 
 func TestStockAuditLogging(t *testing.T) {
-	database, queries, dbCleanup := setupTestDB(t)
+	database, s, dbCleanup := setupTestDB(t)
 	defer dbCleanup()
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	tagSvc := tags.NewService(database, queries)
-	svc := NewService(database, queries, logger, tagSvc)
+	tagSvc := tags.NewService(database, s)
+	svc := NewService(database, s, logger, tagSvc)
 	ctx := context.WithValue(context.Background(), middleware.UserContextKey, int64(1))
 
 	// Setup: User, Controller, Bins, Part
-	queries.CreateUser(context.Background(), db.CreateUserParams{Email: "admin@test.com", Role: "admin"})
-	ctrl, _ := queries.CreateController(ctx, db.CreateControllerParams{Name: "Ctrl1", IpAddress: "1.2.3.4"})
-	bin1ID, _ := queries.CreateBin(ctx, db.CreateBinParams{Name: "A1", ControllerID: sql.NullInt64{Int64: ctrl.ID, Valid: true}, LedIndex: sql.NullInt64{Int64: 0, Valid: true}})
-	bin2ID, _ := queries.CreateBin(ctx, db.CreateBinParams{Name: "A2", ControllerID: sql.NullInt64{Int64: ctrl.ID, Valid: true}, LedIndex: sql.NullInt64{Int64: 1, Valid: true}})
+	s.CreateUser(context.Background(), db.CreateUserParams{Email: "admin@test.com", Role: "admin"})
+	ctrl, _ := s.CreateController(ctx, db.CreateControllerParams{Name: "Ctrl1", IpAddress: "1.2.3.4"})
+	bin1ID, _ := s.CreateBin(ctx, db.CreateBinParams{Name: "A1", ControllerID: sql.NullInt64{Int64: ctrl.ID, Valid: true}, LedIndex: sql.NullInt64{Int64: 0, Valid: true}})
+	bin2ID, _ := s.CreateBin(ctx, db.CreateBinParams{Name: "A2", ControllerID: sql.NullInt64{Int64: ctrl.ID, Valid: true}, LedIndex: sql.NullInt64{Int64: 1, Valid: true}})
 	partID, _ := svc.CreatePart(ctx, CreatePartRequest{Name: "Stock Part"})
 
 	// Clear logs from setup
@@ -164,7 +164,7 @@ func TestStockAuditLogging(t *testing.T) {
 		t.Fatalf("AssignStock failed: %v", err)
 	}
 
-	logs, _ := queries.GetAllAuditLogs(ctx)
+	logs, _ := s.GetAllAuditLogs(ctx)
 	if len(logs) != 1 {
 		t.Fatalf("expected 1 audit log, got %d", len(logs))
 	}
@@ -176,14 +176,14 @@ func TestStockAuditLogging(t *testing.T) {
 	}
 
 	// Adjust Stock
-	assignments, _ := queries.GetPartAssignments(ctx, partID)
+	assignments, _ := s.GetPartAssignments(ctx, partID)
 	assignmentID := assignments[0].ID
 	err = svc.AdjustStock(ctx, assignmentID, 5)
 	if err != nil {
 		t.Fatalf("AdjustStock failed: %v", err)
 	}
 
-	logs, _ = queries.GetAllAuditLogs(ctx)
+	logs, _ = s.GetAllAuditLogs(ctx)
 	if len(logs) != 2 {
 		t.Fatalf("expected 2 audit logs, got %d", len(logs))
 	}
@@ -205,7 +205,7 @@ func TestStockAuditLogging(t *testing.T) {
 		t.Fatalf("MoveStock failed: %v", err)
 	}
 
-	logs, _ = queries.GetAllAuditLogs(ctx)
+	logs, _ = s.GetAllAuditLogs(ctx)
 	if len(logs) != 3 {
 		t.Fatalf("expected 3 audit logs, got %d", len(logs))
 	}
@@ -222,7 +222,7 @@ func TestStockAuditLogging(t *testing.T) {
 	}
 
 	// Remove Stock
-	assignments, _ = queries.GetPartAssignments(ctx, partID)
+	assignments, _ = s.GetPartAssignments(ctx, partID)
 	newAssignmentID := assignments[0].ID
 
 	err = svc.RemoveStock(ctx, RemoveStockRequest{PartID: partID, AssignmentID: newAssignmentID})
@@ -230,7 +230,7 @@ func TestStockAuditLogging(t *testing.T) {
 		t.Fatalf("RemoveStock failed: %v", err)
 	}
 
-	logs, _ = queries.GetAllAuditLogs(ctx)
+	logs, _ = s.GetAllAuditLogs(ctx)
 	if len(logs) != 4 {
 		t.Fatalf("expected 4 audit logs, got %d", len(logs))
 	}

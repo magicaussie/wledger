@@ -8,7 +8,7 @@ import (
 )
 
 // setupTestDB creates an in memory DB and applies the schema using db.Migrate
-func setupTestDB(t *testing.T) (*db.Queries, func()) {
+func setupTestDB(t *testing.T) (db.Store, func()) {
 	// Open in-memory DB
 	// cache=shared ensures different connections see the same in-memory DB
 	conn, err := db.Open("file::memory:?cache=shared")
@@ -21,28 +21,28 @@ func setupTestDB(t *testing.T) (*db.Queries, func()) {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
 
-	// Create queries helper
-	q := db.New(conn)
+	// Create store helper
+	s := db.NewStore(conn)
 
 	// return cleanup function
-	return q, func() {
+	return s, func() {
 		conn.Close()
 	}
 }
 
 func TestSeedTemplates(t *testing.T) {
-	q, cleanup := setupTestDB(t)
+	s, cleanup := setupTestDB(t)
 	defer cleanup()
 
 	ctx := context.Background()
 
 	// Initialize Settings (Required for Seeder to check flag)
-	err := q.InitSettings(ctx)
+	err := s.InitSettings(ctx)
 	if err != nil {
 		t.Fatalf("failed to init settings: %v", err)
 	}
 
-	svc := NewService(q)
+	svc := NewService(s)
 
 	// Run Seeder First Time
 	err = svc.SeedTemplates(ctx)
@@ -51,7 +51,7 @@ func TestSeedTemplates(t *testing.T) {
 	}
 
 	// Verify templates inserted
-	templates, err := q.GetAllInspirationTemplates(ctx)
+	templates, err := s.GetAllInspirationTemplates(ctx)
 	if err != nil {
 		t.Fatalf("failed to get templates: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestSeedTemplates(t *testing.T) {
 	// THEN-CHANGE: ./internal/inspiration/templates/
 
 	// Verify flag is set
-	settings, err := q.GetSettings(ctx)
+	settings, err := s.GetSettings(ctx)
 	if err != nil {
 		t.Fatalf("failed to get settings: %v", err)
 	}
@@ -71,7 +71,7 @@ func TestSeedTemplates(t *testing.T) {
 	}
 
 	// User Deletes a Template
-	err = q.DeleteInspirationTemplate(ctx, templates[0].ID)
+	err = s.DeleteInspirationTemplate(ctx, templates[0].ID)
 	if err != nil {
 		t.Fatalf("failed to delete template: %v", err)
 	}
@@ -85,7 +85,7 @@ func TestSeedTemplates(t *testing.T) {
 	}
 
 	// Verify count matches after delete (should NOT re-seed)
-	templatesAfter, err := q.GetAllInspirationTemplates(ctx)
+	templatesAfter, err := s.GetAllInspirationTemplates(ctx)
 	if err != nil {
 		t.Fatalf("failed to get templates after 2nd seed: %v", err)
 	}

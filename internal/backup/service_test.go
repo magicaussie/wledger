@@ -17,7 +17,7 @@ import (
 )
 
 // setupTestDB creates an in memory DB and applies the schema using db.Migrate
-func setupTestDB(t *testing.T) (*sql.DB, *db.Queries, func()) {
+func setupTestDB(t *testing.T) (*sql.DB, db.Store, func()) {
 	// Open in-memory DB
 	// cache=shared ensures different connections see the same in-memory DB
 	conn, err := db.Open("file::memory:?cache=shared")
@@ -30,11 +30,11 @@ func setupTestDB(t *testing.T) (*sql.DB, *db.Queries, func()) {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
 
-	// Create queries helper
-	q := db.New(conn)
+	// Create store helper
+	s := db.NewStore(conn)
 
 	// return cleanup function
-	return conn, q, func() {
+	return conn, s, func() {
 		conn.Close()
 	}
 }
@@ -66,18 +66,18 @@ func setupTestUploads(t *testing.T) (string, func()) {
 
 func TestExport_HappyPath(t *testing.T) {
 	// Setup
-	database, queries, dbCleanup := setupTestDB(t)
+	database, s, dbCleanup := setupTestDB(t)
 	defer dbCleanup()
 	uploadsDir, fsCleanup := setupTestUploads(t)
 	defer fsCleanup()
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	svc := NewService(database, queries, uploadsDir, logger)
+	svc := NewService(database, s, uploadsDir, logger)
 	ctx := context.Background()
 
 	// Seed Data
-	queries.InitSettings(ctx)
-	_, err := queries.CreateUser(ctx, db.CreateUserParams{
+	s.InitSettings(ctx)
+	_, err := s.CreateUser(ctx, db.CreateUserParams{
 		Email:        "admin@example.com",
 		PasswordHash: "hash",
 		Role:         "admin",
@@ -137,14 +137,14 @@ func TestExport_HappyPath(t *testing.T) {
 
 func TestRestore_HappyPath(t *testing.T) {
 	// Setup
-	database, queries, dbCleanup := setupTestDB(t)
+	database, s, dbCleanup := setupTestDB(t)
 	defer dbCleanup()
 	// the "Live" directory that gets replaced
 	uploadsDir, fsCleanup := setupTestUploads(t)
 	defer fsCleanup()
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	svc := NewService(database, queries, uploadsDir, logger)
+	svc := NewService(database, s, uploadsDir, logger)
 	ctx := context.Background()
 
 	// Create a "Backup" to restore
@@ -193,7 +193,7 @@ func TestRestore_HappyPath(t *testing.T) {
 	// Verification
 
 	// DB: Should have the restored user
-	u, err := queries.GetUserByEmail(ctx, "restored@example.com")
+	u, err := s.GetUserByEmail(ctx, "restored@example.com")
 	if err != nil {
 		t.Fatalf("failed to find restored user: %v", err)
 	}
@@ -212,17 +212,17 @@ func TestRestore_HappyPath(t *testing.T) {
 
 func TestRestore_RollbackOnDBError(t *testing.T) {
 	// Setup
-	database, queries, dbCleanup := setupTestDB(t)
+	database, s, dbCleanup := setupTestDB(t)
 	defer dbCleanup()
 	uploadsDir, fsCleanup := setupTestUploads(t)
 	defer fsCleanup()
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	svc := NewService(database, queries, uploadsDir, logger)
+	svc := NewService(database, s, uploadsDir, logger)
 	ctx := context.Background()
 
 	// Seed initial DB state
-	queries.InitSettings(ctx)
+	s.InitSettings(ctx)
 
 	// Create a "Bad" Backup
 	// Manifest contains a PartAssignment for a Part that doesn't exist.
@@ -260,7 +260,7 @@ func TestRestore_RollbackOnDBError(t *testing.T) {
 
 	// Verify Rollback
 
-	_, err = queries.GetSettings(ctx)
+	_, err = s.GetSettings(ctx)
 	if err != nil {
 		t.Errorf("Settings missing after rollback: %v", err)
 	}

@@ -9,27 +9,27 @@ import (
 )
 
 type Service interface {
-	SyncTags(ctx context.Context, qtx *db.Queries, partID int64, tagNames []string) error
+	SyncTags(ctx context.Context, qtx db.Querier, partID int64, tagNames []string) error
 	ListAllTags(ctx context.Context) ([]db.Tag, error)
 }
 
 type service struct {
 	database *sql.DB
-	queries  *db.Queries
+	store    db.Store
 }
 
-func NewService(database *sql.DB, queries *db.Queries) Service {
+func NewService(database *sql.DB, store db.Store) Service {
 	return &service{
 		database: database,
-		queries:  queries,
+		store:    store,
 	}
 }
 
 func (s *service) ListAllTags(ctx context.Context) ([]db.Tag, error) {
-	return s.queries.ListAllTags(ctx)
+	return s.store.ListAllTags(ctx)
 }
 
-func (s *service) SyncTags(ctx context.Context, qtx *db.Queries, partID int64, tagNames []string) error {
+func (s *service) SyncTags(ctx context.Context, qtx db.Querier, partID int64, tagNames []string) error {
 	// Normalize and deduplicate tags
 	uniqueTags := make(map[string]bool)
 	for _, name := range tagNames {

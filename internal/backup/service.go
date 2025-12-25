@@ -26,15 +26,15 @@ type Service interface {
 
 type service struct {
 	db         *sql.DB
-	queries    *db.Queries
+	store      db.Store
 	uploadsDir string
 	logger     *slog.Logger
 }
 
-func NewService(database *sql.DB, queries *db.Queries, uploadsDir string, logger *slog.Logger) Service {
+func NewService(database *sql.DB, store db.Store, uploadsDir string, logger *slog.Logger) Service {
 	return &service{
 		db:         database,
-		queries:    queries,
+		store:      store,
 		uploadsDir: uploadsDir,
 		logger:     logger,
 	}
@@ -43,20 +43,20 @@ func NewService(database *sql.DB, queries *db.Queries, uploadsDir string, logger
 func (s *service) Export(ctx context.Context, w io.Writer) error {
 	s.logger.Debug("starting system backup export")
 	// Fetch Data
-	settings, err := s.queries.GetSettings(ctx)
+	settings, err := s.store.GetSettings(ctx)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("failed to fetch settings: %w", err)
 	}
 
-	users, _ := s.queries.GetAllUsers(ctx)
-	controllers, _ := s.queries.GetControllers(ctx)
-	bins, _ := s.queries.GetAllBins(ctx)
-	parts, _ := s.queries.GetAllParts(ctx)
-	assignments, _ := s.queries.GetAllPartAssignments(ctx)
-	links, _ := s.queries.GetAllPartLinks(ctx)
-	docs, _ := s.queries.GetAllPartDocs(ctx)
-	prompts, _ := s.queries.GetAllPartAiPrompts(ctx)
-	logs, _ := s.queries.GetAllAuditLogs(ctx)
+	users, _ := s.store.GetAllUsers(ctx)
+	controllers, _ := s.store.GetControllers(ctx)
+	bins, _ := s.store.GetAllBins(ctx)
+	parts, _ := s.store.GetAllParts(ctx)
+	assignments, _ := s.store.GetAllPartAssignments(ctx)
+	links, _ := s.store.GetAllPartLinks(ctx)
+	docs, _ := s.store.GetAllPartDocs(ctx)
+	prompts, _ := s.store.GetAllPartAiPrompts(ctx)
+	logs, _ := s.store.GetAllAuditLogs(ctx)
 	var auditLogs []db.AuditLog
 	for _, l := range logs {
 		auditLogs = append(auditLogs, db.AuditLog{
@@ -71,8 +71,8 @@ func (s *service) Export(ctx context.Context, w io.Writer) error {
 			CreatedAt:  l.CreatedAt,
 		})
 	}
-	tags, _ := s.queries.ListAllTags(ctx)
-	partTags, _ := s.queries.GetAllPartTags(ctx)
+	tags, _ := s.store.ListAllTags(ctx)
+	partTags, _ := s.store.GetAllPartTags(ctx)
 
 	manifest := Manifest{
 		Version:         "1.0",
@@ -171,12 +171,12 @@ func (s *service) Export(ctx context.Context, w io.Writer) error {
 
 	if err != nil {
 		s.logger.Error("backup failed to zip uploads", "err", err)
-		// don't fail the whole backup for this, but maybe we should?
-		// Keeping existing behavior: return nil if zip succeeds generally
+		// return nil if zip succeeds
+		// TODO: implement better handling of this case
 	}
 
 	// Log audit
-	audit.Log(ctx, s.queries, "BACKUP", "SYSTEM", 0, "Downloaded system backup", nil, nil)
+	audit.Log(ctx, s.store, "BACKUP", "SYSTEM", 0, "Downloaded system backup", nil, nil)
 	return nil
 }
 
@@ -267,45 +267,15 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 	}
 
 	// Database Restore Transaction
-	tx, err := s.db.Begin()
+	err = s.store.ExecTx(ctx, func(qtx db.Querier) error {
+
+		s.logger.Debug("restoring database records from manifest")
+		return s.restoreData(ctx, qtx, manifest)
+	})
+
 	if err != nil {
-		s.logger.Error("failed to begin transaction for restore", "err", err)
-		return fmt.Errorf("db begin error: %w", err)
-	}
-	defer tx.Rollback()
-	qtx := s.queries.WithTx(tx)
-
-	if _, err := tx.ExecContext(ctx, "PRAGMA foreign_keys = OFF"); err != nil {
-		s.logger.Error("failed to disable foreign keys for restore", "err", err)
-		return fmt.Errorf("failed to disable FKs: %w", err)
-	}
-
-	tables := []string{
-		"part_assignments", "part_links", "part_docs", "part_ai_prompts", "part_tags", "tags",
-		"parts", "bins", "controllers", "audit_logs", "sessions", "users", "settings",
-	}
-	for _, table := range tables {
-		if _, err := tx.ExecContext(ctx, fmt.Sprintf("DELETE FROM %s", table)); err != nil {
-			s.logger.Error("failed to clear table during restore", "err", err, "table", table)
-			return fmt.Errorf("failed to clear table %s: %w", table, err)
-		}
-	}
-
-	// Restore Data
-	s.logger.Debug("restoring database records from manifest")
-	if err := s.restoreData(ctx, qtx, manifest); err != nil {
-		s.logger.Error("failed to restore data records", "err", err)
+		s.logger.Error("failed to restore database", "err", err)
 		return err
-	}
-
-	if _, err := tx.ExecContext(ctx, "PRAGMA foreign_keys = ON"); err != nil {
-		s.logger.Error("failed to re-enable foreign keys after restore", "err", err)
-		return fmt.Errorf("failed to re-enable FKs: %w", err)
-	}
-
-	if err := tx.Commit(); err != nil {
-		s.logger.Error("failed to commit restore transaction", "err", err)
-		return fmt.Errorf("commit failed: %w", err)
 	}
 
 	// Atomic Swap of Assets
@@ -334,7 +304,7 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 	return nil
 }
 
-func (s *service) restoreData(ctx context.Context, qtx *db.Queries, manifest Manifest) error {
+func (s *service) restoreData(ctx context.Context, qtx db.Querier, manifest Manifest) error {
 	// Settings
 	err := qtx.RestoreSettings(ctx, db.RestoreSettingsParams{
 		RequireAuthForRead:   manifest.Settings.RequireAuthForRead,

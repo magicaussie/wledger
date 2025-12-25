@@ -43,19 +43,19 @@ func TestControllerDeleteCascadesToBins(t *testing.T) {
 	defer dbConn.Close()
 	setupTestSchema(t, dbConn)
 
-	queries := db.New(dbConn)
+	s := db.NewStore(dbConn)
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	h := &Handler{
 		Logger:   logger,
-		Queries:  queries,
+		Queries:  s,
 		Database: dbConn,
 	}
 
 	ctx := context.Background()
 
 	// Create Controller
-	ctrl, err := queries.CreateController(ctx, db.CreateControllerParams{
+	ctrl, err := s.CreateController(ctx, db.CreateControllerParams{
 		Name:      "TestController",
 		IpAddress: "192.168.1.100",
 		Port:      sql.NullInt64{Int64: 80, Valid: true},
@@ -66,7 +66,7 @@ func TestControllerDeleteCascadesToBins(t *testing.T) {
 
 	// Create Bins (Simulate an 8-pixel strip)
 	for i := 0; i < 8; i++ {
-		_, err := queries.CreateBin(ctx, db.CreateBinParams{
+		_, err := s.CreateBin(ctx, db.CreateBinParams{
 			Name:         "Bin-" + strconv.Itoa(i),
 			ControllerID: sql.NullInt64{Int64: ctrl.ID, Valid: true},
 			LedIndex:     sql.NullInt64{Int64: int64(i), Valid: true},
@@ -80,7 +80,7 @@ func TestControllerDeleteCascadesToBins(t *testing.T) {
 	}
 
 	// Verify Bins exist
-	binsBefore, err := queries.GetBinsByController(ctx, sql.NullInt64{Int64: ctrl.ID, Valid: true})
+	binsBefore, err := s.GetBinsByController(ctx, sql.NullInt64{Int64: ctrl.ID, Valid: true})
 	if err != nil {
 		t.Fatalf("failed to fetch bins: %v", err)
 	}
@@ -107,7 +107,7 @@ func TestControllerDeleteCascadesToBins(t *testing.T) {
 	// Assertions
 
 	// Check Bins by Controller (Should be 0)
-	binsAfter, err := queries.GetBinsByController(ctx, sql.NullInt64{Int64: ctrl.ID, Valid: true})
+	binsAfter, err := s.GetBinsByController(ctx, sql.NullInt64{Int64: ctrl.ID, Valid: true})
 	if err != nil {
 		t.Fatalf("failed to fetch bins after delete: %v", err)
 	}
@@ -133,19 +133,19 @@ func TestHardwareAuditLogging(t *testing.T) {
 	defer dbConn.Close()
 	setupTestSchema(t, dbConn)
 
-	queries := db.New(dbConn)
+	s := db.NewStore(dbConn)
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	session := scs.New()
 
 	h := &Handler{
 		Logger:   logger,
-		Queries:  queries,
+		Queries:  s,
 		Database: dbConn,
 		Session:  session,
 	}
 
 	// Mock Admin Context
-	queries.CreateUser(context.Background(), db.CreateUserParams{Email: "admin@test.com", Role: "admin"})
+	s.CreateUser(context.Background(), db.CreateUserParams{Email: "admin@test.com", Role: "admin"})
 	ctx := context.WithValue(context.Background(), middleware.UserContextKey, int64(1))
 
 	// Create Controller
@@ -164,7 +164,7 @@ func TestHardwareAuditLogging(t *testing.T) {
 	r.ServeHTTP(rr, req)
 
 	// Verify Create Log
-	logs, _ := queries.GetAllAuditLogs(ctx)
+	logs, _ := s.GetAllAuditLogs(ctx)
 	if len(logs) != 1 {
 		t.Fatalf("expected 1 log after create, got %d", len(logs))
 	}
@@ -176,7 +176,7 @@ func TestHardwareAuditLogging(t *testing.T) {
 	}
 
 	// Update Grid (Grid Save)
-	ctrl, _ := queries.GetControllers(ctx)
+	ctrl, _ := s.GetControllers(ctx)
 	id := ctrl[0].ID
 
 	r2 := chi.NewRouter()
@@ -194,7 +194,7 @@ func TestHardwareAuditLogging(t *testing.T) {
 	rr2 := httptest.NewRecorder()
 	r2.ServeHTTP(rr2, req2)
 
-	logs, _ = queries.GetAllAuditLogs(ctx)
+	logs, _ = s.GetAllAuditLogs(ctx)
 	if len(logs) != 2 {
 		t.Fatalf("expected 2 logs after grid update, got %d", len(logs))
 	}
@@ -212,7 +212,7 @@ func TestHardwareAuditLogging(t *testing.T) {
 	rr3 := httptest.NewRecorder()
 	r3.ServeHTTP(rr3, req3)
 
-	logs, _ = queries.GetAllAuditLogs(ctx)
+	logs, _ = s.GetAllAuditLogs(ctx)
 	if len(logs) != 3 {
 		t.Fatalf("expected 3 logs after delete, got %d", len(logs))
 	}

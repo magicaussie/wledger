@@ -24,27 +24,27 @@ func TestHandleSettingsUpdate(t *testing.T) {
 	defer dbConn.Close()
 	setupTestSchema(t, dbConn)
 
-	queries := db.New(dbConn)
+	s := db.NewStore(dbConn)
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	session := scs.New()
 
 	// Initialize settings
-	queries.InitSettings(context.Background())
+	s.InitSettings(context.Background())
 
 	h := &Handler{
 		Logger:   logger,
-		Queries:  queries,
+		Queries:  s,
 		Database: dbConn,
 		Session:  session,
 	}
 
-	// 1. Verify initial state (should be false)
-	s, _ := queries.GetSettings(context.Background())
-	if s.EnableDebugLogs.Bool {
+	// Verify initial state (should be false)
+	settings, _ := s.GetSettings(context.Background())
+	if settings.EnableDebugLogs.Bool {
 		t.Fatal("expected EnableDebugLogs to be false initially")
 	}
 
-	// 2. Perform update
+	// Perform update
 	form := url.Values{}
 	form.Add("require_auth", "on")
 	form.Add("enable_timeout", "on")
@@ -65,13 +65,13 @@ func TestHandleSettingsUpdate(t *testing.T) {
 		t.Errorf("expected status 303, got %d", rr.Code)
 	}
 
-	// 3. Verify final state
-	s, _ = queries.GetSettings(context.Background())
-	if !s.EnableDebugLogs.Bool {
+	// Verify final state
+	settings, _ = s.GetSettings(context.Background())
+	if !settings.EnableDebugLogs.Bool {
 		t.Error("expected EnableDebugLogs to be true after update")
 	}
-	if s.LocateTimeoutSeconds.Int64 != 15 {
-		t.Errorf("expected locate_timeout to be 15, got %d", s.LocateTimeoutSeconds.Int64)
+	if settings.LocateTimeoutSeconds.Int64 != 15 {
+		t.Errorf("expected locate_timeout to be 15, got %d", settings.LocateTimeoutSeconds.Int64)
 	}
 }
 
@@ -81,20 +81,20 @@ func TestSettingsAuditLogging(t *testing.T) {
 	defer dbConn.Close()
 	setupTestSchema(t, dbConn)
 
-	queries := db.New(dbConn)
+	s := db.NewStore(dbConn)
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	session := scs.New()
 
 	h := &Handler{
 		Logger:   logger,
-		Queries:  queries,
+		Queries:  s,
 		Database: dbConn,
 		Session:  session,
 	}
 
-	queries.InitSettings(context.Background())
+	s.InitSettings(context.Background())
 
-	queries.CreateUser(context.Background(), db.CreateUserParams{Email: "admin@test.com", Role: "admin"})
+	s.CreateUser(context.Background(), db.CreateUserParams{Email: "admin@test.com", Role: "admin"})
 	ctx := context.WithValue(context.Background(), middleware.UserContextKey, int64(1))
 
 	// Update Settings
@@ -103,15 +103,15 @@ func TestSettingsAuditLogging(t *testing.T) {
 
 	// change something from default (require_auth is default true, debug false)
 	form := url.Values{}
-	form.Add("require_auth", "off")     // Changed
-	form.Add("enable_debug_logs", "on") // Changed
+	form.Add("require_auth", "off")
+	form.Add("enable_debug_logs", "on")
 	req := httptest.NewRequest(http.MethodPost, "/settings", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
 
-	logs, _ := queries.GetAllAuditLogs(ctx)
+	logs, _ := s.GetAllAuditLogs(ctx)
 	if len(logs) != 1 {
 		t.Fatalf("expected 1 log after settings update, got %d", len(logs))
 	}
@@ -124,7 +124,7 @@ func TestSettingsAuditLogging(t *testing.T) {
 	rr1b := httptest.NewRecorder()
 	r.ServeHTTP(rr1b, req1b)
 
-	logsNoChange, _ := queries.GetAllAuditLogs(ctx)
+	logsNoChange, _ := s.GetAllAuditLogs(ctx)
 	if len(logsNoChange) != 0 {
 		t.Errorf("expected 0 logs after no-op update, got %d", len(logsNoChange))
 	}
@@ -146,7 +146,7 @@ func TestSettingsAuditLogging(t *testing.T) {
 	rr2 := httptest.NewRecorder()
 	r2.ServeHTTP(rr2, req2)
 
-	logs, _ = queries.GetAllAuditLogs(ctx)
+	logs, _ = s.GetAllAuditLogs(ctx)
 	if len(logs) != 1 {
 		t.Fatalf("expected 1 log after user create, got %d", len(logs))
 	}
@@ -170,7 +170,7 @@ func TestSettingsAuditLogging(t *testing.T) {
 	rr3 := httptest.NewRecorder()
 	r3.ServeHTTP(rr3, req3)
 
-	logs, _ = queries.GetAllAuditLogs(ctx)
+	logs, _ = s.GetAllAuditLogs(ctx)
 	if len(logs) != 2 {
 		t.Fatalf("expected 2 logs after user delete, got %d", len(logs))
 	}

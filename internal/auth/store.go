@@ -8,13 +8,13 @@ import (
 	"github.com/tuxedocurly/wledger/internal/db"
 )
 
-// SQLCStore implements the scs.Store interface using sqlc queries from /internal/sql/queries
+// SQLCStore implements the scs.Store interface using db.Store
 type SQLCStore struct {
-	queries *db.Queries
+	store db.Store
 }
 
-func NewStore(q *db.Queries) *SQLCStore {
-	return &SQLCStore{queries: q}
+func NewStore(s db.Store) *SQLCStore {
+	return &SQLCStore{store: s}
 }
 
 // Find returns the data for a given session token from the SQLCStore instance
@@ -24,7 +24,7 @@ func (s *SQLCStore) Find(token string) (b []byte, exists bool, err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	session, err := s.queries.GetSession(ctx, token)
+	session, err := s.store.GetSession(ctx, token)
 	if err == sql.ErrNoRows {
 		return nil, false, nil
 	}
@@ -42,7 +42,7 @@ func (s *SQLCStore) Find(token string) (b []byte, exists bool, err error) {
 
 // Commit adds a session token and data to the SQLCStore instance with the
 // given expiry time. If the session token already exists, then data and
-// expiry time are updated
+// expiry time are updated. This operation is atomic.
 func (s *SQLCStore) Commit(token string, b []byte, expiry time.Time) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -50,15 +50,17 @@ func (s *SQLCStore) Commit(token string, b []byte, expiry time.Time) error {
 	// Convert expiry time to Unix timestamp (float64) for SQLite REAL column
 	expiryFloat := float64(expiry.Unix())
 
-	err := s.queries.DeleteSession(ctx, token)
-	if err != nil {
-		return err
-	}
+	return s.store.ExecTx(ctx, func(q db.Querier) error {
+		err := q.DeleteSession(ctx, token)
+		if err != nil {
+			return err
+		}
 
-	return s.queries.CreateSession(ctx, db.CreateSessionParams{
-		Token:  token,
-		Data:   b,
-		Expiry: expiryFloat,
+		return q.CreateSession(ctx, db.CreateSessionParams{
+			Token:  token,
+			Data:   b,
+			Expiry: expiryFloat,
+		})
 	})
 }
 
@@ -68,5 +70,6 @@ func (s *SQLCStore) Delete(token string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	return s.queries.DeleteSession(ctx, token)
+	return s.store.DeleteSession(ctx, token)
 }
+

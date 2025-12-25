@@ -46,14 +46,14 @@ func setupPartTest(t *testing.T) (*Handler, *sql.DB) {
 	// Init images package (ensure dir exists)
 	_ = images.Init()
 
-	queries := db.New(dbConn)
+	s := db.NewStore(dbConn)
 
-	tagsService := tags.NewService(dbConn, queries)
-	partsService := parts.NewService(dbConn, queries, logger, tagsService)
+	tagsService := tags.NewService(dbConn, s)
+	partsService := parts.NewService(dbConn, s, logger, tagsService)
 
 	h := &Handler{
 		Logger:   logger,
-		Queries:  queries,
+		Queries:  s,
 		Database: dbConn,
 		Parts:    partsService,
 		Tags:     tagsService,

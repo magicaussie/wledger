@@ -16,7 +16,7 @@ import (
 // Handler holds shared dependencies for all HTTP Handlers
 type Handler struct {
 	Logger      *slog.Logger
-	Queries     *db.Queries
+	Queries     db.Store
 	Session     *scs.SessionManager
 	WLED        *wled.Client
 	Database    *sql.DB
@@ -29,7 +29,7 @@ type Handler struct {
 // New creates a new Handler with dependencies
 func New(
 	logger *slog.Logger,
-	queries *db.Queries,
+	queries db.Store,
 	session *scs.SessionManager,
 	wledClient *wled.Client,
 	database *sql.DB,
@@ -50,3 +50,4 @@ func New(
 		Inspiration: inspirationService,
 	}
 }
+
