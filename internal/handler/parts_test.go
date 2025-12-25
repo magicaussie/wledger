@@ -23,8 +23,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/tuxedocurly/wledger/internal/db"
+	"github.com/tuxedocurly/wledger/internal/documents"
 	"github.com/tuxedocurly/wledger/internal/images"
 	"github.com/tuxedocurly/wledger/internal/parts"
+	"github.com/tuxedocurly/wledger/internal/stock"
 	"github.com/tuxedocurly/wledger/internal/tags"
 	"github.com/tuxedocurly/wledger/internal/uierror"
 )
@@ -51,15 +53,19 @@ func setupPartTest(t *testing.T) (*Handler, *sql.DB) {
 	uiError := uierror.New(logger)
 
 	tagsService := tags.NewService(dbConn, s)
-	partsService := parts.NewService(dbConn, s, logger, tagsService)
+	docsService := documents.NewService(s, logger)
+	stockService := stock.NewService(s, logger)
+	partsService := parts.NewService(dbConn, s, logger, tagsService, docsService)
 
 	h := &Handler{
-		Logger:   logger,
-		Queries:  s,
-		Database: dbConn,
-		Parts:    partsService,
-		Tags:     tagsService,
-		UIError:  uiError,
+		Logger:    logger,
+		Queries:   s,
+		Database:  dbConn,
+		Parts:     partsService,
+		Tags:      tagsService,
+		UIError:   uiError,
+		Stock:     stockService,
+		Documents: docsService,
 	}
 
 	return h, dbConn

@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"database/sql"
 	"net/http"
 	"strconv"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/logger"
+	"github.com/tuxedocurly/wledger/internal/settings"
 	"github.com/tuxedocurly/wledger/web/pages"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -27,15 +27,12 @@ func (h *Handler) HandleSettings(w http.ResponseWriter, r *http.Request) {
 	// Fetch Admin Data (Only if User is Admin)
 	// Viewers/Editors don't need this data since the template hides those sections.
 	if user.IsAdmin() {
-		settings, err = h.Queries.GetSettings(r.Context())
+		settings, err = h.Settings.GetSettings(r.Context())
 		if err != nil {
 			h.Logger.Error("failed to get settings", "err", err)
-			// If settings table is empty/broken, consider handling it gracefully,
-			// but for now, log it
-			// TODO: implement graceful handling
 		}
 
-		users, err = h.Queries.ListUsers(r.Context())
+		users, err = h.Settings.ListUsers(r.Context())
 		if err != nil {
 			h.Logger.Error("failed to list users", "err", err)
 			users = []db.ListUsersRow{}
@@ -64,79 +61,68 @@ func (h *Handler) HandleSettingsUpdate(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// Fetch current settings for diff
-	current, err := h.Queries.GetSettings(ctx)
+	current, err := h.Settings.GetSettings(ctx)
 	if err != nil {
 		h.Logger.Error("failed to fetch current settings for diff", "err", err)
 	}
 
-	err = h.Queries.ExecTx(ctx, func(q db.Querier) error {
-		err = q.UpdateGeneralSettings(ctx, db.UpdateGeneralSettingsParams{
-			RequireAuthForRead:   sql.NullBool{Bool: requireAuth, Valid: true},
-			LocateTimeoutSeconds: sql.NullInt64{Int64: int64(timeout), Valid: true},
-			EnableLocateTimeout:  sql.NullBool{Bool: enableTimeout, Valid: true},
-			EnableDebugLogs:      sql.NullBool{Bool: enableDebugLogs, Valid: true},
-		})
-		if err != nil {
-			return err
-		}
-
-		err = q.UpdateColors(ctx, db.UpdateColorsParams{
-			ColorLocate:        sql.NullString{String: colorLocate, Valid: true},
-			ColorStockOk:       sql.NullString{String: colorOk, Valid: true},
-			ColorStockLow:      sql.NullString{String: colorLow, Valid: true},
-			ColorStockCritical: sql.NullString{String: colorCritical, Valid: true},
-		})
-		if err != nil {
-			return err
-		}
-
-		// Calculate Diff
-		oldDiff := make(map[string]any)
-		newDiff := make(map[string]any)
-
-		if current.RequireAuthForRead.Bool != requireAuth {
-			oldDiff["require_auth"] = current.RequireAuthForRead.Bool
-			newDiff["require_auth"] = requireAuth
-		}
-		if current.EnableDebugLogs.Bool != enableDebugLogs {
-			oldDiff["enable_debug_logs"] = current.EnableDebugLogs.Bool
-			newDiff["enable_debug_logs"] = enableDebugLogs
-		}
-		if current.EnableLocateTimeout.Bool != enableTimeout {
-			oldDiff["enable_timeout"] = current.EnableLocateTimeout.Bool
-			newDiff["enable_timeout"] = enableTimeout
-		}
-		if int(current.LocateTimeoutSeconds.Int64) != timeout {
-			oldDiff["locate_timeout"] = current.LocateTimeoutSeconds.Int64
-			newDiff["locate_timeout"] = timeout
-		}
-		if current.ColorLocate.String != colorLocate {
-			oldDiff["color_locate"] = current.ColorLocate.String
-			newDiff["color_locate"] = colorLocate
-		}
-		if current.ColorStockOk.String != colorOk {
-			oldDiff["color_ok"] = current.ColorStockOk.String
-			newDiff["color_ok"] = colorOk
-		}
-		if current.ColorStockLow.String != colorLow {
-			oldDiff["color_low"] = current.ColorStockLow.String
-			newDiff["color_low"] = colorLow
-		}
-		if current.ColorStockCritical.String != colorCritical {
-			oldDiff["color_critical"] = current.ColorStockCritical.String
-			newDiff["color_critical"] = colorCritical
-		}
-
-		if len(oldDiff) > 0 {
-			audit.Log(ctx, q, "UPDATE", "SETTINGS", 1, "Updated system configuration", oldDiff, newDiff)
-		}
-		return nil
+	err = h.Settings.UpdateSettings(ctx, settings.UpdateSettingsParams{
+		RequireAuth:         requireAuth,
+		LocateTimeout:       timeout,
+		EnableLocateTimeout: enableTimeout,
+		EnableDebugLogs:     enableDebugLogs,
+		ColorLocate:         colorLocate,
+		ColorOk:             colorOk,
+		ColorLow:            colorLow,
+		ColorCritical:       colorCritical,
 	})
 
 	if err != nil {
 		h.UIError.Respond(w, r, err, "Failed to update settings", http.StatusInternalServerError)
 		return
 	}
+
+	// Calculate Diff (for logging)
+	oldDiff := make(map[string]any)
+	newDiff := make(map[string]any)
+
+	if current.RequireAuthForRead.Bool != requireAuth {
+		oldDiff["require_auth"] = current.RequireAuthForRead.Bool
+		newDiff["require_auth"] = requireAuth
+	}
+	if current.EnableDebugLogs.Bool != enableDebugLogs {
+		oldDiff["enable_debug_logs"] = current.EnableDebugLogs.Bool
+		newDiff["enable_debug_logs"] = enableDebugLogs
+	}
+	if current.EnableLocateTimeout.Bool != enableTimeout {
+		oldDiff["enable_timeout"] = current.EnableLocateTimeout.Bool
+		newDiff["enable_timeout"] = enableTimeout
+	}
+	if int(current.LocateTimeoutSeconds.Int64) != timeout {
+		oldDiff["locate_timeout"] = current.LocateTimeoutSeconds.Int64
+		newDiff["locate_timeout"] = timeout
+	}
+	if current.ColorLocate.String != colorLocate {
+		oldDiff["color_locate"] = current.ColorLocate.String
+		newDiff["color_locate"] = colorLocate
+	}
+	if current.ColorStockOk.String != colorOk {
+		oldDiff["color_ok"] = current.ColorStockOk.String
+		newDiff["color_ok"] = colorOk
+	}
+	if current.ColorStockLow.String != colorLow {
+		oldDiff["color_low"] = current.ColorStockLow.String
+		newDiff["color_low"] = colorLow
+	}
+	if current.ColorStockCritical.String != colorCritical {
+		oldDiff["color_critical"] = current.ColorStockCritical.String
+		newDiff["color_critical"] = colorCritical
+	}
+
+	if len(oldDiff) > 0 {
+		audit.Log(ctx, h.Queries, "UPDATE", "SETTINGS", 1, "Updated system configuration", oldDiff, newDiff)
+	}
+
 
 	// Update Runtime Log Level
 	logger.SetDebug(enableDebugLogs)
@@ -162,7 +148,7 @@ func (h *Handler) HandleSettingsPassword(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	user, err := h.Queries.GetUser(r.Context(), userID)
+	user, err := h.Settings.GetUser(r.Context(), userID)
 	if err != nil {
 		h.UIError.Respond(w, r, err, "User not found", http.StatusInternalServerError)
 		return
@@ -175,18 +161,9 @@ func (h *Handler) HandleSettingsPassword(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	hashedBytes, err := bcrypt.GenerateFromPassword([]byte(newPw), bcrypt.DefaultCost)
+	err = h.Settings.UpdateUserPassword(r.Context(), userID, newPw)
 	if err != nil {
-		h.UIError.Respond(w, r, err, "Failed to hash new password", http.StatusInternalServerError)
-		return
-	}
-
-	err = h.Queries.UpdateUserPassword(r.Context(), db.UpdateUserPasswordParams{
-		PasswordHash: string(hashedBytes),
-		ID:           userID,
-	})
-	if err != nil {
-		h.UIError.Respond(w, r, err, "Failed to update database", http.StatusInternalServerError)
+		h.UIError.Respond(w, r, err, "Failed to update password", http.StatusInternalServerError)
 		return
 	}
 
@@ -199,37 +176,19 @@ func (h *Handler) HandleUserCreate(w http.ResponseWriter, r *http.Request) {
 	role := r.FormValue("role")
 	tempPw := r.FormValue("temp_password")
 
-	// Hash the temp password
-	hashedBytes, err := bcrypt.GenerateFromPassword([]byte(tempPw), bcrypt.DefaultCost)
-	if err != nil {
-		h.UIError.Respond(w, r, err, "Failed to hash temporary password", http.StatusInternalServerError)
-		return
-	}
-
-	err = h.Queries.ExecTx(r.Context(), func(q db.Querier) error {
-		user, err := q.CreateUser(r.Context(), db.CreateUserParams{
-			Email:                  email,
-			PasswordHash:           string(hashedBytes),
-			Role:                   role,
-			ChangePasswordRequired: sql.NullBool{Bool: true, Valid: true}, // Force password reset
-		})
-
-		if err != nil {
-			return err
-		}
-
-		audit.Log(r.Context(), q, "CREATE", "USER", user.ID, "Created user", nil,
-			map[string]any{"email": user.Email, "role": user.Role})
-
-		return nil
+	user, err := h.Settings.CreateUser(r.Context(), settings.CreateUserParams{
+		Email:    email,
+		Role:     role,
+		Password: tempPw,
 	})
 
 	if err != nil {
-		h.Logger.Error("failed to create user", "err", err)
-		// Assuming error is duplicate email or db error
-		http.Redirect(w, r, "/settings", http.StatusSeeOther)
+		h.UIError.Respond(w, r, err, "Failed to create user", http.StatusInternalServerError)
 		return
 	}
+
+	audit.Log(r.Context(), h.Queries, "CREATE", "USER", user.ID, "Created user", nil,
+		map[string]any{"email": user.Email, "role": user.Role})
 
 	h.Logger.Info("created user", "email", email, "role", role)
 	http.Redirect(w, r, "/settings", http.StatusSeeOther)
@@ -249,13 +208,13 @@ func (h *Handler) HandleUserDelete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch before delete
-	u, err := h.Queries.GetUser(r.Context(), int64(id))
+	u, err := h.Settings.GetUser(r.Context(), int64(id))
 	if err == nil {
 		audit.Log(r.Context(), h.Queries, "DELETE", "USER", int64(id), "Deleted user", 
 			map[string]any{"email": u.Email, "role": u.Role}, nil)
 	}
 
-	err = h.Queries.DeleteUser(r.Context(), int64(id))
+	err = h.Settings.DeleteUser(r.Context(), int64(id))
 	if err != nil {
 		h.Logger.Error("failed to delete user", "err", err)
 	}
@@ -275,10 +234,7 @@ func (h *Handler) HandleUserForceReset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.Queries.SetPasswordResetFlag(r.Context(), db.SetPasswordResetFlagParams{
-		ChangePasswordRequired: sql.NullBool{Bool: true, Valid: true},
-		ID:                     int64(id),
-	})
+	err := h.Settings.ForceReset(r.Context(), int64(id))
 
 	if err != nil {
 		h.UIError.Respond(w, r, err, "Failed to force password reset", http.StatusInternalServerError)

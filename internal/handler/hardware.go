@@ -3,7 +3,6 @@ package handler
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"net/http"
 	"strconv"
 	"time"
@@ -20,7 +19,7 @@ func (h *Handler) HandleHardwareList(w http.ResponseWriter, r *http.Request) {
 	// Get User
 	user := auth.GetUserFromRequest(r)
 
-	controllers, err := h.Queries.GetControllers(r.Context())
+	controllers, err := h.Hardware.ListControllers(r.Context())
 	if err != nil {
 		h.UIError.Respond(w, r, err, "Failed to fetch hardware list", http.StatusInternalServerError)
 		return
@@ -47,7 +46,7 @@ func (h *Handler) HandleHardwareCreate(w http.ResponseWriter, r *http.Request) {
 		port = 80
 	}
 
-	controller, err := h.Queries.CreateController(r.Context(), db.CreateControllerParams{
+	controller, err := h.Hardware.CreateController(r.Context(), db.CreateControllerParams{
 		Name:      name,
 		IpAddress: ip,
 		Port:      sql.NullInt64{Int64: int64(port), Valid: true},
@@ -72,39 +71,26 @@ func (h *Handler) HandleHardwareDelete(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, _ := strconv.Atoi(idStr)
 
-	// Fetch before delete
-	c, err := h.Queries.GetController(r.Context(), int64(id))
+	// Fetch before delete for logging
+	c, err := h.Hardware.GetController(r.Context(), int64(id))
 	if err != nil {
 		h.UIError.Respond(w, r, err, "Controller not found", http.StatusNotFound)
 		return
 	}
 
-	err = h.Queries.ExecTx(r.Context(), func(q db.Querier) error {
-		// Delete Bins First (Manual Cascade)
-		err = q.DeleteBinsByController(r.Context(), sql.NullInt64{Int64: int64(id), Valid: true})
-		if err != nil {
-			return err
-		}
-
-		// Delete Controller
-		err = q.DeleteController(r.Context(), int64(id))
-		if err != nil {
-			return err
-		}
-
-		summary := map[string]any{
-			"id":         c.ID,
-			"name":       c.Name,
-			"ip_address": c.IpAddress,
-		}
-		audit.Log(r.Context(), q, "DELETE", "HARDWARE", int64(id), "Deleted controller", summary, nil)
-		return nil
-	})
-
+	err = h.Hardware.DeleteController(r.Context(), int64(id))
 	if err != nil {
 		h.UIError.Respond(w, r, err, "Failed to delete hardware", http.StatusInternalServerError)
 		return
 	}
+
+	summary := map[string]any{
+		"id":         c.ID,
+		"name":       c.Name,
+		"ip_address": c.IpAddress,
+	}
+	audit.Log(r.Context(), h.Queries, "DELETE", "HARDWARE", int64(id), "Deleted controller", summary, nil)
+
 
 	http.Redirect(w, r, "/hardware", http.StatusSeeOther)
 }
@@ -114,22 +100,10 @@ func (h *Handler) HandleHardwareStatus(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, _ := strconv.Atoi(idStr)
 
-	c, err := h.Queries.GetController(r.Context(), int64(id))
+	online, err := h.Hardware.UpdateStatus(r.Context(), int64(id))
 	if err != nil {
 		h.UIError.Respond(w, r, err, "Controller not found", http.StatusNotFound)
 		return
-	}
-
-	online, _ := h.WLED.Ping(r.Context(), c.IpAddress)
-
-	if online != c.IsOnline.Bool {
-		err := h.Queries.UpdateControllerStatus(r.Context(), db.UpdateControllerStatusParams{
-			IsOnline: sql.NullBool{Bool: online, Valid: true},
-			ID:       c.ID,
-		})
-		if err != nil {
-			h.Logger.Error("failed to update controller online status", "err", err, "id", c.ID, "online", online)
-		}
 	}
 
 	if online {
@@ -147,13 +121,13 @@ func (h *Handler) HandleHardwareGrid(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, _ := strconv.Atoi(idStr)
 
-	c, err := h.Queries.GetController(r.Context(), int64(id))
+	c, err := h.Hardware.GetController(r.Context(), int64(id))
 	if err != nil {
 		h.UIError.Respond(w, r, err, "Controller not found", http.StatusNotFound)
 		return
 	}
 
-	bins, err := h.Queries.GetBinsByController(r.Context(), sql.NullInt64{Int64: int64(id), Valid: true})
+	bins, err := h.Hardware.GetBinsByController(r.Context(), int64(id))
 	if err != nil {
 		bins = []db.Bin{}
 	}
@@ -177,113 +151,32 @@ func (h *Handler) HandleHardwareGridSave(w http.ResponseWriter, r *http.Request)
 
 	// Parse Payload
 	gridDataJSON := r.FormValue("grid_data")
-	var newCells []gridCellData
-	if err := json.Unmarshal([]byte(gridDataJSON), &newCells); err != nil {
-		h.UIError.Respond(w, r, err, "Invalid Grid data format", http.StatusBadRequest)
-		return
+	configJSON := r.FormValue("config_data")
+
+	// Fetch old count for logging before update
+	var oldLedCount int
+	existingBins, err := h.Hardware.GetBinsByController(ctx, int64(controllerID))
+	if err == nil {
+		oldLedCount = len(existingBins)
 	}
 
-	maxLedIndex := 0
-	var oldLedCount int
-
-	err := h.Queries.ExecTx(ctx, func(q db.Querier) error {
-		// Fetch Existing Bins
-		existingBins, err := q.GetBinsByController(ctx, sql.NullInt64{Int64: int64(controllerID), Valid: true})
-		if err != nil {
-			return err
-		}
-		oldLedCount = len(existingBins)
-
-		// Build Map for Diffing: [LedIndex] -> Bin
-		existingMap := make(map[int64]db.Bin)
-		for _, b := range existingBins {
-			if b.LedIndex.Valid {
-				existingMap[b.LedIndex.Int64] = b
-			}
-		}
-
-		// Process Incoming Grid Data
-		for _, cell := range newCells {
-			if cell.LedIndex > maxLedIndex {
-				maxLedIndex = cell.LedIndex
-			}
-
-			ledIdx := int64(cell.LedIndex)
-
-			if _, exists := existingMap[ledIdx]; exists {
-				// UPDATE EXISTING
-				err := q.UpsertBin(ctx, db.UpsertBinParams{
-					Name:         cell.Name,
-					ControllerID: sql.NullInt64{Int64: int64(controllerID), Valid: true},
-					LedIndex:     sql.NullInt64{Int64: ledIdx, Valid: true},
-					Width:        sql.NullInt64{Int64: 1, Valid: true},
-					GridX:        sql.NullInt64{Int64: int64(cell.X), Valid: true},
-					GridY:        sql.NullInt64{Int64: int64(cell.Y), Valid: true},
-				})
-				if err != nil {
-					return err
-				}
-				// Remove from map to mark as "kept"
-				delete(existingMap, ledIdx)
-
-			} else {
-				// --- INSERT NEW ---
-				_, err := q.CreateBin(ctx, db.CreateBinParams{
-					Name:         cell.Name,
-					ControllerID: sql.NullInt64{Int64: int64(controllerID), Valid: true},
-					LedIndex:     sql.NullInt64{Int64: ledIdx, Valid: true},
-					Width:        sql.NullInt64{Int64: 1, Valid: true},
-					GridX:        sql.NullInt64{Int64: int64(cell.X), Valid: true},
-					GridY:        sql.NullInt64{Int64: int64(cell.Y), Valid: true},
-				})
-				if err != nil {
-					return err
-				}
-			}
-		}
-
-		// Handle Deletions (Orphan Logic)
-		for _, binToDelete := range existingMap {
-			err := q.DeleteBinByLed(ctx, db.DeleteBinByLedParams{
-				ControllerID: sql.NullInt64{Int64: int64(controllerID), Valid: true},
-				LedIndex:     binToDelete.LedIndex,
-			})
-			if err != nil {
-				h.Logger.Error("failed to delete removed bin", "id", binToDelete.ID, "err", err)
-			}
-		}
-
-		// Update Controller Config
-		configJSON := r.FormValue("config_data")
-		if configJSON != "" {
-			err := q.UpdateControllerConfig(ctx, db.UpdateControllerConfigParams{
-				ConfigJson: sql.NullString{String: configJSON, Valid: true},
-				LedCount:   int64(maxLedIndex + 1),
-				ID:         int64(controllerID),
-			})
-			if err != nil {
-				return err
-			}
-		}
-
-		audit.Log(ctx, q, "UPDATE", "HARDWARE", int64(controllerID), "Updated LED Grid Layout",
-			map[string]any{"led_count": oldLedCount},
-			map[string]any{"led_count": maxLedIndex + 1})
-
-		return nil
-	})
-
+	newLedCount, err := h.Hardware.SaveGrid(ctx, int64(controllerID), gridDataJSON, configJSON)
 	if err != nil {
 		h.UIError.Respond(w, r, err, "Failed to save grid layout", http.StatusInternalServerError)
 		return
 	}
+
+	// Audit Log (Post-Service)
+	audit.Log(ctx, h.Queries, "UPDATE", "HARDWARE", int64(controllerID), "Updated LED Grid Layout",
+		map[string]any{"led_count": oldLedCount},
+		map[string]any{"led_count": newLedCount})
 
 	http.Redirect(w, r, "/hardware", http.StatusSeeOther)
 }
 
 // POST /hardware/off
 func (h *Handler) HandleGlobalOff(w http.ResponseWriter, r *http.Request) {
-	controllers, err := h.Queries.GetControllers(r.Context())
+	controllers, err := h.Hardware.ListControllers(r.Context())
 	if err != nil {
 		h.UIError.Respond(w, r, err, "Failed to list controllers", http.StatusInternalServerError)
 		return
@@ -314,56 +207,10 @@ func (h *Handler) HandleHardwareLocate(w http.ResponseWriter, r *http.Request) {
 	cid, _ := strconv.Atoi(cidStr)
 	binID, _ := strconv.Atoi(r.URL.Query().Get("bin_id"))
 
-	// Fetch Settings (Needed for Color and Timeout config)
-	settings, err := h.Queries.GetSettings(r.Context())
+	err := h.Hardware.Locate(r.Context(), int64(cid), int64(binID))
 	if err != nil {
-		h.Logger.Warn("failed to fetch settings for locate, using defaults", "err", err)
-		// Fallback defaults if DB fails
-		settings.ColorLocate.String = "#0000FF"
-		settings.EnableLocateTimeout.Bool = false
-		settings.LocateTimeoutSeconds.Int64 = 0
-	}
-
-	// Retrieve Hardware Details
-	controller, err := h.Queries.GetController(r.Context(), int64(cid))
-	if err != nil {
-		h.UIError.Respond(w, r, err, "Controller not found", http.StatusNotFound)
+		h.UIError.Respond(w, r, err, "Locate failed", http.StatusInternalServerError)
 		return
-	}
-
-	bin, err := h.Queries.GetBin(r.Context(), int64(binID))
-	if err != nil {
-		h.UIError.Respond(w, r, err, "Bin not found", http.StatusNotFound)
-		return
-	}
-
-	// Calculate LED Positions
-	ledIndex := int(bin.LedIndex.Int64)
-	width := int(bin.Width.Int64)
-	if width < 1 {
-		width = 1
-	}
-
-	// Trigger WLED
-	err = h.WLED.LightUp(r.Context(), controller.IpAddress, ledIndex, width, settings.ColorLocate.String)
-	if err != nil {
-		// Don't return error to client, just log it
-		h.Logger.Error("failed to locate bin", "err", err, "ip", controller.IpAddress)
-	}
-
-	// Handle Auto-Off Timer
-	if settings.EnableLocateTimeout.Bool && settings.LocateTimeoutSeconds.Int64 > 0 {
-		timeoutDuration := time.Duration(settings.LocateTimeoutSeconds.Int64) * time.Second
-
-		go func(ip string, idx, count int, duration time.Duration) {
-			time.Sleep(duration)
-			// Create a new context since the request context will be cancelled
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-
-			// Turn off (using black)
-			_ = h.WLED.LightUp(ctx, ip, idx, count, "#000000")
-		}(controller.IpAddress, ledIndex, width, timeoutDuration)
 	}
 
 	w.WriteHeader(http.StatusOK)

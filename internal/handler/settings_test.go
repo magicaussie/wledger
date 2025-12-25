@@ -16,8 +16,11 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/internal/db"
+	"github.com/tuxedocurly/wledger/internal/hardware"
 	"github.com/tuxedocurly/wledger/internal/middleware"
+	"github.com/tuxedocurly/wledger/internal/settings"
 	"github.com/tuxedocurly/wledger/internal/uierror"
+	"github.com/tuxedocurly/wledger/internal/wled"
 )
 
 func TestHandleSettingsUpdate(t *testing.T) {
@@ -29,6 +32,9 @@ func TestHandleSettingsUpdate(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	session := scs.New()
 	uiError := uierror.New(logger)
+	wClient := wled.New()
+	hwService := hardware.NewService(s, wClient, logger)
+	settService := settings.NewService(s)
 
 	// Initialize settings
 	s.InitSettings(context.Background())
@@ -39,6 +45,8 @@ func TestHandleSettingsUpdate(t *testing.T) {
 		Database: dbConn,
 		Session:  session,
 		UIError:  uiError,
+		Hardware: hwService,
+		Settings: settService,
 	}
 
 	// Verify initial state (should be false)
@@ -88,6 +96,9 @@ func TestSettingsAuditLogging(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	session := scs.New()
 	uiError := uierror.New(logger)
+	wClient := wled.New()
+	hwService := hardware.NewService(s, wClient, logger)
+	settService := settings.NewService(s)
 
 	h := &Handler{
 		Logger:   logger,
@@ -95,6 +106,8 @@ func TestSettingsAuditLogging(t *testing.T) {
 		Database: dbConn,
 		Session:  session,
 		UIError:  uiError,
+		Hardware: hwService,
+		Settings: settService,
 	}
 
 	s.InitSettings(context.Background())

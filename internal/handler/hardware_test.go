@@ -17,8 +17,11 @@ import (
 	"github.com/go-chi/chi/v5"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/tuxedocurly/wledger/internal/db"
+	"github.com/tuxedocurly/wledger/internal/hardware"
 	"github.com/tuxedocurly/wledger/internal/middleware"
+	"github.com/tuxedocurly/wledger/internal/settings"
 	"github.com/tuxedocurly/wledger/internal/uierror"
+	"github.com/tuxedocurly/wledger/internal/wled"
 )
 
 // openTestDB opens an in-memory database with Foreign Keys enabled.
@@ -47,12 +50,17 @@ func TestControllerDeleteCascadesToBins(t *testing.T) {
 	s := db.NewStore(dbConn)
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	uiError := uierror.New(logger)
+	wClient := wled.New()
+	hwService := hardware.NewService(s, wClient, logger)
+	settService := settings.NewService(s)
 
 	h := &Handler{
 		Logger:   logger,
 		Queries:  s,
 		Database: dbConn,
 		UIError:  uiError,
+		Hardware: hwService,
+		Settings: settService,
 	}
 
 	ctx := context.Background()
@@ -140,6 +148,9 @@ func TestHardwareAuditLogging(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	session := scs.New()
 	uiError := uierror.New(logger)
+	wClient := wled.New()
+	hwService := hardware.NewService(s, wClient, logger)
+	settService := settings.NewService(s)
 
 	h := &Handler{
 		Logger:   logger,
@@ -147,6 +158,8 @@ func TestHardwareAuditLogging(t *testing.T) {
 		Database: dbConn,
 		Session:  session,
 		UIError:  uiError,
+		Hardware: hwService,
+		Settings: settService,
 	}
 
 	// Mock Admin Context

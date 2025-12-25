@@ -11,9 +11,14 @@ import (
 	"testing"
 
 	"github.com/alexedwards/scs/v2"
+	"github.com/tuxedocurly/wledger/internal/audit"
 	"github.com/tuxedocurly/wledger/internal/auth"
+	"github.com/tuxedocurly/wledger/internal/dashboard"
 	"github.com/tuxedocurly/wledger/internal/db"
+	"github.com/tuxedocurly/wledger/internal/hardware"
+	"github.com/tuxedocurly/wledger/internal/settings"
 	"github.com/tuxedocurly/wledger/internal/uierror"
+	"github.com/tuxedocurly/wledger/internal/wled"
 )
 
 func TestHandleAuditLogs(t *testing.T) {
@@ -27,13 +32,22 @@ func TestHandleAuditLogs(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	session := scs.New()
 	uiError := uierror.New(logger)
+	
+	auditService := audit.NewService(s)
+	dashboardService := dashboard.NewService(s)
+	hardwareService := hardware.NewService(s, wled.New(), logger)
+	settingsService := settings.NewService(s)
 
 	h := &Handler{
-		Logger:   logger,
-		Queries:  s,
-		Database: dbConn,
-		Session:  session,
-		UIError:  uiError,
+		Logger:    logger,
+		Queries:   s,
+		Database:  dbConn,
+		Session:   session,
+		UIError:   uiError,
+		Audit:     auditService,
+		Dashboard: dashboardService,
+		Hardware:  hardwareService,
+		Settings:  settingsService,
 	}
 
 	ctx := context.Background()

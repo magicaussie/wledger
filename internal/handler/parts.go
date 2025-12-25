@@ -14,6 +14,7 @@ import (
 	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/parts"
+	"github.com/tuxedocurly/wledger/internal/stock"
 	"github.com/tuxedocurly/wledger/web/components"
 	"github.com/tuxedocurly/wledger/web/pages"
 )
@@ -351,7 +352,7 @@ func (h *Handler) HandlePartDelete(w http.ResponseWriter, r *http.Request) {
 // DELETE /parts/links/{id}
 func (h *Handler) HandleLinkDelete(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
-	err := h.Parts.DeleteLink(r.Context(), int64(id))
+	err := h.Documents.DeleteLink(r.Context(), int64(id))
 	if err != nil {
 		h.Logger.Error("failed to delete part link", "err", err, "link_id", id)
 	}
@@ -361,7 +362,7 @@ func (h *Handler) HandleLinkDelete(w http.ResponseWriter, r *http.Request) {
 // DELETE /parts/docs/{id}
 func (h *Handler) HandleDocDelete(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
-	err := h.Parts.DeleteDoc(r.Context(), int64(id))
+	err := h.Documents.DeleteDocument(r.Context(), int64(id))
 	if err != nil {
 		h.Logger.Error("failed to delete part doc", "err", err, "doc_id", id)
 	}
@@ -393,7 +394,7 @@ func (h *Handler) HandlePartAssign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.Parts.AssignStock(r.Context(), parts.AssignStockRequest{
+	err := h.Stock.AssignStock(r.Context(), stock.AssignStockRequest{
 		PartID:   int64(partID),
 		BinID:    int64(binID),
 		Quantity: qty,
@@ -417,7 +418,7 @@ func (h *Handler) HandlePartStockMove(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.Parts.MoveStock(r.Context(), parts.MoveStockRequest{
+	err := h.Stock.MoveStock(r.Context(), stock.MoveStockRequest{
 		PartID:       int64(partID),
 		AssignmentID: int64(assignmentID),
 		TargetBinID:  int64(targetBinID),
@@ -435,7 +436,7 @@ func (h *Handler) HandlePartStockRemove(w http.ResponseWriter, r *http.Request) 
 	partID, _ := strconv.Atoi(chi.URLParam(r, "id"))
 	assignmentID, _ := strconv.Atoi(chi.URLParam(r, "assignment_id"))
 
-	err := h.Parts.RemoveStock(r.Context(), parts.RemoveStockRequest{
+	err := h.Stock.RemoveStock(r.Context(), stock.RemoveStockRequest{
 		PartID:       int64(partID),
 		AssignmentID: int64(assignmentID),
 	})
@@ -458,7 +459,7 @@ func (h *Handler) HandlePartStockAdjust(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	err := h.Parts.AdjustStock(r.Context(), int64(assignmentID), delta)
+	err := h.Stock.AdjustStock(r.Context(), int64(assignmentID), delta)
 	if err != nil {
 		h.UIError.Respond(w, r, err, "Failed to adjust stock", http.StatusInternalServerError)
 		return

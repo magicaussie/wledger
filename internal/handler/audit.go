@@ -58,7 +58,7 @@ func (h *Handler) HandleAuditLogs(w http.ResponseWriter, r *http.Request) {
 		UserID:     userID,
 	}
 
-	logs, err := h.Queries.ListAuditLogs(r.Context(), params)
+	logs, err := h.Audit.ListLogs(r.Context(), params)
 	if err != nil {
 		h.UIError.Respond(w, r, err, "Failed to list audit logs", http.StatusInternalServerError)
 		return
@@ -71,13 +71,13 @@ func (h *Handler) HandleAuditLogs(w http.ResponseWriter, r *http.Request) {
 		UserID:     params.UserID,
 		Search:     params.Search,
 	}
-	totalCount, err := h.Queries.CountAuditLogs(r.Context(), countParams)
+	totalCount, err := h.Audit.CountLogs(r.Context(), countParams)
 	if err != nil {
 		h.Logger.Error("failed to count audit logs", "err", err)
 	}
 
 	// Fetch users for filter
-	users, err := h.Queries.ListUsers(r.Context())
+	users, err := h.Settings.ListUsers(r.Context())
 	if err != nil {
 		h.Logger.Error("failed to list users for audit filter", "err", err)
 	}

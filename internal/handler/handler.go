@@ -5,10 +5,16 @@ import (
 	"log/slog"
 
 	"github.com/alexedwards/scs/v2"
+	"github.com/tuxedocurly/wledger/internal/audit"
 	"github.com/tuxedocurly/wledger/internal/backup"
+	"github.com/tuxedocurly/wledger/internal/dashboard"
 	"github.com/tuxedocurly/wledger/internal/db"
+	"github.com/tuxedocurly/wledger/internal/documents"
+	"github.com/tuxedocurly/wledger/internal/hardware"
 	"github.com/tuxedocurly/wledger/internal/inspiration"
 	"github.com/tuxedocurly/wledger/internal/parts"
+	"github.com/tuxedocurly/wledger/internal/settings"
+	"github.com/tuxedocurly/wledger/internal/stock"
 	"github.com/tuxedocurly/wledger/internal/tags"
 	"github.com/tuxedocurly/wledger/internal/uierror"
 	"github.com/tuxedocurly/wledger/internal/wled"
@@ -26,6 +32,12 @@ type Handler struct {
 	Tags        tags.Service
 	Inspiration inspiration.Service
 	UIError     *uierror.Responder
+	Hardware    hardware.Service
+	Settings    settings.Service
+	Audit       audit.Service
+	Dashboard   dashboard.Service
+	Stock       stock.Service
+	Documents   documents.Service
 }
 
 // New creates a new Handler with dependencies
@@ -40,6 +52,12 @@ func New(
 	tagsService tags.Service,
 	inspirationService inspiration.Service,
 	uiError *uierror.Responder,
+	hardwareService hardware.Service,
+	settingsService settings.Service,
+	auditService audit.Service,
+	dashboardService dashboard.Service,
+	stockService stock.Service,
+	docsService documents.Service,
 ) *Handler {
 	return &Handler{
 		Logger:      logger,
@@ -52,6 +70,12 @@ func New(
 		Tags:        tagsService,
 		Inspiration: inspirationService,
 		UIError:     uiError,
+		Hardware:    hardwareService,
+		Settings:    settingsService,
+		Audit:       auditService,
+		Dashboard:   dashboardService,
+		Stock:       stockService,
+		Documents:   docsService,
 	}
 }
 

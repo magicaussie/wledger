@@ -8,17 +8,23 @@ import (
 	"time"
 
 	"github.com/alexedwards/scs/v2"
+	"github.com/tuxedocurly/wledger/internal/audit"
 	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/internal/backup"
 	"github.com/tuxedocurly/wledger/internal/config"
+	"github.com/tuxedocurly/wledger/internal/dashboard"
 	"github.com/tuxedocurly/wledger/internal/db"
+	"github.com/tuxedocurly/wledger/internal/documents"
 	"github.com/tuxedocurly/wledger/internal/handler"
+	"github.com/tuxedocurly/wledger/internal/hardware"
 	"github.com/tuxedocurly/wledger/internal/images"
 	"github.com/tuxedocurly/wledger/internal/inspiration"
 	"github.com/tuxedocurly/wledger/internal/logger"
 	"github.com/tuxedocurly/wledger/internal/middleware"
 	"github.com/tuxedocurly/wledger/internal/parts"
 	"github.com/tuxedocurly/wledger/internal/router"
+	settingsServicePkg "github.com/tuxedocurly/wledger/internal/settings"
+	"github.com/tuxedocurly/wledger/internal/stock"
 	"github.com/tuxedocurly/wledger/internal/tags"
 	"github.com/tuxedocurly/wledger/internal/uierror"
 	"github.com/tuxedocurly/wledger/internal/wled"
@@ -80,8 +86,26 @@ func main() {
 	// Tags Service
 	tagsService := tags.NewService(database, store)
 
+	// Documents Service
+	docsService := documents.NewService(store, log)
+
+	// Stock Service
+	stockService := stock.NewService(store, log)
+
 	// Parts Service
-	partsService := parts.NewService(database, store, log, tagsService)
+	partsService := parts.NewService(database, store, log, tagsService, docsService)
+
+	// Hardware Service
+	hardwareService := hardware.NewService(store, wledClient, log)
+
+	// Settings Service
+	settingsService := settingsServicePkg.NewService(store)
+
+	// Audit Service
+	auditService := audit.NewService(store)
+
+	// Dashboard Service
+	dashboardService := dashboard.NewService(store)
 
 	// Inspiration Service
 	inspirationService := inspiration.NewService(store)
@@ -108,6 +132,12 @@ func main() {
 		tagsService,
 		inspirationService,
 		uiErrorResponder,
+		hardwareService,
+		settingsService,
+		auditService,
+		dashboardService,
+		stockService,
+		docsService,
 	)
 
 	// Middleware Manager
