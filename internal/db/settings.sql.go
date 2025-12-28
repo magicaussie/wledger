@@ -100,11 +100,13 @@ func (q *Queries) RestoreSettings(ctx context.Context, arg RestoreSettingsParams
 }
 
 const updateColors = `-- name: UpdateColors :exec
-
 UPDATE settings
-
-SET color_locate = ?, color_stock_ok = ?, color_stock_low = ?, color_stock_critical = ?, updated_at = CURRENT_TIMESTAMP
-
+SET 
+    color_locate = COALESCE(?1, color_locate), 
+    color_stock_ok = COALESCE(?2, color_stock_ok), 
+    color_stock_low = COALESCE(?3, color_stock_low), 
+    color_stock_critical = COALESCE(?4, color_stock_critical), 
+    updated_at = CURRENT_TIMESTAMP
 WHERE id = 1
 `
 
@@ -127,7 +129,12 @@ func (q *Queries) UpdateColors(ctx context.Context, arg UpdateColorsParams) erro
 
 const updateGeneralSettings = `-- name: UpdateGeneralSettings :exec
 UPDATE settings 
-SET require_auth_for_read = ?, locate_timeout_seconds = ?, enable_locate_timeout = ?, enable_debug_logs = ?, updated_at = CURRENT_TIMESTAMP
+SET 
+    require_auth_for_read = COALESCE(?1, require_auth_for_read), 
+    locate_timeout_seconds = COALESCE(?2, locate_timeout_seconds), 
+    enable_locate_timeout = COALESCE(?3, enable_locate_timeout), 
+    enable_debug_logs = COALESCE(?4, enable_debug_logs), 
+    updated_at = CURRENT_TIMESTAMP
 WHERE id = 1
 `
 

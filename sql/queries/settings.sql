@@ -18,15 +18,22 @@ VALUES (1, 1, '#0000FF', '#00FF00', '#FFFF00', '#FF0000', 10, 1, 0);
 
 -- name: UpdateGeneralSettings :exec
 UPDATE settings 
-SET require_auth_for_read = ?, locate_timeout_seconds = ?, enable_locate_timeout = ?, enable_debug_logs = ?, updated_at = CURRENT_TIMESTAMP
+SET 
+    require_auth_for_read = COALESCE(sqlc.narg('require_auth_for_read'), require_auth_for_read), 
+    locate_timeout_seconds = COALESCE(sqlc.narg('locate_timeout_seconds'), locate_timeout_seconds), 
+    enable_locate_timeout = COALESCE(sqlc.narg('enable_locate_timeout'), enable_locate_timeout), 
+    enable_debug_logs = COALESCE(sqlc.narg('enable_debug_logs'), enable_debug_logs), 
+    updated_at = CURRENT_TIMESTAMP
 WHERE id = 1;
 
 -- name: UpdateColors :exec
-
 UPDATE settings
-
-SET color_locate = ?, color_stock_ok = ?, color_stock_low = ?, color_stock_critical = ?, updated_at = CURRENT_TIMESTAMP
-
+SET 
+    color_locate = COALESCE(sqlc.narg('color_locate'), color_locate), 
+    color_stock_ok = COALESCE(sqlc.narg('color_stock_ok'), color_stock_ok), 
+    color_stock_low = COALESCE(sqlc.narg('color_stock_low'), color_stock_low), 
+    color_stock_critical = COALESCE(sqlc.narg('color_stock_critical'), color_stock_critical), 
+    updated_at = CURRENT_TIMESTAMP
 WHERE id = 1;
 
 

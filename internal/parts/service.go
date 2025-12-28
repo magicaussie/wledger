@@ -295,16 +295,16 @@ func (s *service) UpdatePart(ctx context.Context, req UpdatePartRequest) error {
 
 	err = s.store.ExecTx(ctx, func(q db.Querier) error {
 		err := q.UpdatePart(ctx, db.UpdatePartParams{
-			Name:              req.Name,
+			Name:              sql.NullString{String: req.Name, Valid: req.Name != ""},
 			Description:       sql.NullString{String: req.Description, Valid: req.Description != ""},
 			PartNumber:        sql.NullString{String: req.PartNumber, Valid: req.PartNumber != ""},
 			Manufacturer:      sql.NullString{String: req.Manufacturer, Valid: req.Manufacturer != ""},
 			Supplier:          sql.NullString{String: req.Supplier, Valid: req.Supplier != ""},
 			BarcodeData:       sql.NullString{String: req.BarcodeData, Valid: req.BarcodeData != ""},
-			UnitCost:          sql.NullFloat64{Float64: req.UnitCost, Valid: true},
-			ReorderLevel:      sql.NullInt64{Int64: int64(req.ReorderLevel), Valid: true},
-			MinStockThreshold: sql.NullInt64{Int64: int64(req.MinStockThreshold), Valid: true},
-			ImagePath:         sql.NullString{String: newImagePath, Valid: newImagePath != ""},
+			UnitCost:          sql.NullFloat64{Float64: req.UnitCost, Valid: req.UnitCost != 0},
+			ReorderLevel:      sql.NullInt64{Int64: int64(req.ReorderLevel), Valid: req.ReorderLevel != 0},
+			MinStockThreshold: sql.NullInt64{Int64: int64(req.MinStockThreshold), Valid: req.MinStockThreshold != 0},
+			ImagePath:         sql.NullString{String: newImagePath, Valid: uploadedNewImage},
 			ID:                req.ID,
 		})
 

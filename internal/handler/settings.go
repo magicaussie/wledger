@@ -102,19 +102,21 @@ func (h *Handler) HandleSettingsUpdate(w http.ResponseWriter, r *http.Request) {
 		oldDiff["locate_timeout"] = current.LocateTimeoutSeconds.Int64
 		newDiff["locate_timeout"] = timeout
 	}
-	if current.ColorLocate.String != colorLocate {
+	
+	// Only diff colors if provided in the form
+	if colorLocate != "" && current.ColorLocate.String != colorLocate {
 		oldDiff["color_locate"] = current.ColorLocate.String
 		newDiff["color_locate"] = colorLocate
 	}
-	if current.ColorStockOk.String != colorOk {
+	if colorOk != "" && current.ColorStockOk.String != colorOk {
 		oldDiff["color_ok"] = current.ColorStockOk.String
 		newDiff["color_ok"] = colorOk
 	}
-	if current.ColorStockLow.String != colorLow {
+	if colorLow != "" && current.ColorStockLow.String != colorLow {
 		oldDiff["color_low"] = current.ColorStockLow.String
 		newDiff["color_low"] = colorLow
 	}
-	if current.ColorStockCritical.String != colorCritical {
+	if colorCritical != "" && current.ColorStockCritical.String != colorCritical {
 		oldDiff["color_critical"] = current.ColorStockCritical.String
 		newDiff["color_critical"] = colorCritical
 	}

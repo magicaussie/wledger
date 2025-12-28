@@ -863,22 +863,22 @@ func (q *Queries) SearchParts(ctx context.Context, arg SearchPartsParams) ([]Sea
 
 const updatePart = `-- name: UpdatePart :exec
 UPDATE parts SET 
-    name = ?, 
-    description = ?, 
-    part_number = ?, 
-    manufacturer = ?, 
-    supplier = ?, 
-    unit_cost = ?, 
-    reorder_level = ?, 
-    min_stock_threshold = ?, 
-    barcode_data = ?,
-    image_path = ?,
+    name = COALESCE(?1, name), 
+    description = COALESCE(?2, description), 
+    part_number = COALESCE(?3, part_number), 
+    manufacturer = COALESCE(?4, manufacturer), 
+    supplier = COALESCE(?5, supplier), 
+    unit_cost = COALESCE(?6, unit_cost), 
+    reorder_level = COALESCE(?7, reorder_level), 
+    min_stock_threshold = COALESCE(?8, min_stock_threshold), 
+    barcode_data = COALESCE(?9, barcode_data),
+    image_path = COALESCE(?10, image_path),
     updated_at = CURRENT_TIMESTAMP
-WHERE id = ?
+WHERE id = ?11
 `
 
 type UpdatePartParams struct {
-	Name              string          `json:"name"`
+	Name              sql.NullString  `json:"name"`
 	Description       sql.NullString  `json:"description"`
 	PartNumber        sql.NullString  `json:"part_number"`
 	Manufacturer      sql.NullString  `json:"manufacturer"`

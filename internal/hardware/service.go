@@ -48,17 +48,7 @@ func (s *service) CreateController(ctx context.Context, params db.CreateControll
 }
 
 func (s *service) DeleteController(ctx context.Context, id int64) error {
-	return s.store.ExecTx(ctx, func(q db.Querier) error {
-		// Delete Bins First (Manual Cascade - though DB has ON DELETE CASCADE, 
-		// the audit report suggested we can trust the schema, but for now 
-		// we follow the plan to move existing logic).
-		err := q.DeleteBinsByController(ctx, sql.NullInt64{Int64: id, Valid: true})
-		if err != nil {
-			return err
-		}
-
-		return q.DeleteController(ctx, id)
-	})
+	return s.store.DeleteController(ctx, id)
 }
 
 func (s *service) UpdateStatus(ctx context.Context, id int64) (bool, error) {
