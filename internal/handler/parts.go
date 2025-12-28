@@ -1,13 +1,11 @@
 package handler
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/tuxedocurly/wledger/internal/auth"
@@ -26,69 +24,14 @@ func (h *Handler) HandlePartsList(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUserFromRequest(r)
 	search := r.URL.Query().Get("q")
 	pageStr := r.URL.Query().Get("page")
-	scroll := r.URL.Query().Get("scroll") == "true" // Check for infinite scroll flag
+	scroll := r.URL.Query().Get("scroll") == "true"
 
 	page, _ := strconv.Atoi(pageStr)
 	if page < 1 {
 		page = 1
 	}
 
-	// Limit: 20 items per load (good balance for speed vs requests)
-	limit := 20
-	offset := (page - 1) * limit
-
-	var viewParts []pages.PartView
-	var err error
-
-	if search != "" {
-		// FTS5 Search
-		query := search + "*"
-		rows, searchErr := h.Queries.SearchParts(r.Context(), db.SearchPartsParams{
-			PartsFts: sql.NullString{String: query, Valid: true},
-			Limit:    int64(limit),
-			Offset:   int64(offset),
-		})
-
-		if searchErr != nil {
-			err = searchErr
-		} else {
-			for _, row := range rows {
-				viewParts = append(viewParts, pages.PartView{
-					ID:          row.ID,
-					Name:        row.Name,
-					Description: row.Description,
-					PartNumber:  row.PartNumber,
-					ImagePath:   row.ImagePath,
-					IsFavorite:  row.IsFavorite,
-					UnitCost:    row.UnitCost,
-					TotalStock:  row.TotalStock,
-				})
-			}
-		}
-	} else {
-		// Standard List
-		rows, listErr := h.Queries.ListParts(r.Context(), db.ListPartsParams{
-			Limit:  int64(limit),
-			Offset: int64(offset),
-		})
-		if listErr != nil {
-			err = listErr
-		} else {
-			for _, row := range rows {
-				viewParts = append(viewParts, pages.PartView{
-					ID:          row.ID,
-					Name:        row.Name,
-					Description: row.Description,
-					PartNumber:  row.PartNumber,
-					ImagePath:   row.ImagePath,
-					IsFavorite:  row.IsFavorite,
-					UnitCost:    row.UnitCost,
-					TotalStock:  row.TotalStock,
-				})
-			}
-		}
-	}
-
+	viewParts, err := h.Parts.ListParts(r.Context(), search, page)
 	if err != nil {
 		h.UIError.Respond(w, r, err, "Failed to fetch parts", http.StatusInternalServerError)
 		return
@@ -109,18 +52,13 @@ func (h *Handler) HandlePartDetail(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUserFromRequest(r)
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
 
-	p, err := h.Queries.GetPart(r.Context(), int64(id))
+	detail, err := h.Parts.GetPartDetail(r.Context(), int64(id))
 	if err != nil {
 		h.UIError.Respond(w, r, err, "Part not found", http.StatusNotFound)
 		return
 	}
 
-	stock, _ := h.Queries.GetPartAssignments(r.Context(), int64(id))
-	links, _ := h.Queries.GetPartLinks(r.Context(), int64(id))
-	docs, _ := h.Queries.GetPartDocs(r.Context(), int64(id))
-	controllers, _ := h.Queries.GetControllers(r.Context())
-
-	pages.PartDetail(user, p, stock, links, docs, controllers).Render(r.Context(), w)
+	pages.PartDetail(user, detail.Part, detail.Stock, detail.Links, detail.Docs, detail.Controllers).Render(r.Context(), w)
 }
 
 // -----------------------------------------------------------
@@ -136,70 +74,12 @@ func (h *Handler) HandlePartsNew(w http.ResponseWriter, r *http.Request) {
 
 // POST /parts
 func (h *Handler) HandlePartsCreate(w http.ResponseWriter, r *http.Request) {
-	err := r.ParseMultipartForm(config.MaxUploadSizeParts)
+	req, err := h.parsePartCreateRequest(r)
 	if err != nil {
-		h.UIError.Respond(w, r, err, "Request too large", http.StatusBadRequest)
+		h.UIError.Respond(w, r, err, "Failed to parse form", http.StatusBadRequest)
 		return
 	}
 	defer r.MultipartForm.RemoveAll()
-
-	cost, _ := strconv.ParseFloat(r.FormValue("unit_cost"), 64)
-	reorder, _ := strconv.Atoi(r.FormValue("reorder_level"))
-	minStock, _ := strconv.Atoi(r.FormValue("min_stock"))
-
-	var tagList []string
-	if tagsRaw := r.FormValue("tags"); tagsRaw != "" {
-		tagList = strings.Split(tagsRaw, ",")
-	}
-
-	req := parts.CreatePartRequest{
-		Name:              r.FormValue("name"),
-		Description:       r.FormValue("description"),
-		PartNumber:        r.FormValue("part_number"),
-		Manufacturer:      r.FormValue("manufacturer"),
-		Supplier:          r.FormValue("supplier"),
-		BarcodeData:       r.FormValue("barcode_data"),
-		UnitCost:          cost,
-		ReorderLevel:      reorder,
-		MinStockThreshold: minStock,
-		Tags:              tagList,
-	}
-
-	// Handle Image Upload
-	file, header, err := r.FormFile("image")
-	if err == nil {
-		req.Image = &parts.DocUpload{
-			File:   file,
-			Header: header,
-		}
-	}
-
-	// Process Links
-	labels := r.PostForm["link_labels[]"]
-	urls := r.PostForm["link_urls[]"]
-	if len(labels) == len(urls) {
-		for i, u := range urls {
-			if u == "" {
-				continue
-			}
-			req.Links = append(req.Links, parts.LinkDTO{
-				Label: labels[i],
-				URL:   u,
-			})
-		}
-	}
-
-	// Process Documents
-	docs := r.MultipartForm.File["documents"]
-	for _, fh := range docs {
-		f, err := fh.Open()
-		if err == nil {
-			req.Documents = append(req.Documents, parts.DocUpload{
-				File:   f,
-				Header: fh,
-			})
-		}
-	}
 
 	newID, err := h.Parts.CreatePart(r.Context(), req)
 	if err != nil {
@@ -219,108 +99,28 @@ func (h *Handler) HandlePartEdit(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUserFromRequest(r)
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
 
-	p, err := h.Queries.GetPart(r.Context(), int64(id))
+	detail, err := h.Parts.GetPartDetail(r.Context(), int64(id))
 	if err != nil {
 		h.UIError.Respond(w, r, err, "Part not found", http.StatusNotFound)
 		return
 	}
 
-	links, _ := h.Queries.GetPartLinks(r.Context(), int64(id))
-	docs, _ := h.Queries.GetPartDocs(r.Context(), int64(id))
 	tags, _ := h.Queries.GetTagsForPart(r.Context(), int64(id))
 	allTags, _ := h.Tags.ListAllTags(r.Context())
 
-	pages.PartEdit(user, p, tags, allTags, links, docs).Render(r.Context(), w)
+	pages.PartEdit(user, detail.Part, tags, allTags, detail.Links, detail.Docs).Render(r.Context(), w)
 }
 
 // POST /parts/{id}/update
 func (h *Handler) HandlePartUpdate(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
 
-	err := r.ParseMultipartForm(config.MaxUploadSizeParts)
+	req, err := h.parsePartUpdateRequest(r, int64(id))
 	if err != nil {
-		h.UIError.Respond(w, r, err, "Request too large", http.StatusBadRequest)
+		h.UIError.Respond(w, r, err, "Failed to parse form", http.StatusBadRequest)
 		return
 	}
 	defer r.MultipartForm.RemoveAll()
-
-	cost, _ := strconv.ParseFloat(r.FormValue("unit_cost"), 64)
-	reorder, _ := strconv.Atoi(r.FormValue("reorder_level"))
-	minStock, _ := strconv.Atoi(r.FormValue("min_stock"))
-
-	var tagList []string
-	if tagsRaw := r.FormValue("tags"); tagsRaw != "" {
-		tagList = strings.Split(tagsRaw, ",")
-	}
-
-	req := parts.UpdatePartRequest{
-		ID:                int64(id),
-		Name:              r.FormValue("name"),
-		Description:       r.FormValue("description"),
-		PartNumber:        r.FormValue("part_number"),
-		Manufacturer:      r.FormValue("manufacturer"),
-		Supplier:          r.FormValue("supplier"),
-		BarcodeData:       r.FormValue("barcode_data"),
-		UnitCost:          cost,
-		ReorderLevel:      reorder,
-		MinStockThreshold: minStock,
-		Tags:              tagList,
-	}
-
-	// Handle Image Upload
-	file, header, err := r.FormFile("image")
-	if err == nil {
-		req.Image = &parts.DocUpload{
-			File:   file,
-			Header: header,
-		}
-	}
-
-	// Update Existing Links
-	existingIDs := r.PostForm["existing_link_ids[]"]
-	existingLabels := r.PostForm["existing_link_labels[]"]
-	existingUrls := r.PostForm["existing_link_urls[]"]
-
-	if len(existingIDs) == len(existingLabels) && len(existingIDs) == len(existingUrls) {
-		for i, idStr := range existingIDs {
-			linkID, _ := strconv.Atoi(idStr)
-			if linkID == 0 || existingUrls[i] == "" {
-				continue
-			}
-			req.ExistingLinks = append(req.ExistingLinks, parts.LinkDTO{
-				ID:    int64(linkID),
-				Label: existingLabels[i],
-				URL:   existingUrls[i],
-			})
-		}
-	}
-
-	// Add Links
-	labels := r.PostForm["link_labels[]"]
-	urls := r.PostForm["link_urls[]"]
-	if len(labels) == len(urls) {
-		for i, u := range urls {
-			if u == "" {
-				continue
-			}
-			req.NewLinks = append(req.NewLinks, parts.LinkDTO{
-				Label: labels[i],
-				URL:   u,
-			})
-		}
-	}
-
-	// Add Documents
-	docs := r.MultipartForm.File["documents"]
-	for _, fh := range docs {
-		f, err := fh.Open()
-		if err == nil {
-			req.NewDocuments = append(req.NewDocuments, parts.DocUpload{
-				File:   f,
-				Header: fh,
-			})
-		}
-	}
 
 	err = h.Parts.UpdatePart(r.Context(), req)
 	if err != nil {
@@ -504,59 +304,130 @@ func (h *Handler) HandlePartStockAdjust(w http.ResponseWriter, r *http.Request) 
 func (h *Handler) HandlePartLocate(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
 
-	// Fetch Settings (Needed for Color and Timeout config)
-	settings, err := h.Queries.GetSettings(r.Context())
+	err := h.WLED.LocatePart(r.Context(), int64(id))
 	if err != nil {
-		h.Logger.Warn("failed to fetch settings for locate, using defaults", "err", err)
-		// Fallback defaults if DB fails
-		settings.ColorLocate.String = "#0000FF"
-		settings.EnableLocateTimeout.Bool = false
-		settings.LocateTimeoutSeconds.Int64 = 0
-	}
-
-	// Get all assignments
-	assignments, err := h.Queries.GetPartAssignments(r.Context(), int64(id))
-	if err != nil {
-		h.UIError.Respond(w, r, err, "Failed to fetch part locations", http.StatusInternalServerError)
+		h.UIError.Respond(w, r, err, "Locate failed", http.StatusInternalServerError)
 		return
 	}
 
-	foundAny := false
-	for _, a := range assignments {
-		if !a.ControllerIp.Valid || a.ControllerIp.String == "" || !a.LedIndex.Valid {
+	w.WriteHeader(http.StatusOK)
+}
+
+// --- HELPERS ---
+
+func (h *Handler) parsePartCreateRequest(r *http.Request) (parts.CreatePartRequest, error) {
+	err := r.ParseMultipartForm(config.MaxUploadSizeParts)
+	if err != nil {
+		return parts.CreatePartRequest{}, err
+	}
+
+	cost, _ := strconv.ParseFloat(r.FormValue("unit_cost"), 64)
+	reorder, _ := strconv.Atoi(r.FormValue("reorder_level"))
+	minStock, _ := strconv.Atoi(r.FormValue("min_stock"))
+
+	req := parts.CreatePartRequest{
+		Name:              r.FormValue("name"),
+		Description:       r.FormValue("description"),
+		PartNumber:        r.FormValue("part_number"),
+		Manufacturer:      r.FormValue("manufacturer"),
+		Supplier:          r.FormValue("supplier"),
+		BarcodeData:       r.FormValue("barcode_data"),
+		UnitCost:          cost,
+		ReorderLevel:      reorder,
+		MinStockThreshold: minStock,
+		Tags:              h.parseFormTags(r.FormValue("tags")),
+		Links:             h.parseFormLinks(r, ""),
+		Documents:         h.parseFormDocuments(r),
+	}
+
+	// Handle Image
+	if file, header, err := r.FormFile("image"); err == nil {
+		req.Image = &parts.DocUpload{File: file, Header: header}
+	}
+
+	return req, nil
+}
+
+func (h *Handler) parsePartUpdateRequest(r *http.Request, id int64) (parts.UpdatePartRequest, error) {
+	err := r.ParseMultipartForm(config.MaxUploadSizeParts)
+	if err != nil {
+		return parts.UpdatePartRequest{}, err
+	}
+
+	cost, _ := strconv.ParseFloat(r.FormValue("unit_cost"), 64)
+	reorder, _ := strconv.Atoi(r.FormValue("reorder_level"))
+	minStock, _ := strconv.Atoi(r.FormValue("min_stock"))
+
+	req := parts.UpdatePartRequest{
+		ID:                id,
+		Name:              r.FormValue("name"),
+		Description:       r.FormValue("description"),
+		PartNumber:        r.FormValue("part_number"),
+		Manufacturer:      r.FormValue("manufacturer"),
+		Supplier:          r.FormValue("supplier"),
+		BarcodeData:       r.FormValue("barcode_data"),
+		UnitCost:          cost,
+		ReorderLevel:      reorder,
+		MinStockThreshold: minStock,
+		Tags:              h.parseFormTags(r.FormValue("tags")),
+		ExistingLinks:     h.parseFormLinks(r, "existing_"),
+		NewLinks:          h.parseFormLinks(r, ""),
+		NewDocuments:      h.parseFormDocuments(r),
+	}
+
+	// Handle Image
+	if file, header, err := r.FormFile("image"); err == nil {
+		req.Image = &parts.DocUpload{File: file, Header: header}
+	}
+
+	return req, nil
+}
+
+func (h *Handler) parseFormTags(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+	return strings.Split(raw, ",")
+}
+
+func (h *Handler) parseFormLinks(r *http.Request, prefix string) []parts.LinkDTO {
+	var links []parts.LinkDTO
+	ids := r.PostForm[prefix+"link_ids[]"]
+	labels := r.PostForm[prefix+"link_labels[]"]
+	urls := r.PostForm[prefix+"link_urls[]"]
+
+	for i, u := range urls {
+		if u == "" {
 			continue
 		}
-
-		foundAny = true
-		ledIndex := int(a.LedIndex.Int64)
-		width := int(a.Width.Int64)
-		if width < 1 {
-			width = 1
+		link := parts.LinkDTO{URL: u}
+		if i < len(labels) {
+			link.Label = labels[i]
 		}
-
-		// Trigger WLED
-		err := h.WLED.LightUp(r.Context(), a.ControllerIp.String, ledIndex, width, settings.ColorLocate.String)
-		if err != nil {
-			h.Logger.Error("failed to locate bin", "err", err, "ip", a.ControllerIp.String)
+		if i < len(ids) {
+			lid, _ := strconv.Atoi(ids[i])
+			link.ID = int64(lid)
 		}
+		links = append(links, link)
+	}
+	return links
+}
 
-		// Handle Auto-Off Timer
-		if settings.EnableLocateTimeout.Bool && settings.LocateTimeoutSeconds.Int64 > 0 {
-			timeoutDuration := time.Duration(settings.LocateTimeoutSeconds.Int64) * time.Second
-
-			go func(ip string, idx, count int, duration time.Duration) {
-				time.Sleep(duration)
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				defer cancel()
-
-				_ = h.WLED.LightUp(ctx, ip, idx, count, "#000000")
-			}(a.ControllerIp.String, ledIndex, width, timeoutDuration)
-		}
+func (h *Handler) parseFormDocuments(r *http.Request) []parts.DocUpload {
+	var uploads []parts.DocUpload
+	if r.MultipartForm == nil || r.MultipartForm.File == nil {
+		return nil
 	}
 
-	if !foundAny {
-		h.Logger.Info("no valid assignments found to locate", "part_id", id)
+	files := r.MultipartForm.File["documents"]
+	for _, fh := range files {
+		f, err := fh.Open()
+		if err == nil {
+			uploads = append(uploads, parts.DocUpload{
+				File:   f,
+				Header: fh,
+			})
+		}
 	}
-
-	w.WriteHeader(http.StatusOK)
+	return uploads
 }

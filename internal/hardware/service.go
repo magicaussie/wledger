@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"time"
 
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/wled"
@@ -20,7 +19,6 @@ type Service interface {
 	UpdateStatus(ctx context.Context, id int64) (bool, error)
 	GetBinsByController(ctx context.Context, id int64) ([]db.Bin, error)
 	SaveGrid(ctx context.Context, controllerID int64, gridDataJSON string, configJSON string) (int64, error)
-	Locate(ctx context.Context, controllerID, binID int64) error
 }
 
 type service struct {
@@ -188,56 +186,4 @@ func (s *service) SaveGrid(ctx context.Context, controllerID int64, gridDataJSON
 	})
 
 	return newLedCount, err
-}
-
-func (s *service) Locate(ctx context.Context, controllerID, binID int64) error {
-	// Fetch Settings
-	settings, err := s.store.GetSettings(ctx)
-	if err != nil {
-		s.logger.Warn("failed to fetch settings for locate, using defaults", "err", err)
-		settings.ColorLocate.String = "#0000FF"
-		settings.EnableLocateTimeout.Bool = false
-		settings.LocateTimeoutSeconds.Int64 = 0
-	}
-
-	// Retrieve Hardware Details
-	controller, err := s.store.GetController(ctx, controllerID)
-	if err != nil {
-		return fmt.Errorf("controller not found: %w", err)
-	}
-
-	bin, err := s.store.GetBin(ctx, binID)
-	if err != nil {
-		return fmt.Errorf("bin not found: %w", err)
-	}
-
-	// Calculate LED Positions
-	ledIndex := int(bin.LedIndex.Int64)
-	width := int(bin.Width.Int64)
-	if width < 1 {
-		width = 1
-	}
-
-	// Trigger WLED
-	err = s.wled.LightUp(ctx, controller.IpAddress, ledIndex, width, settings.ColorLocate.String)
-	if err != nil {
-		s.logger.Error("failed to locate bin", "err", err, "ip", controller.IpAddress)
-		return err
-	}
-
-	// Handle Auto-Off Timer
-	if settings.EnableLocateTimeout.Bool && settings.LocateTimeoutSeconds.Int64 > 0 {
-		timeoutDuration := time.Duration(settings.LocateTimeoutSeconds.Int64) * time.Second
-
-		go func(ip string, idx, count int, duration time.Duration) {
-			time.Sleep(duration)
-			// Create a new context since the original might be cancelled
-			bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-
-			_ = s.wled.LightUp(bgCtx, ip, idx, count, "#000000")
-		}(controller.IpAddress, ledIndex, width, timeoutDuration)
-	}
-
-	return nil
 }

@@ -20,12 +20,12 @@ import (
 	"github.com/tuxedocurly/wledger/internal/wled"
 )
 
-// Handler holds shared dependencies for all HTTP Handlers
+// Handler holds shared dependencies for all HTTP handlers and services
 type Handler struct {
 	Logger      *slog.Logger
 	Queries     db.Store
 	Session     *scs.SessionManager
-	WLED        *wled.Client
+	WLED        wled.Service
 	Database    *sql.DB
 	Backup      backup.Service
 	Parts       parts.Service
@@ -45,7 +45,7 @@ func New(
 	logger *slog.Logger,
 	queries db.Store,
 	session *scs.SessionManager,
-	wledClient *wled.Client,
+	wledService wled.Service,
 	database *sql.DB,
 	backupService backup.Service,
 	partsService parts.Service,
@@ -63,7 +63,7 @@ func New(
 		Logger:      logger,
 		Queries:     queries,
 		Session:     session,
-		WLED:        wledClient,
+		WLED:        wledService,
 		Database:    database,
 		Backup:      backupService,
 		Parts:       partsService,
@@ -78,4 +78,3 @@ func New(
 		Documents:   docsService,
 	}
 }
-

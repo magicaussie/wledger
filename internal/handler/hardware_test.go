@@ -50,7 +50,8 @@ func TestControllerDeleteCascadesToBins(t *testing.T) {
 	s := db.NewStore(dbConn)
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	uiError := uierror.New(logger)
-	wClient := wled.New()
+	wClient := wled.NewClient()
+	wService := wled.NewService(s, wClient, logger)
 	hwService := hardware.NewService(s, wClient, logger)
 	settService := settings.NewService(s)
 
@@ -61,6 +62,7 @@ func TestControllerDeleteCascadesToBins(t *testing.T) {
 		UIError:  uiError,
 		Hardware: hwService,
 		Settings: settService,
+		WLED:     wService,
 	}
 
 	ctx := context.Background()
@@ -148,7 +150,8 @@ func TestHardwareAuditLogging(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	session := scs.New()
 	uiError := uierror.New(logger)
-	wClient := wled.New()
+	wClient := wled.NewClient()
+	wService := wled.NewService(s, wClient, logger)
 	hwService := hardware.NewService(s, wClient, logger)
 	settService := settings.NewService(s)
 
@@ -160,6 +163,7 @@ func TestHardwareAuditLogging(t *testing.T) {
 		UIError:  uiError,
 		Hardware: hwService,
 		Settings: settService,
+		WLED:     wService,
 	}
 
 	// Mock Admin Context

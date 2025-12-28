@@ -32,7 +32,8 @@ func TestHandleSettingsUpdate(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	session := scs.New()
 	uiError := uierror.New(logger)
-	wClient := wled.New()
+	wClient := wled.NewClient()
+	wService := wled.NewService(s, wClient, logger)
 	hwService := hardware.NewService(s, wClient, logger)
 	settService := settings.NewService(s)
 
@@ -47,6 +48,7 @@ func TestHandleSettingsUpdate(t *testing.T) {
 		UIError:  uiError,
 		Hardware: hwService,
 		Settings: settService,
+		WLED:     wService,
 	}
 
 	// Verify initial state (should be false)
@@ -96,7 +98,8 @@ func TestSettingsAuditLogging(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	session := scs.New()
 	uiError := uierror.New(logger)
-	wClient := wled.New()
+	wClient := wled.NewClient()
+	wService := wled.NewService(s, wClient, logger)
 	hwService := hardware.NewService(s, wClient, logger)
 	settService := settings.NewService(s)
 
@@ -108,6 +111,7 @@ func TestSettingsAuditLogging(t *testing.T) {
 		UIError:  uiError,
 		Hardware: hwService,
 		Settings: settService,
+		WLED:     wService,
 	}
 
 	s.InitSettings(context.Background())

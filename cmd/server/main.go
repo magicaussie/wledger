@@ -74,8 +74,9 @@ func main() {
 	sessionManager.Cookie.SameSite = http.SameSiteLaxMode
 	sessionManager.Cookie.Secure = false // TODO: Set to true in prod
 
-	// WLED client
-	wledClient := wled.New()
+	// WLED client & service
+	wledClient := wled.NewClient()
+	wledService := wled.NewService(store, wledClient, log)
 
 	// UI Error Responder
 	uiErrorResponder := uierror.New(log)
@@ -125,7 +126,7 @@ func main() {
 		log,
 		store,
 		sessionManager,
-		wledClient,
+		wledService,
 		database,
 		backupService,
 		partsService,

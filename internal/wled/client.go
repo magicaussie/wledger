@@ -14,6 +14,7 @@ import (
 
 const CacheDuration = 5 * time.Second
 
+// Client handles low-level WLED JSON API communication
 type Client struct {
 	httpClient *http.Client
 	cache      sync.Map
@@ -24,7 +25,7 @@ type cachedResult struct {
 	timestamp time.Time
 }
 
-func New() *Client {
+func NewClient() *Client {
 	return &Client{
 		httpClient: &http.Client{
 			Timeout: 2 * time.Second,
@@ -64,55 +65,8 @@ func (c *Client) Ping(ctx context.Context, ip string) (bool, error) {
 	return isOnline, nil
 }
 
-// LightUp lights up a specific range of LEDs on a controller using standard JSON API (No Live Mode)
-func (c *Client) LightUp(ctx context.Context, ip string, index int, count int, hexColor string) error {
-	rgb, err := hexToRGB(hexColor)
-	if err != nil {
-		rgb = []int{255, 255, 255}
-	}
-
-	// Standard State Update
-	// Developer Note: don't use live mode here
-	payload := map[string]any{
-		"on": true, // Master Power ON
-		"tt": 0,    // Instant transition
-		"seg": []map[string]any{
-			{
-				"id": 0,                                // Main Segment
-				"on": true,                             // Segment ON
-				"i":  []any{index, index + count, rgb}, // Set these pixels
-			},
-		},
-	}
-
-	return c.sendPayload(ctx, ip, payload)
-}
-
-// Clear resets the controller to Solid Black.
-func (c *Client) Clear(ctx context.Context, ip string) error {
-	// Force all LEDs to Black
-	payload := map[string]any{
-		"on":   true,  // Keep Master Power ON
-		"live": false, // Ensure Live is OFF (just in case)
-		"tt":   0,     // Instant
-		"seg": []map[string]any{
-			{
-				"id":  0,                  // Main Segment
-				"on":  true,               // Enabled
-				"fx":  0,                  // Effect: Solid
-				"col": [][]int{{0, 0, 0}}, // Color: Black
-				// TODO: Update this so that the LED number is set based on the length
-				// of LEDs for a particular controller
-				"i": []any{0, 1000, []int{0, 0, 0}}, // Force wipe the first 1000 pixels to black manually
-			},
-		},
-	}
-
-	return c.sendPayload(ctx, ip, payload)
-}
-
-// sendPayload handles the JSON marshaling and HTTP request
-func (c *Client) sendPayload(ctx context.Context, ip string, payload map[string]any) error {
+// SetState updates the WLED state with a custom payload
+func (c *Client) SetState(ctx context.Context, ip string, payload map[string]any) error {
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return err
@@ -138,7 +92,50 @@ func (c *Client) sendPayload(ctx context.Context, ip string, payload map[string]
 	return nil
 }
 
-func hexToRGB(hex string) ([]int, error) {
+// LightUp uses the individual LED ('i') API to light up a range
+func (c *Client) LightUp(ctx context.Context, ip string, index int, count int, hexColor string) error {
+	rgb, err := HexToRGB(hexColor)
+	if err != nil {
+		rgb = []int{255, 255, 255}
+	}
+
+	payload := map[string]any{
+		"on": true,
+		"tt": 0,
+		"seg": []map[string]any{
+			{
+				"id": 0,
+				"on": true,
+				"i":  []any{index, index + count, rgb},
+			},
+		},
+	}
+
+	return c.SetState(ctx, ip, payload)
+}
+
+// Clear resets the controller to Solid Black
+func (c *Client) Clear(ctx context.Context, ip string) error {
+	payload := map[string]any{
+		"on":   true,
+		"live": false,
+		"tt":   0,
+		"seg": []map[string]any{
+			{
+				"id": 0,
+				"on": true,
+				"fx": 0,
+				"i":  []any{0, 5000, []int{0, 0, 0}}, // Wipe first 5000 pixels
+				// TODO: Handle this dynamically based on actual LED count or segment config
+			},
+		},
+	}
+
+	return c.SetState(ctx, ip, payload)
+}
+
+// HexToRGB converts a hex string to an RGB slice
+func HexToRGB(hex string) ([]int, error) {
 	hex = strings.TrimPrefix(hex, "#")
 	if len(hex) != 6 {
 		return nil, fmt.Errorf("invalid hex length")

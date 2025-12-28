@@ -1,11 +1,9 @@
 package handler
 
 import (
-	"context"
 	"database/sql"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/tuxedocurly/wledger/internal/audit"
@@ -91,7 +89,6 @@ func (h *Handler) HandleHardwareDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	audit.Log(r.Context(), h.Queries, "DELETE", "HARDWARE", int64(id), "Deleted controller", summary, nil)
 
-
 	http.Redirect(w, r, "/hardware", http.StatusSeeOther)
 }
 
@@ -137,6 +134,7 @@ func (h *Handler) HandleHardwareGrid(w http.ResponseWriter, r *http.Request) {
 }
 
 // Struct to parse the JSON from GridPainter
+// TODO: deprecate
 type gridCellData struct {
 	X        int    `json:"x"`
 	Y        int    `json:"y"`
@@ -176,26 +174,10 @@ func (h *Handler) HandleHardwareGridSave(w http.ResponseWriter, r *http.Request)
 
 // POST /hardware/off
 func (h *Handler) HandleGlobalOff(w http.ResponseWriter, r *http.Request) {
-	controllers, err := h.Hardware.ListControllers(r.Context())
+	err := h.WLED.GlobalOff(r.Context())
 	if err != nil {
-		h.UIError.Respond(w, r, err, "Failed to list controllers", http.StatusInternalServerError)
+		h.UIError.Respond(w, r, err, "Failed to trigger global off", http.StatusInternalServerError)
 		return
-	}
-
-	h.Logger.Info("triggering global off", "controllers", len(controllers))
-
-	for _, c := range controllers {
-		go func(ctrlName, ip string) {
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-			defer cancel()
-
-			err := h.WLED.Clear(ctx, ip)
-			if err != nil {
-				h.Logger.Error("failed to clear controller", "name", ctrlName, "ip", ip, "err", err)
-			} else {
-				h.Logger.Info("cleared controller", "name", ctrlName, "ip", ip)
-			}
-		}(c.Name, c.IpAddress)
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -207,7 +189,7 @@ func (h *Handler) HandleHardwareLocate(w http.ResponseWriter, r *http.Request) {
 	cid, _ := strconv.Atoi(cidStr)
 	binID, _ := strconv.Atoi(r.URL.Query().Get("bin_id"))
 
-	err := h.Hardware.Locate(r.Context(), int64(cid), int64(binID))
+	err := h.WLED.LocateBin(r.Context(), int64(cid), int64(binID))
 	if err != nil {
 		h.UIError.Respond(w, r, err, "Locate failed", http.StatusInternalServerError)
 		return

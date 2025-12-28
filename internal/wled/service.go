@@ -1,0 +1,133 @@
+package wled
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"time"
+
+	"github.com/tuxedocurly/wledger/internal/db"
+)
+
+type Service interface {
+	LocatePart(ctx context.Context, partID int64) error
+	LocateBin(ctx context.Context, controllerID, binID int64) error
+	GlobalOff(ctx context.Context) error
+	Ping(ctx context.Context, ip string) (bool, error)
+}
+
+type service struct {
+	store  db.Store
+	client *Client
+	logger *slog.Logger
+}
+
+func NewService(store db.Store, client *Client, logger *slog.Logger) Service {
+	return &service{
+		store:  store,
+		client: client,
+		logger: logger,
+	}
+}
+
+func (s *service) Ping(ctx context.Context, ip string) (bool, error) {
+	return s.client.Ping(ctx, ip)
+}
+
+func (s *service) GlobalOff(ctx context.Context) error {
+	controllers, err := s.store.GetControllers(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to fetch controllers: %w", err)
+	}
+
+	for _, c := range controllers {
+		go func(ctrlName, ip string) {
+			bgCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+
+			err := s.client.Clear(bgCtx, ip)
+			if err != nil {
+				s.logger.Error("failed to clear controller", "name", ctrlName, "ip", ip, "err", err)
+			}
+		}(c.Name, c.IpAddress)
+	}
+
+	return nil
+}
+
+func (s *service) LocatePart(ctx context.Context, partID int64) error {
+	assignments, err := s.store.GetPartAssignments(ctx, partID)
+	if err != nil {
+		return fmt.Errorf("failed to fetch part locations: %w", err)
+	}
+
+	settings, _ := s.store.GetSettings(ctx)
+	if settings.ColorLocate.String == "" {
+		settings.ColorLocate.String = "#0000FF" // Fallback
+	}
+
+	foundAny := false
+	for _, a := range assignments {
+		if !a.ControllerIp.Valid || a.ControllerIp.String == "" || !a.LedIndex.Valid {
+			continue
+		}
+
+		foundAny = true
+		err := s.triggerLocate(ctx, a.ControllerIp.String, int(a.LedIndex.Int64), int(a.Width.Int64), settings)
+		if err != nil {
+			s.logger.Error("failed to locate assignment", "assignment_id", a.ID, "err", err)
+		}
+	}
+
+	if !foundAny {
+		s.logger.Info("no valid assignments found to locate", "part_id", partID)
+	}
+
+	return nil
+}
+
+func (s *service) LocateBin(ctx context.Context, controllerID, binID int64) error {
+	controller, err := s.store.GetController(ctx, controllerID)
+	if err != nil {
+		return fmt.Errorf("controller not found: %w", err)
+	}
+
+	bin, err := s.store.GetBin(ctx, binID)
+	if err != nil {
+		return fmt.Errorf("bin not found: %w", err)
+	}
+
+	settings, _ := s.store.GetSettings(ctx)
+	if settings.ColorLocate.String == "" {
+		settings.ColorLocate.String = "#0000FF"
+	}
+
+	return s.triggerLocate(ctx, controller.IpAddress, int(bin.LedIndex.Int64), int(bin.Width.Int64), settings)
+}
+
+func (s *service) triggerLocate(ctx context.Context, ip string, index, width int, settings db.Setting) error {
+	if width < 1 {
+		width = 1
+	}
+
+	// Light Up
+	err := s.client.LightUp(ctx, ip, index, width, settings.ColorLocate.String)
+	if err != nil {
+		return err
+	}
+
+	// Handle Auto-Off Timer
+	if settings.EnableLocateTimeout.Bool && settings.LocateTimeoutSeconds.Int64 > 0 {
+		timeoutDuration := time.Duration(settings.LocateTimeoutSeconds.Int64) * time.Second
+
+		go func(ipAddr string, idx, count int, duration time.Duration) {
+			time.Sleep(duration)
+			bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			_ = s.client.LightUp(bgCtx, ipAddr, idx, count, "#000000")
+		}(ip, index, width, timeoutDuration)
+	}
+
+	return nil
+}

@@ -17,6 +17,7 @@ import (
 	"github.com/tuxedocurly/wledger/internal/documents"
 	"github.com/tuxedocurly/wledger/internal/images"
 	"github.com/tuxedocurly/wledger/internal/tags"
+	"github.com/tuxedocurly/wledger/web/pages"
 )
 
 type Service interface {
@@ -24,6 +25,16 @@ type Service interface {
 	UpdatePart(ctx context.Context, req UpdatePartRequest) error
 	DeletePart(ctx context.Context, id int64) error
 	GetPart(ctx context.Context, id int64) (db.Part, error)
+	ListParts(ctx context.Context, search string, page int) ([]pages.PartView, error)
+	GetPartDetail(ctx context.Context, id int64) (PartDetail, error)
+}
+
+type PartDetail struct {
+	Part        db.Part
+	Stock       []db.GetPartAssignmentsRow
+	Links       []db.PartLink
+	Docs        []db.PartDoc
+	Controllers []db.Controller
 }
 
 type LinkDTO struct {
@@ -91,6 +102,82 @@ func NewService(database *sql.DB, store db.Store, logger *slog.Logger, tags tags
 
 func (s *service) GetPart(ctx context.Context, id int64) (db.Part, error) {
 	return s.store.GetPart(ctx, id)
+}
+
+func (s *service) ListParts(ctx context.Context, search string, page int) ([]pages.PartView, error) {
+	if page < 1 {
+		page = 1
+	}
+	limit := 20
+	offset := (page - 1) * limit
+
+	var viewParts []pages.PartView
+	if search != "" {
+		// FTS5 Search
+		query := search + "*"
+		rows, err := s.store.SearchParts(ctx, db.SearchPartsParams{
+			PartsFts: sql.NullString{String: query, Valid: true},
+			Limit:    int64(limit),
+			Offset:   int64(offset),
+		})
+		if err != nil {
+			return nil, err
+		}
+		for _, row := range rows {
+			viewParts = append(viewParts, pages.PartView{
+				ID:          row.ID,
+				Name:        row.Name,
+				Description: row.Description,
+				PartNumber:  row.PartNumber,
+				ImagePath:   row.ImagePath,
+				IsFavorite:  row.IsFavorite,
+				UnitCost:    row.UnitCost,
+				TotalStock:  row.TotalStock,
+			})
+		}
+	} else {
+		// Standard List
+		rows, err := s.store.ListParts(ctx, db.ListPartsParams{
+			Limit:  int64(limit),
+			Offset: int64(offset),
+		})
+		if err != nil {
+			return nil, err
+		}
+		for _, row := range rows {
+			viewParts = append(viewParts, pages.PartView{
+				ID:          row.ID,
+				Name:        row.Name,
+				Description: row.Description,
+				PartNumber:  row.PartNumber,
+				ImagePath:   row.ImagePath,
+				IsFavorite:  row.IsFavorite,
+				UnitCost:    row.UnitCost,
+				TotalStock:  row.TotalStock,
+			})
+		}
+	}
+	return viewParts, nil
+}
+
+func (s *service) GetPartDetail(ctx context.Context, id int64) (PartDetail, error) {
+	p, err := s.store.GetPart(ctx, id)
+	if err != nil {
+		return PartDetail{}, err
+	}
+
+	stock, _ := s.store.GetPartAssignments(ctx, id)
+	links, _ := s.store.GetPartLinks(ctx, id)
+	docs, _ := s.store.GetPartDocs(ctx, id)
+	controllers, _ := s.store.GetControllers(ctx)
+
+	return PartDetail{
+		Part:        p,
+		Stock:       stock,
+		Links:       links,
+		Docs:        docs,
+		Controllers: controllers,
+	}, nil
 }
 
 func (s *service) CreatePart(ctx context.Context, req CreatePartRequest) (int64, error) {

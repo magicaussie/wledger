@@ -22,7 +22,7 @@ func setupTest(t *testing.T) (Service, db.Store, *sql.DB) {
 	}
 
 	store := db.NewStore(dbConn)
-	wClient := wled.New()
+	wClient := wled.NewClient()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	return NewService(store, wClient, logger), store, dbConn

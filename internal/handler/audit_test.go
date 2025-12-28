@@ -23,7 +23,7 @@ import (
 
 func TestHandleAuditLogs(t *testing.T) {
 	// Reusing openTestDB and setupTestSchema from hardware_test.go
-	// Ensure to run tests with go test ./internal/handler/...
+	// Run tests with go test ./internal/handler/...
 	dbConn := openTestDB(t)
 	defer dbConn.Close()
 	setupTestSchema(t, dbConn)
@@ -32,10 +32,12 @@ func TestHandleAuditLogs(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	session := scs.New()
 	uiError := uierror.New(logger)
-	
+
 	auditService := audit.NewService(s)
 	dashboardService := dashboard.NewService(s)
-	hardwareService := hardware.NewService(s, wled.New(), logger)
+	wClient := wled.NewClient()
+	wService := wled.NewService(s, wClient, logger)
+	hardwareService := hardware.NewService(s, wClient, logger)
 	settingsService := settings.NewService(s)
 
 	h := &Handler{
@@ -48,6 +50,7 @@ func TestHandleAuditLogs(t *testing.T) {
 		Dashboard: dashboardService,
 		Hardware:  hardwareService,
 		Settings:  settingsService,
+		WLED:      wService,
 	}
 
 	ctx := context.Background()
