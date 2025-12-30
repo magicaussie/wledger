@@ -123,6 +123,7 @@ docker compose up -d
 ```
 
 Visit `http://localhost:8080` to see the WLEDger UI.
+>Tip: Install the website as a PWA on Android or iOS to get a native app-like experience.
 
 ### Option 2: Build from Source
 
@@ -166,19 +167,19 @@ This will start:
 
 ---
 
-## 📸 Screenshots
+## UI Screenshots
 
-| Part Details | Mobile Scanner |
+| Dashboard | Inventory |
 | :---: | :---: |
-| ![Part Details](https://placehold.co/600x400?text=Part+Details) | ![Mobile Scanner](https://placehold.co/600x400?text=Scanner+UI) |
+| ![Dashboard](docs/assets/dashboard_page.png) | ![Inventory](docs/assets/inventory_page.png) |
 
-| Grid View | Dark Mode |
+| Part Details | Settings |
 | :---: | :---: |
-| ![Grid View](https://placehold.co/600x400?text=Hardware+Grid) | ![Dark Mode](https://placehold.co/600x400?text=Dark+Mode) |
+| ![Part Details](docs/assets/part_details_page.png) | ![Settings](docs/assets/settings_page.png) |
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome!
 
@@ -187,10 +188,6 @@ Contributions are welcome!
 3. Commit your changes.
 4. Open a Pull Request.
 
-## 📄 License
+## License
 
-This project is released under the MIT License - see the `LICENSE` file for details.
-
----
-
-*Built with ❤️ for the maker community.*
+WLEDger is released under the MIT License - see the `LICENSE` file for details.

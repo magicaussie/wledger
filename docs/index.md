@@ -12,13 +12,13 @@ Built with **Go**, **HTMX**, and **SQLite**, WLEDger V2 is designed to be fast, 
 
 ## Key Features
 
-* **🔦 Physical Location Tracking:** Instantly locate parts by lighting up specific LEDs on your storage bins, shelves, or drawers.
-* **🔍 Instant Search:** Powered by SQLite **FTS5**, search your entire inventory, tags, and descriptions in milliseconds.
-* **🧩 Visual WLED Configuration:** A powerful visual tool to map your physical LEDs to your storage bins. No manual coordinate entry required.
-* **📸 Rich Part Details:** Store images, datasheets, supplier links, and documents for every component.
-* **🤖 LLM Prompt Integration:** Generate inspiration for projects to build based on your inventory, or create your own prompts to accomplish common tasks. Copy the prompt and paste it into into your favorite LLM (Gemini, ChatGPT, Claude, etc), and your parts are appended to the prompt automatically.
-* **📦 Backup & Restore:** Full system backup to a portable ZIP file.
-* **☁️ Self-Hosted:** Hosting is *easy*. Run it locally via Docker or build it from source into a single binary.
+* **Physical Location Tracking:** Instantly locate parts by lighting up specific LEDs on your storage bins, shelves, or drawers.
+* **Instant Search:** Powered by SQLite **FTS5**, search your entire inventory, tags, and descriptions in milliseconds.
+* **Visual WLED Configuration:** A powerful visual tool to map your physical LEDs to your storage bins. No manual coordinate entry required.
+* **Rich Part Details:** Store images, datasheets, supplier links, and documents for every component.
+* **LLM Prompt Integration:** Generate inspiration for projects to build based on your inventory, or create your own prompts to accomplish common tasks. Copy the prompt and paste it into into your favorite LLM (Gemini, ChatGPT, Claude, etc), and your parts are appended to the prompt automatically.
+* **Backup & Restore:** Full system backup to a portable ZIP file.
+* **Self-Hosted:** Hosting is *easy*. Run it locally via Docker or build it from source into a single binary.
 
 ### Documentation
 
