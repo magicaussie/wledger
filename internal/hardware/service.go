@@ -165,7 +165,7 @@ func (s *service) SaveGrid(ctx context.Context, controllerID int64, gridDataJSON
 				delete(existingMap, ledIdx)
 
 			} else {
-				// --- INSERT NEW ---
+				// INSERT NEW
 				_, err := q.CreateBin(ctx, db.CreateBinParams{
 					Name:         cell.Name,
 					ControllerID: sql.NullInt64{Int64: controllerID, Valid: true},
