@@ -3,13 +3,10 @@ package handler
 import (
 	"context"
 	"database/sql"
-	"log/slog"
-	"os"
 	"testing"
 
 	"github.com/tuxedocurly/wledger/internal/dashboard"
 	"github.com/tuxedocurly/wledger/internal/db"
-	"github.com/tuxedocurly/wledger/internal/uierror"
 )
 
 func TestNewDashboardViewModel(t *testing.T) {
@@ -19,15 +16,15 @@ func TestNewDashboardViewModel(t *testing.T) {
 	setupTestSchema(t, dbConn)
 
 	s := db.NewStore(dbConn)
-	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	uiError := uierror.New(logger)
+	// logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	// uiError := uierror.New(logger)
 	dashService := dashboard.NewService(s)
 
 	h := &Handler{
-		Logger:    logger,
-		Queries:   s,
-		Database:  dbConn,
-		UIError:   uiError,
+		// Logger:    logger,
+		// Queries:   s,
+		// Database:  dbConn,
+		// UIError:   uiError,
 		Dashboard: dashService,
 	}
 

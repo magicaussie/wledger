@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/tuxedocurly/wledger/internal/audit"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -43,14 +44,14 @@ func NewService(store db.Store) Service {
 }
 
 type UpdateSettingsParams struct {
-	RequireAuth          bool
-	LocateTimeout        int
-	EnableLocateTimeout  bool
-	EnableDebugLogs      bool
-	ColorLocate          string
-	ColorOk              string
-	ColorLow             string
-	ColorCritical        string
+	RequireAuth         bool
+	LocateTimeout       int
+	EnableLocateTimeout bool
+	EnableDebugLogs     bool
+	ColorLocate         string
+	ColorOk             string
+	ColorLow            string
+	ColorCritical       string
 }
 
 type CreateUserParams struct {
@@ -64,7 +65,10 @@ func (s *service) GetSettings(ctx context.Context) (db.Setting, error) {
 }
 
 func (s *service) UpdateSettings(ctx context.Context, params UpdateSettingsParams) error {
-	return s.store.ExecTx(ctx, func(q db.Querier) error {
+	// Fetch current for diffing
+	current, _ := s.store.GetSettings(ctx)
+
+	err := s.store.ExecTx(ctx, func(q db.Querier) error {
 		err := q.UpdateGeneralSettings(ctx, db.UpdateGeneralSettingsParams{
 			RequireAuthForRead:   sql.NullBool{Bool: params.RequireAuth, Valid: true},
 			LocateTimeoutSeconds: sql.NullInt64{Int64: int64(params.LocateTimeout), Valid: true},
@@ -75,13 +79,60 @@ func (s *service) UpdateSettings(ctx context.Context, params UpdateSettingsParam
 			return err
 		}
 
-		return q.UpdateColors(ctx, db.UpdateColorsParams{
+		err = q.UpdateColors(ctx, db.UpdateColorsParams{
 			ColorLocate:        sql.NullString{String: params.ColorLocate, Valid: params.ColorLocate != ""},
 			ColorStockOk:       sql.NullString{String: params.ColorOk, Valid: params.ColorOk != ""},
 			ColorStockLow:      sql.NullString{String: params.ColorLow, Valid: params.ColorLow != ""},
 			ColorStockCritical: sql.NullString{String: params.ColorCritical, Valid: params.ColorCritical != ""},
 		})
+		if err != nil {
+			return err
+		}
+
+		// Diffing Logic
+		oldDiff := make(map[string]any)
+		newDiff := make(map[string]any)
+
+		if current.RequireAuthForRead.Bool != params.RequireAuth {
+			oldDiff["require_auth"] = current.RequireAuthForRead.Bool
+			newDiff["require_auth"] = params.RequireAuth
+		}
+		if current.EnableDebugLogs.Bool != params.EnableDebugLogs {
+			oldDiff["enable_debug_logs"] = current.EnableDebugLogs.Bool
+			newDiff["enable_debug_logs"] = params.EnableDebugLogs
+		}
+		if current.EnableLocateTimeout.Bool != params.EnableLocateTimeout {
+			oldDiff["enable_timeout"] = current.EnableLocateTimeout.Bool
+			newDiff["enable_timeout"] = params.EnableLocateTimeout
+		}
+		if int(current.LocateTimeoutSeconds.Int64) != params.LocateTimeout {
+			oldDiff["locate_timeout"] = current.LocateTimeoutSeconds.Int64
+			newDiff["locate_timeout"] = params.LocateTimeout
+		}
+		if params.ColorLocate != "" && current.ColorLocate.String != params.ColorLocate {
+			oldDiff["color_locate"] = current.ColorLocate.String
+			newDiff["color_locate"] = params.ColorLocate
+		}
+		if params.ColorOk != "" && current.ColorStockOk.String != params.ColorOk {
+			oldDiff["color_ok"] = current.ColorStockOk.String
+			newDiff["color_ok"] = params.ColorOk
+		}
+		if params.ColorLow != "" && current.ColorStockLow.String != params.ColorLow {
+			oldDiff["color_low"] = current.ColorStockLow.String
+			newDiff["color_low"] = params.ColorLow
+		}
+		if params.ColorCritical != "" && current.ColorStockCritical.String != params.ColorCritical {
+			oldDiff["color_critical"] = current.ColorStockCritical.String
+			newDiff["color_critical"] = params.ColorCritical
+		}
+
+		if len(oldDiff) > 0 {
+			audit.Log(ctx, q, "UPDATE", "SETTINGS", 1, "Updated system configuration", oldDiff, newDiff)
+		}
+
+		return nil
 	})
+	return err
 }
 
 func (s *service) ListUsers(ctx context.Context) ([]db.ListUsersRow, error) {
@@ -98,21 +149,46 @@ func (s *service) CreateUser(ctx context.Context, params CreateUserParams) (db.C
 		return db.CreateUserRow{}, fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	return s.store.CreateUser(ctx, db.CreateUserParams{
+	user, err := s.store.CreateUser(ctx, db.CreateUserParams{
 		Email:                  params.Email,
 		PasswordHash:           string(hashedBytes),
 		Role:                   params.Role,
 		ChangePasswordRequired: sql.NullBool{Bool: true, Valid: true},
 	})
+	if err != nil {
+		return user, err
+	}
+
+	audit.Log(ctx, s.store, "CREATE", "USER", user.ID, "Created user", nil,
+		map[string]any{"email": user.Email, "role": user.Role})
+
+	return user, nil
 }
 
 func (s *service) DeleteUser(ctx context.Context, id int64) error {
+	// Fetch before delete
+	u, err := s.store.GetUser(ctx, id)
+	if err == nil {
+		audit.Log(ctx, s.store, "DELETE", "USER", id, "Deleted user",
+			map[string]any{"email": u.Email, "role": u.Role}, nil)
+	}
+
 	return s.store.DeleteUser(ctx, id)
 }
 
 func (s *service) ForceReset(ctx context.Context, id int64) error {
-	return s.store.SetPasswordResetFlag(ctx, db.SetPasswordResetFlagParams{
+	err := s.store.SetPasswordResetFlag(ctx, db.SetPasswordResetFlagParams{
 		ChangePasswordRequired: sql.NullBool{Bool: true, Valid: true},
 		ID:                     id,
 	})
+	if err != nil {
+		return err
+	}
+
+	audit.Log(ctx, s.store, "UPDATE", "USER", id, "Forced password reset",
+		map[string]any{"reset_required": false},
+		map[string]any{"reset_required": true})
+
+	return nil
 }
+

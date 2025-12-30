@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/tuxedocurly/wledger/internal/audit"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/wled"
 )
@@ -44,10 +45,35 @@ func (s *service) GetController(ctx context.Context, id int64) (db.Controller, e
 }
 
 func (s *service) CreateController(ctx context.Context, params db.CreateControllerParams) (db.CreateControllerRow, error) {
-	return s.store.CreateController(ctx, params)
+	row, err := s.store.CreateController(ctx, params)
+	if err != nil {
+		return row, err
+	}
+
+	summary := map[string]any{
+		"id":         row.ID,
+		"name":       row.Name,
+		"ip_address": row.IpAddress,
+	}
+	audit.Log(ctx, s.store, "CREATE", "HARDWARE", row.ID, "Added controller "+row.Name, nil, summary)
+
+	return row, nil
 }
 
 func (s *service) DeleteController(ctx context.Context, id int64) error {
+	// Fetch before delete for logging
+	c, err := s.store.GetController(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	summary := map[string]any{
+		"id":         c.ID,
+		"name":       c.Name,
+		"ip_address": c.IpAddress,
+	}
+	audit.Log(ctx, s.store, "DELETE", "HARDWARE", id, "Deleted controller", summary, nil)
+
 	return s.store.DeleteController(ctx, id)
 }
 
@@ -89,9 +115,16 @@ func (s *service) SaveGrid(ctx context.Context, controllerID int64, gridDataJSON
 		return 0, fmt.Errorf("invalid grid json: %w", err)
 	}
 
+	// Fetch old count for logging before update
+	var oldLedCount int
+	existingBins, err := s.store.GetBinsByController(ctx, sql.NullInt64{Int64: controllerID, Valid: true})
+	if err == nil {
+		oldLedCount = len(existingBins)
+	}
+
 	var newLedCount int64
 
-	err := s.store.ExecTx(ctx, func(q db.Querier) error {
+	err = s.store.ExecTx(ctx, func(q db.Querier) error {
 		// Fetch Existing Bins
 		existingBins, err := q.GetBinsByController(ctx, sql.NullInt64{Int64: controllerID, Valid: true})
 		if err != nil {
@@ -171,6 +204,11 @@ func (s *service) SaveGrid(ctx context.Context, controllerID int64, gridDataJSON
 				return err
 			}
 		}
+
+		// Audit Log
+		audit.Log(ctx, q, "UPDATE", "HARDWARE", controllerID, "Updated LED Grid Layout",
+			map[string]any{"led_count": oldLedCount},
+			map[string]any{"led_count": newLedCount})
 
 		return nil
 	})

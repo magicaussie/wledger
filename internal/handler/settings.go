@@ -5,7 +5,6 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/tuxedocurly/wledger/internal/audit"
 	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/internal/db"
@@ -60,13 +59,7 @@ func (h *Handler) HandleSettingsUpdate(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	// Fetch current settings for diff
-	current, err := h.Settings.GetSettings(ctx)
-	if err != nil {
-		h.Logger.Error("failed to fetch current settings for diff", "err", err)
-	}
-
-	err = h.Settings.UpdateSettings(ctx, settings.UpdateSettingsParams{
+	err := h.Settings.UpdateSettings(ctx, settings.UpdateSettingsParams{
 		RequireAuth:         requireAuth,
 		LocateTimeout:       timeout,
 		EnableLocateTimeout: enableTimeout,
@@ -81,50 +74,6 @@ func (h *Handler) HandleSettingsUpdate(w http.ResponseWriter, r *http.Request) {
 		h.UIError.Respond(w, r, err, "Failed to update settings", http.StatusInternalServerError)
 		return
 	}
-
-	// Calculate Diff (for logging)
-	oldDiff := make(map[string]any)
-	newDiff := make(map[string]any)
-
-	if current.RequireAuthForRead.Bool != requireAuth {
-		oldDiff["require_auth"] = current.RequireAuthForRead.Bool
-		newDiff["require_auth"] = requireAuth
-	}
-	if current.EnableDebugLogs.Bool != enableDebugLogs {
-		oldDiff["enable_debug_logs"] = current.EnableDebugLogs.Bool
-		newDiff["enable_debug_logs"] = enableDebugLogs
-	}
-	if current.EnableLocateTimeout.Bool != enableTimeout {
-		oldDiff["enable_timeout"] = current.EnableLocateTimeout.Bool
-		newDiff["enable_timeout"] = enableTimeout
-	}
-	if int(current.LocateTimeoutSeconds.Int64) != timeout {
-		oldDiff["locate_timeout"] = current.LocateTimeoutSeconds.Int64
-		newDiff["locate_timeout"] = timeout
-	}
-	
-	// Only diff colors if provided in the form
-	if colorLocate != "" && current.ColorLocate.String != colorLocate {
-		oldDiff["color_locate"] = current.ColorLocate.String
-		newDiff["color_locate"] = colorLocate
-	}
-	if colorOk != "" && current.ColorStockOk.String != colorOk {
-		oldDiff["color_ok"] = current.ColorStockOk.String
-		newDiff["color_ok"] = colorOk
-	}
-	if colorLow != "" && current.ColorStockLow.String != colorLow {
-		oldDiff["color_low"] = current.ColorStockLow.String
-		newDiff["color_low"] = colorLow
-	}
-	if colorCritical != "" && current.ColorStockCritical.String != colorCritical {
-		oldDiff["color_critical"] = current.ColorStockCritical.String
-		newDiff["color_critical"] = colorCritical
-	}
-
-	if len(oldDiff) > 0 {
-		audit.Log(ctx, h.Queries, "UPDATE", "SETTINGS", 1, "Updated system configuration", oldDiff, newDiff)
-	}
-
 
 	// Update Runtime Log Level
 	logger.SetDebug(enableDebugLogs)
@@ -178,7 +127,7 @@ func (h *Handler) HandleUserCreate(w http.ResponseWriter, r *http.Request) {
 	role := r.FormValue("role")
 	tempPw := r.FormValue("temp_password")
 
-	user, err := h.Settings.CreateUser(r.Context(), settings.CreateUserParams{
+	_, err := h.Settings.CreateUser(r.Context(), settings.CreateUserParams{
 		Email:    email,
 		Role:     role,
 		Password: tempPw,
@@ -188,9 +137,6 @@ func (h *Handler) HandleUserCreate(w http.ResponseWriter, r *http.Request) {
 		h.UIError.Respond(w, r, err, "Failed to create user", http.StatusInternalServerError)
 		return
 	}
-
-	audit.Log(r.Context(), h.Queries, "CREATE", "USER", user.ID, "Created user", nil,
-		map[string]any{"email": user.Email, "role": user.Role})
 
 	h.Logger.Info("created user", "email", email, "role", role)
 	http.Redirect(w, r, "/settings", http.StatusSeeOther)
@@ -209,14 +155,7 @@ func (h *Handler) HandleUserDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fetch before delete
-	u, err := h.Settings.GetUser(r.Context(), int64(id))
-	if err == nil {
-		audit.Log(r.Context(), h.Queries, "DELETE", "USER", int64(id), "Deleted user", 
-			map[string]any{"email": u.Email, "role": u.Role}, nil)
-	}
-
-	err = h.Settings.DeleteUser(r.Context(), int64(id))
+	err := h.Settings.DeleteUser(r.Context(), int64(id))
 	if err != nil {
 		h.Logger.Error("failed to delete user", "err", err)
 	}
@@ -242,10 +181,6 @@ func (h *Handler) HandleUserForceReset(w http.ResponseWriter, r *http.Request) {
 		h.UIError.Respond(w, r, err, "Failed to force password reset", http.StatusInternalServerError)
 		return
 	}
-
-	audit.Log(r.Context(), h.Queries, "UPDATE", "USER", int64(id), "Forced password reset", 
-		map[string]any{"reset_required": false}, 
-		map[string]any{"reset_required": true})
 
 	h.Logger.Info("admin triggered force password reset", "target_id", id)
 	http.Redirect(w, r, "/settings", http.StatusSeeOther)

@@ -6,7 +6,6 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/tuxedocurly/wledger/internal/audit"
 	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/web/pages"
@@ -44,7 +43,7 @@ func (h *Handler) HandleHardwareCreate(w http.ResponseWriter, r *http.Request) {
 		port = 80
 	}
 
-	controller, err := h.Hardware.CreateController(r.Context(), db.CreateControllerParams{
+	_, err := h.Hardware.CreateController(r.Context(), db.CreateControllerParams{
 		Name:      name,
 		IpAddress: ip,
 		Port:      sql.NullInt64{Int64: int64(port), Valid: true},
@@ -55,12 +54,6 @@ func (h *Handler) HandleHardwareCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	summary := map[string]any{
-		"id":         controller.ID,
-		"name":       controller.Name,
-		"ip_address": controller.IpAddress,
-	}
-	audit.Log(r.Context(), h.Queries, "CREATE", "HARDWARE", controller.ID, "Added controller "+name, nil, summary)
 	http.Redirect(w, r, "/hardware", http.StatusSeeOther)
 }
 
@@ -69,25 +62,11 @@ func (h *Handler) HandleHardwareDelete(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, _ := strconv.Atoi(idStr)
 
-	// Fetch before delete for logging
-	c, err := h.Hardware.GetController(r.Context(), int64(id))
-	if err != nil {
-		h.UIError.Respond(w, r, err, "Controller not found", http.StatusNotFound)
-		return
-	}
-
-	err = h.Hardware.DeleteController(r.Context(), int64(id))
+	err := h.Hardware.DeleteController(r.Context(), int64(id))
 	if err != nil {
 		h.UIError.Respond(w, r, err, "Failed to delete hardware", http.StatusInternalServerError)
 		return
 	}
-
-	summary := map[string]any{
-		"id":         c.ID,
-		"name":       c.Name,
-		"ip_address": c.IpAddress,
-	}
-	audit.Log(r.Context(), h.Queries, "DELETE", "HARDWARE", int64(id), "Deleted controller", summary, nil)
 
 	http.Redirect(w, r, "/hardware", http.StatusSeeOther)
 }
@@ -133,15 +112,6 @@ func (h *Handler) HandleHardwareGrid(w http.ResponseWriter, r *http.Request) {
 	pages.HardwareGrid(user, c, bins).Render(r.Context(), w)
 }
 
-// Struct to parse the JSON from GridPainter
-// TODO: deprecate
-type gridCellData struct {
-	X        int    `json:"x"`
-	Y        int    `json:"y"`
-	LedIndex int    `json:"led_index"`
-	Name     string `json:"name"`
-}
-
 // POST /hardware/{id}/grid
 func (h *Handler) HandleHardwareGridSave(w http.ResponseWriter, r *http.Request) {
 	controllerID, _ := strconv.Atoi(chi.URLParam(r, "id"))
@@ -151,23 +121,11 @@ func (h *Handler) HandleHardwareGridSave(w http.ResponseWriter, r *http.Request)
 	gridDataJSON := r.FormValue("grid_data")
 	configJSON := r.FormValue("config_data")
 
-	// Fetch old count for logging before update
-	var oldLedCount int
-	existingBins, err := h.Hardware.GetBinsByController(ctx, int64(controllerID))
-	if err == nil {
-		oldLedCount = len(existingBins)
-	}
-
-	newLedCount, err := h.Hardware.SaveGrid(ctx, int64(controllerID), gridDataJSON, configJSON)
+	_, err := h.Hardware.SaveGrid(ctx, int64(controllerID), gridDataJSON, configJSON)
 	if err != nil {
 		h.UIError.Respond(w, r, err, "Failed to save grid layout", http.StatusInternalServerError)
 		return
 	}
-
-	// Audit Log (Post-Service)
-	audit.Log(ctx, h.Queries, "UPDATE", "HARDWARE", int64(controllerID), "Updated LED Grid Layout",
-		map[string]any{"led_count": oldLedCount},
-		map[string]any{"led_count": newLedCount})
 
 	http.Redirect(w, r, "/hardware", http.StatusSeeOther)
 }
