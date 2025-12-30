@@ -89,7 +89,7 @@ WLEDger V2 has been written for performance, type safety, and extensibility.
 
 The easiest way to run WLEDger is via Docker.
 
-1. Create a directory for your WLEDger data: `mkdir wledger && cd wledger`
+1. Create a directory for your WLEDger data: `mkdir wledger && cd wledger && mkdir data uploads logs`
 
 2. Inside this folder, create a file named `docker-compose.yaml` with the following contents:
 
