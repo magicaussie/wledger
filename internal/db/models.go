@@ -22,13 +22,23 @@ type AuditLog struct {
 }
 
 type Bin struct {
-	ID           int64         `json:"id"`
-	Name         string        `json:"name"`
-	ControllerID sql.NullInt64 `json:"controller_id"`
-	LedIndex     sql.NullInt64 `json:"led_index"`
-	Width        sql.NullInt64 `json:"width"`
-	GridX        sql.NullInt64 `json:"grid_x"`
-	GridY        sql.NullInt64 `json:"grid_y"`
+	ID          int64         `json:"id"`
+	Name        string        `json:"name"`
+	ContainerID int64         `json:"container_id"`
+	LedIndex    sql.NullInt64 `json:"led_index"`
+	Width       sql.NullInt64 `json:"width"`
+	GridX       sql.NullInt64 `json:"grid_x"`
+	GridY       sql.NullInt64 `json:"grid_y"`
+}
+
+type Container struct {
+	ID           int64          `json:"id"`
+	Name         string         `json:"name"`
+	ControllerID int64          `json:"controller_id"`
+	SegmentID    int64          `json:"segment_id"`
+	ConfigJson   sql.NullString `json:"config_json"`
+	CreatedAt    sql.NullTime   `json:"created_at"`
+	UpdatedAt    sql.NullTime   `json:"updated_at"`
 }
 
 type Controller struct {
@@ -39,7 +49,6 @@ type Controller struct {
 	MacAddress sql.NullString `json:"mac_address"`
 	IsOnline   sql.NullBool   `json:"is_online"`
 	LedCount   int64          `json:"led_count"`
-	ConfigJson sql.NullString `json:"config_json"`
 	CreatedAt  sql.NullTime   `json:"created_at"`
 }
 
@@ -149,4 +158,20 @@ type User struct {
 	Role                   string       `json:"role"`
 	ChangePasswordRequired sql.NullBool `json:"change_password_required"`
 	CreatedAt              sql.NullTime `json:"created_at"`
+}
+
+type Wall struct {
+	ID          int64          `json:"id"`
+	Name        string         `json:"name"`
+	Description sql.NullString `json:"description"`
+	CreatedAt   sql.NullTime   `json:"created_at"`
+	UpdatedAt   sql.NullTime   `json:"updated_at"`
+}
+
+type WallCard struct {
+	ID            int64          `json:"id"`
+	WallID        int64          `json:"wall_id"`
+	ContainerID   int64          `json:"container_id"`
+	PositionIndex int64          `json:"position_index"`
+	ConfigJson    sql.NullString `json:"config_json"`
 }

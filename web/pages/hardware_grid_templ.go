@@ -15,7 +15,7 @@ import (
 	"github.com/tuxedocurly/wledger/web/layouts"
 )
 
-func HardwareGrid(user auth.User, c db.Controller, bins []db.Bin) templ.Component {
+func HardwareGrid(user auth.User, c db.Controller, containers []db.Container, bins []db.Bin) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -65,7 +65,7 @@ func HardwareGrid(user auth.User, c db.Controller, bins []db.Bin) templ.Componen
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = components.GridPainter(c, bins, user.CanConfigure()).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = components.GridPainter(c, containers, bins, user.CanConfigure()).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

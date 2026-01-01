@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"database/sql"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -175,13 +174,23 @@ func (h *Handler) HandleDocDelete(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) HandleBinOptions(w http.ResponseWriter, r *http.Request) {
 	cid, _ := strconv.Atoi(r.URL.Query().Get("controller_id"))
-	bins, err := h.Queries.GetBinsByController(r.Context(), sql.NullInt64{Int64: int64(cid), Valid: true})
+	
+	containers, err := h.Queries.GetContainersByController(r.Context(), int64(cid))
 	if err != nil {
-		h.Logger.Error("failed to fetch bins for options", "err", err, "controller_id", cid)
+		h.Logger.Error("failed to fetch containers", "err", err, "controller_id", cid)
 		components.BinOptions([]db.Bin{}).Render(r.Context(), w)
 		return
 	}
-	components.BinOptions(bins).Render(r.Context(), w)
+
+	var allBins []db.Bin
+	for _, c := range containers {
+		bins, err := h.Queries.GetBinsByContainer(r.Context(), c.ID)
+		if err == nil {
+			allBins = append(allBins, bins...)
+		}
+	}
+	
+	components.BinOptions(allBins).Render(r.Context(), w)
 }
 
 func (h *Handler) HandlePartAssign(w http.ResponseWriter, r *http.Request) {

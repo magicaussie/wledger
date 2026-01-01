@@ -93,7 +93,7 @@ func (c *Client) SetState(ctx context.Context, ip string, payload map[string]any
 }
 
 // LightUp uses the individual LED ('i') API to light up a range
-func (c *Client) LightUp(ctx context.Context, ip string, index int, count int, hexColor string) error {
+func (c *Client) LightUp(ctx context.Context, ip string, segmentID int, index int, count int, hexColor string) error {
 	rgb, err := HexToRGB(hexColor)
 	if err != nil {
 		rgb = []int{255, 255, 255}
@@ -104,7 +104,7 @@ func (c *Client) LightUp(ctx context.Context, ip string, index int, count int, h
 		"tt": 0,
 		"seg": []map[string]any{
 			{
-				"id": 0,
+				"id": segmentID,
 				"on": true,
 				"i":  []any{index, index + count, rgb},
 			},

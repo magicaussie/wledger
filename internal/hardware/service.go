@@ -9,6 +9,7 @@ import (
 
 	"github.com/tuxedocurly/wledger/internal/audit"
 	"github.com/tuxedocurly/wledger/internal/db"
+	"github.com/tuxedocurly/wledger/internal/hardware/mapper"
 	"github.com/tuxedocurly/wledger/internal/wled"
 )
 
@@ -19,6 +20,7 @@ type Service interface {
 	DeleteController(ctx context.Context, id int64) error
 	UpdateStatus(ctx context.Context, id int64) (bool, error)
 	GetBinsByController(ctx context.Context, id int64) ([]db.Bin, error)
+	GetContainers(ctx context.Context, controllerID int64) ([]db.Container, error)
 	SaveGrid(ctx context.Context, controllerID int64, gridDataJSON string, configJSON string) (int64, error)
 }
 
@@ -36,6 +38,10 @@ func NewService(store db.Store, wledClient *wled.Client, logger *slog.Logger) Se
 	}
 }
 
+func (s *service) GetContainers(ctx context.Context, controllerID int64) ([]db.Container, error) {
+	return s.store.GetContainersByController(ctx, controllerID)
+}
+
 func (s *service) ListControllers(ctx context.Context) ([]db.Controller, error) {
 	return s.store.GetControllers(ctx)
 }
@@ -48,6 +54,17 @@ func (s *service) CreateController(ctx context.Context, params db.CreateControll
 	row, err := s.store.CreateController(ctx, params)
 	if err != nil {
 		return row, err
+	}
+
+	// Create Default Container for the new controller
+	_, err = s.store.CreateContainer(ctx, db.CreateContainerParams{
+		Name:         row.Name + " (Main)",
+		ControllerID: row.ID,
+		SegmentID:    0,
+		ConfigJson:   sql.NullString{String: `{"type":"grid","rows":8,"cols":8}`, Valid: true},
+	})
+	if err != nil {
+		s.logger.Error("failed to create default container for new controller", "err", err)
 	}
 
 	summary := map[string]any{
@@ -99,119 +116,142 @@ func (s *service) UpdateStatus(ctx context.Context, id int64) (bool, error) {
 }
 
 func (s *service) GetBinsByController(ctx context.Context, id int64) ([]db.Bin, error) {
-	return s.store.GetBinsByController(ctx, sql.NullInt64{Int64: id, Valid: true})
+	containers, err := s.store.GetContainersByController(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	var allBins []db.Bin
+	for _, c := range containers {
+		bins, err := s.store.GetBinsByContainer(ctx, c.ID)
+		if err == nil {
+			allBins = append(allBins, bins...)
+		}
+	}
+
+	return allBins, nil
 }
 
-type gridCellData struct {
-	X        int    `json:"x"`
-	Y        int    `json:"y"`
-	LedIndex int    `json:"led_index"`
-	Name     string `json:"name"`
+type containerInJSON struct {
+	ID        *int64                 `json:"id"`
+	Name      string                 `json:"name"`
+	SegmentID int64                  `json:"segment_id"`
+	Config    mapper.ContainerConfig `json:"config"`
+}
+
+type binInJSON struct {
+	ContainerIndex int    `json:"container_index"`
+	X              int    `json:"x"`
+	Y              int    `json:"y"`
+	LedIndex       int    `json:"led_index"`
+	Name           string `json:"name"`
 }
 
 func (s *service) SaveGrid(ctx context.Context, controllerID int64, gridDataJSON string, configJSON string) (int64, error) {
-	var newCells []gridCellData
-	if err := json.Unmarshal([]byte(gridDataJSON), &newCells); err != nil {
+	var inputBins []binInJSON
+	if err := json.Unmarshal([]byte(gridDataJSON), &inputBins); err != nil {
 		return 0, fmt.Errorf("invalid grid json: %w", err)
 	}
 
-	// Fetch old count for logging before update
-	var oldLedCount int
-	existingBins, err := s.store.GetBinsByController(ctx, sql.NullInt64{Int64: controllerID, Valid: true})
-	if err == nil {
-		oldLedCount = len(existingBins)
+	var inputContainers []containerInJSON
+	if err := json.Unmarshal([]byte(configJSON), &inputContainers); err != nil {
+		return 0, fmt.Errorf("invalid config json: %w", err)
 	}
 
-	var newLedCount int64
+	var totalLedCount int64 = 0
 
-	err = s.store.ExecTx(ctx, func(q db.Querier) error {
-		// Fetch Existing Bins
-		existingBins, err := q.GetBinsByController(ctx, sql.NullInt64{Int64: controllerID, Valid: true})
+	err := s.store.ExecTx(ctx, func(q db.Querier) error {
+		// Sync Containers
+		existingContainers, err := q.GetContainersByController(ctx, controllerID)
 		if err != nil {
 			return err
 		}
 
-		// Build Map for Diffing: [LedIndex] -> Bin
-		existingMap := make(map[int64]db.Bin)
-		for _, b := range existingBins {
-			if b.LedIndex.Valid {
-				existingMap[b.LedIndex.Int64] = b
-			}
-		}
+		containerIDMap := make(map[int]int64) // Index in input -> DB ID
+		updatedIDs := make(map[int64]bool)
 
-		maxLedIndex := 0
-		// Process Incoming Grid Data
-		for _, cell := range newCells {
-			if cell.LedIndex > maxLedIndex {
-				maxLedIndex = cell.LedIndex
-			}
+		for i, c := range inputContainers {
+			configBytes, _ := json.Marshal(c.Config)
+			configStr := string(configBytes)
 
-			ledIdx := int64(cell.LedIndex)
-
-			if _, exists := existingMap[ledIdx]; exists {
-				// UPDATE EXISTING
-				err := q.UpsertBin(ctx, db.UpsertBinParams{
-					Name:         cell.Name,
-					ControllerID: sql.NullInt64{Int64: controllerID, Valid: true},
-					LedIndex:     sql.NullInt64{Int64: ledIdx, Valid: true},
-					Width:        sql.NullInt64{Int64: 1, Valid: true},
-					GridX:        sql.NullInt64{Int64: int64(cell.X), Valid: true},
-					GridY:        sql.NullInt64{Int64: int64(cell.Y), Valid: true},
+			if c.ID != nil {
+				// Update existing
+				err := q.UpdateContainerConfig(ctx, db.UpdateContainerConfigParams{
+					ID:         *c.ID,
+					Name:       c.Name,
+					SegmentID:  c.SegmentID,
+					ConfigJson: sql.NullString{String: configStr, Valid: true},
 				})
 				if err != nil {
-					return err
+					return fmt.Errorf("failed to update container %d: %w", *c.ID, err)
 				}
-				// Remove from map to mark as "kept"
-				delete(existingMap, ledIdx)
-
+				containerIDMap[i] = *c.ID
+				updatedIDs[*c.ID] = true
 			} else {
-				// INSERT NEW
-				_, err := q.CreateBin(ctx, db.CreateBinParams{
-					Name:         cell.Name,
-					ControllerID: sql.NullInt64{Int64: controllerID, Valid: true},
-					LedIndex:     sql.NullInt64{Int64: ledIdx, Valid: true},
-					Width:        sql.NullInt64{Int64: 1, Valid: true},
-					GridX:        sql.NullInt64{Int64: int64(cell.X), Valid: true},
-					GridY:        sql.NullInt64{Int64: int64(cell.Y), Valid: true},
+				// Create new
+				newID, err := q.CreateContainer(ctx, db.CreateContainerParams{
+					Name:         c.Name,
+					ControllerID: controllerID,
+					SegmentID:    c.SegmentID,
+					ConfigJson:   sql.NullString{String: configStr, Valid: true},
 				})
 				if err != nil {
-					return err
+					return fmt.Errorf("failed to create container: %w", err)
+				}
+				containerIDMap[i] = newID
+			}
+		}
+
+		// Delete containers that are no longer present
+		for _, ec := range existingContainers {
+			if !updatedIDs[ec.ID] {
+				err := q.DeleteContainer(ctx, ec.ID)
+				if err != nil {
+					return fmt.Errorf("failed to delete container %d: %w", ec.ID, err)
 				}
 			}
 		}
 
-		// Handle Deletions (Orphan Logic)
-		for _, binToDelete := range existingMap {
-			err := q.DeleteBinByLed(ctx, db.DeleteBinByLedParams{
-				ControllerID: sql.NullInt64{Int64: controllerID, Valid: true},
-				LedIndex:     binToDelete.LedIndex,
-			})
-			if err != nil {
-				s.logger.Error("failed to delete removed bin", "id", binToDelete.ID, "err", err)
+		// Sync Bins
+		seenContainers := make(map[int64]bool)
+		for _, b := range inputBins {
+			dbID, ok := containerIDMap[b.ContainerIndex]
+			if !ok {
+				continue
 			}
-		}
 
-		newLedCount = int64(maxLedIndex + 1)
+			if !seenContainers[dbID] {
+				err := q.DeleteBinsByContainer(ctx, dbID)
+				if err != nil {
+					return err
+				}
+				seenContainers[dbID] = true
+			}
 
-		// Update Controller Config
-		if configJSON != "" {
-			err := q.UpdateControllerConfig(ctx, db.UpdateControllerConfigParams{
-				ConfigJson: sql.NullString{String: configJSON, Valid: true},
-				LedCount:   newLedCount,
-				ID:         controllerID,
+			_, err := q.CreateBin(ctx, db.CreateBinParams{
+				Name:        b.Name,
+				ContainerID: dbID,
+				LedIndex:    sql.NullInt64{Int64: int64(b.LedIndex), Valid: true},
+				Width:       sql.NullInt64{Int64: 1, Valid: true},
+				GridX:       sql.NullInt64{Int64: int64(b.X), Valid: true},
+				GridY:       sql.NullInt64{Int64: int64(b.Y), Valid: true},
 			})
 			if err != nil {
 				return err
+			}
+
+			if int64(b.LedIndex) >= totalLedCount {
+				totalLedCount = int64(b.LedIndex) + 1
 			}
 		}
 
 		// Audit Log
 		audit.Log(ctx, q, "UPDATE", "HARDWARE", controllerID, "Updated LED Grid Layout",
-			map[string]any{"led_count": oldLedCount},
-			map[string]any{"led_count": newLedCount})
+			nil,
+			map[string]any{"led_count": totalLedCount})
 
 		return nil
 	})
 
-	return newLedCount, err
+	return totalLedCount, err
 }

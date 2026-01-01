@@ -1,0 +1,90 @@
+package pages
+
+import (
+	"fmt"
+	"github.com/tuxedocurly/wledger/internal/auth"
+	"github.com/tuxedocurly/wledger/internal/db"
+	"github.com/tuxedocurly/wledger/internal/utils"
+	"github.com/tuxedocurly/wledger/web/components"
+	"github.com/tuxedocurly/wledger/web/layouts"
+)
+
+templ WallEdit(user auth.User, wall db.Wall, wallContainers []components.DashboardContainer, allContainers []db.Container) {
+	@layouts.Base("Edit Wall", user) {
+		<div class="mb-6">
+			<a href="/" class="btn btn-sm btn-ghost gap-2 pl-0">
+				<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+				Back to Dashboard
+			</a>
+			<h1 class="text-3xl font-bold mt-2">Edit { wall.Name }</h1>
+		</div>
+		<div x-data={ fmt.Sprintf("{ wallContainers: %s, availableContainers: %s, selectedAddId: '' }", utils.JSON(wallContainers), utils.JSON(allContainers)) } class="mb-12 p-8 bg-base-200/50 rounded-2xl border border-base-300 shadow-sm">
+			<form method="POST" action={ templ.SafeURL(fmt.Sprintf("/walls/%d", wall.ID)) }>
+				<div class="flex flex-col lg:flex-row gap-12">
+					<div class="lg:w-1/3 space-y-6">
+						<h3 class="text-xl font-bold border-b border-base-300 pb-2">Wall Settings</h3>
+						<div class="form-control">
+							<label class="label"><span class="label-text font-bold">Name</span></label>
+							<input type="text" name="name" value={ wall.Name } class="input input-bordered w-full"/>
+						</div>
+						<div class="form-control">
+							<label class="label"><span class="label-text font-bold">Description</span></label>
+							<textarea name="description" class="textarea textarea-bordered w-full h-24">{ wall.Description.String }</textarea>
+						</div>
+						<div class="flex gap-3 pt-4">
+							<button type="submit" class="btn btn-primary flex-1">Save Changes</button>
+							<button
+								type="button"
+								class="btn btn-error btn-outline"
+								@click={ fmt.Sprintf("if(confirm('Delete this wall?')) { const f = document.createElement('form'); f.method='POST'; f.action='/walls/%d/delete'; document.body.appendChild(f); f.submit(); }", wall.ID) }
+							>Delete Wall</button>
+						</div>
+					</div>
+					<div class="lg:w-2/3 lg:border-l lg:border-base-300 lg:pl-12">
+						<h3 class="text-xl font-bold border-b border-base-300 pb-2 mb-6">Containers</h3>
+						<div class="space-y-3 mb-8 max-h-[500px] overflow-y-auto pr-2">
+							<template x-for="(c, idx) in wallContainers" :key="idx">
+								<div class="flex items-center justify-between p-4 bg-base-100 rounded-xl border border-base-200 shadow-sm hover:border-primary/50 transition-colors">
+									<div class="flex items-center gap-4">
+										<div class="w-8 h-8 rounded-full bg-base-200 flex items-center justify-center font-mono font-bold text-sm opacity-50" x-text="(idx+1)"></div>
+										<div class="flex flex-col">
+											<span class="font-bold text-lg" x-text="c.name"></span>
+											<span class="text-xs opacity-40 font-mono" x-text="'ID: ' + c.id"></span>
+										</div>
+									</div>
+									<div class="flex items-center gap-2">
+										<input type="hidden" name="container_ids[]" x-model="c.id"/>
+										<button type="button" @click="wallContainers.splice(idx, 1)" class="btn btn-ghost btn-sm text-error btn-square hover:bg-error/10">
+											<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+										</button>
+									</div>
+								</div>
+							</template>
+							<div x-show="wallContainers.length === 0" class="text-center py-12 opacity-40 border-2 border-dashed border-base-300 rounded-xl">
+								<div class="text-4xl mb-2 grayscale">📦</div>
+								<div class="font-bold">No containers yet</div>
+								<div class="text-sm">Add containers from the list below</div>
+							</div>
+						</div>
+						<div class="bg-base-100 p-6 rounded-xl border border-base-200 shadow-sm">
+							<label class="label pb-2"><span class="label-text font-bold">Add Container to Wall</span></label>
+							<div class="flex gap-2">
+								<select x-model="selectedAddId" class="select select-bordered flex-1">
+									<option value="" disabled selected>Select a container...</option>
+									<template x-for="c in availableContainers.filter(ac => !wallContainers.some(wc => wc.id === ac.id))" :key="c.id">
+										<option :value="c.id" x-text="c.name"></option>
+									</template>
+								</select>
+								<button
+									type="button"
+									class="btn btn-secondary px-8"
+									@click="if(selectedAddId) { const c = availableContainers.find(x => x.id == selectedAddId); if(c && !wallContainers.some(x => x.id == c.id)) { wallContainers.push(c); selectedAddId = ''; } }"
+								>+ Add</button>
+							</div>
+						</div>
+					</div>
+				</div>
+			</form>
+		</div>
+	}
+}

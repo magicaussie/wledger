@@ -1,0 +1,136 @@
+package components
+
+import "fmt"
+
+templ DashboardContainerCard(container DashboardContainer) {
+	<div
+		class="card bg-base-100 shadow-xl border border-base-300 hover:shadow-2xl transition-all duration-300 cursor-pointer group"
+		@click={ fmt.Sprintf("document.getElementById('container_modal_%d').showModal()", container.ID) }
+	>
+		<div class="card-body p-5">
+			<div class="flex justify-between items-start mb-2">
+				<div class="flex flex-col">
+					<h2 class="card-title text-base group-hover:text-primary transition-colors">{ container.Name }</h2>
+					<span class="text-[10px] opacity-50 uppercase tracking-wider">{ container.ControllerName } • Segment { fmt.Sprintf("%d", container.SegmentID) }</span>
+				</div>
+				<div class={ "badge badge-xs", templ.KV("badge-success", container.ControllerOnline), templ.KV("badge-error", !container.ControllerOnline) }></div>
+			</div>
+			<div class="flex items-center gap-4 mt-4">
+				<!-- Stock Health Indicator (Color Wheel Style) -->
+				@StockHealthIndicator(container.Bins)
+				<div class="flex flex-col">
+					<span class="text-2xl font-bold leading-none">{ fmt.Sprintf("%d", len(container.Bins)) }</span>
+					<span class="text-[10px] opacity-50 uppercase font-bold">Bins</span>
+				</div>
+			</div>
+		</div>
+		<!-- Grid Preview Modal -->
+		<dialog id={ fmt.Sprintf("container_modal_%d", container.ID) } class="modal modal-bottom sm:modal-middle">
+			<div class="modal-box max-w-4xl">
+				<form method="dialog">
+					<button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+				</form>
+				<h3 class="font-bold text-lg mb-4">{ container.Name }</h3>
+				<div class="mb-6 flex gap-4 text-xs opacity-70 border-b border-base-300 pb-4">
+					<div class="flex items-center gap-2"><span class="font-semibold">Controller:</span> { container.ControllerName }</div>
+					<div class="flex items-center gap-2"><span class="font-semibold">Segment:</span> { fmt.Sprintf("%d", container.SegmentID) }</div>
+					<div class="flex items-center gap-2">
+						<span class="font-semibold">Status:</span>
+						if container.ControllerOnline {
+							<span class="text-success font-bold uppercase text-[10px]">Online</span>
+						} else {
+							<span class="text-error font-bold uppercase text-[10px]">Offline</span>
+						}
+					</div>
+				</div>
+				<div class="overflow-x-auto">
+					<div class="grid gap-1.5 p-1 mx-auto" style="width: fit-content; min-width: 100%;">
+						for _, bin := range container.Bins {
+							<a
+								href={ templ.SafeURL(fmt.Sprintf("/parts?bin=%d", bin.ID)) }
+								class={ "w-12 h-12 rounded-md border border-base-300/50 flex items-center justify-center text-xs font-bold shadow-sm hover:scale-110 hover:shadow-md hover:z-10 hover:border-base-content/50 transition-all duration-200 cursor-pointer " + bin.GetClass() }
+								style={ bin.GetStyle() }
+								title={ bin.Name }
+							>
+								<span class="drop-shadow-md filter invert-0 grayscale-0 brightness-100">{ bin.Name }</span>
+							</a>
+						}
+					</div>
+				</div>
+				<div class="modal-action justify-between items-center">
+					<div class="flex gap-4 text-[10px] opacity-70">
+						<div class="flex items-center gap-1.5"><div class="w-2.5 h-2.5 rounded-full bg-success"></div>OK</div>
+						<div class="flex items-center gap-1.5"><div class="w-2.5 h-2.5 rounded-full bg-warning"></div>Low</div>
+						<div class="flex items-center gap-1.5"><div class="w-2.5 h-2.5 rounded-full bg-error"></div>Crit</div>
+						<div class="flex items-center gap-1.5"><div class="w-2.5 h-2.5 rounded-full bg-base-200 border border-base-300"></div>Empty</div>
+					</div>
+					<form method="dialog">
+						<button class="btn btn-sm">Close</button>
+					</form>
+				</div>
+			</div>
+			<form method="dialog" class="modal-backdrop">
+				<button>close</button>
+			</form>
+		</dialog>
+	</div>
+}
+
+templ StockHealthIndicator(bins []DashboardBin) {
+	{{
+		total := float64(len(bins))
+		if total == 0 {
+			total = 1 // Avoid division by zero
+		}
+
+		counts := map[string]float64{
+			"critical": 0,
+			"low":      0,
+			"ok":       0,
+			"empty":    0,
+		}
+
+		for _, b := range bins {
+			keys := b.GetStatusKeys()
+			if len(keys) == 0 {
+				counts["empty"]++
+				continue
+			}
+			// If bin has multiple statuses, prioritize worst one for the wheel slice?
+			// For simplicity, count the "worst" status.
+			worst := "ok"
+			for _, k := range keys {
+				if k == "critical" {
+					worst = "critical"
+					break
+				}
+				if k == "low" {
+					worst = "low"
+				}
+			}
+			counts[worst]++
+		}
+
+		critP := (counts["critical"] / total) * 100
+		lowP := (counts["low"] / total) * 100
+		okP := (counts["ok"] / total) * 100
+		emptyP := (counts["empty"] / total) * 100
+
+		// CSS Conic Gradient string
+		// Format: conic-gradient(color1 0% p1%, color2 p1% p2%, ...)
+		grad := fmt.Sprintf("background: conic-gradient(var(--color-error) 0%% %.1f%%, var(--color-warning) %.1f%% %.1f%%, var(--color-success) %.1f%% %.1f%%, var(--color-base-300) %.1f%% 100%%);",
+			critP,
+			critP, critP+lowP,
+			critP+lowP, critP+lowP+okP,
+			critP+lowP+okP)
+	}}
+	<div class="relative w-14 h-14 rounded-full border border-base-300 shadow-inner flex items-center justify-center overflow-hidden" style={ grad }>
+		<div class="w-10 h-10 rounded-full bg-base-100 shadow-md flex items-center justify-center text-[10px] font-black uppercase tracking-tighter">
+			if emptyP < 100 {
+				{ fmt.Sprintf("%.0f%%", okP + lowP + critP) }
+			} else {
+				<span class="opacity-30">0%</span>
+			}
+		</div>
+	</div>
+}

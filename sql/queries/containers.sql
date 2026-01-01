@@ -1,0 +1,21 @@
+-- name: CreateContainer :one
+INSERT INTO containers (name, controller_id, segment_id, config_json)
+VALUES (?, ?, ?, ?)
+RETURNING id;
+
+-- name: GetContainer :one
+SELECT * FROM containers WHERE id = ?;
+
+-- name: GetContainersByController :many
+SELECT * FROM containers WHERE controller_id = ? ORDER BY id;
+
+-- name: UpdateContainerConfig :exec
+UPDATE containers
+SET name = ?, config_json = ?, segment_id = ?, updated_at = CURRENT_TIMESTAMP
+WHERE id = ?;
+
+-- name: DeleteContainer :exec
+DELETE FROM containers WHERE id = ?;
+
+-- name: GetAllContainers :many
+SELECT * FROM containers ORDER BY name;

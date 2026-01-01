@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/tuxedocurly/wledger/internal/auth"
+	"github.com/tuxedocurly/wledger/web/components"
 	"github.com/tuxedocurly/wledger/web/pages"
 )
 
@@ -19,13 +20,23 @@ func (h *Handler) HandleDashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fetch Grid Data via Service
-	controllers, err := h.Dashboard.GetGrid(ctx)
+	// Fetch All Walls with Containers
+	dashboardWalls, err := h.Dashboard.GetAllWallsWithContainers(ctx)
 	if err != nil {
-		h.UIError.Respond(w, r, err, "Failed to load dashboard grid", http.StatusInternalServerError)
-		return
+		// Log error but proceed? Or show empty?
+		// For now, empty list
+		dashboardWalls = []components.DashboardWall{}
 	}
 
-	// Render Dashboard with Stats and Controllers
-	pages.Dashboard(user, stats, controllers).Render(ctx, w)
+	// Legacy Dashboard Support: If no walls exist, fetch all controllers/bins for a default view
+	var legacyControllers []components.DashboardController
+	if len(dashboardWalls) == 0 {
+		legacyControllers, _ = h.Dashboard.GetGrid(ctx)
+	}
+	if legacyControllers == nil {
+		legacyControllers = []components.DashboardController{}
+	}
+
+	// Render Dashboard
+	pages.Dashboard(user, stats, dashboardWalls, legacyControllers).Render(ctx, w)
 }

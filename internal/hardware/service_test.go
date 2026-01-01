@@ -60,10 +60,17 @@ func TestService_DeleteController(t *testing.T) {
 		IpAddress: "1.1.1.1",
 	})
 
+	// Create Container
+	cont, _ := store.CreateContainer(ctx, db.CreateContainerParams{
+		Name:         "Default",
+		ControllerID: c.ID,
+		SegmentID:    0,
+	})
+
 	// Add a bin
 	store.CreateBin(ctx, db.CreateBinParams{
 		Name:         "Bin 1",
-		ControllerID: sql.NullInt64{Int64: c.ID, Valid: true},
+		ContainerID:  cont,
 	})
 
 	err := s.DeleteController(ctx, c.ID)

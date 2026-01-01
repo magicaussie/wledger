@@ -2,29 +2,29 @@
 SELECT * FROM bins ORDER BY id;
 
 -- name: RestoreBin :exec
-INSERT INTO bins (id, name, controller_id, led_index, width, grid_x, grid_y)
+INSERT INTO bins (id, name, container_id, led_index, width, grid_x, grid_y)
 VALUES (?, ?, ?, ?, ?, ?, ?);
 
 -- name: CreateBin :one
-INSERT INTO bins (name, controller_id, led_index, width, grid_x, grid_y)
+INSERT INTO bins (name, container_id, led_index, width, grid_x, grid_y)
 VALUES (?, ?, ?, ?, ?, ?)
 RETURNING id;
 
 -- name: GetBin :one
 SELECT * FROM bins WHERE id = ?;
 
--- name: GetBinsByController :many
+-- name: GetBinsByContainer :many
 SELECT * FROM bins 
-WHERE controller_id = ? 
+WHERE container_id = ? 
 ORDER BY led_index ASC;
 
--- name: DeleteBinsByController :exec
-DELETE FROM bins WHERE controller_id = ?;
+-- name: DeleteBinsByContainer :exec
+DELETE FROM bins WHERE container_id = ?;
 
 -- name: UpsertBin :exec
-INSERT INTO bins (name, controller_id, led_index, width, grid_x, grid_y)
+INSERT INTO bins (name, container_id, led_index, width, grid_x, grid_y)
 VALUES (?, ?, ?, ?, ?, ?)
-ON CONFLICT(controller_id, led_index) DO UPDATE SET
+ON CONFLICT(container_id, led_index) DO UPDATE SET
     name = excluded.name,
     width = excluded.width,
     grid_x = excluded.grid_x,
@@ -35,4 +35,4 @@ DELETE FROM bins WHERE id = ?;
 
 -- name: DeleteBinByLed :exec
 DELETE FROM bins 
-WHERE controller_id = ? AND led_index = ?;
+WHERE container_id = ? AND led_index = ?;

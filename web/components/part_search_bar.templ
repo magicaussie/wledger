@@ -11,7 +11,7 @@ templ PartSearchBar(search string, canWrite bool) {
 				type="search"
 				name="q"
 				value={ search }
-				class="input input-bordered join-item w-full md:w-64"
+				class="input input-bordered join-item w-full rounded-full md:w-64"
 				placeholder="Search parts..."
 				hx-get="/parts"
 				hx-trigger="input changed delay:250ms, search"

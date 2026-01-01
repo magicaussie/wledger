@@ -61,8 +61,18 @@ func TestService_Locate(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to create controller: %v", err)
 		}
+		
+		cont, err := store.CreateContainer(ctx, db.CreateContainerParams{
+			Name:         "Cont",
+			ControllerID: c.ID,
+			SegmentID:    0,
+		})
+		if err != nil {
+			t.Fatalf("failed to create container: %v", err)
+		}
+
 		b, err := store.CreateBin(ctx, db.CreateBinParams{
-			Name: "B1", ControllerID: sql.NullInt64{Int64: c.ID, Valid: true}, LedIndex: sql.NullInt64{Int64: 0, Valid: true},
+			Name: "B1", ContainerID: cont, LedIndex: sql.NullInt64{Int64: 0, Valid: true},
 		})
 		if err != nil {
 			t.Fatalf("failed to create bin: %v", err)

@@ -7,95 +7,160 @@ import (
 )
 
 // GridPainter renders the interactive LED mapping tool with Linear, Grid, and Compound support.
-templ GridPainter(controller db.Controller, bins []db.Bin, canEdit bool) {
+templ GridPainter(controller db.Controller, containers []db.Container, bins []db.Bin, canEdit bool) {
 	<div
 		x-data={ fmt.Sprintf(`gridPainter(%d, %s, %s, %t)`, 
 		controller.ID, 
 		utils.JSON(bins), 
-		utils.DefaultJSON(controller.ConfigJson, "{}"), 
+		utils.JSON(containers), 
 		canEdit) }
 		class="w-full"
 	>
 		if canEdit {
-			<div class="card bg-base-200 mb-8 border border-base-300">
-				<div class="card-body p-4">
-					<div class="flex flex-col gap-4">
-						<div class="flex flex-wrap gap-4 items-end justify-between">
-							<div class="flex gap-4">
-								<div class="form-control w-full max-w-xs">
-									<label class="label pb-2">
-										<span class="label-text font-semibold">Grid Type</span>
-									</label>
-									<select x-model="config.type" @change="resetLayout()" class="select select-bordered select-sm w-full">
-										<option value="linear">Linear Strip (1 × N)</option>
-										<option value="grid">Standard Matrix (M × N)</option>
-										<option value="compound">Compound (Multi-Section)</option>
-									</select>
+			<div class="flex flex-col lg:flex-row gap-8 mb-8">
+				<!-- Container List -->
+				<div class="lg:w-1/3">
+					<div class="flex items-center justify-between mb-4">
+						<h3 class="font-bold text-lg">Containers</h3>
+						<button @click="addContainer()" class="btn btn-sm btn-primary">+ Add</button>
+					</div>
+					<div class="flex flex-col gap-2 max-h-96 overflow-y-auto pr-2">
+						<template x-for="(container, idx) in containers" :key="idx">
+							<div 
+								class="p-4 rounded-lg border border-base-300 cursor-pointer transition-colors flex items-center justify-between"
+								:class="selectedContainerIndex === idx ? 'bg-primary/10 border-primary' : 'bg-base-200 hover:bg-base-300'"
+								@click="selectedContainerIndex = idx"
+							>
+								<div class="flex flex-col gap-1">
+									<span class="font-bold text-base" x-text="container.name"></span>
+									<span class="text-xs opacity-70" x-text="'Segment ' + container.segment_id + ' • ' + container.config.type"></span>
 								</div>
-								<div class="form-control w-full max-w-xs">
-									<label class="label pb-2">
-										<span class="label-text font-semibold">Data Start</span>
-										@QuestionTooltip("Select the location of your WLED controller. This is used for the Auto Map feature. Not required if you are mapping the data direction manually.")
-									</label>
-									<select x-model="config.start_corner" class="select select-bordered select-sm w-full">
-										<option value="tl">Top-Left</option>
-										<option value="tr">Top-Right</option>
-										<option value="bl">Bottom-Left</option>
-										<option value="br">Bottom-Right</option>
-									</select>
-								</div>
+								<button @click.stop="removeContainer(idx)" class="btn btn-ghost btn-sm text-error btn-square">
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+								</button>
 							</div>
-							<div class="flex gap-2">
-								<button @click="autoFill('linear')" class="btn btn-sm btn-success gap-2">
+						</template>
+					</div>
+				</div>
+
+				<!-- Selected Container Editor -->
+				<div class="lg:w-2/3 pl-0 lg:pl-4">
+					<div x-show="containers.length > 0" class="card bg-base-100 border border-base-300 shadow-sm h-full">
+						<div class="card-body p-6 gap-6">
+                            <!-- Header -->
+                            <div class="flex justify-between items-center border-b border-base-200 pb-4">
+                                <h3 class="font-bold text-lg">Edit Container</h3>
+                                <div class="badge badge-neutral font-mono" x-text="'ID: ' + currentContainer.id"></div>
+                            </div>
+
+							<!-- Basic Info Fieldset -->
+                            <fieldset class="fieldset w-full bg-base-200/50 p-4 rounded-lg border border-base-200">
+                                <legend class="fieldset-legend">Basic Information</legend>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <label class="form-control w-full">
+                                        <div class="label"><span class="label-text font-bold">Name</span></div>
+                                        <input type="text" x-model="currentContainer.name" class="input input-bordered w-full"/>
+                                    </label>
+                                    <label class="form-control w-full">
+                                        <div class="label"><span class="label-text font-bold">WLED Segment ID</span></div>
+                                        <input type="number" x-model.number="currentContainer.segment_id" class="input input-bordered w-full" min="0"/>
+                                    </label>
+                                </div>
+                            </fieldset>
+
+							<!-- Configuration Fieldset -->
+                            <fieldset class="fieldset w-full bg-base-200/50 p-4 rounded-lg border border-base-200">
+                                <legend class="fieldset-legend">Grid Configuration</legend>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <label class="form-control w-full">
+                                        <div class="label"><span class="label-text font-bold">Layout Type</span></div>
+                                        <select x-model="currentContainer.config.type" class="select select-bordered w-full">
+                                            <option value="linear">Linear Strip</option>
+                                            <option value="grid">Matrix</option>
+                                            <option value="compound">Compound</option>
+                                        </select>
+                                    </label>
+                                    <label class="form-control w-full">
+                                        <div class="label"><span class="label-text font-bold">Data Start Position</span></div>
+                                        <select x-model="currentContainer.config.start_corner" class="select select-bordered w-full">
+                                            <option value="tl">Top-Left</option>
+                                            <option value="tr">Top-Right</option>
+                                            <option value="bl">Bottom-Left</option>
+                                            <option value="br">Bottom-Right</option>
+                                        </select>
+                                    </label>
+                                </div>
+
+                                <!-- Dynamic Dimensions -->
+                                <div class="mt-4 pt-4 border-t border-base-300/50">
+                                    <!-- Linear -->
+                                    <div x-show="currentContainer.config.type === 'linear'">
+                                        <label class="form-control w-full">
+                                            <div class="label"><span class="label-text font-bold">Total LEDs</span></div>
+                                            <input type="number" x-model.number="currentContainer.config.total" class="input input-bordered w-full" min="1"/>
+                                        </label>
+                                    </div>
+
+                                    <!-- Grid -->
+                                    <div x-show="currentContainer.config.type === 'grid'" class="grid grid-cols-2 gap-4">
+                                        <label class="form-control w-full">
+                                            <div class="label"><span class="label-text font-bold">Rows</span></div>
+                                            <input type="number" x-model.number="currentContainer.config.rows" class="input input-bordered w-full" min="1"/>
+                                        </label>
+                                        <label class="form-control w-full">
+                                            <div class="label"><span class="label-text font-bold">Columns</span></div>
+                                            <input type="number" x-model.number="currentContainer.config.cols" class="input input-bordered w-full" min="1"/>
+                                        </label>
+                                    </div>
+
+                                    <!-- Compound -->
+                                    <div x-show="currentContainer.config.type === 'compound'" class="space-y-4">
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-sm font-bold opacity-70 uppercase tracking-widest">Sections</span>
+                                            <button type="button" @click="currentContainer.config.sections.push({rows:4,cols:4})" class="btn btn-sm btn-secondary">+ Add Section</button>
+                                        </div>
+                                        <div class="space-y-3">
+                                            <template x-for="(section, sIdx) in currentContainer.config.sections" :key="sIdx">
+                                                <div class="flex items-center gap-4 bg-base-100 p-4 rounded-xl border border-base-300 shadow-inner">
+                                                    <div class="w-10 h-10 rounded-full bg-base-300 flex items-center justify-center font-mono font-bold text-sm opacity-50" x-text="(sIdx+1)"></div>
+                                                    
+                                                    <div class="grid grid-cols-2 gap-4 flex-1">
+                                                        <div class="form-control">
+                                                            <input type="number" x-model.number="section.rows" class="input input-bordered w-full text-center font-bold" placeholder="Rows" min="1"/>
+                                                            <label class="label justify-center py-1"><span class="label-text-alt font-bold opacity-50 uppercase text-[9px] tracking-tighter">Rows</span></label>
+                                                        </div>
+                                                        <div class="form-control">
+                                                            <input type="number" x-model.number="section.cols" class="input input-bordered w-full text-center font-bold" placeholder="Cols" min="1"/>
+                                                            <label class="label justify-center py-1"><span class="label-text-alt font-bold opacity-50 uppercase text-[9px] tracking-tighter">Cols</span></label>
+                                                        </div>
+                                                    </div>
+
+                                                    <button type="button" @click="currentContainer.config.sections.splice(sIdx, 1)" class="btn btn-ghost btn-sm text-error btn-square hover:bg-error/10">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+                                                    </button>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </div>
+                            </fieldset>
+
+							<!-- Tools / Actions -->
+                            <div class="flex flex-wrap gap-2 pt-2 border-t border-base-200">
+								<button @click="autoFill('linear')" class="btn btn-sm btn-success text-white gap-2 flex-1">
 									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path></svg>
 									Auto Map (Linear)
 								</button>
-								<button @click="autoFill('serpentine')" class="btn btn-sm btn-success gap-2">
+								<button @click="autoFill('serpentine')" class="btn btn-sm btn-success text-white gap-2 flex-1">
 									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
 									Auto Map (Snake)
 								</button>
-								<button @click="clearGrid()" class="btn btn-sm btn-ghost text-error">Clear</button>
-							</div>
-						</div>
-						<div x-show="config.type === 'linear'" class="p-4 bg-base-100 rounded-lg border border-base-300">
-							<div class="form-control w-32">
-								<label class="label"><span class="label-text text-xs">Total LEDs</span></label>
-								<input type="number" x-model.number="config.total" class="input input-bordered input-sm" min="1" max="1024"/>
-							</div>
-						</div>
-						<div x-show="config.type === 'grid'" class="p-4 bg-base-100 rounded-lg border border-base-300 flex gap-4">
-							<div class="form-control w-24">
-								<label class="label pb-2"><span class="label-text text-xs">Rows</span></label>
-								<input type="number" x-model.number="config.rows" class="input input-bordered input-sm" min="1" max="64"/>
-							</div>
-							<div class="form-control w-24">
-								<label class="label pb-2"><span class="label-text text-xs">Columns</span></label>
-								<input type="number" x-model.number="config.cols" class="input input-bordered input-sm" min="1" max="64"/>
-							</div>
-						</div>
-						<div x-show="config.type === 'compound'" class="space-y-4">
-							<div class="flex items-center gap-4">
-								<button @click="addSection()" class="btn btn-xs btn-secondary">+ Add Section</button>
-								<span class="text-xs opacity-50" x-text="config.sections.length + ' sections configured'"></span>
-							</div>
-							<div class="space-y-2">
-								<template x-for="(section, idx) in config.sections" :key="idx">
-									<div class="flex items-center gap-2 p-2 bg-base-100 rounded border border-base-300">
-										<span class="font-mono text-xs font-bold w-6" x-text="'#' + (idx + 1)"></span>
-										<div class="flex items-center gap-2">
-											<span class="text-xs opacity-70">Rows:</span>
-											<input type="number" x-model.number="section.rows" class="input input-bordered input-xs w-16" min="1"/>
-										</div>
-										<div class="flex items-center gap-2">
-											<span class="text-xs opacity-70">Cols:</span>
-											<input type="number" x-model.number="section.cols" class="input input-bordered input-xs w-16" min="1"/>
-										</div>
-										<div class="flex-1"></div>
-										<button @click="removeSection(idx)" class="btn btn-ghost btn-xs text-error btn-square">
-											<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
-										</button>
-									</div>
-								</template>
+                                <div class="w-full md:w-auto">
+    								<button @click="clearGrid()" class="btn btn-sm btn-outline btn-error gap-2 w-full">
+    									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+    									Clear Mapping
+    								</button>
+                                </div>
 							</div>
 						</div>
 					</div>
@@ -106,323 +171,375 @@ templ GridPainter(controller db.Controller, bins []db.Bin, canEdit bool) {
 				<span>Read-only mode. Log in as admin to configure.</span>
 			</div>
 		}
-		<div class="space-y-8">
-			<template x-for="(section, secIdx) in getRenderSections()" :key="secIdx">
+
+		<div class="space-y-12">
+			<template x-for="(container, cIdx) in containers" :key="cIdx">
 				<div>
-					<div x-show="config.type === 'compound'" class="mb-2 flex items-center gap-2">
-						<span class="badge badge-sm badge-neutral" x-text="'Section ' + (secIdx + 1)"></span>
-						<span class="text-xs opacity-50" x-text="section.rows + '×' + section.cols"></span>
-					</div>
-					<div class="overflow-x-auto pb-2">
-						<div
-							class="grid gap-1 select-none"
-							:style="`grid-template-columns: repeat(${section.cols}, 3rem); width: fit-content;`"
-						>
-							<template x-for="i in (section.rows * section.cols)">
-								<div
-									class="aspect-square border border-base-300 rounded flex flex-col items-center justify-center text-xs transition-colors relative overflow-hidden"
-									:class="[
-										getCellClass(secIdx, i-1), 
-										canEdit ? 'cursor-pointer hover:border-primary hover:bg-base-200' : 'cursor-default'
-									]"
-									@click="toggleCell(secIdx, i-1)"
-								>
-									<span x-text="getLedIndex(secIdx, i-1)" class="font-bold text-[10px] leading-tight"></span>
-									<span x-show="getBinName(secIdx, i-1)" x-text="getBinName(secIdx, i-1)" class="text-[8px] opacity-70 truncate w-full text-center px-0.5 leading-tight"></span>
-								</div>
-							</template>
+					<div class="mb-4 flex items-center justify-between border-b border-base-300 pb-2">
+						<div class="flex items-center gap-3">
+							<h4 class="font-bold" x-text="container.name"></h4>
+							<span class="badge badge-sm badge-neutral" x-text="'Segment ' + container.segment_id"></span>
 						</div>
+						<div class="text-xs opacity-50" x-text="getContainerTotalLeds(cIdx) + ' LEDs total'"></div>
+					</div>
+					
+					<div class="space-y-8">
+						<template x-for="(section, secIdx) in getRenderSections(cIdx)" :key="secIdx">
+							<div>
+								<div x-show="container.config.type === 'compound'" class="mb-2 flex items-center gap-2">
+									<span class="badge badge-sm badge-ghost" x-text="'Section ' + (secIdx + 1)"></span>
+									<span class="text-[10px] opacity-50" x-text="section.rows + '×' + section.cols"></span>
+								</div>
+								<div class="overflow-x-auto pb-2">
+									<div
+										class="grid gap-1 select-none"
+										:style="`grid-template-columns: repeat(${section.cols}, 2.5rem); width: fit-content;`"
+									>
+										<template x-for="i in (section.rows * section.cols)">
+											<div
+												class="aspect-square border border-base-300 rounded flex flex-col items-center justify-center text-xs transition-colors relative overflow-hidden"
+												:class="[
+													getCellClass(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1), 
+													canEdit ? 'cursor-pointer hover:border-primary hover:bg-base-200' : 'cursor-default'
+												]"
+												@click="toggleCell(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1)"
+											>
+												<span x-text="getGlobalLedIndex(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1)" class="font-bold text-[9px] leading-tight"></span>
+												<span x-show="getBinName(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1)" x-text="getBinName(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1)" class="text-[7px] opacity-70 truncate w-full text-center px-0.5 leading-tight"></span>
+											</div>
+										</template>
+									</div>
+								</div>
+							</div>
+						</template>
 					</div>
 				</div>
 			</template>
 		</div>
+
 		if canEdit {
-			<form x-ref="gridForm" method="POST" action={ templ.SafeURL(fmt.Sprintf("/hardware/%d/grid", controller.ID)) } class="mt-8 border-t border-base-300 pt-6">
+			<form x-ref="gridForm" method="POST" action={ templ.SafeURL(fmt.Sprintf("/hardware/%d/grid", controller.ID)) } class="mt-12 border-t border-base-300 pt-6">
 				<div class="flex justify-between items-center">
 					<div>
 						<h3 class="font-bold text-lg">Save Configuration</h3>
-						<p class="text-sm opacity-70">Updates mapped bins and WLED layout.</p>
+						<p class="text-sm opacity-70">Updates all containers and bin mappings for this controller.</p>
 					</div>
 					<div class="flex gap-2">
 						<a href="/hardware" class="btn btn-ghost">Cancel</a>
-						<button type="button" @click="submitGrid()" class="btn btn-primary">Save Grid</button>
+						<button type="button" @click="submitGrid()" class="btn btn-primary">Save Changes</button>
 					</div>
 				</div>
 				<input type="hidden" name="grid_data" :value="JSON.stringify(exportBinData())"/>
-				<input type="hidden" name="config_data" :value="JSON.stringify(config)"/>
+				<input type="hidden" name="config_data" :value="JSON.stringify(exportContainerData())"/>
 			</form>
 		}
 	</div>
 	<script>
         document.addEventListener('alpine:init', () => {
-            Alpine.data('gridPainter', (ctrlId, existingBins, savedConfig, canEdit) => ({
+            Alpine.data('gridPainter', (ctrlId, existingBins, initialContainers, canEdit) => ({
                 canEdit: canEdit,
-                initialConfigStr: '',
-                initialGridStr: '',
-
-                config: {
-                    type: 'grid', 
-                    rows: 8,     
-                    cols: 8,     
-                    total: 8,
-                    start_corner: 'tl', // tl, tr, bl, br
-                    sections: [
-                        { rows: 4, cols: 4 },
-                        { rows: 4, cols: 4 }
-                    ]
-                },
-
-                cells: {},
+                containers: [],
+                selectedContainerIndex: 0,
+                cells: {}, // Key: "containerIndex,localIdx"
 
                 init() {
-                    // Load Config
-                    if (savedConfig && Object.keys(savedConfig).length > 0) {
-                        this.config = { ...this.config, ...savedConfig };
-                        // Ensure default if missing from old saved config
-                        if (!this.config.start_corner) this.config.start_corner = 'tl';
+                    if (initialContainers && initialContainers.length > 0) {
+                        this.containers = initialContainers.map(c => ({
+                            id: c.id,
+                            name: c.name,
+                            segment_id: c.segment_id,
+                            config: this.parseConfig(c.config_json?.String || "{}")
+                        }));
+                    } else {
+                        this.addContainer();
                     }
 
                     // Load Existing Bins
                     existingBins.forEach(b => {
-                        const gx = b.grid_x?.Int64 || 0;
-                        const gy = b.grid_y?.Int64 || 0;
                         const led = b.led_index?.Int64 || 0;
+                        const cID = b.container_id;
                         
-                        const location = this.resolveSectionFromGlobalXY(gx, gy);
-                        if (location) {
-                            const key = `${location.secIdx},${location.localIdx}`;
-                            this.cells[key] = {
-                                led_index: Number(led),
-                                name: b.name
-                            };
+                        // Find container index by ID
+                        const cIdx = this.containers.findIndex(c => c.id === cID);
+                        if (cIdx !== -1) {
+                            // Find local index based on grid position and container config
+                            const localIdx = this.getLocalIndexFromGridPos(cIdx, b.grid_x?.Int64 || 0, b.grid_y?.Int64 || 0);
+                            if (localIdx !== -1) {
+                                const key = `${cIdx},${localIdx}`;
+                                this.cells[key] = {
+                                    led_index: Number(led), // This is the segment-local index (relative to segment start)
+                                    name: b.name
+                                };
+                            }
                         }
                     });
-
-                    this.initialConfigStr = JSON.stringify(this.config);
-                    this.initialGridStr = JSON.stringify(this.exportBinData());
-
-                    // Watch for dimension changes to auto-update bin names
-                    this.$watch('config.rows', () => this.recalculateBinNames());
-                    this.$watch('config.cols', () => this.recalculateBinNames());
                 },
 
-                resetLayout() {
-                    if (this.config.type === 'linear') {
-                        this.config.total = 16;
-                    } else if (this.config.type === 'grid') {
-                        this.config.rows = 8;
-                        this.config.cols = 8;
-                    } else {
-                        this.config.sections = [{ rows: 4, cols: 4 }];
+                parseConfig(jsonStr) {
+                    try {
+                        const cfg = JSON.parse(jsonStr);
+                        return {
+                            type: cfg.type || 'grid',
+                            rows: cfg.rows || 8,
+                            cols: cfg.cols || 8,
+                            total: cfg.total || 8,
+                            start_corner: cfg.start_corner || 'tl',
+                            sections: cfg.sections || [{ rows: 4, cols: 4 }]
+                        };
+                    } catch (e) {
+                        return { type: 'grid', rows: 8, cols: 8, start_corner: 'tl' };
                     }
-                    this.cells = {};
                 },
 
-                addSection() {
-                    this.config.sections.push({ rows: 4, cols: 4 });
+                addContainer() {
+                    this.containers.push({
+                        id: null,
+                        name: "New Container " + (this.containers.length + 1),
+                        segment_id: 0,
+                        config: { type: 'grid', rows: 8, cols: 8, start_corner: 'tl', sections: [{ rows: 4, cols: 4 }] }
+                    });
+                    this.selectedContainerIndex = this.containers.length - 1;
                 },
 
-                removeSection(idx) {
-                    this.config.sections.splice(idx, 1);
+                removeContainer(idx) {
+                    if (!confirm("Are you sure? This will remove all mappings for this container.")) return;
+                    this.containers.splice(idx, 1);
+                    // Clear cells for this container and shift others
+                    const newCells = {};
+                    Object.keys(this.cells).forEach(key => {
+                        const [cIdx, lIdx] = key.split(',').map(Number);
+                        if (cIdx < idx) {
+                            newCells[key] = this.cells[key];
+                        } else if (cIdx > idx) {
+                            newCells[`${cIdx-1},${lIdx}`] = this.cells[key];
+                        }
+                    });
+                    this.cells = newCells;
+                    if (this.selectedContainerIndex >= this.containers.length) {
+                        this.selectedContainerIndex = Math.max(0, this.containers.length - 1);
+                    }
                 },
 
-                getRenderSections() {
-                    if (this.config.type === 'linear') return [{ rows: 1, cols: this.config.total }];
-                    if (this.config.type === 'grid') return [{ rows: this.config.rows, cols: this.config.cols }];
-                    return this.config.sections;
+                get currentContainer() {
+                    return this.containers[this.selectedContainerIndex];
                 },
 
-                getXY(secIdx, cellIdx) {
-                    const sections = this.getRenderSections();
-                    const sec = sections[secIdx];
-                    const x = cellIdx % sec.cols;
-                    const y = Math.floor(cellIdx / sec.cols);
-                    return { x, y };
+                getRenderSections(cIdx) {
+                    const cfg = this.containers[cIdx].config;
+                    if (cfg.type === 'linear') return [{ rows: 1, cols: cfg.total }];
+                    if (cfg.type === 'grid') return [{ rows: cfg.rows, cols: cfg.cols }];
+                    return cfg.sections;
                 },
 
-                getCellClass(secIdx, cellIdx) {
-                    const key = `${secIdx},${cellIdx}`;
+                getSectionBaseIndex(cIdx, secIdx) {
+                    const cfg = this.containers[cIdx].config;
+                    if (cfg.type !== 'compound') return 0;
+                    let count = 0;
+                    for (let i = 0; i < secIdx; i++) {
+                        const s = cfg.sections[i];
+                        count += (s.rows * s.cols);
+                    }
+                    return count;
+                },
+
+                getXY(cIdx, cellIdx) {
+                    const cfg = this.containers[cIdx].config;
+                    if (cfg.type === 'linear') return { x: cellIdx, y: 0 };
+                    if (cfg.type === 'grid') return { x: cellIdx % cfg.cols, y: Math.floor(cellIdx / cfg.cols) };
+                    
+                    // Compound
+                    let count = 0;
+                    for (let sIdx = 0; sIdx < cfg.sections.length; sIdx++) {
+                        const s = cfg.sections[sIdx];
+                        const sSize = s.rows * s.cols;
+                        if (cellIdx < count + sSize) {
+                            const localIdx = cellIdx - count;
+                            return { x: localIdx % s.cols, y: Math.floor(localIdx / s.cols), sectionIndex: sIdx };
+                        }
+                        count += sSize;
+                    }
+                    return { x: 0, y: 0 };
+                },
+
+                getLocalIndexFromGridPos(cIdx, gx, gy) {
+                    const cfg = this.containers[cIdx].config;
+                    if (cfg.type === 'linear') return gx;
+                    if (cfg.type === 'grid') return (gy * cfg.cols) + gx;
+                    
+                    // Compound
+                    let currentYBase = 0;
+                    let currentCountBase = 0;
+                    for (let i = 0; i < cfg.sections.length; i++) {
+                        const s = cfg.sections[i];
+                        if (gy >= currentYBase && gy < currentYBase + s.rows) {
+                            const localY = gy - currentYBase;
+                            if (gx < s.cols) {
+                                return currentCountBase + (localY * s.cols) + gx;
+                            }
+                        }
+                        currentYBase += (s.rows + 1);
+                        currentCountBase += (s.rows * s.cols);
+                    }
+                    return -1;
+                },
+
+                getCellClass(cIdx, cellIdx) {
+                    const key = `${cIdx},${cellIdx}`;
                     return this.cells[key] ? 'bg-primary text-primary-content border-primary' : 'bg-base-100 text-base-content/20';
                 },
 
-                getLedIndex(secIdx, cellIdx) {
-                    const key = `${secIdx},${cellIdx}`;
-                    return this.cells[key] ? this.cells[key].led_index : '';
+                getGlobalLedIndex(cIdx, cellIdx) {
+                    const key = `${cIdx},${cellIdx}`;
+                    if (!this.cells[key]) return '';
+
+                    const targetSegment = this.containers[cIdx].segment_id;
+                    let offset = 0;
+                    for (let i = 0; i < cIdx; i++) {
+                        if (this.containers[i].segment_id === targetSegment) {
+                            offset += this.getContainerTotalLeds(i);
+                        }
+                    }
+                    return offset + this.cells[key].led_index;
                 },
 
-                getBinName(secIdx, cellIdx) {
-                    const key = `${secIdx},${cellIdx}`;
+                getContainerTotalLeds(cIdx) {
+                    const cfg = this.containers[cIdx].config;
+                    if (cfg.type === 'linear') return cfg.total;
+                    if (cfg.type === 'grid') return cfg.rows * cfg.cols;
+                    return cfg.sections.reduce((sum, s) => sum + (s.rows * s.cols), 0);
+                },
+
+                getBinName(cIdx, cellIdx) {
+                    const key = `${cIdx},${cellIdx}`;
                     return this.cells[key] ? this.cells[key].name : '';
                 },
 
-                toggleCell(secIdx, cellIdx) {
+                toggleCell(cIdx, cellIdx) {
                     if (!this.canEdit) return;
-                    const key = `${secIdx},${cellIdx}`;
+                    const key = `${cIdx},${cellIdx}`;
                     if (this.cells[key]) {
                         delete this.cells[key];
                     } else {
-                        const nextLed = this.getNextAvailableIndex();
-                        const name = this.generateName(secIdx, cellIdx);
-                        this.cells[key] = { led_index: nextLed, name: name };
+                        const nextLocal = this.getNextAvailableLocalIndex(cIdx);
+                        const name = this.generateName(cIdx, cellIdx);
+                        this.cells[key] = { led_index: nextLocal, name: name };
                     }
                 },
 
-                getNextAvailableIndex() {
-                    const used = new Set(Object.values(this.cells).map(c => c.led_index));
+                getNextAvailableLocalIndex(cIdx) {
+                    const used = new Set();
+                    Object.keys(this.cells).forEach(key => {
+                        if (key.startsWith(cIdx + ",")) {
+                            used.add(this.cells[key].led_index);
+                        }
+                    });
                     let i = 0;
                     while (used.has(i)) i++;
                     return i;
                 },
 
-                generateName(secIdx, cellIdx) {
-                    const { x, y } = this.getXY(secIdx, cellIdx);
-                    // 0-25 -> A..Z; 26-51 -> AA..ZZ
+                generateName(cIdx, cellIdx) {
+                    const { x, y, sectionIndex } = this.getXY(cIdx, cellIdx);
                     const charCode = 65 + (x % 26);
                     const char = String.fromCharCode(charCode);
-                    const repeatCount = Math.floor(x / 26) + 1;
-                    const colLetter = char.repeat(repeatCount);
+                    const colLetter = char.repeat(Math.floor(x / 26) + 1);
+                    const baseName = `${colLetter}${y+1}`;
 
-                    if (this.config.type === 'compound') {
-                        return `S${secIdx+1}-${colLetter}${y+1}`;
+                    if (this.containers[cIdx].config.type === 'compound' && sectionIndex !== undefined) {
+                         return `S${sectionIndex+1}-${baseName}`;
                     }
-                    return `${colLetter}${y+1}`;
+
+                    if (this.containers.length > 1) {
+                        return `C${cIdx+1}-${baseName}`;
+                    }
+                    return baseName;
                 },
 
                 autoFill(mode) {
                     if (!this.canEdit) return;
-                    if (!confirm("This will overwrite existing mappings. Continue?")) return;
+                    const cIdx = this.selectedContainerIndex;
+                    const cfg = this.containers[cIdx].config;
+                    
+                    // Clear cells for current container
+                    Object.keys(this.cells).forEach(key => {
+                        if (key.startsWith(cIdx + ",")) delete this.cells[key];
+                    });
 
-                    this.cells = {};
                     let ledCounter = 0;
-                    const startPos = this.config.start_corner || 'tl'; // tl, tr, bl, br
+                    const startPos = cfg.start_corner || 'tl';
+                    const sections = this.getRenderSections(cIdx);
+                    let currentYOffset = 0;
 
-                    const sections = this.getRenderSections();
                     sections.forEach((sec, secIdx) => {
-                        
-                        // iterate through the "Wiring" path (Row by Row)
-                        // calculate the "Visual" X/Y coordinate for that path
-                        
                         for (let r = 0; r < sec.rows; r++) {
                             for (let c = 0; c < sec.cols; c++) {
-                                
-                                // Determine Visual Y based on Vertical Start
-                                // If starting at Bottom, row 0 is actually the last visual row
                                 let visualY = (startPos.includes('b')) ? (sec.rows - 1 - r) : r;
-
-                                // Determine Visual X based on Horizontal Start
-                                // If starting at Right, col 0 is actually the last visual col
                                 let visualX = (startPos.includes('r')) ? (sec.cols - 1 - c) : c;
 
-                                // Handle Snake/Serpentine Reversal
                                 if (mode === 'serpentine' && r % 2 !== 0) {
-                                    // If on an odd row (1, 3, 5...), flip the direction
-                                    // relative to the start side.
-                                    if (startPos.includes('r')) {
-                                        // Started Right. Normal is R->L. Flip is L->R (which is visual c)
-                                        visualX = c; 
-                                    } else {
-                                        // Started Left. Normal is L->R. Flip is R->L.
-                                        visualX = (sec.cols - 1 - c);
-                                    }
+                                    visualX = startPos.includes('r') ? c : (sec.cols - 1 - c);
                                 }
 
-                                // Save Logic
-                                // convert visual X/Y back to the linear cell index 
-                                // because that's how to key the 'cells' object (row-major).
-                                const cellIdx = (visualY * sec.cols) + visualX;
-                                const key = `${secIdx},${cellIdx}`;
-
-                                this.cells[key] = {
-                                    led_index: ledCounter,
-                                    // Naming is always based on Visual Position (Spreadsheet style)
-                                    name: this.generateName(secIdx, cellIdx)
-                                };
+                                const globalY = currentYOffset + visualY;
+                                const localIdx = this.getLocalIndexFromGridPos(cIdx, visualX, globalY);
+                                if (localIdx !== -1) {
+                                    this.cells[`${cIdx},${localIdx}`] = {
+                                        led_index: ledCounter,
+                                        name: this.generateName(cIdx, localIdx)
+                                    };
+                                }
                                 ledCounter++;
                             }
                         }
+                        currentYOffset += (sec.rows + 1);
                     });
                 },
 
-                clearGrid() {
-                    if (this.canEdit && confirm("Clear all mappings?")) {
-                        this.cells = {};
-                    }
-                },
-
-                recalculateBinNames() {
-                    // Update names for all currently selected cells based on new dimensions
-                    for (const key in this.cells) {
-                        if (this.cells.hasOwnProperty(key)) {
-                            const [secIdxStr, cellIdxStr] = key.split(',');
-                            const secIdx = parseInt(secIdxStr);
-                            const cellIdx = parseInt(cellIdxStr);
-                            this.cells[key].name = this.generateName(secIdx, cellIdx);
-                        }
-                    }
-                },
-
                 submitGrid() {
-                    const currentConfigStr = JSON.stringify(this.config);
-                    const currentGridStr = JSON.stringify(this.exportBinData());
-
-                    if (currentConfigStr === this.initialConfigStr && currentGridStr === this.initialGridStr) {
-                        alert("No changes detected. Nothing was saved.");
-                        return;
-                    }
-
                     const msg = "WARNING: DESTRUCTIVE ACTION\n\n" +
-                                "Saving this configuration will OVERWRITE ALL existing bin data for this controller.\n\n" +
-                                "Any parts currently assigned to bins on this controller will be UNASSIGNED.\n\n" +
-                                "Are you sure you want to proceed?";
+                                "Saving this will OVERWRITE ALL existing container and bin data for this controller.\n\n" +
+                                "Are you sure?";
 
-                    if (!confirm(msg)) {
-                        return;
-                    }
+                    if (!confirm(msg)) return;
                     this.$refs.gridForm.submit();
                 },
 
                 exportBinData() {
                     const result = [];
-                    const sections = this.getRenderSections();
-                    let globalYOffset = 0;
-                    sections.forEach((sec, secIdx) => {
-                        for (let i = 0; i < (sec.rows * sec.cols); i++) {
-                            const key = `${secIdx},${i}`;
-                            const cell = this.cells[key];
-                            if (cell) {
-                                const { x, y } = this.getXY(secIdx, i);
-                                result.push({
-                                    x: x, 
-                                    y: y + globalYOffset,
-                                    led_index: cell.led_index,
-                                    name: cell.name
-                                });
+                    this.containers.forEach((c, cIdx) => {
+                        const sections = this.getRenderSections(cIdx);
+                        let globalYOffset = 0;
+                        let countBase = 0;
+                        sections.forEach((sec, secIdx) => {
+                            for (let i = 0; i < (sec.rows * sec.cols); i++) {
+                                const localIdx = countBase + i;
+                                const key = `${cIdx},${localIdx}`;
+                                const cell = this.cells[key];
+                                if (cell) {
+                                    const { x, y } = this.getXY(cIdx, localIdx);
+                                    result.push({
+                                        container_index: cIdx,
+                                        x: x, 
+                                        y: y + globalYOffset,
+                                        led_index: cell.led_index,
+                                        name: cell.name
+                                    });
+                                }
                             }
-                        }
-                        globalYOffset += (sec.rows + 1);
+                            globalYOffset += (sec.rows + 1);
+                            countBase += (sec.rows * sec.cols);
+                        });
                     });
                     return result;
                 },
 
-                resolveSectionFromGlobalXY(gx, gy) {
-                    const sections = this.getRenderSections();
-                    let currentYBase = 0;
-
-                    for (let i = 0; i < sections.length; i++) {
-                        const sec = sections[i];
-                        const secHeight = sec.rows;
-                        
-                        if (gy >= currentYBase && gy < (currentYBase + secHeight)) {
-                            const localY = gy - currentYBase;
-                            const localX = gx;
-                            if (localX < sec.cols) {
-                                const cellIdx = (localY * sec.cols) + localX;
-                                return { secIdx: i, localIdx: cellIdx };
-                            }
-                        }
-                        currentYBase += (secHeight + 1);
-                    }
-                    return null;
+                exportContainerData() {
+                    return this.containers.map(c => ({
+                        id: c.id,
+                        name: c.name,
+                        segment_id: c.segment_id,
+                        config: c.config
+                    }));
                 }
             }));
         });

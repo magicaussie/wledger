@@ -24,10 +24,20 @@ func TestOrphanedStock(t *testing.T) {
 		t.Fatalf("create controller: %v", err)
 	}
 
+	// Create Container
+	container, err := q.CreateContainer(ctx, db.CreateContainerParams{
+		Name:         "TestContainer",
+		ControllerID: ctrl.ID,
+		SegmentID:    0,
+	})
+	if err != nil {
+		t.Fatalf("create container: %v", err)
+	}
+
 	// Create Bin
 	binID, err := q.CreateBin(ctx, db.CreateBinParams{
 		Name:         "A1",
-		ControllerID: sql.NullInt64{Int64: ctrl.ID, Valid: true},
+		ContainerID:  container,
 		LedIndex:     sql.NullInt64{Int64: 0, Valid: true},
 	})
 	if err != nil {
@@ -56,8 +66,8 @@ func TestOrphanedStock(t *testing.T) {
 	// In the handler, DeleteBinByLed or DeleteBinsByController are called.
 	// In this case, using DeleteBinByLed as the diffing logic uses that.
 	err = q.DeleteBinByLed(ctx, db.DeleteBinByLedParams{
-		ControllerID: sql.NullInt64{Int64: ctrl.ID, Valid: true},
-		LedIndex:     sql.NullInt64{Int64: 0, Valid: true}, // Index of Bin A1
+		ContainerID: container,
+		LedIndex:    sql.NullInt64{Int64: 0, Valid: true}, // Index of Bin A1
 	})
 	if err != nil {
 		t.Fatalf("delete bin: %v", err)

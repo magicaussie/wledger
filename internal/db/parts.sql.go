@@ -393,10 +393,13 @@ SELECT
     b.width,
     c.name as controller_name,
     c.id as controller_id,
-    c.ip_address as controller_ip
+    c.ip_address as controller_ip,
+    cont.name as container_name,
+    cont.id as container_id
 FROM part_assignments pa
 LEFT JOIN bins b ON pa.bin_id = b.id
-LEFT JOIN controllers c ON b.controller_id = c.id
+LEFT JOIN containers cont ON b.container_id = cont.id
+LEFT JOIN controllers c ON cont.controller_id = c.id
 WHERE pa.part_id = ?
 `
 
@@ -410,6 +413,8 @@ type GetPartAssignmentsRow struct {
 	ControllerName sql.NullString `json:"controller_name"`
 	ControllerID   sql.NullInt64  `json:"controller_id"`
 	ControllerIp   sql.NullString `json:"controller_ip"`
+	ContainerName  sql.NullString `json:"container_name"`
+	ContainerID    sql.NullInt64  `json:"container_id"`
 }
 
 func (q *Queries) GetPartAssignments(ctx context.Context, partID int64) ([]GetPartAssignmentsRow, error) {
@@ -431,6 +436,8 @@ func (q *Queries) GetPartAssignments(ctx context.Context, partID int64) ([]GetPa
 			&i.ControllerName,
 			&i.ControllerID,
 			&i.ControllerIp,
+			&i.ContainerName,
+			&i.ContainerID,
 		); err != nil {
 			return nil, err
 		}
@@ -533,12 +540,14 @@ SELECT p.id, p.name, p.description, p.part_number, p.manufacturer, p.supplier, p
      WHERE pa2.part_id = p.id AND pa2.quantity > 0 
      ORDER BY pa2.quantity DESC, pa2.id ASC 
      LIMIT 1) as locate_bin_id,
-    (SELECT b2.controller_id 
+    COALESCE((SELECT c2.id 
      FROM part_assignments pa2 
      JOIN bins b2 ON pa2.bin_id = b2.id
+     JOIN containers cont2 ON b2.container_id = cont2.id
+     JOIN controllers c2 ON cont2.controller_id = c2.id
      WHERE pa2.part_id = p.id AND pa2.quantity > 0 
      ORDER BY pa2.quantity DESC, pa2.id ASC 
-     LIMIT 1) as locate_controller_id
+     LIMIT 1), 0) as locate_controller_id
 FROM parts p
 LEFT JOIN part_assignments pa ON p.id = pa.part_id
 GROUP BY p.id
@@ -569,7 +578,7 @@ type ListPartsRow struct {
 	UpdatedAt          sql.NullTime    `json:"updated_at"`
 	TotalStock         int64           `json:"total_stock"`
 	LocateBinID        sql.NullInt64   `json:"locate_bin_id"`
-	LocateControllerID sql.NullInt64   `json:"locate_controller_id"`
+	LocateControllerID interface{}     `json:"locate_controller_id"`
 }
 
 func (q *Queries) ListParts(ctx context.Context, arg ListPartsParams) ([]ListPartsRow, error) {
@@ -777,12 +786,14 @@ SELECT p.id, p.name, p.description, p.part_number, p.manufacturer, p.supplier, p
      WHERE pa2.part_id = p.id AND pa2.quantity > 0 
      ORDER BY pa2.quantity DESC, pa2.id ASC 
      LIMIT 1) as locate_bin_id,
-    (SELECT b2.controller_id 
+    COALESCE((SELECT c2.id 
      FROM part_assignments pa2 
      JOIN bins b2 ON pa2.bin_id = b2.id
+     JOIN containers cont2 ON b2.container_id = cont2.id
+     JOIN controllers c2 ON cont2.controller_id = c2.id
      WHERE pa2.part_id = p.id AND pa2.quantity > 0 
      ORDER BY pa2.quantity DESC, pa2.id ASC 
-     LIMIT 1) as locate_controller_id
+     LIMIT 1), 0) as locate_controller_id
 FROM parts_fts fts
 JOIN parts p ON fts.rowid = p.id
 LEFT JOIN part_assignments pa ON p.id = pa.part_id
@@ -816,7 +827,7 @@ type SearchPartsRow struct {
 	UpdatedAt          sql.NullTime    `json:"updated_at"`
 	TotalStock         int64           `json:"total_stock"`
 	LocateBinID        sql.NullInt64   `json:"locate_bin_id"`
-	LocateControllerID sql.NullInt64   `json:"locate_controller_id"`
+	LocateControllerID interface{}     `json:"locate_controller_id"`
 }
 
 func (q *Queries) SearchParts(ctx context.Context, arg SearchPartsParams) ([]SearchPartsRow, error) {

@@ -24,6 +24,9 @@ func New(db DBTX) *Queries {
 func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	q := Queries{db: db}
 	var err error
+	if q.addContainerToWallStmt, err = db.PrepareContext(ctx, addContainerToWall); err != nil {
+		return nil, fmt.Errorf("error preparing query AddContainerToWall: %w", err)
+	}
 	if q.addTagToPartStmt, err = db.PrepareContext(ctx, addTagToPart); err != nil {
 		return nil, fmt.Errorf("error preparing query AddTagToPart: %w", err)
 	}
@@ -41,6 +44,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.createBinStmt, err = db.PrepareContext(ctx, createBin); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateBin: %w", err)
+	}
+	if q.createContainerStmt, err = db.PrepareContext(ctx, createContainer); err != nil {
+		return nil, fmt.Errorf("error preparing query CreateContainer: %w", err)
 	}
 	if q.createControllerStmt, err = db.PrepareContext(ctx, createController); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateController: %w", err)
@@ -69,6 +75,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.createUserStmt, err = db.PrepareContext(ctx, createUser); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateUser: %w", err)
 	}
+	if q.createWallStmt, err = db.PrepareContext(ctx, createWall); err != nil {
+		return nil, fmt.Errorf("error preparing query CreateWall: %w", err)
+	}
 	if q.deleteAssignmentStmt, err = db.PrepareContext(ctx, deleteAssignment); err != nil {
 		return nil, fmt.Errorf("error preparing query DeleteAssignment: %w", err)
 	}
@@ -78,8 +87,11 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.deleteBinByLedStmt, err = db.PrepareContext(ctx, deleteBinByLed); err != nil {
 		return nil, fmt.Errorf("error preparing query DeleteBinByLed: %w", err)
 	}
-	if q.deleteBinsByControllerStmt, err = db.PrepareContext(ctx, deleteBinsByController); err != nil {
-		return nil, fmt.Errorf("error preparing query DeleteBinsByController: %w", err)
+	if q.deleteBinsByContainerStmt, err = db.PrepareContext(ctx, deleteBinsByContainer); err != nil {
+		return nil, fmt.Errorf("error preparing query DeleteBinsByContainer: %w", err)
+	}
+	if q.deleteContainerStmt, err = db.PrepareContext(ctx, deleteContainer); err != nil {
+		return nil, fmt.Errorf("error preparing query DeleteContainer: %w", err)
 	}
 	if q.deleteControllerStmt, err = db.PrepareContext(ctx, deleteController); err != nil {
 		return nil, fmt.Errorf("error preparing query DeleteController: %w", err)
@@ -108,11 +120,20 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.deleteUserStmt, err = db.PrepareContext(ctx, deleteUser); err != nil {
 		return nil, fmt.Errorf("error preparing query DeleteUser: %w", err)
 	}
+	if q.deleteWallStmt, err = db.PrepareContext(ctx, deleteWall); err != nil {
+		return nil, fmt.Errorf("error preparing query DeleteWall: %w", err)
+	}
+	if q.deleteWallCardsByWallIDStmt, err = db.PrepareContext(ctx, deleteWallCardsByWallID); err != nil {
+		return nil, fmt.Errorf("error preparing query DeleteWallCardsByWallID: %w", err)
+	}
 	if q.getAllAuditLogsStmt, err = db.PrepareContext(ctx, getAllAuditLogs); err != nil {
 		return nil, fmt.Errorf("error preparing query GetAllAuditLogs: %w", err)
 	}
 	if q.getAllBinsStmt, err = db.PrepareContext(ctx, getAllBins); err != nil {
 		return nil, fmt.Errorf("error preparing query GetAllBins: %w", err)
+	}
+	if q.getAllContainersStmt, err = db.PrepareContext(ctx, getAllContainers); err != nil {
+		return nil, fmt.Errorf("error preparing query GetAllContainers: %w", err)
 	}
 	if q.getAllInspirationTemplatesStmt, err = db.PrepareContext(ctx, getAllInspirationTemplates); err != nil {
 		return nil, fmt.Errorf("error preparing query GetAllInspirationTemplates: %w", err)
@@ -138,6 +159,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.getAllUsersStmt, err = db.PrepareContext(ctx, getAllUsers); err != nil {
 		return nil, fmt.Errorf("error preparing query GetAllUsers: %w", err)
 	}
+	if q.getAllWallContainerBinsStmt, err = db.PrepareContext(ctx, getAllWallContainerBins); err != nil {
+		return nil, fmt.Errorf("error preparing query GetAllWallContainerBins: %w", err)
+	}
 	if q.getAssignmentStmt, err = db.PrepareContext(ctx, getAssignment); err != nil {
 		return nil, fmt.Errorf("error preparing query GetAssignment: %w", err)
 	}
@@ -147,8 +171,14 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.getBinStmt, err = db.PrepareContext(ctx, getBin); err != nil {
 		return nil, fmt.Errorf("error preparing query GetBin: %w", err)
 	}
-	if q.getBinsByControllerStmt, err = db.PrepareContext(ctx, getBinsByController); err != nil {
-		return nil, fmt.Errorf("error preparing query GetBinsByController: %w", err)
+	if q.getBinsByContainerStmt, err = db.PrepareContext(ctx, getBinsByContainer); err != nil {
+		return nil, fmt.Errorf("error preparing query GetBinsByContainer: %w", err)
+	}
+	if q.getContainerStmt, err = db.PrepareContext(ctx, getContainer); err != nil {
+		return nil, fmt.Errorf("error preparing query GetContainer: %w", err)
+	}
+	if q.getContainersByControllerStmt, err = db.PrepareContext(ctx, getContainersByController); err != nil {
+		return nil, fmt.Errorf("error preparing query GetContainersByController: %w", err)
 	}
 	if q.getControllerStmt, err = db.PrepareContext(ctx, getController); err != nil {
 		return nil, fmt.Errorf("error preparing query GetController: %w", err)
@@ -204,6 +234,18 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.getUserByEmailStmt, err = db.PrepareContext(ctx, getUserByEmail); err != nil {
 		return nil, fmt.Errorf("error preparing query GetUserByEmail: %w", err)
 	}
+	if q.getWallStmt, err = db.PrepareContext(ctx, getWall); err != nil {
+		return nil, fmt.Errorf("error preparing query GetWall: %w", err)
+	}
+	if q.getWallCardsStmt, err = db.PrepareContext(ctx, getWallCards); err != nil {
+		return nil, fmt.Errorf("error preparing query GetWallCards: %w", err)
+	}
+	if q.getWallContainerBinsStmt, err = db.PrepareContext(ctx, getWallContainerBins); err != nil {
+		return nil, fmt.Errorf("error preparing query GetWallContainerBins: %w", err)
+	}
+	if q.getWallsStmt, err = db.PrepareContext(ctx, getWalls); err != nil {
+		return nil, fmt.Errorf("error preparing query GetWalls: %w", err)
+	}
 	if q.initSettingsStmt, err = db.PrepareContext(ctx, initSettings); err != nil {
 		return nil, fmt.Errorf("error preparing query InitSettings: %w", err)
 	}
@@ -224,6 +266,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.reassignPartAssignmentStmt, err = db.PrepareContext(ctx, reassignPartAssignment); err != nil {
 		return nil, fmt.Errorf("error preparing query ReassignPartAssignment: %w", err)
+	}
+	if q.removeContainerFromWallStmt, err = db.PrepareContext(ctx, removeContainerFromWall); err != nil {
+		return nil, fmt.Errorf("error preparing query RemoveContainerFromWall: %w", err)
 	}
 	if q.removeTagsFromPartStmt, err = db.PrepareContext(ctx, removeTagsFromPart); err != nil {
 		return nil, fmt.Errorf("error preparing query RemoveTagsFromPart: %w", err)
@@ -273,8 +318,8 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.updateColorsStmt, err = db.PrepareContext(ctx, updateColors); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateColors: %w", err)
 	}
-	if q.updateControllerConfigStmt, err = db.PrepareContext(ctx, updateControllerConfig); err != nil {
-		return nil, fmt.Errorf("error preparing query UpdateControllerConfig: %w", err)
+	if q.updateContainerConfigStmt, err = db.PrepareContext(ctx, updateContainerConfig); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateContainerConfig: %w", err)
 	}
 	if q.updateControllerStatusStmt, err = db.PrepareContext(ctx, updateControllerStatus); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateControllerStatus: %w", err)
@@ -297,6 +342,12 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.updateUserPasswordStmt, err = db.PrepareContext(ctx, updateUserPassword); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateUserPassword: %w", err)
 	}
+	if q.updateWallStmt, err = db.PrepareContext(ctx, updateWall); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateWall: %w", err)
+	}
+	if q.updateWallCardPositionStmt, err = db.PrepareContext(ctx, updateWallCardPosition); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateWallCardPosition: %w", err)
+	}
 	if q.upsertBinStmt, err = db.PrepareContext(ctx, upsertBin); err != nil {
 		return nil, fmt.Errorf("error preparing query UpsertBin: %w", err)
 	}
@@ -305,6 +356,11 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 
 func (q *Queries) Close() error {
 	var err error
+	if q.addContainerToWallStmt != nil {
+		if cerr := q.addContainerToWallStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing addContainerToWallStmt: %w", cerr)
+		}
+	}
 	if q.addTagToPartStmt != nil {
 		if cerr := q.addTagToPartStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing addTagToPartStmt: %w", cerr)
@@ -333,6 +389,11 @@ func (q *Queries) Close() error {
 	if q.createBinStmt != nil {
 		if cerr := q.createBinStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing createBinStmt: %w", cerr)
+		}
+	}
+	if q.createContainerStmt != nil {
+		if cerr := q.createContainerStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing createContainerStmt: %w", cerr)
 		}
 	}
 	if q.createControllerStmt != nil {
@@ -380,6 +441,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing createUserStmt: %w", cerr)
 		}
 	}
+	if q.createWallStmt != nil {
+		if cerr := q.createWallStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing createWallStmt: %w", cerr)
+		}
+	}
 	if q.deleteAssignmentStmt != nil {
 		if cerr := q.deleteAssignmentStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing deleteAssignmentStmt: %w", cerr)
@@ -395,9 +461,14 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing deleteBinByLedStmt: %w", cerr)
 		}
 	}
-	if q.deleteBinsByControllerStmt != nil {
-		if cerr := q.deleteBinsByControllerStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing deleteBinsByControllerStmt: %w", cerr)
+	if q.deleteBinsByContainerStmt != nil {
+		if cerr := q.deleteBinsByContainerStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing deleteBinsByContainerStmt: %w", cerr)
+		}
+	}
+	if q.deleteContainerStmt != nil {
+		if cerr := q.deleteContainerStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing deleteContainerStmt: %w", cerr)
 		}
 	}
 	if q.deleteControllerStmt != nil {
@@ -445,6 +516,16 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing deleteUserStmt: %w", cerr)
 		}
 	}
+	if q.deleteWallStmt != nil {
+		if cerr := q.deleteWallStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing deleteWallStmt: %w", cerr)
+		}
+	}
+	if q.deleteWallCardsByWallIDStmt != nil {
+		if cerr := q.deleteWallCardsByWallIDStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing deleteWallCardsByWallIDStmt: %w", cerr)
+		}
+	}
 	if q.getAllAuditLogsStmt != nil {
 		if cerr := q.getAllAuditLogsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getAllAuditLogsStmt: %w", cerr)
@@ -453,6 +534,11 @@ func (q *Queries) Close() error {
 	if q.getAllBinsStmt != nil {
 		if cerr := q.getAllBinsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getAllBinsStmt: %w", cerr)
+		}
+	}
+	if q.getAllContainersStmt != nil {
+		if cerr := q.getAllContainersStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getAllContainersStmt: %w", cerr)
 		}
 	}
 	if q.getAllInspirationTemplatesStmt != nil {
@@ -495,6 +581,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing getAllUsersStmt: %w", cerr)
 		}
 	}
+	if q.getAllWallContainerBinsStmt != nil {
+		if cerr := q.getAllWallContainerBinsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getAllWallContainerBinsStmt: %w", cerr)
+		}
+	}
 	if q.getAssignmentStmt != nil {
 		if cerr := q.getAssignmentStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getAssignmentStmt: %w", cerr)
@@ -510,9 +601,19 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing getBinStmt: %w", cerr)
 		}
 	}
-	if q.getBinsByControllerStmt != nil {
-		if cerr := q.getBinsByControllerStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing getBinsByControllerStmt: %w", cerr)
+	if q.getBinsByContainerStmt != nil {
+		if cerr := q.getBinsByContainerStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getBinsByContainerStmt: %w", cerr)
+		}
+	}
+	if q.getContainerStmt != nil {
+		if cerr := q.getContainerStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getContainerStmt: %w", cerr)
+		}
+	}
+	if q.getContainersByControllerStmt != nil {
+		if cerr := q.getContainersByControllerStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getContainersByControllerStmt: %w", cerr)
 		}
 	}
 	if q.getControllerStmt != nil {
@@ -605,6 +706,26 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing getUserByEmailStmt: %w", cerr)
 		}
 	}
+	if q.getWallStmt != nil {
+		if cerr := q.getWallStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getWallStmt: %w", cerr)
+		}
+	}
+	if q.getWallCardsStmt != nil {
+		if cerr := q.getWallCardsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getWallCardsStmt: %w", cerr)
+		}
+	}
+	if q.getWallContainerBinsStmt != nil {
+		if cerr := q.getWallContainerBinsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getWallContainerBinsStmt: %w", cerr)
+		}
+	}
+	if q.getWallsStmt != nil {
+		if cerr := q.getWallsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getWallsStmt: %w", cerr)
+		}
+	}
 	if q.initSettingsStmt != nil {
 		if cerr := q.initSettingsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing initSettingsStmt: %w", cerr)
@@ -638,6 +759,11 @@ func (q *Queries) Close() error {
 	if q.reassignPartAssignmentStmt != nil {
 		if cerr := q.reassignPartAssignmentStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing reassignPartAssignmentStmt: %w", cerr)
+		}
+	}
+	if q.removeContainerFromWallStmt != nil {
+		if cerr := q.removeContainerFromWallStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing removeContainerFromWallStmt: %w", cerr)
 		}
 	}
 	if q.removeTagsFromPartStmt != nil {
@@ -720,9 +846,9 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing updateColorsStmt: %w", cerr)
 		}
 	}
-	if q.updateControllerConfigStmt != nil {
-		if cerr := q.updateControllerConfigStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing updateControllerConfigStmt: %w", cerr)
+	if q.updateContainerConfigStmt != nil {
+		if cerr := q.updateContainerConfigStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateContainerConfigStmt: %w", cerr)
 		}
 	}
 	if q.updateControllerStatusStmt != nil {
@@ -758,6 +884,16 @@ func (q *Queries) Close() error {
 	if q.updateUserPasswordStmt != nil {
 		if cerr := q.updateUserPasswordStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing updateUserPasswordStmt: %w", cerr)
+		}
+	}
+	if q.updateWallStmt != nil {
+		if cerr := q.updateWallStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateWallStmt: %w", cerr)
+		}
+	}
+	if q.updateWallCardPositionStmt != nil {
+		if cerr := q.updateWallCardPositionStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateWallCardPositionStmt: %w", cerr)
 		}
 	}
 	if q.upsertBinStmt != nil {
@@ -804,12 +940,14 @@ func (q *Queries) queryRow(ctx context.Context, stmt *sql.Stmt, query string, ar
 type Queries struct {
 	db                                 DBTX
 	tx                                 *sql.Tx
+	addContainerToWallStmt             *sql.Stmt
 	addTagToPartStmt                   *sql.Stmt
 	cleanupSessionsStmt                *sql.Stmt
 	countAuditLogsStmt                 *sql.Stmt
 	countUsersStmt                     *sql.Stmt
 	createAuditLogStmt                 *sql.Stmt
 	createBinStmt                      *sql.Stmt
+	createContainerStmt                *sql.Stmt
 	createControllerStmt               *sql.Stmt
 	createInspirationTemplateStmt      *sql.Stmt
 	createPartStmt                     *sql.Stmt
@@ -819,10 +957,12 @@ type Queries struct {
 	createSessionStmt                  *sql.Stmt
 	createTagStmt                      *sql.Stmt
 	createUserStmt                     *sql.Stmt
+	createWallStmt                     *sql.Stmt
 	deleteAssignmentStmt               *sql.Stmt
 	deleteBinStmt                      *sql.Stmt
 	deleteBinByLedStmt                 *sql.Stmt
-	deleteBinsByControllerStmt         *sql.Stmt
+	deleteBinsByContainerStmt          *sql.Stmt
+	deleteContainerStmt                *sql.Stmt
 	deleteControllerStmt               *sql.Stmt
 	deleteInspirationTemplateStmt      *sql.Stmt
 	deletePartStmt                     *sql.Stmt
@@ -832,8 +972,11 @@ type Queries struct {
 	deleteSessionStmt                  *sql.Stmt
 	deleteUnusedTagsStmt               *sql.Stmt
 	deleteUserStmt                     *sql.Stmt
+	deleteWallStmt                     *sql.Stmt
+	deleteWallCardsByWallIDStmt        *sql.Stmt
 	getAllAuditLogsStmt                *sql.Stmt
 	getAllBinsStmt                     *sql.Stmt
+	getAllContainersStmt               *sql.Stmt
 	getAllInspirationTemplatesStmt     *sql.Stmt
 	getAllPartAiPromptsStmt            *sql.Stmt
 	getAllPartAssignmentsStmt          *sql.Stmt
@@ -842,10 +985,13 @@ type Queries struct {
 	getAllPartTagsStmt                 *sql.Stmt
 	getAllPartsStmt                    *sql.Stmt
 	getAllUsersStmt                    *sql.Stmt
+	getAllWallContainerBinsStmt        *sql.Stmt
 	getAssignmentStmt                  *sql.Stmt
 	getAssignmentIDStmt                *sql.Stmt
 	getBinStmt                         *sql.Stmt
-	getBinsByControllerStmt            *sql.Stmt
+	getBinsByContainerStmt             *sql.Stmt
+	getContainerStmt                   *sql.Stmt
+	getContainersByControllerStmt      *sql.Stmt
 	getControllerStmt                  *sql.Stmt
 	getControllersStmt                 *sql.Stmt
 	getDashboardGridStmt               *sql.Stmt
@@ -864,6 +1010,10 @@ type Queries struct {
 	getTagsForPartStmt                 *sql.Stmt
 	getUserStmt                        *sql.Stmt
 	getUserByEmailStmt                 *sql.Stmt
+	getWallStmt                        *sql.Stmt
+	getWallCardsStmt                   *sql.Stmt
+	getWallContainerBinsStmt           *sql.Stmt
+	getWallsStmt                       *sql.Stmt
 	initSettingsStmt                   *sql.Stmt
 	listAllTagsStmt                    *sql.Stmt
 	listAuditLogsStmt                  *sql.Stmt
@@ -871,6 +1021,7 @@ type Queries struct {
 	listUsersStmt                      *sql.Stmt
 	markInspirationSeedsAppliedStmt    *sql.Stmt
 	reassignPartAssignmentStmt         *sql.Stmt
+	removeContainerFromWallStmt        *sql.Stmt
 	removeTagsFromPartStmt             *sql.Stmt
 	restoreAuditLogStmt                *sql.Stmt
 	restoreBinStmt                     *sql.Stmt
@@ -887,7 +1038,7 @@ type Queries struct {
 	searchPartsStmt                    *sql.Stmt
 	setPasswordResetFlagStmt           *sql.Stmt
 	updateColorsStmt                   *sql.Stmt
-	updateControllerConfigStmt         *sql.Stmt
+	updateContainerConfigStmt          *sql.Stmt
 	updateControllerStatusStmt         *sql.Stmt
 	updateGeneralSettingsStmt          *sql.Stmt
 	updateInspirationTemplateStmt      *sql.Stmt
@@ -895,6 +1046,8 @@ type Queries struct {
 	updatePartAssignmentQuantityStmt   *sql.Stmt
 	updatePartLinkStmt                 *sql.Stmt
 	updateUserPasswordStmt             *sql.Stmt
+	updateWallStmt                     *sql.Stmt
+	updateWallCardPositionStmt         *sql.Stmt
 	upsertBinStmt                      *sql.Stmt
 }
 
@@ -902,12 +1055,14 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 	return &Queries{
 		db:                                 tx,
 		tx:                                 tx,
+		addContainerToWallStmt:             q.addContainerToWallStmt,
 		addTagToPartStmt:                   q.addTagToPartStmt,
 		cleanupSessionsStmt:                q.cleanupSessionsStmt,
 		countAuditLogsStmt:                 q.countAuditLogsStmt,
 		countUsersStmt:                     q.countUsersStmt,
 		createAuditLogStmt:                 q.createAuditLogStmt,
 		createBinStmt:                      q.createBinStmt,
+		createContainerStmt:                q.createContainerStmt,
 		createControllerStmt:               q.createControllerStmt,
 		createInspirationTemplateStmt:      q.createInspirationTemplateStmt,
 		createPartStmt:                     q.createPartStmt,
@@ -917,10 +1072,12 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		createSessionStmt:                  q.createSessionStmt,
 		createTagStmt:                      q.createTagStmt,
 		createUserStmt:                     q.createUserStmt,
+		createWallStmt:                     q.createWallStmt,
 		deleteAssignmentStmt:               q.deleteAssignmentStmt,
 		deleteBinStmt:                      q.deleteBinStmt,
 		deleteBinByLedStmt:                 q.deleteBinByLedStmt,
-		deleteBinsByControllerStmt:         q.deleteBinsByControllerStmt,
+		deleteBinsByContainerStmt:          q.deleteBinsByContainerStmt,
+		deleteContainerStmt:                q.deleteContainerStmt,
 		deleteControllerStmt:               q.deleteControllerStmt,
 		deleteInspirationTemplateStmt:      q.deleteInspirationTemplateStmt,
 		deletePartStmt:                     q.deletePartStmt,
@@ -930,8 +1087,11 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		deleteSessionStmt:                  q.deleteSessionStmt,
 		deleteUnusedTagsStmt:               q.deleteUnusedTagsStmt,
 		deleteUserStmt:                     q.deleteUserStmt,
+		deleteWallStmt:                     q.deleteWallStmt,
+		deleteWallCardsByWallIDStmt:        q.deleteWallCardsByWallIDStmt,
 		getAllAuditLogsStmt:                q.getAllAuditLogsStmt,
 		getAllBinsStmt:                     q.getAllBinsStmt,
+		getAllContainersStmt:               q.getAllContainersStmt,
 		getAllInspirationTemplatesStmt:     q.getAllInspirationTemplatesStmt,
 		getAllPartAiPromptsStmt:            q.getAllPartAiPromptsStmt,
 		getAllPartAssignmentsStmt:          q.getAllPartAssignmentsStmt,
@@ -940,10 +1100,13 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		getAllPartTagsStmt:                 q.getAllPartTagsStmt,
 		getAllPartsStmt:                    q.getAllPartsStmt,
 		getAllUsersStmt:                    q.getAllUsersStmt,
+		getAllWallContainerBinsStmt:        q.getAllWallContainerBinsStmt,
 		getAssignmentStmt:                  q.getAssignmentStmt,
 		getAssignmentIDStmt:                q.getAssignmentIDStmt,
 		getBinStmt:                         q.getBinStmt,
-		getBinsByControllerStmt:            q.getBinsByControllerStmt,
+		getBinsByContainerStmt:             q.getBinsByContainerStmt,
+		getContainerStmt:                   q.getContainerStmt,
+		getContainersByControllerStmt:      q.getContainersByControllerStmt,
 		getControllerStmt:                  q.getControllerStmt,
 		getControllersStmt:                 q.getControllersStmt,
 		getDashboardGridStmt:               q.getDashboardGridStmt,
@@ -962,6 +1125,10 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		getTagsForPartStmt:                 q.getTagsForPartStmt,
 		getUserStmt:                        q.getUserStmt,
 		getUserByEmailStmt:                 q.getUserByEmailStmt,
+		getWallStmt:                        q.getWallStmt,
+		getWallCardsStmt:                   q.getWallCardsStmt,
+		getWallContainerBinsStmt:           q.getWallContainerBinsStmt,
+		getWallsStmt:                       q.getWallsStmt,
 		initSettingsStmt:                   q.initSettingsStmt,
 		listAllTagsStmt:                    q.listAllTagsStmt,
 		listAuditLogsStmt:                  q.listAuditLogsStmt,
@@ -969,6 +1136,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		listUsersStmt:                      q.listUsersStmt,
 		markInspirationSeedsAppliedStmt:    q.markInspirationSeedsAppliedStmt,
 		reassignPartAssignmentStmt:         q.reassignPartAssignmentStmt,
+		removeContainerFromWallStmt:        q.removeContainerFromWallStmt,
 		removeTagsFromPartStmt:             q.removeTagsFromPartStmt,
 		restoreAuditLogStmt:                q.restoreAuditLogStmt,
 		restoreBinStmt:                     q.restoreBinStmt,
@@ -985,7 +1153,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		searchPartsStmt:                    q.searchPartsStmt,
 		setPasswordResetFlagStmt:           q.setPasswordResetFlagStmt,
 		updateColorsStmt:                   q.updateColorsStmt,
-		updateControllerConfigStmt:         q.updateControllerConfigStmt,
+		updateContainerConfigStmt:          q.updateContainerConfigStmt,
 		updateControllerStatusStmt:         q.updateControllerStatusStmt,
 		updateGeneralSettingsStmt:          q.updateGeneralSettingsStmt,
 		updateInspirationTemplateStmt:      q.updateInspirationTemplateStmt,
@@ -993,6 +1161,8 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		updatePartAssignmentQuantityStmt:   q.updatePartAssignmentQuantityStmt,
 		updatePartLinkStmt:                 q.updatePartLinkStmt,
 		updateUserPasswordStmt:             q.updateUserPasswordStmt,
+		updateWallStmt:                     q.updateWallStmt,
+		updateWallCardPositionStmt:         q.updateWallCardPositionStmt,
 		upsertBinStmt:                      q.upsertBinStmt,
 	}
 }

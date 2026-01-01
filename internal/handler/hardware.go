@@ -108,8 +108,13 @@ func (h *Handler) HandleHardwareGrid(w http.ResponseWriter, r *http.Request) {
 		bins = []db.Bin{}
 	}
 
+	containers, err := h.Hardware.GetContainers(r.Context(), int64(id))
+	if err != nil {
+		containers = []db.Container{}
+	}
+
 	// Pass User to Template
-	pages.HardwareGrid(user, c, bins).Render(r.Context(), w)
+	pages.HardwareGrid(user, c, containers, bins).Render(r.Context(), w)
 }
 
 // POST /hardware/{id}/grid

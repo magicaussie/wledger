@@ -53,7 +53,7 @@ func (q *Queries) DeleteController(ctx context.Context, id int64) error {
 }
 
 const getController = `-- name: GetController :one
-SELECT id, name, ip_address, port, mac_address, is_online, led_count, config_json, created_at FROM controllers WHERE id = ?
+SELECT id, name, ip_address, port, mac_address, is_online, led_count, created_at FROM controllers WHERE id = ?
 `
 
 func (q *Queries) GetController(ctx context.Context, id int64) (Controller, error) {
@@ -67,14 +67,13 @@ func (q *Queries) GetController(ctx context.Context, id int64) (Controller, erro
 		&i.MacAddress,
 		&i.IsOnline,
 		&i.LedCount,
-		&i.ConfigJson,
 		&i.CreatedAt,
 	)
 	return i, err
 }
 
 const getControllers = `-- name: GetControllers :many
-SELECT id, name, ip_address, port, mac_address, is_online, led_count, config_json, created_at FROM controllers ORDER BY name
+SELECT id, name, ip_address, port, mac_address, is_online, led_count, created_at FROM controllers ORDER BY name
 `
 
 func (q *Queries) GetControllers(ctx context.Context) ([]Controller, error) {
@@ -94,7 +93,6 @@ func (q *Queries) GetControllers(ctx context.Context) ([]Controller, error) {
 			&i.MacAddress,
 			&i.IsOnline,
 			&i.LedCount,
-			&i.ConfigJson,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -111,8 +109,8 @@ func (q *Queries) GetControllers(ctx context.Context) ([]Controller, error) {
 }
 
 const restoreController = `-- name: RestoreController :exec
-INSERT INTO controllers (id, name, ip_address, port, mac_address, is_online, led_count, config_json, created_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO controllers (id, name, ip_address, port, mac_address, is_online, led_count, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type RestoreControllerParams struct {
@@ -123,7 +121,6 @@ type RestoreControllerParams struct {
 	MacAddress sql.NullString `json:"mac_address"`
 	IsOnline   sql.NullBool   `json:"is_online"`
 	LedCount   int64          `json:"led_count"`
-	ConfigJson sql.NullString `json:"config_json"`
 	CreatedAt  sql.NullTime   `json:"created_at"`
 }
 
@@ -136,26 +133,8 @@ func (q *Queries) RestoreController(ctx context.Context, arg RestoreControllerPa
 		arg.MacAddress,
 		arg.IsOnline,
 		arg.LedCount,
-		arg.ConfigJson,
 		arg.CreatedAt,
 	)
-	return err
-}
-
-const updateControllerConfig = `-- name: UpdateControllerConfig :exec
-UPDATE controllers 
-SET config_json = ?, led_count = ?
-WHERE id = ?
-`
-
-type UpdateControllerConfigParams struct {
-	ConfigJson sql.NullString `json:"config_json"`
-	LedCount   int64          `json:"led_count"`
-	ID         int64          `json:"id"`
-}
-
-func (q *Queries) UpdateControllerConfig(ctx context.Context, arg UpdateControllerConfigParams) error {
-	_, err := q.exec(ctx, q.updateControllerConfigStmt, updateControllerConfig, arg.ConfigJson, arg.LedCount, arg.ID)
 	return err
 }
 

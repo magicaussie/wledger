@@ -7,18 +7,35 @@ import (
 
 // DashboardBin represents a single cell on the dashboard
 type DashboardBin struct {
-	ID       int64
-	Name     string
-	GridX    int
-	GridY    int
-	Statuses []string // "critical", "low", "ok", or empty
+	ID       int64    `json:"id"`
+	Name     string   `json:"name"`
+	GridX    int      `json:"grid_x"`
+	GridY    int      `json:"grid_y"`
+	Statuses []string `json:"statuses"` // "critical", "low", "ok", or empty
 }
 
 // DashboardController represents a controller and its grid of bins
 type DashboardController struct {
-	ID   int64
-	Name string
-	Bins []DashboardBin
+	ID   int64          `json:"id"`
+	Name string         `json:"name"`
+	Bins []DashboardBin `json:"bins"`
+}
+
+// DashboardContainer represents a physical container displayed on a wall
+type DashboardContainer struct {
+	ID               int64          `json:"id"`
+	Name             string         `json:"name"`
+	SegmentID        int64          `json:"segment_id"`
+	ControllerName   string         `json:"controller_name"`
+	ControllerOnline bool           `json:"controller_online"`
+	Bins             []DashboardBin `json:"bins"`
+}
+
+type DashboardWall struct {
+	ID          int64                `json:"id"`
+	Name        string               `json:"name"`
+	Description string               `json:"description"`
+	Containers  []DashboardContainer `json:"containers"`
 }
 
 // GetStatusKeys returns the unique, sorted statuses for this bin

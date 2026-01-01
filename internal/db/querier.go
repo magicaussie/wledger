@@ -6,16 +6,17 @@ package db
 
 import (
 	"context"
-	"database/sql"
 )
 
 type Querier interface {
+	AddContainerToWall(ctx context.Context, arg AddContainerToWallParams) error
 	AddTagToPart(ctx context.Context, arg AddTagToPartParams) error
 	CleanupSessions(ctx context.Context, expiry float64) error
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
 	CountUsers(ctx context.Context) (int64, error)
 	CreateAuditLog(ctx context.Context, arg CreateAuditLogParams) error
 	CreateBin(ctx context.Context, arg CreateBinParams) (int64, error)
+	CreateContainer(ctx context.Context, arg CreateContainerParams) (int64, error)
 	CreateController(ctx context.Context, arg CreateControllerParams) (CreateControllerRow, error)
 	CreateInspirationTemplate(ctx context.Context, arg CreateInspirationTemplateParams) (InspirationTemplate, error)
 	CreatePart(ctx context.Context, arg CreatePartParams) (int64, error)
@@ -27,10 +28,12 @@ type Querier interface {
 	CreateSession(ctx context.Context, arg CreateSessionParams) error
 	CreateTag(ctx context.Context, name string) (Tag, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error)
+	CreateWall(ctx context.Context, arg CreateWallParams) (int64, error)
 	DeleteAssignment(ctx context.Context, id int64) error
 	DeleteBin(ctx context.Context, id int64) error
 	DeleteBinByLed(ctx context.Context, arg DeleteBinByLedParams) error
-	DeleteBinsByController(ctx context.Context, controllerID sql.NullInt64) error
+	DeleteBinsByContainer(ctx context.Context, containerID int64) error
+	DeleteContainer(ctx context.Context, id int64) error
 	DeleteController(ctx context.Context, id int64) error
 	DeleteInspirationTemplate(ctx context.Context, id int64) error
 	DeletePart(ctx context.Context, id int64) error
@@ -40,8 +43,11 @@ type Querier interface {
 	DeleteSession(ctx context.Context, token string) error
 	DeleteUnusedTags(ctx context.Context) error
 	DeleteUser(ctx context.Context, id int64) error
+	DeleteWall(ctx context.Context, id int64) error
+	DeleteWallCardsByWallID(ctx context.Context, wallID int64) error
 	GetAllAuditLogs(ctx context.Context) ([]GetAllAuditLogsRow, error)
 	GetAllBins(ctx context.Context) ([]Bin, error)
+	GetAllContainers(ctx context.Context) ([]Container, error)
 	GetAllInspirationTemplates(ctx context.Context) ([]InspirationTemplate, error)
 	GetAllPartAiPrompts(ctx context.Context) ([]PartAiPrompt, error)
 	// STOCK ASSIGNMENTS
@@ -51,10 +57,13 @@ type Querier interface {
 	GetAllPartTags(ctx context.Context) ([]PartTag, error)
 	GetAllParts(ctx context.Context) ([]Part, error)
 	GetAllUsers(ctx context.Context) ([]User, error)
+	GetAllWallContainerBins(ctx context.Context) ([]GetAllWallContainerBinsRow, error)
 	GetAssignment(ctx context.Context, id int64) (PartAssignment, error)
 	GetAssignmentID(ctx context.Context, arg GetAssignmentIDParams) (int64, error)
 	GetBin(ctx context.Context, id int64) (Bin, error)
-	GetBinsByController(ctx context.Context, controllerID sql.NullInt64) ([]Bin, error)
+	GetBinsByContainer(ctx context.Context, containerID int64) ([]Bin, error)
+	GetContainer(ctx context.Context, id int64) (Container, error)
+	GetContainersByController(ctx context.Context, controllerID int64) ([]Container, error)
 	GetController(ctx context.Context, id int64) (Controller, error)
 	GetControllers(ctx context.Context) ([]Controller, error)
 	GetDashboardGrid(ctx context.Context) ([]GetDashboardGridRow, error)
@@ -74,6 +83,10 @@ type Querier interface {
 	GetTagsForPart(ctx context.Context, partID int64) ([]Tag, error)
 	GetUser(ctx context.Context, id int64) (User, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
+	GetWall(ctx context.Context, id int64) (Wall, error)
+	GetWallCards(ctx context.Context, wallID int64) ([]GetWallCardsRow, error)
+	GetWallContainerBins(ctx context.Context, wallID int64) ([]GetWallContainerBinsRow, error)
+	GetWalls(ctx context.Context) ([]Wall, error)
 	InitSettings(ctx context.Context) error
 	ListAllTags(ctx context.Context) ([]Tag, error)
 	ListAuditLogs(ctx context.Context, arg ListAuditLogsParams) ([]ListAuditLogsRow, error)
@@ -81,6 +94,7 @@ type Querier interface {
 	ListUsers(ctx context.Context) ([]ListUsersRow, error)
 	MarkInspirationSeedsApplied(ctx context.Context) error
 	ReassignPartAssignment(ctx context.Context, arg ReassignPartAssignmentParams) error
+	RemoveContainerFromWall(ctx context.Context, arg RemoveContainerFromWallParams) error
 	RemoveTagsFromPart(ctx context.Context, partID int64) error
 	RestoreAuditLog(ctx context.Context, arg RestoreAuditLogParams) error
 	RestoreBin(ctx context.Context, arg RestoreBinParams) error
@@ -97,7 +111,7 @@ type Querier interface {
 	SearchParts(ctx context.Context, arg SearchPartsParams) ([]SearchPartsRow, error)
 	SetPasswordResetFlag(ctx context.Context, arg SetPasswordResetFlagParams) error
 	UpdateColors(ctx context.Context, arg UpdateColorsParams) error
-	UpdateControllerConfig(ctx context.Context, arg UpdateControllerConfigParams) error
+	UpdateContainerConfig(ctx context.Context, arg UpdateContainerConfigParams) error
 	UpdateControllerStatus(ctx context.Context, arg UpdateControllerStatusParams) error
 	UpdateGeneralSettings(ctx context.Context, arg UpdateGeneralSettingsParams) error
 	UpdateInspirationTemplate(ctx context.Context, arg UpdateInspirationTemplateParams) error
@@ -105,6 +119,8 @@ type Querier interface {
 	UpdatePartAssignmentQuantity(ctx context.Context, arg UpdatePartAssignmentQuantityParams) error
 	UpdatePartLink(ctx context.Context, arg UpdatePartLinkParams) error
 	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error
+	UpdateWall(ctx context.Context, arg UpdateWallParams) error
+	UpdateWallCardPosition(ctx context.Context, arg UpdateWallCardPositionParams) error
 	UpsertBin(ctx context.Context, arg UpsertBinParams) error
 }
 

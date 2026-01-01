@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -77,11 +78,19 @@ func TestControllerDeleteCascadesToBins(t *testing.T) {
 		t.Fatalf("failed to create controller: %v", err)
 	}
 
+	// Create Container
+	cont, err := s.CreateContainer(ctx, db.CreateContainerParams{
+		Name: "C1", ControllerID: ctrl.ID, SegmentID: 0,
+	})
+	if err != nil {
+		t.Fatalf("failed to create container: %v", err)
+	}
+
 	// Create Bins (Simulate an 8-pixel strip)
 	for i := 0; i < 8; i++ {
 		_, err := s.CreateBin(ctx, db.CreateBinParams{
 			Name:         "Bin-" + strconv.Itoa(i),
-			ControllerID: sql.NullInt64{Int64: ctrl.ID, Valid: true},
+			ContainerID:  cont,
 			LedIndex:     sql.NullInt64{Int64: int64(i), Valid: true},
 			Width:        sql.NullInt64{Int64: 1, Valid: true},
 			GridX:        sql.NullInt64{Int64: int64(i), Valid: true},
@@ -93,7 +102,7 @@ func TestControllerDeleteCascadesToBins(t *testing.T) {
 	}
 
 	// Verify Bins exist
-	binsBefore, err := s.GetBinsByController(ctx, sql.NullInt64{Int64: ctrl.ID, Valid: true})
+	binsBefore, err := s.GetBinsByContainer(ctx, cont)
 	if err != nil {
 		t.Fatalf("failed to fetch bins: %v", err)
 	}
@@ -119,8 +128,10 @@ func TestControllerDeleteCascadesToBins(t *testing.T) {
 
 	// Assertions
 
-	// Check Bins by Controller (Should be 0)
-	binsAfter, err := s.GetBinsByController(ctx, sql.NullInt64{Int64: ctrl.ID, Valid: true})
+	// Check Bins by Container (Should be 0)
+	binsAfter, err := s.GetBinsByContainer(ctx, cont)
+	// Note: If container is deleted by cascade, bins are deleted by cascade from container.
+	// But getting bins for a deleted container returns empty list (SQL query returns empty).
 	if err != nil {
 		t.Fatalf("failed to fetch bins after delete: %v", err)
 	}
@@ -200,12 +211,16 @@ func TestHardwareAuditLogging(t *testing.T) {
 	// Update Grid (Grid Save)
 	ctrl, _ := s.GetControllers(ctx)
 	id := ctrl[0].ID
+	
+	// Fetch the default container created during controller creation
+	containers, _ := s.GetContainersByController(ctx, id)
+	contID := containers[0].ID
 
 	r2 := chi.NewRouter()
 	r2.Post("/hardware/{id}/grid", h.HandleHardwareGridSave)
 
-	gridData := `[{"x":0,"y":0,"led_index":0,"name":"A1"}]`
-	configData := `{"type":"grid","rows":1,"cols":1}`
+	gridData := `[{"container_index":0,"x":0,"y":0,"led_index":0,"name":"A1"}]`
+	configData := fmt.Sprintf(`[{"id":%d,"name":"Audit Ctrl (Main)","segment_id":0,"config":{"type":"grid","rows":1,"cols":1}}]`, contID)
 	form2 := url.Values{}
 	form2.Add("grid_data", gridData)
 	form2.Add("config_data", configData)
@@ -215,6 +230,10 @@ func TestHardwareAuditLogging(t *testing.T) {
 	req2 = req2.WithContext(ctx)
 	rr2 := httptest.NewRecorder()
 	r2.ServeHTTP(rr2, req2)
+
+	if rr2.Code != http.StatusSeeOther {
+		t.Fatalf("Grid save failed: %d - %s", rr2.Code, rr2.Body.String())
+	}
 
 	logs, _ = s.GetAllAuditLogs(ctx)
 	if len(logs) != 2 {

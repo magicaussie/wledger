@@ -15,18 +15,35 @@ import (
 
 // DashboardBin represents a single cell on the dashboard
 type DashboardBin struct {
-	ID       int64
-	Name     string
-	GridX    int
-	GridY    int
-	Statuses []string // "critical", "low", "ok", or empty
+	ID       int64    `json:"id"`
+	Name     string   `json:"name"`
+	GridX    int      `json:"grid_x"`
+	GridY    int      `json:"grid_y"`
+	Statuses []string `json:"statuses"` // "critical", "low", "ok", or empty
 }
 
 // DashboardController represents a controller and its grid of bins
 type DashboardController struct {
-	ID   int64
-	Name string
-	Bins []DashboardBin
+	ID   int64          `json:"id"`
+	Name string         `json:"name"`
+	Bins []DashboardBin `json:"bins"`
+}
+
+// DashboardContainer represents a physical container displayed on a wall
+type DashboardContainer struct {
+	ID               int64          `json:"id"`
+	Name             string         `json:"name"`
+	SegmentID        int64          `json:"segment_id"`
+	ControllerName   string         `json:"controller_name"`
+	ControllerOnline bool           `json:"controller_online"`
+	Bins             []DashboardBin `json:"bins"`
+}
+
+type DashboardWall struct {
+	ID          int64                `json:"id"`
+	Name        string               `json:"name"`
+	Description string               `json:"description"`
+	Containers  []DashboardContainer `json:"containers"`
 }
 
 // GetStatusKeys returns the unique, sorted statuses for this bin
@@ -135,7 +152,7 @@ func DashboardGrid(ctrl DashboardController) templ.Component {
 			var templ_7745c5c3_Var2 string
 			templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(ctrl.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/dashboard_grid.templ`, Line: 105, Col: 56}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/dashboard_grid.templ`, Line: 122, Col: 56}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 			if templ_7745c5c3_Err != nil {
@@ -153,7 +170,7 @@ func DashboardGrid(ctrl DashboardController) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(ctrl.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/dashboard_grid.templ`, Line: 115, Col: 56}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/dashboard_grid.templ`, Line: 132, Col: 56}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -166,7 +183,7 @@ func DashboardGrid(ctrl DashboardController) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d Bins", len(ctrl.Bins)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/dashboard_grid.templ`, Line: 116, Col: 84}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/dashboard_grid.templ`, Line: 133, Col: 84}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -189,7 +206,7 @@ func DashboardGrid(ctrl DashboardController) templ.Component {
 				var templ_7745c5c3_Var6 templ.SafeURL
 				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/parts?bin=%d", bin.ID)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/dashboard_grid.templ`, Line: 127, Col: 67}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/dashboard_grid.templ`, Line: 144, Col: 67}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 				if templ_7745c5c3_Err != nil {
@@ -215,7 +232,7 @@ func DashboardGrid(ctrl DashboardController) templ.Component {
 				var templ_7745c5c3_Var8 string
 				templ_7745c5c3_Var8, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues(bin.GetStyle())
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/dashboard_grid.templ`, Line: 129, Col: 31}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/dashboard_grid.templ`, Line: 146, Col: 31}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 				if templ_7745c5c3_Err != nil {
@@ -228,7 +245,7 @@ func DashboardGrid(ctrl DashboardController) templ.Component {
 				var templ_7745c5c3_Var9 string
 				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(bin.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/dashboard_grid.templ`, Line: 130, Col: 25}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/dashboard_grid.templ`, Line: 147, Col: 25}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 				if templ_7745c5c3_Err != nil {
@@ -241,7 +258,7 @@ func DashboardGrid(ctrl DashboardController) templ.Component {
 				var templ_7745c5c3_Var10 string
 				templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(bin.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/dashboard_grid.templ`, Line: 132, Col: 91}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/dashboard_grid.templ`, Line: 149, Col: 91}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 				if templ_7745c5c3_Err != nil {

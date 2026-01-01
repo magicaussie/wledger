@@ -144,6 +144,12 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 			r.Post("/settings/users", h.HandleUserCreate)
 			r.Post("/settings/users/{id}/delete", h.HandleUserDelete)
 			r.Post("/settings/users/{id}/reset", h.HandleUserForceReset)
+
+			// Wall Management
+			r.Get("/walls/{id}/edit", h.HandleWallEdit)
+			r.Post("/walls", h.HandleWallCreate)
+			r.Post("/walls/{id}", h.HandleWallUpdate)
+			r.Post("/walls/{id}/delete", h.HandleWallDelete)
 		})
 	})
 

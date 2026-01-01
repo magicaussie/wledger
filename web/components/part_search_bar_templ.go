@@ -46,7 +46,7 @@ func PartSearchBar(search string, canWrite bool) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\" class=\"input input-bordered join-item w-full md:w-64\" placeholder=\"Search parts...\" hx-get=\"/parts\" hx-trigger=\"input changed delay:250ms, search\" hx-target=\"#parts-grid\" hx-select=\"#parts-grid\" hx-swap=\"outerHTML\" hx-push-url=\"true\"></form>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\" class=\"input input-bordered join-item w-full rounded-full md:w-64\" placeholder=\"Search parts...\" hx-get=\"/parts\" hx-trigger=\"input changed delay:250ms, search\" hx-target=\"#parts-grid\" hx-select=\"#parts-grid\" hx-swap=\"outerHTML\" hx-push-url=\"true\"></form>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

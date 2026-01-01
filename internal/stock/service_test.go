@@ -45,8 +45,15 @@ func TestService(t *testing.T) {
 	// Setup: User, Controller, Bins, Part
 	s.CreateUser(context.Background(), db.CreateUserParams{Email: "admin@test.com", Role: "admin"})
 	ctrl, _ := s.CreateController(ctx, db.CreateControllerParams{Name: "Ctrl1", IpAddress: "1.2.3.4"})
-	bin1ID, _ := s.CreateBin(ctx, db.CreateBinParams{Name: "A1", ControllerID: sql.NullInt64{Int64: ctrl.ID, Valid: true}, LedIndex: sql.NullInt64{Int64: 0, Valid: true}})
-	bin2ID, _ := s.CreateBin(ctx, db.CreateBinParams{Name: "A2", ControllerID: sql.NullInt64{Int64: ctrl.ID, Valid: true}, LedIndex: sql.NullInt64{Int64: 1, Valid: true}})
+	
+	cont, _ := s.CreateContainer(ctx, db.CreateContainerParams{
+		Name: "Container1",
+		ControllerID: ctrl.ID,
+		SegmentID: 0,
+	})
+
+	bin1ID, _ := s.CreateBin(ctx, db.CreateBinParams{Name: "A1", ContainerID: cont, LedIndex: sql.NullInt64{Int64: 0, Valid: true}})
+	bin2ID, _ := s.CreateBin(ctx, db.CreateBinParams{Name: "A2", ContainerID: cont, LedIndex: sql.NullInt64{Int64: 1, Valid: true}})
 	
 	// Create Part directly via DB store to avoid dependency on parts service
 	partID, err := s.CreatePart(ctx, db.CreatePartParams{

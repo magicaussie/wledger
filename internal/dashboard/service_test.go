@@ -46,9 +46,14 @@ func TestService_GetGrid(t *testing.T) {
 	ctx := context.Background()
 	// Create Controller
 	c, _ := store.CreateController(ctx, db.CreateControllerParams{Name: "Ctrl A", IpAddress: "1.1.1.1"})
+	
+	cont, _ := store.CreateContainer(ctx, db.CreateContainerParams{
+		Name: "Cont", ControllerID: c.ID, SegmentID: 0,
+	})
+
 	// Create Bin
 	b, _ := store.CreateBin(ctx, db.CreateBinParams{
-		Name: "Bin 1", ControllerID: sql.NullInt64{Int64: c.ID, Valid: true},
+		Name: "Bin 1", ContainerID: cont,
 		GridX: sql.NullInt64{Int64: 0, Valid: true}, GridY: sql.NullInt64{Int64: 0, Valid: true},
 	})
 	// Create Part

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/tuxedocurly/wledger/internal/db"
+	"github.com/tuxedocurly/wledger/internal/hardware/mapper"
 )
 
 type Service interface {
@@ -72,8 +73,29 @@ func (s *service) LocatePart(ctx context.Context, partID int64) error {
 			continue
 		}
 
+		// Fetch containers for this controller to calculate global index
+		containers, err := s.store.GetContainersByController(ctx, a.ControllerID.Int64)
+		if err != nil {
+			s.logger.Error("failed to fetch containers for locate", "controller_id", a.ControllerID.Int64, "err", err)
+			continue
+		}
+
+		// Construct db.Bin from assignment row
+		bin := db.Bin{
+			ID:          a.BinID.Int64,
+			ContainerID: a.ContainerID.Int64,
+			LedIndex:    a.LedIndex,
+			Width:       a.Width,
+		}
+
+		segID, globalIdx, err := mapper.CalculateGlobalIndex(containers, bin)
+		if err != nil {
+			s.logger.Error("mapping failed for part locate", "bin_id", bin.ID, "err", err)
+			continue
+		}
+
 		foundAny = true
-		err := s.triggerLocate(ctx, a.ControllerIp.String, int(a.LedIndex.Int64), int(a.Width.Int64), settings)
+		err = s.triggerLocate(ctx, a.ControllerIp.String, int(segID), int(globalIdx), int(a.Width.Int64), settings)
 		if err != nil {
 			s.logger.Error("failed to locate assignment", "assignment_id", a.ID, "err", err)
 		}
@@ -97,21 +119,32 @@ func (s *service) LocateBin(ctx context.Context, controllerID, binID int64) erro
 		return fmt.Errorf("bin not found: %w", err)
 	}
 
+	// Fetch containers for this controller
+	containers, err := s.store.GetContainersByController(ctx, controllerID)
+	if err != nil {
+		return fmt.Errorf("failed to fetch containers for controller: %w", err)
+	}
+
+	segID, globalIdx, err := mapper.CalculateGlobalIndex(containers, bin)
+	if err != nil {
+		return fmt.Errorf("mapping failed: %w", err)
+	}
+
 	settings, _ := s.store.GetSettings(ctx)
 	if settings.ColorLocate.String == "" {
 		settings.ColorLocate.String = "#0000FF"
 	}
 
-	return s.triggerLocate(ctx, controller.IpAddress, int(bin.LedIndex.Int64), int(bin.Width.Int64), settings)
+	return s.triggerLocate(ctx, controller.IpAddress, int(segID), int(globalIdx), int(bin.Width.Int64), settings)
 }
 
-func (s *service) triggerLocate(ctx context.Context, ip string, index, width int, settings db.Setting) error {
+func (s *service) triggerLocate(ctx context.Context, ip string, segmentID, index, width int, settings db.Setting) error {
 	if width < 1 {
 		width = 1
 	}
 
 	// Light Up
-	err := s.client.LightUp(ctx, ip, index, width, settings.ColorLocate.String)
+	err := s.client.LightUp(ctx, ip, segmentID, index, width, settings.ColorLocate.String)
 	if err != nil {
 		return err
 	}
@@ -120,13 +153,13 @@ func (s *service) triggerLocate(ctx context.Context, ip string, index, width int
 	if settings.EnableLocateTimeout.Bool && settings.LocateTimeoutSeconds.Int64 > 0 {
 		timeoutDuration := time.Duration(settings.LocateTimeoutSeconds.Int64) * time.Second
 
-		go func(ipAddr string, idx, count int, duration time.Duration) {
+		go func(ipAddr string, sID, idx, count int, duration time.Duration) {
 			time.Sleep(duration)
 			bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
-			_ = s.client.LightUp(bgCtx, ipAddr, idx, count, "#000000")
-		}(ip, index, width, timeoutDuration)
+			_ = s.client.LightUp(bgCtx, ipAddr, sID, idx, count, "#000000")
+		}(ip, segmentID, index, width, timeoutDuration)
 	}
 
 	return nil
