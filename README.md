@@ -190,4 +190,4 @@ Contributions are welcome!
 
 ## License
 
-WLEDger is released under the MIT License - see the `LICENSE` file for details.
+WLEDger is released under AGPL-3.0-only - see the `LICENSE` file for details.

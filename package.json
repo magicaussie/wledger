@@ -15,8 +15,8 @@
     "url": "git+https://github.com/tuxedocurly/wledger.git"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "Colton Hawkins",
+  "license": "AGPL-3.0-only",
   "type": "commonjs",
   "bugs": {
     "url": "https://github.com/tuxedocurly/wledger/issues"
