@@ -1,6 +1,9 @@
 package components
 
-import "fmt"
+import (
+	"fmt"
+	"sort"
+)
 
 templ DashboardContainerCard(container DashboardContainer) {
 	<div
@@ -78,59 +81,52 @@ templ DashboardContainerCard(container DashboardContainer) {
 
 templ StockHealthIndicator(bins []DashboardBin) {
 	{{
-		total := float64(len(bins))
-		if total == 0 {
-			total = 1 // Avoid division by zero
-		}
-
-		counts := map[string]float64{
-			"critical": 0,
-			"low":      0,
-			"ok":       0,
-			"empty":    0,
-		}
-
+		unique := make(map[string]bool)
 		for _, b := range bins {
-			keys := b.GetStatusKeys()
-			if len(keys) == 0 {
-				counts["empty"]++
-				continue
-			}
-			// If bin has multiple statuses, prioritize worst one for the wheel slice?
-			// For simplicity, count the "worst" status.
-			worst := "ok"
-			for _, k := range keys {
-				if k == "critical" {
-					worst = "critical"
-					break
-				}
-				if k == "low" {
-					worst = "low"
+			for _, s := range b.Statuses {
+				if s != "" {
+					unique[s] = true
 				}
 			}
-			counts[worst]++
 		}
+		var keys []string
+		for k := range unique {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
 
-		critP := (counts["critical"] / total) * 100
-		lowP := (counts["low"] / total) * 100
-		okP := (counts["ok"] / total) * 100
-		emptyP := (counts["empty"] / total) * 100
+		classes := "w-14 h-14 rounded-full border border-base-300 shadow-inner flex items-center justify-center overflow-hidden"
+		style := ""
 
-		// CSS Conic Gradient string
-		// Format: conic-gradient(color1 0% p1%, color2 p1% p2%, ...)
-		grad := fmt.Sprintf("background: conic-gradient(var(--color-error) 0%% %.1f%%, var(--color-warning) %.1f%% %.1f%%, var(--color-success) %.1f%% %.1f%%, var(--color-base-300) %.1f%% 100%%);",
-			critP,
-			critP, critP+lowP,
-			critP+lowP, critP+lowP+okP,
-			critP+lowP+okP)
-	}}
-	<div class="relative w-14 h-14 rounded-full border border-base-300 shadow-inner flex items-center justify-center overflow-hidden" style={ grad }>
-		<div class="w-10 h-10 rounded-full bg-base-100 shadow-md flex items-center justify-center text-[10px] font-black uppercase tracking-tighter">
-			if emptyP < 100 {
-				{ fmt.Sprintf("%.0f%%", okP + lowP + critP) }
-			} else {
-				<span class="opacity-30">0%</span>
+		if len(keys) == 0 {
+			classes += " bg-base-200"
+		} else if len(keys) == 1 {
+			switch keys[0] {
+			case "critical":
+				classes += " bg-error"
+			case "low":
+				classes += " bg-warning"
+			case "ok":
+				classes += " bg-success"
 			}
-		</div>
-	</div>
+		} else {
+			colorMap := map[string]string{
+				"critical": "var(--color-error)",
+				"low":      "var(--color-warning)",
+				"ok":       "var(--color-success)",
+			}
+
+			if len(keys) == 2 {
+				c1 := colorMap[keys[0]]
+				c2 := colorMap[keys[1]]
+				style = fmt.Sprintf("background: linear-gradient(135deg, %s 50%%, %s 50%%);", c1, c2)
+			} else if len(keys) >= 3 {
+				c1 := colorMap[keys[0]]
+				c2 := colorMap[keys[1]]
+				c3 := colorMap[keys[2]]
+				style = fmt.Sprintf("background: conic-gradient(%s 0deg 120deg, %s 120deg 240deg, %s 240deg 360deg);", c1, c2, c3)
+			}
+		}
+	}}
+	<div class={ classes } style={ style }></div>
 }
