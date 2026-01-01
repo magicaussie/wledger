@@ -5,10 +5,12 @@ package components
 // value: The actual number/text to display
 // textColor: The Tailwind class for the value color (e.g., "text-primary")
 templ StatCard(title string, value string, textColor string) {
-	<div class="stats shadow bg-base-200 w-full md:flex-1">
-		<div class="stat place-items-center">
-			<div class="stat-title text-lg font-bold text-base-content">{ title }</div>
-			<div class={ "stat-value break-all " + textColor }>
+	<div class="card bg-base-200 shadow-xl border border-base-300 w-full md:flex-1">
+		<div class="card-body p-6 items-center text-center">
+			<h3 class="font-bold text-sm uppercase tracking-wider opacity-50 mb-1">
+				{ title }
+			</h3>
+			<div class={ "text-3xl font-black break-all " + textColor }>
 				{ value }
 			</div>
 		</div>

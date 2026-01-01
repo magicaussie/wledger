@@ -89,7 +89,10 @@ func TestNewDashboardViewModel(t *testing.T) {
 	}
 
 	// Bin Sorting for Controller A (GridY 0 before GridY 1)
-	binsA := vm[0].Bins
+	if len(vm[0].Containers) != 1 {
+		t.Fatalf("Expected 1 container for Controller A, got %d", len(vm[0].Containers))
+	}
+	binsA := vm[0].Containers[0].Bins
 	if len(binsA) != 2 {
 		t.Fatalf("Expected 2 bins for Controller A, got %d", len(binsA))
 	}
@@ -110,7 +113,10 @@ func TestNewDashboardViewModel(t *testing.T) {
 		t.Errorf("Expected Bin 2 status 'low', got %v", binsA[1].Statuses)
 	}
 	// Bin 10 (Critical) - Controller B
-	binsB := vm[1].Bins
+	if len(vm[1].Containers) != 1 {
+		t.Fatalf("Expected 1 container for Controller B, got %d", len(vm[1].Containers))
+	}
+	binsB := vm[1].Containers[0].Bins
 	if len(binsB[0].Statuses) != 1 || binsB[0].Statuses[0] != "critical" {
 		t.Errorf("Expected Bin 10 status 'critical', got %v", binsB[0].Statuses)
 	}

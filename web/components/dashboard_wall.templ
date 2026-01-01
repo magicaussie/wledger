@@ -7,69 +7,74 @@ import (
 
 templ DashboardContainerCard(container DashboardContainer) {
 	<div
-		class="card bg-base-100 shadow-xl border border-base-300 hover:shadow-2xl transition-all duration-300 cursor-pointer group"
+		class="card bg-base-100 shadow-xl border border-base-300 hover:shadow-2xl transition-all duration-300 cursor-pointer group overflow-hidden"
 		@click={ fmt.Sprintf("document.getElementById('container_modal_%d').showModal()", container.ID) }
 	>
 		<div class="card-body p-5">
 			<div class="flex justify-between items-start mb-2">
 				<div class="flex flex-col">
-					<h2 class="card-title text-base group-hover:text-primary transition-colors">{ container.Name }</h2>
-					<span class="text-[10px] opacity-50 uppercase tracking-wider">{ container.ControllerName } • Segment { fmt.Sprintf("%d", container.SegmentID) }</span>
+					<h2 class="font-bold text-sm uppercase tracking-wider opacity-50 group-hover:opacity-100 transition-opacity">{ container.Name }</h2>
+					<span class="text-[12px] opacity-40 uppercase tracking-widest">{ container.ControllerName } • Segment { fmt.Sprintf("%d", container.SegmentID) }</span>
 				</div>
 				<div class={ "badge badge-xs", templ.KV("badge-success", container.ControllerOnline), templ.KV("badge-error", !container.ControllerOnline) }></div>
 			</div>
-			<div class="flex items-center gap-4 mt-4">
+			<div class="flex items-center gap-4 mt-4 bg-base-200 p-3 rounded-lg border border-base-300 shadow-inner">
 				<!-- Stock Health Indicator (Color Wheel Style) -->
 				@StockHealthIndicator(container.Bins)
 				<div class="flex flex-col">
-					<span class="text-2xl font-bold leading-none">{ fmt.Sprintf("%d", len(container.Bins)) }</span>
-					<span class="text-[10px] opacity-50 uppercase font-bold">Bins</span>
+					<span class="text-2xl font-black leading-none">{ fmt.Sprintf("%d", len(container.Bins)) }</span>
+					<span class="text-[10px] opacity-50 uppercase font-bold tracking-tighter">Total Bins</span>
 				</div>
 			</div>
 		</div>
 		<!-- Grid Preview Modal -->
 		<dialog id={ fmt.Sprintf("container_modal_%d", container.ID) } class="modal modal-bottom sm:modal-middle">
-			<div class="modal-box max-w-4xl">
-				<form method="dialog">
-					<button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
-				</form>
-				<h3 class="font-bold text-lg mb-4">{ container.Name }</h3>
-				<div class="mb-6 flex gap-4 text-xs opacity-70 border-b border-base-300 pb-4">
-					<div class="flex items-center gap-2"><span class="font-semibold">Controller:</span> { container.ControllerName }</div>
-					<div class="flex items-center gap-2"><span class="font-semibold">Segment:</span> { fmt.Sprintf("%d", container.SegmentID) }</div>
-					<div class="flex items-center gap-2">
-						<span class="font-semibold">Status:</span>
-						if container.ControllerOnline {
-							<span class="text-success font-bold uppercase text-[10px]">Online</span>
-						} else {
-							<span class="text-error font-bold uppercase text-[10px]">Offline</span>
-						}
-					</div>
-				</div>
-				<div class="overflow-x-auto">
-					<div class="grid gap-1.5 p-1 mx-auto" style="width: fit-content; min-width: 100%;">
-						for _, bin := range container.Bins {
-							<a
-								href={ templ.SafeURL(fmt.Sprintf("/parts?bin=%d", bin.ID)) }
-								class={ "w-12 h-12 rounded-md border border-base-300/50 flex items-center justify-center text-xs font-bold shadow-sm hover:scale-110 hover:shadow-md hover:z-10 hover:border-base-content/50 transition-all duration-200 cursor-pointer " + bin.GetClass() }
-								style={ bin.GetStyle() }
-								title={ bin.Name }
-							>
-								<span class="drop-shadow-md filter invert-0 grayscale-0 brightness-100">{ bin.Name }</span>
-							</a>
-						}
-					</div>
-				</div>
-				<div class="modal-action justify-between items-center">
-					<div class="flex gap-4 text-[10px] opacity-70">
-						<div class="flex items-center gap-1.5"><div class="w-2.5 h-2.5 rounded-full bg-success"></div>OK</div>
-						<div class="flex items-center gap-1.5"><div class="w-2.5 h-2.5 rounded-full bg-warning"></div>Low</div>
-						<div class="flex items-center gap-1.5"><div class="w-2.5 h-2.5 rounded-full bg-error"></div>Crit</div>
-						<div class="flex items-center gap-1.5"><div class="w-2.5 h-2.5 rounded-full bg-base-200 border border-base-300"></div>Empty</div>
+			<div class="modal-box max-w-4xl p-0 overflow-hidden border border-base-300 shadow-2xl bg-base-100">
+				<div class="bg-base-200 p-6 border-b border-base-300 flex justify-between items-center">
+					<div>
+						<h3 class="font-bold text-sm uppercase tracking-wider opacity-50">{ container.Name }</h3>
+						<div class="flex gap-4 text-[10px] opacity-40 uppercase tracking-widest mt-1">
+							<span>Controller: { container.ControllerName }</span>
+							<span>Segment: { fmt.Sprintf("%d", container.SegmentID) }</span>
+							<span>
+								if container.ControllerOnline {
+									<span class="text-success font-bold">Online</span>
+								} else {
+									<span class="text-error font-bold">Offline</span>
+								}
+							</span>
+						</div>
 					</div>
 					<form method="dialog">
-						<button class="btn btn-sm">Close</button>
+						<button class="btn btn-sm btn-circle btn-ghost">✕</button>
 					</form>
+				</div>
+				<div class="p-6">
+					<div class="overflow-x-auto bg-base-200/50 rounded-xl border border-base-300 p-4 shadow-inner">
+						<div class="grid gap-1.5 p-1 mx-auto" style="width: fit-content; min-width: 100%;">
+							for _, bin := range container.Bins {
+								<a
+									href={ templ.SafeURL(fmt.Sprintf("/parts?bin=%d", bin.ID)) }
+									class={ "w-12 h-12 rounded-md border border-base-300 flex items-center justify-center text-xs font-bold shadow-sm hover:scale-110 hover:shadow-md hover:z-10 hover:border-base-content/50 transition-all duration-200 cursor-pointer " + bin.GetClass() }
+									style={ bin.GetStyle() }
+									title={ bin.Name }
+								>
+									<span class="drop-shadow-md filter invert-0 grayscale-0 brightness-100">{ bin.Name }</span>
+								</a>
+							}
+						</div>
+					</div>
+					<div class="modal-action justify-between items-center mt-6 pt-6 border-t border-base-200">
+						<div class="flex gap-4 text-[12px] font-bold uppercase tracking-wider">
+							<div class="flex items-center gap-1.5"><div class="w-2.5 h-2.5 rounded-full bg-success"></div>OK</div>
+							<div class="flex items-center gap-1.5"><div class="w-2.5 h-2.5 rounded-full bg-warning"></div>Low</div>
+							<div class="flex items-center gap-1.5"><div class="w-2.5 h-2.5 rounded-full bg-error"></div>Critical</div>
+							<div class="flex items-center gap-1.5"><div class="w-2.5 h-2.5 rounded-full bg-base-200 border border-base-300"></div>Empty</div>
+						</div>
+						<form method="dialog">
+							<button class="btn btn-sm px-6">Close</button>
+						</form>
+					</div>
 				</div>
 			</div>
 			<form method="dialog" class="modal-backdrop">
@@ -95,7 +100,7 @@ templ StockHealthIndicator(bins []DashboardBin) {
 		}
 		sort.Strings(keys)
 
-		classes := "w-14 h-14 rounded-full border border-base-300 shadow-inner flex items-center justify-center overflow-hidden"
+		classes := "w-14 h-14 rounded-full border border-500/10 border-base-300 shadow-inner flex items-center justify-center overflow-hidden"
 		style := ""
 
 		if len(keys) == 0 {

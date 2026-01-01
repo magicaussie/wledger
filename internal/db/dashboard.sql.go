@@ -103,8 +103,10 @@ const getDashboardGrid = `-- name: GetDashboardGrid :many
 SELECT 
     c.id as controller_id,
     c.name as controller_name,
+    c.is_online,
     cont.id as container_id,
     cont.name as container_name,
+    cont.segment_id,
     b.id as bin_id, 
     b.name as bin_name, 
     b.grid_x, 
@@ -125,8 +127,10 @@ ORDER BY c.name ASC, cont.name ASC, b.grid_y ASC, b.grid_x ASC
 type GetDashboardGridRow struct {
 	ControllerID      int64         `json:"controller_id"`
 	ControllerName    string        `json:"controller_name"`
+	IsOnline          sql.NullBool  `json:"is_online"`
 	ContainerID       int64         `json:"container_id"`
 	ContainerName     string        `json:"container_name"`
+	SegmentID         int64         `json:"segment_id"`
 	BinID             int64         `json:"bin_id"`
 	BinName           string        `json:"bin_name"`
 	GridX             sql.NullInt64 `json:"grid_x"`
@@ -149,8 +153,10 @@ func (q *Queries) GetDashboardGrid(ctx context.Context) ([]GetDashboardGridRow, 
 		if err := rows.Scan(
 			&i.ControllerID,
 			&i.ControllerName,
+			&i.IsOnline,
 			&i.ContainerID,
 			&i.ContainerName,
+			&i.SegmentID,
 			&i.BinID,
 			&i.BinName,
 			&i.GridX,

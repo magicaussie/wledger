@@ -72,11 +72,15 @@ func TestService_GetGrid(t *testing.T) {
 		t.Fatalf("expected 1 controller, got %d", len(grid))
 	}
 
-	if len(grid[0].Bins) != 1 {
-		t.Fatalf("expected 1 bin, got %d", len(grid[0].Bins))
+	if len(grid[0].Containers) != 1 {
+		t.Fatalf("expected 1 container, got %d", len(grid[0].Containers))
 	}
 
-	if len(grid[0].Bins[0].Statuses) != 1 || grid[0].Bins[0].Statuses[0] != "critical" {
-		t.Errorf("expected critical status, got %v", grid[0].Bins[0].Statuses)
+	if len(grid[0].Containers[0].Bins) != 1 {
+		t.Fatalf("expected 1 bin, got %d", len(grid[0].Containers[0].Bins))
+	}
+
+	if len(grid[0].Containers[0].Bins[0].Statuses) != 1 || grid[0].Containers[0].Bins[0].Statuses[0] != "critical" {
+		t.Errorf("expected critical status, got %v", grid[0].Containers[0].Bins[0].Statuses)
 	}
 }

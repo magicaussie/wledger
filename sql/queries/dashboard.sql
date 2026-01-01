@@ -13,8 +13,10 @@ LEFT JOIN part_assignments pa ON p.id = pa.part_id;
 SELECT 
     c.id as controller_id,
     c.name as controller_name,
+    c.is_online,
     cont.id as container_id,
     cont.name as container_name,
+    cont.segment_id,
     b.id as bin_id, 
     b.name as bin_name, 
     b.grid_x, 
