@@ -75,7 +75,7 @@ func Dashboard(user auth.User, stats db.GetDashboardStatsRow, dashboardWalls []c
 			templ_7745c5c3_Err = components.StatCard(
 				"Unique Parts",
 				fmt.Sprintf("%d", stats.TotalParts),
-				"text-primary",
+				"text",
 			).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -83,7 +83,7 @@ func Dashboard(user auth.User, stats db.GetDashboardStatsRow, dashboardWalls []c
 			templ_7745c5c3_Err = components.StatCard(
 				"Total Stock",
 				fmt.Sprintf("%d", int64(stats.TotalItemsInStock)),
-				"text-secondary",
+				"text",
 			).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -91,7 +91,7 @@ func Dashboard(user auth.User, stats db.GetDashboardStatsRow, dashboardWalls []c
 			templ_7745c5c3_Err = components.StatCard(
 				"Total Value",
 				fmt.Sprintf("$%.2f", stats.TotalStockValue),
-				"text-success",
+				"text",
 			).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -99,7 +99,7 @@ func Dashboard(user auth.User, stats db.GetDashboardStatsRow, dashboardWalls []c
 			templ_7745c5c3_Err = components.StatCard(
 				"Controllers",
 				fmt.Sprintf("%d / %d", stats.OnlineControllers, stats.TotalControllers),
-				"text-accent",
+				"text",
 			).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -119,7 +119,15 @@ func Dashboard(user auth.User, stats db.GetDashboardStatsRow, dashboardWalls []c
 						return templ_7745c5c3_Err
 					}
 				} else {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<div class=\"alert alert-info shadow-sm mb-8 ma-8\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 24 24\" class=\"stroke-current shrink-0 w-6 h-6\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z\"></path></svg> <span>Showing all controllers. Create a <strong>Wall</strong> to organize your view.</span></div>")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<div x-data=\"{ show: !localStorage.getItem('dismissedDashboardWallAlert') }\" x-show=\"show\" class=\"alert alert-info shadow-sm mb-8 transition-all duration-300\"><svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 24 24\" class=\"stroke-current shrink-0 w-6 h-6\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z\"></path></svg> <span class=\"flex-1\">Showing all controllers. Create a <strong>Wall</strong> to organize your view.</span> <button @click=\"show = false; localStorage.setItem('dismissedDashboardWallAlert', 'true')\" class=\"btn btn-ghost btn-xs btn-circle\" title=\"Dismiss\">")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = icons.XMarkIcon(4).Render(ctx, templ_7745c5c3_Buffer)
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</button></div>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -132,61 +140,61 @@ func Dashboard(user auth.User, stats db.GetDashboardStatsRow, dashboardWalls []c
 				}
 			} else {
 				for _, wall := range dashboardWalls {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<div class=\"card bg-base-200 shadow-xl border border-base-300 mb-6\"><div class=\"flex items-end justify-between border-b border-base-300 pb-4 mb-6 p-6\"><div><h2 class=\"font-bold text-sm uppercase tracking-wider opacity-50\">")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<div class=\"card bg-base-200 shadow-xl border border-base-300 mb-6\"><div class=\"flex items-end justify-between border-b border-base-300 pb-4 mb-6 p-6\"><div><h2 class=\"font-bold text-md uppercase tracking-wider\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var3 string
 					templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(wall.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/dashboard.templ`, Line: 72, Col: 85}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/dashboard.templ`, Line: 75, Col: 74}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</h2>")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</h2>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					if wall.Description != "" {
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<p class=\"opacity-60 text-xs mt-1\">")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<p class=\"opacity-80 text-sm mt-1\">")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var4 string
 						templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(wall.Description)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/dashboard.templ`, Line: 74, Col: 62}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/dashboard.templ`, Line: 77, Col: 62}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</p>")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</p>")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</div>")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</div>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					if user.CanConfigure() {
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<a href=\"")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "<a href=\"")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var5 templ.SafeURL
 						templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/walls/%d/edit", wall.ID)))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/dashboard.templ`, Line: 78, Col: 71}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/dashboard.templ`, Line: 81, Col: 71}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\" class=\"btn btn-md btn-primary btn-outline gap-2\">")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "\" class=\"btn btn-md btn-primary btn-outline gap-2\">")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -194,22 +202,34 @@ func Dashboard(user auth.User, stats db.GetDashboardStatsRow, dashboardWalls []c
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "Edit Wall</a>")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "Edit Wall</a>")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "</div>")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "</div>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					if len(wall.Containers) == 0 {
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "<div class=\"text-center py-12 border-2 border-dashed border-base-300 rounded-xl opacity-50\"><p>No containers on this wall.</p></div>")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "<div class=\"p-6 pt-0\">")
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+						templ_7745c5c3_Err = components.EmptyState(
+							"No containers on this wall",
+							"Click the Edit Wall button above to add a container.",
+							"📦",
+						).Render(ctx, templ_7745c5c3_Buffer)
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "</div>")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
 					} else {
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "<div class=\"grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 p-6\">")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "<div class=\"grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 p-6\">")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -219,18 +239,43 @@ func Dashboard(user auth.User, stats db.GetDashboardStatsRow, dashboardWalls []c
 								return templ_7745c5c3_Err
 							}
 						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "</div>")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "</div>")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "</div>")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "</div>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "</div><!-- Create Wall Modal --> <dialog id=\"create_wall_modal\" class=\"modal\"><div class=\"modal-box bg-base-100 p-0 overflow-hidden border border-base-300 shadow-2xl\"><div class=\"bg-base-200 p-6 border-b border-base-300 flex justify-between items-center\"><h3 class=\"font-bold text-sm uppercase tracking-wider opacity-50\">Create New Wall</h3><form method=\"dialog\"><button class=\"btn btn-sm btn-circle btn-ghost\">✕</button></form></div><div class=\"p-6\"><form id=\"create_wall_form\" method=\"POST\" action=\"/walls\" class=\"space-y-6\"><div class=\"form-control\"><label class=\"label pt-0\"><span class=\"label-text font-bold text-xs uppercase opacity-50 tracking-widest\">Wall Name</span></label> <input type=\"text\" name=\"name\" placeholder=\"e.g., Garage Wall\" class=\"input input-bordered w-full\" required></div><div class=\"form-control\"><label class=\"label pt-0\"><span class=\"label-text font-bold text-xs uppercase opacity-50 tracking-widest\">Description (Optional)</span></label> <textarea name=\"description\" placeholder=\"Main storage area in the garage.\" class=\"textarea textarea-bordered w-full h-24\"></textarea></div></form><div class=\"modal-action mt-8 pt-6 border-t border-base-200\"><form method=\"dialog\"><button class=\"btn btn-ghost\">Cancel</button></form><button form=\"create_wall_form\" type=\"submit\" class=\"btn btn-primary px-8\">Create Wall</button></div></div></div></dialog>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "</div><!-- Create Wall Modal --> ")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Var6 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+				templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+				templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+				if !templ_7745c5c3_IsBuffer {
+					defer func() {
+						templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+						if templ_7745c5c3_Err == nil {
+							templ_7745c5c3_Err = templ_7745c5c3_BufErr
+						}
+					}()
+				}
+				ctx = templ.InitializeContext(ctx)
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<form id=\"create_wall_form\" method=\"POST\" action=\"/walls\" class=\"space-y-6\"><div class=\"form-control\"><label class=\"label pt-0\"><span class=\"label-text font-bold text-xs uppercase tracking-widest mb-2\">Wall Name</span></label> <input type=\"text\" name=\"name\" placeholder=\"e.g., Garage Wall\" class=\"input input-bordered w-full\" required></div><div class=\"form-control\"><label class=\"label pt-0\"><span class=\"label-text font-bold text-xs uppercase tracking-widest mb-2\">Description (Optional)</span></label> <textarea name=\"description\" placeholder=\"Main storage area in the garage.\" class=\"textarea textarea-bordered w-full h-24\"></textarea></div></form><div class=\"modal-action mt-8 pt-6 border-t border-base-200\"><form method=\"dialog\"><button class=\"btn btn-ghost\">Cancel</button></form><button form=\"create_wall_form\" type=\"submit\" class=\"btn btn-primary px-8\">Create Wall</button></div>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				return nil
+			})
+			templ_7745c5c3_Err = components.Modal(components.ModalProps{
+				ID:    "create_wall_modal",
+				Title: "Create New Wall",
+			}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

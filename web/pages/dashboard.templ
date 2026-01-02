@@ -29,22 +29,22 @@ templ Dashboard(user auth.User, stats db.GetDashboardStatsRow, dashboardWalls []
 			@components.StatCard(
 				"Unique Parts",
 				fmt.Sprintf("%d", stats.TotalParts),
-				"text-primary",
+				"text",
 			)
 			@components.StatCard(
 				"Total Stock",
 				fmt.Sprintf("%d", int64(stats.TotalItemsInStock)),
-				"text-secondary",
+				"text",
 			)
 			@components.StatCard(
 				"Total Value",
 				fmt.Sprintf("$%.2f", stats.TotalStockValue),
-				"text-success",
+				"text",
 			)
 			@components.StatCard(
 				"Controllers",
 				fmt.Sprintf("%d / %d", stats.OnlineControllers, stats.TotalControllers),
-				"text-accent",
+				"text",
 			)
 		</div>
 		<div class="space-y-12">
@@ -56,9 +56,12 @@ templ Dashboard(user auth.User, stats db.GetDashboardStatsRow, dashboardWalls []
 						"🔌",
 					)
 				} else {
-					<div class="alert alert-info shadow-sm mb-8 ma-8">
+					<div x-data="{ show: !localStorage.getItem('dismissedDashboardWallAlert') }" x-show="show" class="alert alert-info shadow-sm mb-8 transition-all duration-300">
 						<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-						<span>Showing all controllers. Create a <strong>Wall</strong> to organize your view.</span>
+						<span class="flex-1">Showing all controllers. Create a <strong>Wall</strong> to organize your view.</span>
+						<button @click="show = false; localStorage.setItem('dismissedDashboardWallAlert', 'true')" class="btn btn-ghost btn-xs btn-circle" title="Dismiss">
+							@icons.XMarkIcon(4)
+						</button>
 					</div>
 					for _, ctrl := range legacyControllers {
 						@components.DashboardGrid(ctrl)
@@ -69,9 +72,9 @@ templ Dashboard(user auth.User, stats db.GetDashboardStatsRow, dashboardWalls []
 					<div class="card bg-base-200 shadow-xl border border-base-300 mb-6">
 						<div class="flex items-end justify-between border-b border-base-300 pb-4 mb-6 p-6">
 							<div>
-								<h2 class="font-bold text-sm uppercase tracking-wider opacity-50">{ wall.Name }</h2>
+								<h2 class="font-bold text-md uppercase tracking-wider">{ wall.Name }</h2>
 								if wall.Description != "" {
-									<p class="opacity-60 text-xs mt-1">{ wall.Description }</p>
+									<p class="opacity-80 text-sm mt-1">{ wall.Description }</p>
 								}
 							</div>
 							if user.CanConfigure() {
@@ -82,8 +85,12 @@ templ Dashboard(user auth.User, stats db.GetDashboardStatsRow, dashboardWalls []
 							}
 						</div>
 						if len(wall.Containers) == 0 {
-							<div class="text-center py-12 border-2 border-dashed border-base-300 rounded-xl opacity-50">
-								<p>No containers on this wall.</p>
+							<div class="p-6 pt-0">
+								@components.EmptyState(
+									"No containers on this wall",
+									"Click the Edit Wall button above to add a container.",
+									"📦",
+								)
 							</div>
 						} else {
 							<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 p-6">
@@ -97,33 +104,26 @@ templ Dashboard(user auth.User, stats db.GetDashboardStatsRow, dashboardWalls []
 			}
 		</div>
 		<!-- Create Wall Modal -->
-		<dialog id="create_wall_modal" class="modal">
-			<div class="modal-box bg-base-100 p-0 overflow-hidden border border-base-300 shadow-2xl">
-				<div class="bg-base-200 p-6 border-b border-base-300 flex justify-between items-center">
-					<h3 class="font-bold text-sm uppercase tracking-wider opacity-50">Create New Wall</h3>
-					<form method="dialog">
-						<button class="btn btn-sm btn-circle btn-ghost">✕</button>
-					</form>
+		@components.Modal(components.ModalProps{
+			ID:    "create_wall_modal",
+			Title: "Create New Wall",
+		}) {
+			<form id="create_wall_form" method="POST" action="/walls" class="space-y-6">
+				<div class="form-control">
+					<label class="label pt-0"><span class="label-text font-bold text-xs uppercase tracking-widest mb-2">Wall Name</span></label>
+					<input type="text" name="name" placeholder="e.g., Garage Wall" class="input input-bordered w-full" required/>
 				</div>
-				<div class="p-6">
-					<form id="create_wall_form" method="POST" action="/walls" class="space-y-6">
-						<div class="form-control">
-							<label class="label pt-0"><span class="label-text font-bold text-xs uppercase opacity-50 tracking-widest">Wall Name</span></label>
-							<input type="text" name="name" placeholder="e.g., Garage Wall" class="input input-bordered w-full" required/>
-						</div>
-						<div class="form-control">
-							<label class="label pt-0"><span class="label-text font-bold text-xs uppercase opacity-50 tracking-widest">Description (Optional)</span></label>
-							<textarea name="description" placeholder="Main storage area in the garage." class="textarea textarea-bordered w-full h-24"></textarea>
-						</div>
-					</form>
-					<div class="modal-action mt-8 pt-6 border-t border-base-200">
-						<form method="dialog">
-							<button class="btn btn-ghost">Cancel</button>
-						</form>
-						<button form="create_wall_form" type="submit" class="btn btn-primary px-8">Create Wall</button>
-					</div>
+				<div class="form-control">
+					<label class="label pt-0"><span class="label-text font-bold text-xs uppercase tracking-widest mb-2">Description (Optional)</span></label>
+					<textarea name="description" placeholder="Main storage area in the garage." class="textarea textarea-bordered w-full h-24"></textarea>
 				</div>
+			</form>
+			<div class="modal-action mt-8 pt-6 border-t border-base-200">
+				<form method="dialog">
+					<button class="btn btn-ghost">Cancel</button>
+				</form>
+				<button form="create_wall_form" type="submit" class="btn btn-primary px-8">Create Wall</button>
 			</div>
-		</dialog>
+		}
 	}
 }

@@ -3479,6 +3479,9 @@
   .flex-col {
     flex-direction: column;
   }
+  .flex-row {
+    flex-direction: row;
+  }
   .flex-wrap {
     flex-wrap: wrap;
   }
@@ -3776,6 +3779,9 @@
   }
   .bg-error {
     background-color: var(--color-error);
+  }
+  .bg-info-content {
+    background-color: var(--color-info-content);
   }
   .bg-neutral\/50 {
     background-color: var(--color-neutral);
@@ -4239,9 +4245,6 @@
   }
   .text-primary-content {
     color: var(--color-primary-content);
-  }
-  .text-secondary {
-    color: var(--color-secondary);
   }
   .text-success {
     color: var(--color-success);
