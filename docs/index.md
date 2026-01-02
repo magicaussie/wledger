@@ -14,7 +14,8 @@ Built with **Go**, **HTMX**, and **SQLite**, WLEDger V2 is designed to be fast, 
 
 * **Physical Location Tracking:** Instantly locate parts by lighting up specific LEDs on your storage bins, shelves, or drawers.
 * **Instant Search:** Powered by SQLite **FTS5**, search your entire inventory, tags, and descriptions in milliseconds.
-* **Visual WLED Configuration:** A powerful visual tool to map your physical LEDs to your storage bins. No manual coordinate entry required.
+* **Visual Grid Painter:** A powerful visual tool to map your physical LEDs to your storage bins using Matrix, Strip, or Compound layouts.
+* **Custom Walls / Dashboards:** Organize your storage containers and controllers into logical "Walls" for a clean, high-level overview of your entire storage setup.
 * **Rich Part Details:** Store images, datasheets, supplier links, and documents for every component.
 * **LLM Prompt Integration:** Generate inspiration for projects to build based on your inventory, or create your own prompts to accomplish common tasks. Copy the prompt and paste it into into your favorite LLM (Gemini, ChatGPT, Claude, etc), and your parts are appended to the prompt automatically.
 * **Backup & Restore:** Full system backup to a portable ZIP file.
@@ -27,11 +28,14 @@ This documentation is divided into three main sections:
 1. **[Quick Start](./quickstart-guide.md)**
     * Start here! A complete guide to installing WLEDger using Docker and setting up your first WLED controller.
 
-2. **[Hardware Guide](./build-guide.md)**
+2. **[Build Guide](./build-guide.md)**
     * Learn about the hardware requirements: microcontrollers, LED strips, power supplies, and storage bin recommendations.
 
 3. **[Developer Guide](./developer-guide.md)**
     * For those who want to contribute or understand the code. Explains the Go/Templ/HTMX architecture and development workflow.
+
+4. **[Feature Guide](./feature-guide.md)**
+    * Learn about all the features WLEDger offers to make the most out of your setup.
 
 ---
 

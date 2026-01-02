@@ -33,8 +33,11 @@ wledger/
 │   ├── auth/           # RBAC and Session logic.
 │   ├── backup/         # Backup & restore logic.
 │   ├── config/         # Contains constants used throughout the app.
+│   ├── dashboard/      # Dashboard stats and wall organization service.
 │   ├── db/             # Generated SQLC database code and migration runner.
+│   ├── documents/      # Document and datasheet management.
 │   ├── handler/        # HTTP Handlers (decoupled from main).
+│   ├── hardware/       # WLED controller and bin mapping service.
 │   ├── images/         # Image handling and resizing logic.
 │   ├── importer/       # CSV Import logic.
 │   ├── inspiration/    # LLM Prompt storage logic.
@@ -42,7 +45,9 @@ wledger/
 │   ├── middleware/     # Handles context passing, auth, and enforces checks.
 │   ├── parts/          # Parts service for part CRUD operations.
 │   ├── router/         # Chi router configuration and route registration.
+│   ├── stock/          # Stock management across multiple locations.
 │   ├── tags/           # Tags service for tag CRUD operations.
+│   ├── uierror/        # UI-specific error handling and feedback.
 │   ├── utils/          # Small utilities.
 │   └── wled/           # WLED API client and integration.
 ├── sql/

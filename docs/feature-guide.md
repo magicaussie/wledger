@@ -40,10 +40,11 @@ WLEDger uses **SQLite FTS5** (Full-Text Search) to provide instant results.
 
 ### Dashboard
 
-The dashboard provides stats about your entire inventory and WLED controllers at a glance.
+The dashboard provides a high-level overview of your entire inventory and the status of your physical storage bins.
 
-* **Multiple Controllers:** Visualize the status of the parts in your inventory (Critical, Low, OK), organized per-bin & per-controller. There's no need to physically check your bins anymore!
-* **Stats:** View total part count, inventory value, and online controller status in one place.
+* **Walls & Organization:** Organize your storage containers and controllers into logical **Walls**. This allows you to group parts by physical location (e.g., "Workbench Wall", "Garage Shelves") or logical category.
+* **Visual Status Tracking:** Instantly see the status of parts in your inventory (Critical, Low, OK) visually represented per-bin and per-container.
+* **Inventory Stats:** View total unique part counts, total items in stock, total inventory value, and the online/offline status of all your WLED controllers at a glance.
 
 ---
 
@@ -58,12 +59,15 @@ This is what makes WLEDger special: connecting your digitally managed inventory 
 
 ### The Grid Painter
 
-Setting up LED mapping can be tedious. The **Grid Painter** makes it visual and easy.
+Mapping physical LEDs to digital bins is the core of WLEDger's locating system. The **Grid Painter** provides a powerful visual interface to accomplish this without writing a single line of code or manual coordinate.
 
-* **Visual Mapping:** Instead of typing coordinates, you see a grid representing your LEDs. Map them using the Auto Map feature, or manually map a custom data line run for ultimate flexibility.
-* **Matrix Support:** Easily map 2D grids (e.g., 8x8 panels) with automatic row/column addressing.
-* **Strip Support:** Map linear strips for shelves or drawers.
-* **Compound Layouts:** Have a container with different sized bins? Choose a compound layout to define sections of grids.
+* **Layout Types:**
+    * **Matrix:** Ideal for 2D grids (e.g., 8x8 or 16x16 LED panels). Automatically handles row and column addressing.
+    * **Linear:** Perfect for linear arrangements like shelf edges or drawer runs.
+    * **Compound:** For advanced users with complex storage. Define multiple sections within a single container, each with its own grid or strip configuration.
+* **Auto Mapping:** Use the Auto Map feature to quickly generate a sequential bin layout based on your grid dimensions.
+* **Manual Painting:** For irregular bin shapes or custom wiring paths, use the manual painter to click and drag over specific LEDs to define a bin.
+* **Bin IDs:** Each mapped bin is assigned a unique ID (e.g., `A1-1`), which is used to associate parts with their physical locations.
 
 ### Locating Parts
 

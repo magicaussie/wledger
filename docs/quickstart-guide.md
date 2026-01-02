@@ -114,24 +114,36 @@ To get the full experience, you'll need to connect WLEDger to a WLED controller.
 
 ### 2. Configure the LED Grid
 
-1. Click on the newly added controller to view its details.
-2. Click **"Open Grid Painter"**.
-3. This visual tool allows you to map your physical LEDs to virtual "Bins".
+1. Click **'Configure'** on the newly added controller to view its details.
+2. You should now be in the hardware configuration screen.
+3. This visual tool allows you to map your physical containers and LEDs to virtual "Bins" using different layouts:
     * **Matrix:** Use this if you have a square grid (e.g., 8x8).
-    * **Strip:** Use this for linear shelves.
-4. Drag or click to define your bins. Each bin will be assigned an ID (e.g., `A1-1`).
+    * **Strip:** Use this for linear shelves or single rows of bins.
+    * **Compound:** Use this to define custom sections for complex bin arrangements.
+4. Use the **Auto Map** feature or manually click/drag to define your bins. Each bin will be assigned a unique ID.
 5. Click **"Save Map"**.
 
-### 3. Assign Parts
+### 3. Organize with Walls (Optional)
 
-1. Go to **Inventory > Parts**.
+By default, the dashboard will show you all of your configured controllers, containers, and bins. If you want a more organized view, you can use "walls" to create customizable dashboard sections. This is particularly useful for large or complex setups.
+
+1. Go to the **Dashboard**.
+2. Click **"Create Wall"**.
+3. Give your Wall a name (e.g., "Main Storage Wall") and description.
+4. Once created, click **"Edit Wall"** to add controller containers to this Wall.
+
+> You can create as many walls as you want! You can also mix and match containers from various controllers on a single wall. Nice!
+
+### 4. Assign Parts
+
+1. Go to **Inventory**.
 2. Create a new part or edit an existing one.
-3. In the "Stock" section, select one of your new Bins from the dropdown.
-4. Click **"Add Stock"**.
+3. In the "Stock" section, select **"Add Stock"** and select the controller + bin you would like to add stock to.
+4. Save, and navigate back to your dashboard to see the stock status for that part.
 
-### 4. Locate
+### 5. Locate
 
-Go back to the **Parts List**, find your part, and click the **Locate** button. Your LEDs should light up!
+Go back to the **Inventory**, find your part, and click the **Locate** button (eye icon). Your LED/bin should light up!
 
 ---
 
@@ -139,3 +151,4 @@ Go back to the **Parts List**, find your part, and click the **Locate** button. 
 
 * **[Hardware Guide](./build-guide.md):** Detailed advice on building your own LED storage cabinets.
 * **[Developer Guide](./developer-guide.md):** Learn how the code works and how to contribute.
+* **[Feature Guide](./feature-guide.md):** Learn about all of WLEDger's features, what they do, and how to use them.

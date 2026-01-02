@@ -34,8 +34,9 @@ Existing tools were expensive, closed source or lacking in features/WLED integra
 Connect your WLED-powered LED strips or matrices to your storage.
 
 - **Visual Locate:** Click "Locate" on a part, and its bin glows instantly.
+- **Grid Painter:** Use the visual Grid Painter tool to easily map LEDs to bins using Matrix, Strip, or Compound layouts.
+- **Walls / Dashboards:** Organize your containers and controllers into customizable "Walls" for a clean, organized dashboard view.
 - **Stock Status Colors:** Configure different colors for "Locate", "In Stock", "Low Stock", and "Critical".
-- **Grid & Strip Support:** Map LEDs to physical bins using linear strips or 2D grids.
 
 ### Powerful Inventory Management
 
@@ -83,7 +84,7 @@ WLEDger V2 has been written for performance, type safety, and extensibility.
 
 ---
 
-## Getting Started
+## Install WLEDger
 
 ### Option 1: Docker (Recommended)
 
@@ -123,7 +124,7 @@ docker compose up -d
 ```
 
 Visit `http://localhost:8080` to see the WLEDger UI.
->Tip: Install the website as a PWA on Android or iOS to get a native app-like experience.
+>Tip: Save the website as a shortcut on Android or iOS for quick access!
 
 ### Option 2: Build from Source
 
