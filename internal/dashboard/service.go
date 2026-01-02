@@ -12,6 +12,7 @@ import (
 type Service interface {
 	GetStats(ctx context.Context) (db.GetDashboardStatsRow, error)
 	GetGrid(ctx context.Context) ([]components.DashboardController, error)
+	GetGridByController(ctx context.Context, controllerID int64) (*components.DashboardController, error)
 	GetWalls(ctx context.Context) ([]db.Wall, error)
 	GetWallWithContainers(ctx context.Context, wallID int64) ([]components.DashboardContainer, error)
 	GetAllWallsWithContainers(ctx context.Context) ([]components.DashboardWall, error)
@@ -294,6 +295,25 @@ func (s *service) GetGrid(ctx context.Context) ([]components.DashboardController
 	return s.newDashboardViewModel(gridRows), nil
 }
 
+func (s *service) GetGridByController(ctx context.Context, controllerID int64) (*components.DashboardController, error) {
+	rows, err := s.store.GetDashboardGridByController(ctx, controllerID)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(rows) == 0 {
+		return nil, sql.ErrNoRows
+	}
+
+	// Reusing newDashboardViewModel logic but for a single controller
+	controllers := s.newDashboardViewModelFromRows(rows)
+	if len(controllers) == 0 {
+		return nil, sql.ErrNoRows
+	}
+
+	return &controllers[0], nil
+}
+
 func (s *service) newDashboardViewModel(gridRows []db.GetDashboardGridRow) []components.DashboardController {
 	// Map: ControllerID -> *DashboardController
 	ctrlMap := make(map[int64]*components.DashboardController)
@@ -303,6 +323,110 @@ func (s *service) newDashboardViewModel(gridRows []db.GetDashboardGridRow) []com
 	containerBinMap := make(map[int64]map[int64]*components.DashboardBin)
 
 	for _, row := range gridRows {
+		// Get or Create Controller
+		if _, exists := ctrlMap[row.ControllerID]; !exists {
+			ctrlMap[row.ControllerID] = &components.DashboardController{
+				ID:         row.ControllerID,
+				Name:       row.ControllerName,
+				Containers: nil,
+			}
+			ctrlContainerMap[row.ControllerID] = make(map[int64]*components.DashboardContainer)
+		}
+
+		// Get or Create Container within Controller
+		cContainers := ctrlContainerMap[row.ControllerID]
+		if _, exists := cContainers[row.ContainerID]; !exists {
+			cContainers[row.ContainerID] = &components.DashboardContainer{
+				ID:               row.ContainerID,
+				Name:             row.ContainerName,
+				SegmentID:        row.SegmentID,
+				ControllerName:   row.ControllerName,
+				ControllerOnline: row.IsOnline.Bool,
+			}
+			containerBinMap[row.ContainerID] = make(map[int64]*components.DashboardBin)
+		}
+
+		// Get or Create Bin within Container
+		cBins := containerBinMap[row.ContainerID]
+		if _, exists := cBins[row.BinID]; !exists {
+			cBins[row.BinID] = &components.DashboardBin{
+				ID:       row.BinID,
+				Name:     row.BinName,
+				GridX:    int(row.GridX.Int64),
+				GridY:    int(row.GridY.Int64),
+				Statuses: []string{},
+			}
+		}
+		bin := cBins[row.BinID]
+
+		// Calculate and Append Status (if part exists)
+		if row.PartID.Valid {
+			status := "ok"
+			qty := row.Quantity.Int64
+			min := row.MinStockThreshold.Int64
+			reorder := row.ReorderLevel.Int64
+
+			if qty <= min {
+				status = "critical"
+			} else if qty <= reorder {
+				status = "low"
+			}
+			bin.Statuses = append(bin.Statuses, status)
+		}
+	}
+
+	// Flatten Maps to Slices and Sort
+	var controllers = []components.DashboardController{}
+	for cID, ctrl := range ctrlMap {
+		var containers []components.DashboardContainer
+		for contID, cont := range ctrlContainerMap[cID] {
+			// Flatten Bins for this container
+			var bins []components.DashboardBin
+			for _, b := range containerBinMap[contID] {
+				bins = append(bins, *b)
+			}
+
+			// Sort Bins (Grid Order: Y then X)
+			sort.Slice(bins, func(i, j int) bool {
+				if bins[i].GridY == bins[j].GridY {
+					return bins[i].GridX < bins[j].GridX
+				}
+				return bins[i].GridY < bins[j].GridY
+			})
+
+			cont.Bins = bins
+			containers = append(containers, *cont)
+		}
+
+		// Sort Containers by SegmentID (primary) then Name (secondary)
+		sort.Slice(containers, func(i, j int) bool {
+			if containers[i].SegmentID == containers[j].SegmentID {
+				return containers[i].Name < containers[j].Name
+			}
+			return containers[i].SegmentID < containers[j].SegmentID
+		})
+
+		ctrl.Containers = containers
+		controllers = append(controllers, *ctrl)
+	}
+
+	// Sort Controllers by Name
+	sort.Slice(controllers, func(i, j int) bool {
+		return controllers[i].Name < controllers[j].Name
+	})
+
+	return controllers
+}
+
+func (s *service) newDashboardViewModelFromRows(rows []db.GetDashboardGridByControllerRow) []components.DashboardController {
+	// Map: ControllerID -> *DashboardController
+	ctrlMap := make(map[int64]*components.DashboardController)
+	// Map: ControllerID -> (Map: ContainerID -> *DashboardContainer)
+	ctrlContainerMap := make(map[int64]map[int64]*components.DashboardContainer)
+	// Map: ContainerID -> (Map: BinID -> *DashboardBin)
+	containerBinMap := make(map[int64]map[int64]*components.DashboardBin)
+
+	for _, row := range rows {
 		// Get or Create Controller
 		if _, exists := ctrlMap[row.ControllerID]; !exists {
 			ctrlMap[row.ControllerID] = &components.DashboardController{

@@ -33,6 +33,30 @@ LEFT JOIN parts p ON pa.part_id = p.id
 WHERE b.grid_x IS NOT NULL AND b.grid_y IS NOT NULL
 ORDER BY c.name ASC, cont.name ASC, b.grid_y ASC, b.grid_x ASC;
 
+-- name: GetDashboardGridByController :many
+SELECT 
+    c.id as controller_id,
+    c.name as controller_name,
+    c.is_online,
+    cont.id as container_id,
+    cont.name as container_name,
+    cont.segment_id,
+    b.id as bin_id, 
+    b.name as bin_name, 
+    b.grid_x, 
+    b.grid_y,
+    p.id as part_id, 
+    pa.quantity, 
+    p.min_stock_threshold, 
+    p.reorder_level
+FROM bins b
+JOIN containers cont ON b.container_id = cont.id
+JOIN controllers c ON cont.controller_id = c.id
+LEFT JOIN part_assignments pa ON b.id = pa.bin_id
+LEFT JOIN parts p ON pa.part_id = p.id
+WHERE c.id = ? AND b.grid_x IS NOT NULL AND b.grid_y IS NOT NULL
+ORDER BY cont.name ASC, b.grid_y ASC, b.grid_x ASC;
+
 -- name: GetWallContainerBins :many
 SELECT 
     wc.wall_id,

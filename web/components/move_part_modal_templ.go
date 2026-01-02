@@ -68,26 +68,26 @@ func MoveStockModal(modalID string, title string, message string, actionURL stri
 			var templ_7745c5c3_Var4 templ.SafeURL
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(actionURL))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/move_part_modal.templ`, Line: 20, Col: 41}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/move_part_modal.templ`, Line: 21, Col: 36}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\" method=\"POST\" class=\"space-y-4\"><div class=\"form-control w-full\"><label class=\"label\"><span class=\"label-text\">Target Controller</span></label> <select name=\"controller_id\" class=\"select select-bordered w-full\" hx-get=\"/parts/bins_options\" hx-target=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\" method=\"POST\" class=\"space-y-6\" x-data=\"{ hasSelection: false }\"><div class=\"form-control w-full\"><label class=\"label pt-0 pb-2 justify-start gap-2\"><span class=\"label-text font-bold text-xs uppercase tracking-widest\">1. Select Target Controller</span></label> <select name=\"controller_id\" class=\"select select-bordered w-full\" hx-get=\"/parts/bin_picker\" hx-target=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var5 string
-			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("#%s_bin_select", modalID))
+			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("#%s_visual_bin_picker", modalID))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/move_part_modal.templ`, Line: 27, Col: 55}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/move_part_modal.templ`, Line: 34, Col: 62}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\" hx-trigger=\"change\" required><option value=\"\" disabled selected>Select...</option> ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\" hx-trigger=\"change\" required @change=\"hasSelection = false\"><option value=\"\" disabled selected>Select...</option> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -99,7 +99,7 @@ func MoveStockModal(modalID string, title string, message string, actionURL stri
 				var templ_7745c5c3_Var6 string
 				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", c.ID))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/move_part_modal.templ`, Line: 33, Col: 45}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/move_part_modal.templ`, Line: 41, Col: 45}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 				if templ_7745c5c3_Err != nil {
@@ -112,7 +112,7 @@ func MoveStockModal(modalID string, title string, message string, actionURL stri
 				var templ_7745c5c3_Var7 string
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(c.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/move_part_modal.templ`, Line: 33, Col: 56}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/move_part_modal.templ`, Line: 41, Col: 56}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 				if templ_7745c5c3_Err != nil {
@@ -123,20 +123,20 @@ func MoveStockModal(modalID string, title string, message string, actionURL stri
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</select></div><div class=\"form-control w-full\"><label class=\"label\"><span class=\"label-text\">Target Bin</span></label> <select id=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</select></div><div class=\"form-control w-full\"><label class=\"label pt-0 pb-2 justify-start gap-2\"><span class=\"label-text font-bold text-xs uppercase tracking-widest\">2. Choose New Physical Bin</span></label><div id=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var8 string
-			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%s_bin_select", modalID))
+			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%s_visual_bin_picker", modalID))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/move_part_modal.templ`, Line: 39, Col: 54}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/move_part_modal.templ`, Line: 51, Col: 54}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\" name=\"bin_id\" class=\"select select-bordered w-full\" required><option value=\"\" disabled selected>Select a controller first</option></select></div><div class=\"modal-action\"><button class=\"btn btn-primary w-full\">Move Stock</button></div></form>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\" class=\"min-h-[200px] flex items-center justify-center border-2 border-dashed border-base-300 rounded-xl bg-base-200/30\" @bin-selected-form=\"hasSelection = true\"><div class=\"text-center opacity-40 py-8\"><p class=\"text-sm\">Select a controller above to see available bins</p></div></div></div><div class=\"modal-action border-t border-base-200 pt-6 mt-8\"><form method=\"dialog\"><button class=\"btn btn-ghost\">Cancel</button></form><button class=\"btn btn-primary px-8\" :disabled=\"!hasSelection\">Move Stock</button></div></form>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -146,7 +146,7 @@ func MoveStockModal(modalID string, title string, message string, actionURL stri
 			ID:         modalID,
 			Title:      title,
 			TitleClass: "text-warning",
-			BoxClass:   "overflow-visible",
+			BoxClass:   "max-w-2xl",
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err

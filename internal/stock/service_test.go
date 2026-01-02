@@ -149,3 +149,42 @@ func TestService(t *testing.T) {
 		t.Errorf("expected removed qty 15 in old_value, got %v", removeOld["quantity"])
 	}
 }
+
+func TestMoveStock_SameBin(t *testing.T) {
+	_, s, dbCleanup := setupTestDB(t)
+	defer dbCleanup()
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	svc := NewService(s, logger)
+	ctx := context.WithValue(context.Background(), middleware.UserContextKey, int64(1))
+
+	// Setup
+	s.CreateUser(context.Background(), db.CreateUserParams{Email: "admin@test.com", Role: "admin"})
+	ctrl, _ := s.CreateController(ctx, db.CreateControllerParams{Name: "Ctrl1", IpAddress: "1.2.3.4"})
+	cont, _ := s.CreateContainer(ctx, db.CreateContainerParams{Name: "Container1", ControllerID: ctrl.ID})
+	bin1ID, _ := s.CreateBin(ctx, db.CreateBinParams{Name: "A1", ContainerID: cont})
+	
+	partID, _ := s.CreatePart(ctx, db.CreatePartParams{Name: "Stock Part"})
+
+	// Assign Stock
+	_ = svc.AssignStock(ctx, AssignStockRequest{PartID: partID, BinID: bin1ID, Quantity: 10})
+	
+	assignments, _ := s.GetPartAssignments(ctx, partID)
+	assignmentID := assignments[0].ID
+
+	// Action: Move Stock to SAME Bin
+	err := svc.MoveStock(ctx, MoveStockRequest{PartID: partID, AssignmentID: assignmentID, TargetBinID: bin1ID})
+	if err != nil {
+		t.Fatalf("MoveStock failed: %v", err)
+	}
+
+	// Verify: Stock should still be there, unchanged
+	assignments, _ = s.GetPartAssignments(ctx, partID)
+	if len(assignments) != 1 {
+		t.Fatalf("Expected 1 assignment, got %d. Stock was likely removed!", len(assignments))
+	}
+	
+	if assignments[0].Quantity != 10 {
+		t.Errorf("Expected quantity 10, got %d", assignments[0].Quantity)
+	}
+}

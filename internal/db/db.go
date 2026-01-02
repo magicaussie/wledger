@@ -234,6 +234,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.getDashboardGridStmt, err = db.PrepareContext(ctx, getDashboardGrid); err != nil {
 		return nil, fmt.Errorf("error preparing query GetDashboardGrid: %w", err)
 	}
+	if q.getDashboardGridByControllerStmt, err = db.PrepareContext(ctx, getDashboardGridByController); err != nil {
+		return nil, fmt.Errorf("error preparing query GetDashboardGridByController: %w", err)
+	}
 	if q.getDashboardStatsStmt, err = db.PrepareContext(ctx, getDashboardStats); err != nil {
 		return nil, fmt.Errorf("error preparing query GetDashboardStats: %w", err)
 	}
@@ -760,6 +763,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing getDashboardGridStmt: %w", cerr)
 		}
 	}
+	if q.getDashboardGridByControllerStmt != nil {
+		if cerr := q.getDashboardGridByControllerStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getDashboardGridByControllerStmt: %w", cerr)
+		}
+	}
 	if q.getDashboardStatsStmt != nil {
 		if cerr := q.getDashboardStatsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getDashboardStatsStmt: %w", cerr)
@@ -1154,6 +1162,7 @@ type Queries struct {
 	getControllerStmt                  *sql.Stmt
 	getControllersStmt                 *sql.Stmt
 	getDashboardGridStmt               *sql.Stmt
+	getDashboardGridByControllerStmt   *sql.Stmt
 	getDashboardStatsStmt              *sql.Stmt
 	getInspirationTemplateStmt         *sql.Stmt
 	getPartStmt                        *sql.Stmt
@@ -1287,6 +1296,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		getControllerStmt:                  q.getControllerStmt,
 		getControllersStmt:                 q.getControllersStmt,
 		getDashboardGridStmt:               q.getDashboardGridStmt,
+		getDashboardGridByControllerStmt:   q.getDashboardGridByControllerStmt,
 		getDashboardStatsStmt:              q.getDashboardStatsStmt,
 		getInspirationTemplateStmt:         q.getInspirationTemplateStmt,
 		getPartStmt:                        q.getPartStmt,

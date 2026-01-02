@@ -193,6 +193,27 @@ func (h *Handler) HandleBinOptions(w http.ResponseWriter, r *http.Request) {
 	components.BinOptions(allBins).Render(r.Context(), w)
 }
 
+func (h *Handler) HandleBinPicker(w http.ResponseWriter, r *http.Request) {
+	cidStr := r.URL.Query().Get("controller_id")
+	cid, _ := strconv.ParseInt(cidStr, 10, 64)
+
+	if cid == 0 {
+		h.Logger.Error("HandleBinPicker: invalid or missing controller_id")
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	grid, err := h.Dashboard.GetGridByController(r.Context(), cid)
+	if err != nil {
+		h.Logger.Error("failed to fetch bin picker grid", "err", err, "controller_id", cid)
+		// Return empty state component if not found or error
+		components.BinPickerGrid(components.DashboardController{}).Render(r.Context(), w)
+		return
+	}
+
+	components.BinPickerGrid(*grid).Render(r.Context(), w)
+}
+
 func (h *Handler) HandlePartAssign(w http.ResponseWriter, r *http.Request) {
 	partID, _ := strconv.Atoi(chi.URLParam(r, "id"))
 	binID, _ := strconv.Atoi(r.FormValue("bin_id"))

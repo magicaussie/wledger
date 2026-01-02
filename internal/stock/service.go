@@ -145,6 +145,12 @@ func (s *service) MoveStock(ctx context.Context, req MoveStockRequest) error {
 			return fmt.Errorf("source assignment not found: %w", err)
 		}
 
+		// Check for same bin move (No-op)
+		if source.BinID.Valid && source.BinID.Int64 == req.TargetBinID {
+			s.logger.Debug("source and target bins are identical, ignoring move request", "bin_id", req.TargetBinID)
+			return nil
+		}
+
 		s.logger.Debug("checking if target bin already has an assignment for this part", "part_id", req.PartID, "bin_id", req.TargetBinID)
 		targetID, err := q.GetAssignmentID(ctx, db.GetAssignmentIDParams{
 			PartID: req.PartID,

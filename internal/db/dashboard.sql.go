@@ -179,6 +179,86 @@ func (q *Queries) GetDashboardGrid(ctx context.Context) ([]GetDashboardGridRow, 
 	return items, nil
 }
 
+const getDashboardGridByController = `-- name: GetDashboardGridByController :many
+SELECT 
+    c.id as controller_id,
+    c.name as controller_name,
+    c.is_online,
+    cont.id as container_id,
+    cont.name as container_name,
+    cont.segment_id,
+    b.id as bin_id, 
+    b.name as bin_name, 
+    b.grid_x, 
+    b.grid_y,
+    p.id as part_id, 
+    pa.quantity, 
+    p.min_stock_threshold, 
+    p.reorder_level
+FROM bins b
+JOIN containers cont ON b.container_id = cont.id
+JOIN controllers c ON cont.controller_id = c.id
+LEFT JOIN part_assignments pa ON b.id = pa.bin_id
+LEFT JOIN parts p ON pa.part_id = p.id
+WHERE c.id = ? AND b.grid_x IS NOT NULL AND b.grid_y IS NOT NULL
+ORDER BY cont.name ASC, b.grid_y ASC, b.grid_x ASC
+`
+
+type GetDashboardGridByControllerRow struct {
+	ControllerID      int64         `json:"controller_id"`
+	ControllerName    string        `json:"controller_name"`
+	IsOnline          sql.NullBool  `json:"is_online"`
+	ContainerID       int64         `json:"container_id"`
+	ContainerName     string        `json:"container_name"`
+	SegmentID         int64         `json:"segment_id"`
+	BinID             int64         `json:"bin_id"`
+	BinName           string        `json:"bin_name"`
+	GridX             sql.NullInt64 `json:"grid_x"`
+	GridY             sql.NullInt64 `json:"grid_y"`
+	PartID            sql.NullInt64 `json:"part_id"`
+	Quantity          sql.NullInt64 `json:"quantity"`
+	MinStockThreshold sql.NullInt64 `json:"min_stock_threshold"`
+	ReorderLevel      sql.NullInt64 `json:"reorder_level"`
+}
+
+func (q *Queries) GetDashboardGridByController(ctx context.Context, id int64) ([]GetDashboardGridByControllerRow, error) {
+	rows, err := q.query(ctx, q.getDashboardGridByControllerStmt, getDashboardGridByController, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetDashboardGridByControllerRow
+	for rows.Next() {
+		var i GetDashboardGridByControllerRow
+		if err := rows.Scan(
+			&i.ControllerID,
+			&i.ControllerName,
+			&i.IsOnline,
+			&i.ContainerID,
+			&i.ContainerName,
+			&i.SegmentID,
+			&i.BinID,
+			&i.BinName,
+			&i.GridX,
+			&i.GridY,
+			&i.PartID,
+			&i.Quantity,
+			&i.MinStockThreshold,
+			&i.ReorderLevel,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getDashboardStats = `-- name: GetDashboardStats :one
 SELECT
     COUNT(DISTINCT p.id) as total_parts,

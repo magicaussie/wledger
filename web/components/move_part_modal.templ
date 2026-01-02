@@ -12,21 +12,29 @@ templ MoveStockModal(modalID string, title string, message string, actionURL str
 		ID:         modalID,
 		Title:      title,
 		TitleClass: "text-warning",
-		BoxClass:   "overflow-visible",
+		BoxClass:   "max-w-2xl",
 	}) {
 		<p class="text-sm opacity-70 mb-6">
 			{ message }
 		</p>
-		<form action={ templ.SafeURL(actionURL) } method="POST" class="space-y-4">
+		<form
+			action={ templ.SafeURL(actionURL) }
+			method="POST"
+			class="space-y-6"
+			x-data="{ hasSelection: false }"
+		>
 			<div class="form-control w-full">
-				<label class="label"><span class="label-text">Target Controller</span></label>
+				<label class="label pt-0 pb-2 justify-start gap-2">
+					<span class="label-text font-bold text-xs uppercase tracking-widest">1. Select Target Controller</span>
+				</label>
 				<select
 					name="controller_id"
 					class="select select-bordered w-full"
-					hx-get="/parts/bins_options"
-					hx-target={ fmt.Sprintf("#%s_bin_select", modalID) }
+					hx-get="/parts/bin_picker"
+					hx-target={ fmt.Sprintf("#%s_visual_bin_picker", modalID) }
 					hx-trigger="change"
 					required
+					@change="hasSelection = false"
 				>
 					<option value="" disabled selected>Select...</option>
 					for _, c := range controllers {
@@ -34,14 +42,27 @@ templ MoveStockModal(modalID string, title string, message string, actionURL str
 					}
 				</select>
 			</div>
+
 			<div class="form-control w-full">
-				<label class="label"><span class="label-text">Target Bin</span></label>
-				<select id={ fmt.Sprintf("%s_bin_select", modalID) } name="bin_id" class="select select-bordered w-full" required>
-					<option value="" disabled selected>Select a controller first</option>
-				</select>
+				<label class="label pt-0 pb-2 justify-start gap-2">
+					<span class="label-text font-bold text-xs uppercase tracking-widest">2. Choose New Physical Bin</span>
+				</label>
+				<div 
+					id={ fmt.Sprintf("%s_visual_bin_picker", modalID) }
+					class="min-h-[200px] flex items-center justify-center border-2 border-dashed border-base-300 rounded-xl bg-base-200/30"
+					@bin-selected-form="hasSelection = true"
+				>
+					<div class="text-center opacity-40 py-8">
+						<p class="text-sm">Select a controller above to see available bins</p>
+					</div>
+				</div>
 			</div>
-			<div class="modal-action">
-				<button class="btn btn-primary w-full">Move Stock</button>
+
+			<div class="modal-action border-t border-base-200 pt-6 mt-8">
+				<form method="dialog">
+					<button class="btn btn-ghost">Cancel</button>
+				</form>
+				<button class="btn btn-primary px-8" :disabled="!hasSelection">Move Stock</button>
 			</div>
 		</form>
 	}

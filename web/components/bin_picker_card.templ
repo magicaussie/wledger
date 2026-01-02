@@ -1,0 +1,47 @@
+package components
+
+import (
+	"fmt"
+)
+
+templ BinPickerCard(container DashboardContainer) {
+	<div class="flex flex-col gap-3">
+		<div class="flex items-center justify-between px-2">
+			<div class="flex flex-col">
+				<h3 class="font-bold text-sm uppercase tracking-wider">{ container.Name }</h3>
+				<span class="text-[10px] opacity-40 uppercase tracking-widest">Segment { fmt.Sprintf("%d", container.SegmentID) }</span>
+			</div>
+			<div class="badge badge-sm badge-ghost opacity-50 font-mono">{ fmt.Sprintf("%d Bins", len(container.Bins)) }</div>
+		</div>
+		
+		<div class="overflow-x-auto bg-base-200/50 rounded-xl border border-base-300 p-4 shadow-inner">
+			<div
+				class="grid gap-2"
+				style="width: fit-content; min-width: 100%;"
+			>
+				for _, bin := range container.Bins {
+					<div
+						@click={ fmt.Sprintf("$dispatch('bin-selected', {id: '%d'})", bin.ID) }
+						class={ "w-12 h-12 rounded-lg border flex items-center justify-center text-xs font-bold shadow-sm hover:scale-110 hover:shadow-md hover:z-10 transition-all duration-200 cursor-pointer relative group", bin.GetClass() }
+						:class={ fmt.Sprintf("selectedBinID == '%d' ? 'ring-4 ring-primary border-primary z-20 scale-110' : 'border-base-300'", bin.ID) }
+						style={ bin.GetStyle() }
+						title={ bin.Name }
+					>
+						<span class="drop-shadow-md filter invert-0 grayscale-0 brightness-100">{ bin.Name }</span>
+						
+						<!-- Selected Indicator Icon -->
+						<div 
+							x-show={ fmt.Sprintf("selectedBinID == '%d'", bin.ID) }
+							class="absolute -top-2 -right-2 bg-primary text-primary-content rounded-full p-0.5 shadow-sm"
+							style="display: none;"
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+								<path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+							</svg>
+						</div>
+					</div>
+				}
+			</div>
+		</div>
+	</div>
+}

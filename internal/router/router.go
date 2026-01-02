@@ -54,6 +54,7 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 		r.Get("/parts", h.HandlePartsList)
 		r.Get("/parts/{id}", h.HandlePartDetail)
 		r.Get("/parts/bins_options", h.HandleBinOptions)
+		r.Get("/parts/bin_picker", h.HandleBinPicker)
 
 		// Locate
 		r.Post("/hardware/{id}/locate", h.HandleHardwareLocate)

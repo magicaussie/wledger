@@ -82,6 +82,7 @@ type Querier interface {
 	GetController(ctx context.Context, id int64) (Controller, error)
 	GetControllers(ctx context.Context) ([]Controller, error)
 	GetDashboardGrid(ctx context.Context) ([]GetDashboardGridRow, error)
+	GetDashboardGridByController(ctx context.Context, id int64) ([]GetDashboardGridByControllerRow, error)
 	GetDashboardStats(ctx context.Context) (GetDashboardStatsRow, error)
 	GetInspirationTemplate(ctx context.Context, id int64) (InspirationTemplate, error)
 	GetPart(ctx context.Context, id int64) (Part, error)
