@@ -50,6 +50,9 @@ func (s *service) Export(ctx context.Context, w io.Writer) error {
 
 	users, _ := s.store.GetAllUsers(ctx)
 	controllers, _ := s.store.GetControllers(ctx)
+	containers, _ := s.store.GetAllContainers(ctx)
+	walls, _ := s.store.GetWalls(ctx)
+	wallCards, _ := s.store.GetAllWallCards(ctx)
 	bins, _ := s.store.GetAllBins(ctx)
 	parts, _ := s.store.GetAllParts(ctx)
 	assignments, _ := s.store.GetAllPartAssignments(ctx)
@@ -80,6 +83,9 @@ func (s *service) Export(ctx context.Context, w io.Writer) error {
 		Settings:        settings,
 		Users:           users,
 		Controllers:     controllers,
+		Containers:      containers,
+		Walls:           walls,
+		WallCards:       wallCards,
 		Bins:            bins,
 		Parts:           parts,
 		PartAssignments: assignments,
@@ -268,6 +274,50 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 
 	// Database Restore Transaction
 	err = s.store.ExecTx(ctx, func(qtx db.Querier) error {
+		s.logger.Debug("clearing existing database records")
+		// Order matters for Foreign Keys
+		if err := qtx.ClearAuditLogs(ctx); err != nil {
+			return fmt.Errorf("failed to clear audit logs: %w", err)
+		}
+		if err := qtx.ClearPartTags(ctx); err != nil {
+			return fmt.Errorf("failed to clear part tags: %w", err)
+		}
+		if err := qtx.ClearTags(ctx); err != nil {
+			return fmt.Errorf("failed to clear tags: %w", err)
+		}
+		if err := qtx.ClearPartAssignments(ctx); err != nil {
+			return fmt.Errorf("failed to clear part assignments: %w", err)
+		}
+		if err := qtx.ClearPartDocs(ctx); err != nil {
+			return fmt.Errorf("failed to clear part docs: %w", err)
+		}
+		if err := qtx.ClearPartLinks(ctx); err != nil {
+			return fmt.Errorf("failed to clear part links: %w", err)
+		}
+		if err := qtx.ClearPartAiPrompts(ctx); err != nil {
+			return fmt.Errorf("failed to clear part ai prompts: %w", err)
+		}
+		if err := qtx.ClearParts(ctx); err != nil {
+			return fmt.Errorf("failed to clear parts: %w", err)
+		}
+		if err := qtx.ClearBins(ctx); err != nil {
+			return fmt.Errorf("failed to clear bins: %w", err)
+		}
+		if err := qtx.ClearWallCards(ctx); err != nil {
+			return fmt.Errorf("failed to clear wall cards: %w", err)
+		}
+		if err := qtx.ClearWalls(ctx); err != nil {
+			return fmt.Errorf("failed to clear walls: %w", err)
+		}
+		if err := qtx.ClearContainers(ctx); err != nil {
+			return fmt.Errorf("failed to clear containers: %w", err)
+		}
+		if err := qtx.ClearControllers(ctx); err != nil {
+			return fmt.Errorf("failed to clear controllers: %w", err)
+		}
+		if err := qtx.ClearUsers(ctx); err != nil {
+			return fmt.Errorf("failed to clear users: %w", err)
+		}
 
 		s.logger.Debug("restoring database records from manifest")
 		return s.restoreData(ctx, qtx, manifest)
@@ -329,6 +379,33 @@ func (s *service) restoreData(ctx context.Context, qtx db.Querier, manifest Mani
 	for _, c := range manifest.Controllers {
 		if err := qtx.RestoreController(ctx, db.RestoreControllerParams(c)); err != nil {
 			return fmt.Errorf("controller restore: %w", err)
+		}
+	}
+	for _, c := range manifest.Containers {
+		if err := qtx.RestoreContainer(ctx, db.RestoreContainerParams(c)); err != nil {
+			return fmt.Errorf("container restore: %w", err)
+		}
+	}
+	for _, w := range manifest.Walls {
+		if err := qtx.RestoreWall(ctx, db.RestoreWallParams{
+			ID:          w.ID,
+			Name:        w.Name,
+			Description: w.Description,
+			CreatedAt:   w.CreatedAt,
+			UpdatedAt:   w.UpdatedAt,
+		}); err != nil {
+			return fmt.Errorf("wall restore: %w", err)
+		}
+	}
+	for _, wc := range manifest.WallCards {
+		if err := qtx.RestoreWallCard(ctx, db.RestoreWallCardParams{
+			ID:            wc.ID,
+			WallID:        wc.WallID,
+			ContainerID:   wc.ContainerID,
+			PositionIndex: wc.PositionIndex,
+			ConfigJson:    wc.ConfigJson,
+		}); err != nil {
+			return fmt.Errorf("wall_card restore: %w", err)
 		}
 	}
 	for _, b := range manifest.Bins {

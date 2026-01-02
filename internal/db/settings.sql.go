@@ -10,6 +10,132 @@ import (
 	"database/sql"
 )
 
+const clearAuditLogs = `-- name: ClearAuditLogs :exec
+DELETE FROM audit_logs
+`
+
+func (q *Queries) ClearAuditLogs(ctx context.Context) error {
+	_, err := q.exec(ctx, q.clearAuditLogsStmt, clearAuditLogs)
+	return err
+}
+
+const clearBins = `-- name: ClearBins :exec
+DELETE FROM bins
+`
+
+func (q *Queries) ClearBins(ctx context.Context) error {
+	_, err := q.exec(ctx, q.clearBinsStmt, clearBins)
+	return err
+}
+
+const clearContainers = `-- name: ClearContainers :exec
+DELETE FROM containers
+`
+
+func (q *Queries) ClearContainers(ctx context.Context) error {
+	_, err := q.exec(ctx, q.clearContainersStmt, clearContainers)
+	return err
+}
+
+const clearControllers = `-- name: ClearControllers :exec
+DELETE FROM controllers
+`
+
+func (q *Queries) ClearControllers(ctx context.Context) error {
+	_, err := q.exec(ctx, q.clearControllersStmt, clearControllers)
+	return err
+}
+
+const clearPartAiPrompts = `-- name: ClearPartAiPrompts :exec
+DELETE FROM part_ai_prompts
+`
+
+func (q *Queries) ClearPartAiPrompts(ctx context.Context) error {
+	_, err := q.exec(ctx, q.clearPartAiPromptsStmt, clearPartAiPrompts)
+	return err
+}
+
+const clearPartAssignments = `-- name: ClearPartAssignments :exec
+DELETE FROM part_assignments
+`
+
+func (q *Queries) ClearPartAssignments(ctx context.Context) error {
+	_, err := q.exec(ctx, q.clearPartAssignmentsStmt, clearPartAssignments)
+	return err
+}
+
+const clearPartDocs = `-- name: ClearPartDocs :exec
+DELETE FROM part_docs
+`
+
+func (q *Queries) ClearPartDocs(ctx context.Context) error {
+	_, err := q.exec(ctx, q.clearPartDocsStmt, clearPartDocs)
+	return err
+}
+
+const clearPartLinks = `-- name: ClearPartLinks :exec
+DELETE FROM part_links
+`
+
+func (q *Queries) ClearPartLinks(ctx context.Context) error {
+	_, err := q.exec(ctx, q.clearPartLinksStmt, clearPartLinks)
+	return err
+}
+
+const clearPartTags = `-- name: ClearPartTags :exec
+DELETE FROM part_tags
+`
+
+func (q *Queries) ClearPartTags(ctx context.Context) error {
+	_, err := q.exec(ctx, q.clearPartTagsStmt, clearPartTags)
+	return err
+}
+
+const clearParts = `-- name: ClearParts :exec
+DELETE FROM parts
+`
+
+func (q *Queries) ClearParts(ctx context.Context) error {
+	_, err := q.exec(ctx, q.clearPartsStmt, clearParts)
+	return err
+}
+
+const clearTags = `-- name: ClearTags :exec
+DELETE FROM tags
+`
+
+func (q *Queries) ClearTags(ctx context.Context) error {
+	_, err := q.exec(ctx, q.clearTagsStmt, clearTags)
+	return err
+}
+
+const clearUsers = `-- name: ClearUsers :exec
+DELETE FROM users
+`
+
+func (q *Queries) ClearUsers(ctx context.Context) error {
+	_, err := q.exec(ctx, q.clearUsersStmt, clearUsers)
+	return err
+}
+
+const clearWallCards = `-- name: ClearWallCards :exec
+DELETE FROM wall_cards
+`
+
+func (q *Queries) ClearWallCards(ctx context.Context) error {
+	_, err := q.exec(ctx, q.clearWallCardsStmt, clearWallCards)
+	return err
+}
+
+const clearWalls = `-- name: ClearWalls :exec
+DELETE FROM walls
+`
+
+func (q *Queries) ClearWalls(ctx context.Context) error {
+	_, err := q.exec(ctx, q.clearWallsStmt, clearWalls)
+	return err
+}
+
 const getSettings = `-- name: GetSettings :one
 SELECT id, require_auth_for_read, locate_timeout_seconds, enable_locate_timeout, enable_debug_logs, color_locate, color_stock_ok, color_stock_low, color_stock_critical, created_at, updated_at, inspiration_seeds_applied FROM settings WHERE id = 1
 `
@@ -45,11 +171,8 @@ func (q *Queries) InitSettings(ctx context.Context) error {
 }
 
 const markInspirationSeedsApplied = `-- name: MarkInspirationSeedsApplied :exec
-
 UPDATE settings
-
 SET inspiration_seeds_applied = 1, updated_at = CURRENT_TIMESTAMP
-
 WHERE id = 1
 `
 
@@ -59,7 +182,7 @@ func (q *Queries) MarkInspirationSeedsApplied(ctx context.Context) error {
 }
 
 const restoreSettings = `-- name: RestoreSettings :exec
-INSERT INTO settings (
+INSERT OR REPLACE INTO settings (
     id, require_auth_for_read, locate_timeout_seconds, enable_locate_timeout, 
     color_locate, color_stock_ok, color_stock_low, color_stock_critical, 
     created_at, updated_at, enable_debug_logs

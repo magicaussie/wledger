@@ -1,5 +1,5 @@
 -- name: RestoreSettings :exec
-INSERT INTO settings (
+INSERT OR REPLACE INTO settings (
     id, require_auth_for_read, locate_timeout_seconds, enable_locate_timeout, 
     color_locate, color_stock_ok, color_stock_low, color_stock_critical, 
     created_at, updated_at, enable_debug_logs
@@ -39,9 +39,35 @@ WHERE id = 1;
 
 
 -- name: MarkInspirationSeedsApplied :exec
-
 UPDATE settings
-
 SET inspiration_seeds_applied = 1, updated_at = CURRENT_TIMESTAMP
-
 WHERE id = 1;
+
+-- name: ClearAuditLogs :exec
+DELETE FROM audit_logs;
+-- name: ClearPartTags :exec
+DELETE FROM part_tags;
+-- name: ClearTags :exec
+DELETE FROM tags;
+-- name: ClearPartAssignments :exec
+DELETE FROM part_assignments;
+-- name: ClearPartDocs :exec
+DELETE FROM part_docs;
+-- name: ClearPartLinks :exec
+DELETE FROM part_links;
+-- name: ClearPartAiPrompts :exec
+DELETE FROM part_ai_prompts;
+-- name: ClearParts :exec
+DELETE FROM parts;
+-- name: ClearBins :exec
+DELETE FROM bins;
+-- name: ClearWallCards :exec
+DELETE FROM wall_cards;
+-- name: ClearWalls :exec
+DELETE FROM walls;
+-- name: ClearContainers :exec
+DELETE FROM containers;
+-- name: ClearControllers :exec
+DELETE FROM controllers;
+-- name: ClearUsers :exec
+DELETE FROM users;

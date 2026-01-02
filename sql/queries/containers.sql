@@ -1,3 +1,7 @@
+-- name: RestoreContainer :exec
+INSERT INTO containers (id, name, controller_id, segment_id, config_json, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
 -- name: CreateContainer :one
 INSERT INTO containers (name, controller_id, segment_id, config_json)
 VALUES (?, ?, ?, ?)

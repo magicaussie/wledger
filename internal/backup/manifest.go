@@ -12,6 +12,9 @@ type Manifest struct {
 	Settings        db.Setting          `json:"settings"`
 	Users           []db.User           `json:"users"`
 	Controllers     []db.Controller     `json:"controllers"`
+	Containers      []db.Container      `json:"containers"`
+	Walls           []db.Wall           `json:"walls"`
+	WallCards       []db.WallCard       `json:"wall_cards"`
 	Bins            []db.Bin            `json:"bins"`
 	Parts           []db.Part           `json:"parts"`
 	PartAssignments []db.PartAssignment `json:"part_assignments"`

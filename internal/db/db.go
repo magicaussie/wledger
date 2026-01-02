@@ -33,6 +33,48 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.cleanupSessionsStmt, err = db.PrepareContext(ctx, cleanupSessions); err != nil {
 		return nil, fmt.Errorf("error preparing query CleanupSessions: %w", err)
 	}
+	if q.clearAuditLogsStmt, err = db.PrepareContext(ctx, clearAuditLogs); err != nil {
+		return nil, fmt.Errorf("error preparing query ClearAuditLogs: %w", err)
+	}
+	if q.clearBinsStmt, err = db.PrepareContext(ctx, clearBins); err != nil {
+		return nil, fmt.Errorf("error preparing query ClearBins: %w", err)
+	}
+	if q.clearContainersStmt, err = db.PrepareContext(ctx, clearContainers); err != nil {
+		return nil, fmt.Errorf("error preparing query ClearContainers: %w", err)
+	}
+	if q.clearControllersStmt, err = db.PrepareContext(ctx, clearControllers); err != nil {
+		return nil, fmt.Errorf("error preparing query ClearControllers: %w", err)
+	}
+	if q.clearPartAiPromptsStmt, err = db.PrepareContext(ctx, clearPartAiPrompts); err != nil {
+		return nil, fmt.Errorf("error preparing query ClearPartAiPrompts: %w", err)
+	}
+	if q.clearPartAssignmentsStmt, err = db.PrepareContext(ctx, clearPartAssignments); err != nil {
+		return nil, fmt.Errorf("error preparing query ClearPartAssignments: %w", err)
+	}
+	if q.clearPartDocsStmt, err = db.PrepareContext(ctx, clearPartDocs); err != nil {
+		return nil, fmt.Errorf("error preparing query ClearPartDocs: %w", err)
+	}
+	if q.clearPartLinksStmt, err = db.PrepareContext(ctx, clearPartLinks); err != nil {
+		return nil, fmt.Errorf("error preparing query ClearPartLinks: %w", err)
+	}
+	if q.clearPartTagsStmt, err = db.PrepareContext(ctx, clearPartTags); err != nil {
+		return nil, fmt.Errorf("error preparing query ClearPartTags: %w", err)
+	}
+	if q.clearPartsStmt, err = db.PrepareContext(ctx, clearParts); err != nil {
+		return nil, fmt.Errorf("error preparing query ClearParts: %w", err)
+	}
+	if q.clearTagsStmt, err = db.PrepareContext(ctx, clearTags); err != nil {
+		return nil, fmt.Errorf("error preparing query ClearTags: %w", err)
+	}
+	if q.clearUsersStmt, err = db.PrepareContext(ctx, clearUsers); err != nil {
+		return nil, fmt.Errorf("error preparing query ClearUsers: %w", err)
+	}
+	if q.clearWallCardsStmt, err = db.PrepareContext(ctx, clearWallCards); err != nil {
+		return nil, fmt.Errorf("error preparing query ClearWallCards: %w", err)
+	}
+	if q.clearWallsStmt, err = db.PrepareContext(ctx, clearWalls); err != nil {
+		return nil, fmt.Errorf("error preparing query ClearWalls: %w", err)
+	}
 	if q.countAuditLogsStmt, err = db.PrepareContext(ctx, countAuditLogs); err != nil {
 		return nil, fmt.Errorf("error preparing query CountAuditLogs: %w", err)
 	}
@@ -159,6 +201,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.getAllUsersStmt, err = db.PrepareContext(ctx, getAllUsers); err != nil {
 		return nil, fmt.Errorf("error preparing query GetAllUsers: %w", err)
 	}
+	if q.getAllWallCardsStmt, err = db.PrepareContext(ctx, getAllWallCards); err != nil {
+		return nil, fmt.Errorf("error preparing query GetAllWallCards: %w", err)
+	}
 	if q.getAllWallContainerBinsStmt, err = db.PrepareContext(ctx, getAllWallContainerBins); err != nil {
 		return nil, fmt.Errorf("error preparing query GetAllWallContainerBins: %w", err)
 	}
@@ -279,6 +324,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.restoreBinStmt, err = db.PrepareContext(ctx, restoreBin); err != nil {
 		return nil, fmt.Errorf("error preparing query RestoreBin: %w", err)
 	}
+	if q.restoreContainerStmt, err = db.PrepareContext(ctx, restoreContainer); err != nil {
+		return nil, fmt.Errorf("error preparing query RestoreContainer: %w", err)
+	}
 	if q.restoreControllerStmt, err = db.PrepareContext(ctx, restoreController); err != nil {
 		return nil, fmt.Errorf("error preparing query RestoreController: %w", err)
 	}
@@ -308,6 +356,12 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.restoreUserStmt, err = db.PrepareContext(ctx, restoreUser); err != nil {
 		return nil, fmt.Errorf("error preparing query RestoreUser: %w", err)
+	}
+	if q.restoreWallStmt, err = db.PrepareContext(ctx, restoreWall); err != nil {
+		return nil, fmt.Errorf("error preparing query RestoreWall: %w", err)
+	}
+	if q.restoreWallCardStmt, err = db.PrepareContext(ctx, restoreWallCard); err != nil {
+		return nil, fmt.Errorf("error preparing query RestoreWallCard: %w", err)
 	}
 	if q.searchPartsStmt, err = db.PrepareContext(ctx, searchParts); err != nil {
 		return nil, fmt.Errorf("error preparing query SearchParts: %w", err)
@@ -369,6 +423,76 @@ func (q *Queries) Close() error {
 	if q.cleanupSessionsStmt != nil {
 		if cerr := q.cleanupSessionsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing cleanupSessionsStmt: %w", cerr)
+		}
+	}
+	if q.clearAuditLogsStmt != nil {
+		if cerr := q.clearAuditLogsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing clearAuditLogsStmt: %w", cerr)
+		}
+	}
+	if q.clearBinsStmt != nil {
+		if cerr := q.clearBinsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing clearBinsStmt: %w", cerr)
+		}
+	}
+	if q.clearContainersStmt != nil {
+		if cerr := q.clearContainersStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing clearContainersStmt: %w", cerr)
+		}
+	}
+	if q.clearControllersStmt != nil {
+		if cerr := q.clearControllersStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing clearControllersStmt: %w", cerr)
+		}
+	}
+	if q.clearPartAiPromptsStmt != nil {
+		if cerr := q.clearPartAiPromptsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing clearPartAiPromptsStmt: %w", cerr)
+		}
+	}
+	if q.clearPartAssignmentsStmt != nil {
+		if cerr := q.clearPartAssignmentsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing clearPartAssignmentsStmt: %w", cerr)
+		}
+	}
+	if q.clearPartDocsStmt != nil {
+		if cerr := q.clearPartDocsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing clearPartDocsStmt: %w", cerr)
+		}
+	}
+	if q.clearPartLinksStmt != nil {
+		if cerr := q.clearPartLinksStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing clearPartLinksStmt: %w", cerr)
+		}
+	}
+	if q.clearPartTagsStmt != nil {
+		if cerr := q.clearPartTagsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing clearPartTagsStmt: %w", cerr)
+		}
+	}
+	if q.clearPartsStmt != nil {
+		if cerr := q.clearPartsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing clearPartsStmt: %w", cerr)
+		}
+	}
+	if q.clearTagsStmt != nil {
+		if cerr := q.clearTagsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing clearTagsStmt: %w", cerr)
+		}
+	}
+	if q.clearUsersStmt != nil {
+		if cerr := q.clearUsersStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing clearUsersStmt: %w", cerr)
+		}
+	}
+	if q.clearWallCardsStmt != nil {
+		if cerr := q.clearWallCardsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing clearWallCardsStmt: %w", cerr)
+		}
+	}
+	if q.clearWallsStmt != nil {
+		if cerr := q.clearWallsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing clearWallsStmt: %w", cerr)
 		}
 	}
 	if q.countAuditLogsStmt != nil {
@@ -581,6 +705,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing getAllUsersStmt: %w", cerr)
 		}
 	}
+	if q.getAllWallCardsStmt != nil {
+		if cerr := q.getAllWallCardsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getAllWallCardsStmt: %w", cerr)
+		}
+	}
 	if q.getAllWallContainerBinsStmt != nil {
 		if cerr := q.getAllWallContainerBinsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getAllWallContainerBinsStmt: %w", cerr)
@@ -781,6 +910,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing restoreBinStmt: %w", cerr)
 		}
 	}
+	if q.restoreContainerStmt != nil {
+		if cerr := q.restoreContainerStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing restoreContainerStmt: %w", cerr)
+		}
+	}
 	if q.restoreControllerStmt != nil {
 		if cerr := q.restoreControllerStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing restoreControllerStmt: %w", cerr)
@@ -829,6 +963,16 @@ func (q *Queries) Close() error {
 	if q.restoreUserStmt != nil {
 		if cerr := q.restoreUserStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing restoreUserStmt: %w", cerr)
+		}
+	}
+	if q.restoreWallStmt != nil {
+		if cerr := q.restoreWallStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing restoreWallStmt: %w", cerr)
+		}
+	}
+	if q.restoreWallCardStmt != nil {
+		if cerr := q.restoreWallCardStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing restoreWallCardStmt: %w", cerr)
 		}
 	}
 	if q.searchPartsStmt != nil {
@@ -943,6 +1087,20 @@ type Queries struct {
 	addContainerToWallStmt             *sql.Stmt
 	addTagToPartStmt                   *sql.Stmt
 	cleanupSessionsStmt                *sql.Stmt
+	clearAuditLogsStmt                 *sql.Stmt
+	clearBinsStmt                      *sql.Stmt
+	clearContainersStmt                *sql.Stmt
+	clearControllersStmt               *sql.Stmt
+	clearPartAiPromptsStmt             *sql.Stmt
+	clearPartAssignmentsStmt           *sql.Stmt
+	clearPartDocsStmt                  *sql.Stmt
+	clearPartLinksStmt                 *sql.Stmt
+	clearPartTagsStmt                  *sql.Stmt
+	clearPartsStmt                     *sql.Stmt
+	clearTagsStmt                      *sql.Stmt
+	clearUsersStmt                     *sql.Stmt
+	clearWallCardsStmt                 *sql.Stmt
+	clearWallsStmt                     *sql.Stmt
 	countAuditLogsStmt                 *sql.Stmt
 	countUsersStmt                     *sql.Stmt
 	createAuditLogStmt                 *sql.Stmt
@@ -985,6 +1143,7 @@ type Queries struct {
 	getAllPartTagsStmt                 *sql.Stmt
 	getAllPartsStmt                    *sql.Stmt
 	getAllUsersStmt                    *sql.Stmt
+	getAllWallCardsStmt                *sql.Stmt
 	getAllWallContainerBinsStmt        *sql.Stmt
 	getAssignmentStmt                  *sql.Stmt
 	getAssignmentIDStmt                *sql.Stmt
@@ -1025,6 +1184,7 @@ type Queries struct {
 	removeTagsFromPartStmt             *sql.Stmt
 	restoreAuditLogStmt                *sql.Stmt
 	restoreBinStmt                     *sql.Stmt
+	restoreContainerStmt               *sql.Stmt
 	restoreControllerStmt              *sql.Stmt
 	restorePartStmt                    *sql.Stmt
 	restorePartAiPromptStmt            *sql.Stmt
@@ -1035,6 +1195,8 @@ type Queries struct {
 	restoreSettingsStmt                *sql.Stmt
 	restoreTagStmt                     *sql.Stmt
 	restoreUserStmt                    *sql.Stmt
+	restoreWallStmt                    *sql.Stmt
+	restoreWallCardStmt                *sql.Stmt
 	searchPartsStmt                    *sql.Stmt
 	setPasswordResetFlagStmt           *sql.Stmt
 	updateColorsStmt                   *sql.Stmt
@@ -1058,6 +1220,20 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		addContainerToWallStmt:             q.addContainerToWallStmt,
 		addTagToPartStmt:                   q.addTagToPartStmt,
 		cleanupSessionsStmt:                q.cleanupSessionsStmt,
+		clearAuditLogsStmt:                 q.clearAuditLogsStmt,
+		clearBinsStmt:                      q.clearBinsStmt,
+		clearContainersStmt:                q.clearContainersStmt,
+		clearControllersStmt:               q.clearControllersStmt,
+		clearPartAiPromptsStmt:             q.clearPartAiPromptsStmt,
+		clearPartAssignmentsStmt:           q.clearPartAssignmentsStmt,
+		clearPartDocsStmt:                  q.clearPartDocsStmt,
+		clearPartLinksStmt:                 q.clearPartLinksStmt,
+		clearPartTagsStmt:                  q.clearPartTagsStmt,
+		clearPartsStmt:                     q.clearPartsStmt,
+		clearTagsStmt:                      q.clearTagsStmt,
+		clearUsersStmt:                     q.clearUsersStmt,
+		clearWallCardsStmt:                 q.clearWallCardsStmt,
+		clearWallsStmt:                     q.clearWallsStmt,
 		countAuditLogsStmt:                 q.countAuditLogsStmt,
 		countUsersStmt:                     q.countUsersStmt,
 		createAuditLogStmt:                 q.createAuditLogStmt,
@@ -1100,6 +1276,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		getAllPartTagsStmt:                 q.getAllPartTagsStmt,
 		getAllPartsStmt:                    q.getAllPartsStmt,
 		getAllUsersStmt:                    q.getAllUsersStmt,
+		getAllWallCardsStmt:                q.getAllWallCardsStmt,
 		getAllWallContainerBinsStmt:        q.getAllWallContainerBinsStmt,
 		getAssignmentStmt:                  q.getAssignmentStmt,
 		getAssignmentIDStmt:                q.getAssignmentIDStmt,
@@ -1140,6 +1317,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		removeTagsFromPartStmt:             q.removeTagsFromPartStmt,
 		restoreAuditLogStmt:                q.restoreAuditLogStmt,
 		restoreBinStmt:                     q.restoreBinStmt,
+		restoreContainerStmt:               q.restoreContainerStmt,
 		restoreControllerStmt:              q.restoreControllerStmt,
 		restorePartStmt:                    q.restorePartStmt,
 		restorePartAiPromptStmt:            q.restorePartAiPromptStmt,
@@ -1150,6 +1328,8 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		restoreSettingsStmt:                q.restoreSettingsStmt,
 		restoreTagStmt:                     q.restoreTagStmt,
 		restoreUserStmt:                    q.restoreUserStmt,
+		restoreWallStmt:                    q.restoreWallStmt,
+		restoreWallCardStmt:                q.restoreWallCardStmt,
 		searchPartsStmt:                    q.searchPartsStmt,
 		setPasswordResetFlagStmt:           q.setPasswordResetFlagStmt,
 		updateColorsStmt:                   q.updateColorsStmt,

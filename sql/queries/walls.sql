@@ -1,6 +1,10 @@
 -- name: CreateWall :one
 INSERT INTO walls (name, description) VALUES (?, ?) RETURNING id;
 
+-- name: RestoreWall :exec
+INSERT INTO walls (id, name, description, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?);
+
 -- name: GetWalls :many
 SELECT * FROM walls ORDER BY name;
 
@@ -16,12 +20,19 @@ DELETE FROM walls WHERE id = ?;
 -- name: AddContainerToWall :exec
 INSERT INTO wall_cards (wall_id, container_id, position_index, config_json) VALUES (?, ?, ?, ?);
 
+-- name: RestoreWallCard :exec
+INSERT INTO wall_cards (id, wall_id, container_id, position_index, config_json)
+VALUES (?, ?, ?, ?, ?);
+
 -- name: GetWallCards :many
 SELECT wc.*, c.name as container_name
 FROM wall_cards wc
 JOIN containers c ON wc.container_id = c.id
 WHERE wc.wall_id = ?
 ORDER BY wc.position_index;
+
+-- name: GetAllWallCards :many
+SELECT * FROM wall_cards;
 
 -- name: RemoveContainerFromWall :exec
 DELETE FROM wall_cards WHERE wall_id = ? AND container_id = ?;

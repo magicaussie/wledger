@@ -12,6 +12,20 @@ type Querier interface {
 	AddContainerToWall(ctx context.Context, arg AddContainerToWallParams) error
 	AddTagToPart(ctx context.Context, arg AddTagToPartParams) error
 	CleanupSessions(ctx context.Context, expiry float64) error
+	ClearAuditLogs(ctx context.Context) error
+	ClearBins(ctx context.Context) error
+	ClearContainers(ctx context.Context) error
+	ClearControllers(ctx context.Context) error
+	ClearPartAiPrompts(ctx context.Context) error
+	ClearPartAssignments(ctx context.Context) error
+	ClearPartDocs(ctx context.Context) error
+	ClearPartLinks(ctx context.Context) error
+	ClearPartTags(ctx context.Context) error
+	ClearParts(ctx context.Context) error
+	ClearTags(ctx context.Context) error
+	ClearUsers(ctx context.Context) error
+	ClearWallCards(ctx context.Context) error
+	ClearWalls(ctx context.Context) error
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
 	CountUsers(ctx context.Context) (int64, error)
 	CreateAuditLog(ctx context.Context, arg CreateAuditLogParams) error
@@ -57,6 +71,7 @@ type Querier interface {
 	GetAllPartTags(ctx context.Context) ([]PartTag, error)
 	GetAllParts(ctx context.Context) ([]Part, error)
 	GetAllUsers(ctx context.Context) ([]User, error)
+	GetAllWallCards(ctx context.Context) ([]WallCard, error)
 	GetAllWallContainerBins(ctx context.Context) ([]GetAllWallContainerBinsRow, error)
 	GetAssignment(ctx context.Context, id int64) (PartAssignment, error)
 	GetAssignmentID(ctx context.Context, arg GetAssignmentIDParams) (int64, error)
@@ -98,6 +113,7 @@ type Querier interface {
 	RemoveTagsFromPart(ctx context.Context, partID int64) error
 	RestoreAuditLog(ctx context.Context, arg RestoreAuditLogParams) error
 	RestoreBin(ctx context.Context, arg RestoreBinParams) error
+	RestoreContainer(ctx context.Context, arg RestoreContainerParams) error
 	RestoreController(ctx context.Context, arg RestoreControllerParams) error
 	RestorePart(ctx context.Context, arg RestorePartParams) error
 	RestorePartAiPrompt(ctx context.Context, arg RestorePartAiPromptParams) error
@@ -108,6 +124,8 @@ type Querier interface {
 	RestoreSettings(ctx context.Context, arg RestoreSettingsParams) error
 	RestoreTag(ctx context.Context, arg RestoreTagParams) error
 	RestoreUser(ctx context.Context, arg RestoreUserParams) error
+	RestoreWall(ctx context.Context, arg RestoreWallParams) error
+	RestoreWallCard(ctx context.Context, arg RestoreWallCardParams) error
 	SearchParts(ctx context.Context, arg SearchPartsParams) ([]SearchPartsRow, error)
 	SetPasswordResetFlag(ctx context.Context, arg SetPasswordResetFlagParams) error
 	UpdateColors(ctx context.Context, arg UpdateColorsParams) error

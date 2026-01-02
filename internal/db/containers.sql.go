@@ -133,6 +133,34 @@ func (q *Queries) GetContainersByController(ctx context.Context, controllerID in
 	return items, nil
 }
 
+const restoreContainer = `-- name: RestoreContainer :exec
+INSERT INTO containers (id, name, controller_id, segment_id, config_json, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?)
+`
+
+type RestoreContainerParams struct {
+	ID           int64          `json:"id"`
+	Name         string         `json:"name"`
+	ControllerID int64          `json:"controller_id"`
+	SegmentID    int64          `json:"segment_id"`
+	ConfigJson   sql.NullString `json:"config_json"`
+	CreatedAt    sql.NullTime   `json:"created_at"`
+	UpdatedAt    sql.NullTime   `json:"updated_at"`
+}
+
+func (q *Queries) RestoreContainer(ctx context.Context, arg RestoreContainerParams) error {
+	_, err := q.exec(ctx, q.restoreContainerStmt, restoreContainer,
+		arg.ID,
+		arg.Name,
+		arg.ControllerID,
+		arg.SegmentID,
+		arg.ConfigJson,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	return err
+}
+
 const updateContainerConfig = `-- name: UpdateContainerConfig :exec
 UPDATE containers
 SET name = ?, config_json = ?, segment_id = ?, updated_at = CURRENT_TIMESTAMP

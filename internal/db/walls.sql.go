@@ -65,6 +65,39 @@ func (q *Queries) DeleteWallCardsByWallID(ctx context.Context, wallID int64) err
 	return err
 }
 
+const getAllWallCards = `-- name: GetAllWallCards :many
+SELECT id, wall_id, container_id, position_index, config_json FROM wall_cards
+`
+
+func (q *Queries) GetAllWallCards(ctx context.Context) ([]WallCard, error) {
+	rows, err := q.query(ctx, q.getAllWallCardsStmt, getAllWallCards)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WallCard
+	for rows.Next() {
+		var i WallCard
+		if err := rows.Scan(
+			&i.ID,
+			&i.WallID,
+			&i.ContainerID,
+			&i.PositionIndex,
+			&i.ConfigJson,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWall = `-- name: GetWall :one
 SELECT id, name, description, created_at, updated_at FROM walls WHERE id = ?
 `
@@ -173,6 +206,54 @@ type RemoveContainerFromWallParams struct {
 
 func (q *Queries) RemoveContainerFromWall(ctx context.Context, arg RemoveContainerFromWallParams) error {
 	_, err := q.exec(ctx, q.removeContainerFromWallStmt, removeContainerFromWall, arg.WallID, arg.ContainerID)
+	return err
+}
+
+const restoreWall = `-- name: RestoreWall :exec
+INSERT INTO walls (id, name, description, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?)
+`
+
+type RestoreWallParams struct {
+	ID          int64          `json:"id"`
+	Name        string         `json:"name"`
+	Description sql.NullString `json:"description"`
+	CreatedAt   sql.NullTime   `json:"created_at"`
+	UpdatedAt   sql.NullTime   `json:"updated_at"`
+}
+
+func (q *Queries) RestoreWall(ctx context.Context, arg RestoreWallParams) error {
+	_, err := q.exec(ctx, q.restoreWallStmt, restoreWall,
+		arg.ID,
+		arg.Name,
+		arg.Description,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	return err
+}
+
+const restoreWallCard = `-- name: RestoreWallCard :exec
+INSERT INTO wall_cards (id, wall_id, container_id, position_index, config_json)
+VALUES (?, ?, ?, ?, ?)
+`
+
+type RestoreWallCardParams struct {
+	ID            int64          `json:"id"`
+	WallID        int64          `json:"wall_id"`
+	ContainerID   int64          `json:"container_id"`
+	PositionIndex int64          `json:"position_index"`
+	ConfigJson    sql.NullString `json:"config_json"`
+}
+
+func (q *Queries) RestoreWallCard(ctx context.Context, arg RestoreWallCardParams) error {
+	_, err := q.exec(ctx, q.restoreWallCardStmt, restoreWallCard,
+		arg.ID,
+		arg.WallID,
+		arg.ContainerID,
+		arg.PositionIndex,
+		arg.ConfigJson,
+	)
 	return err
 }
 
