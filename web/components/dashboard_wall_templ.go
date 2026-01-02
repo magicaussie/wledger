@@ -276,7 +276,7 @@ func DashboardContainerCard(container DashboardContainer) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "</div></div><div class=\"modal-action justify-between items-center mt-6 pt-6 border-t border-base-200\"><div class=\"flex gap-4 text-[12px] font-bold uppercase tracking-wider\"><div class=\"flex items-center gap-1.5\"><div class=\"w-2.5 h-2.5 rounded-full bg-success\"></div>OK</div><div class=\"flex items-center gap-1.5\"><div class=\"w-2.5 h-2.5 rounded-full bg-warning\"></div>Low</div><div class=\"flex items-center gap-1.5\"><div class=\"w-2.5 h-2.5 rounded-full bg-error\"></div>Critical</div><div class=\"flex items-center gap-1.5\"><div class=\"w-2.5 h-2.5 rounded-full bg-base-200 border border-base-300\"></div>Empty</div></div><form method=\"dialog\"><button class=\"btn btn-sm px-6\">Close</button></form></div></div></div><form method=\"dialog\" class=\"modal-backdrop\"><button>close</button></form></dialog></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "</div></div><div class=\"modal-action justify-between items-center mt-6 pt-6 border-t border-base-200\"><div class=\"flex gap-4 text-sm font-bold uppercase tracking-wider\"><div class=\"flex items-center gap-1.5\"><div class=\"w-2.5 h-2.5 rounded-full bg-success\"></div>OK</div><div class=\"flex items-center gap-1.5\"><div class=\"w-2.5 h-2.5 rounded-full bg-warning\"></div>Low</div><div class=\"flex items-center gap-1.5\"><div class=\"w-2.5 h-2.5 rounded-full bg-error\"></div>Critical</div><div class=\"flex items-center gap-1.5\"><div class=\"w-2.5 h-2.5 rounded-full bg-base-200 border border-base-300\"></div>Empty</div></div></div></div></div></dialog></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -376,7 +376,7 @@ func StockHealthIndicator(bins []DashboardBin) templ.Component {
 		var templ_7745c5c3_Var22 string
 		templ_7745c5c3_Var22, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues(style)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/dashboard_wall.templ`, Line: 136, Col: 37}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/dashboard_wall.templ`, Line: 130, Col: 37}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 		if templ_7745c5c3_Err != nil {

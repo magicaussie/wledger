@@ -14,6 +14,7 @@ import (
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/utils"
 	"github.com/tuxedocurly/wledger/web/components"
+	"github.com/tuxedocurly/wledger/web/icons"
 	"github.com/tuxedocurly/wledger/web/layouts"
 )
 
@@ -57,78 +58,98 @@ func WallEdit(user auth.User, wall db.Wall, wallContainers []components.Dashboar
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(wall.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/wall_edit.templ`, Line: 19, Col: 55}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/wall_edit.templ`, Line: 20, Col: 55}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</h1></div><div x-data=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</h1><h2 class=\"opacity-70\">Configure a wall with containers to organize your inventory dashboard.</h2></div><div x-data=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("{ wallContainers: %s, availableContainers: %s, selectedAddId: '' }", utils.JSON(wallContainers), utils.JSON(allContainers)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/wall_edit.templ`, Line: 21, Col: 152}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/wall_edit.templ`, Line: 23, Col: 152}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\" class=\"mb-12 p-8 bg-base-200/50 rounded-2xl border border-base-300 shadow-sm\"><form method=\"POST\" action=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\" class=\"mb-12\"><form method=\"POST\" action=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var5 templ.SafeURL
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/walls/%d", wall.ID)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/wall_edit.templ`, Line: 22, Col: 80}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/wall_edit.templ`, Line: 24, Col: 80}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\"><div class=\"flex flex-col lg:flex-row gap-12\"><div class=\"lg:w-1/3 space-y-6\"><h3 class=\"text-xl font-bold border-b border-base-300 pb-2\">Wall Settings</h3><div class=\"form-control\"><label class=\"label\"><span class=\"label-text font-bold\">Name</span></label> <input type=\"text\" name=\"name\" value=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\"><div class=\"flex flex-col lg:flex-row gap-8\"><!-- Wall Settings Card --><div class=\"lg:w-1/3\"><div class=\"card bg-base-200 border border-base-300 shadow-xl h-full overflow-hidden\"><div class=\"bg-base-300/50 p-6 border-b border-base-300\"><h3 class=\"font-bold text-sm uppercase tracking-wider opacity-50\">Wall Settings</h3></div><div class=\"card-body p-6 space-y-6\"><div class=\"form-control\"><label class=\"label pt-0\"><span class=\"label-text font-bold text-xs uppercase opacity-50 tracking-widest mb-2\">Name</span></label> <input type=\"text\" name=\"name\" value=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(wall.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/wall_edit.templ`, Line: 28, Col: 55}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/wall_edit.templ`, Line: 35, Col: 57}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "\" class=\"input input-bordered w-full\"></div><div class=\"form-control\"><label class=\"label\"><span class=\"label-text font-bold\">Description</span></label> <textarea name=\"description\" class=\"textarea textarea-bordered w-full h-24\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "\" class=\"input input-bordered w-full\"></div><div class=\"form-control\"><label class=\"label pt-0\"><span class=\"label-text font-bold text-xs uppercase opacity-50 tracking-widest mb-2\">Description</span></label> <textarea name=\"description\" class=\"textarea textarea-bordered w-full h-32\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(wall.Description.String)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/wall_edit.templ`, Line: 32, Col: 108}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/wall_edit.templ`, Line: 39, Col: 110}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</textarea></div><div class=\"flex gap-3 pt-4\"><button type=\"submit\" class=\"btn btn-primary flex-1\">Save Changes</button> <button type=\"button\" class=\"btn btn-error btn-outline\" @click=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</textarea></div><div class=\"flex flex-col gap-3 pt-4 border-t border-base-content/5 mt-auto\"><button type=\"submit\" class=\"btn btn-primary w-full\">Save Changes</button> <button type=\"button\" class=\"btn btn-error btn-outline w-full\" @click=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("if(confirm('Delete this wall?')) { const f = document.createElement('form'); f.method='POST'; f.action='/walls/%d/delete'; document.body.appendChild(f); f.submit(); }", wall.ID))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/wall_edit.templ`, Line: 39, Col: 207}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/wall_edit.templ`, Line: 46, Col: 209}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\">Delete Wall</button></div></div><div class=\"lg:w-2/3 lg:border-l lg:border-base-300 lg:pl-12\"><h3 class=\"text-xl font-bold border-b border-base-300 pb-2 mb-6\">Containers</h3><div class=\"space-y-3 mb-8 max-h-[500px] overflow-y-auto pr-2\"><template x-for=\"(c, idx) in wallContainers\" :key=\"idx\"><div class=\"flex items-center justify-between p-4 bg-base-100 rounded-xl border border-base-200 shadow-sm hover:border-primary/50 transition-colors\"><div class=\"flex items-center gap-4\"><div class=\"w-8 h-8 rounded-full bg-base-200 flex items-center justify-center font-mono font-bold text-sm opacity-50\" x-text=\"(idx+1)\"></div><div class=\"flex flex-col\"><span class=\"font-bold text-lg\" x-text=\"c.name\"></span> <span class=\"text-xs opacity-40 font-mono\" x-text=\"'ID: ' + c.id\"></span></div></div><div class=\"flex items-center gap-2\"><input type=\"hidden\" name=\"container_ids[]\" x-model=\"c.id\"> <button type=\"button\" @click=\"wallContainers.splice(idx, 1)\" class=\"btn btn-ghost btn-sm text-error btn-square hover:bg-error/10\"><svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-5 w-5\" viewBox=\"0 0 20 20\" fill=\"currentColor\"><path fill-rule=\"evenodd\" d=\"M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z\" clip-rule=\"evenodd\"></path></svg></button></div></div></template><div x-show=\"wallContainers.length === 0\" class=\"text-center py-12 opacity-40 border-2 border-dashed border-base-300 rounded-xl\"><div class=\"text-4xl mb-2 grayscale\">📦</div><div class=\"font-bold\">No containers yet</div><div class=\"text-sm\">Add containers from the list below</div></div></div><div class=\"bg-base-100 p-6 rounded-xl border border-base-200 shadow-sm\"><label class=\"label pb-2\"><span class=\"label-text font-bold\">Add Container to Wall</span></label><div class=\"flex gap-2\"><select x-model=\"selectedAddId\" class=\"select select-bordered flex-1\"><option value=\"\" disabled selected>Select a container...</option><template x-for=\"c in availableContainers.filter(ac => !wallContainers.some(wc => wc.id === ac.id))\" :key=\"c.id\"><option :value=\"c.id\" x-text=\"c.name\"></option></template></select> <button type=\"button\" class=\"btn btn-secondary px-8\" @click=\"if(selectedAddId) { const c = availableContainers.find(x => x.id == selectedAddId); if(c && !wallContainers.some(x => x.id == c.id)) { wallContainers.push(c); selectedAddId = ''; } }\">+ Add</button></div></div></div></div></form></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\">Delete Wall</button></div></div></div></div><!-- Containers Management Card --><div class=\"lg:w-2/3\"><div class=\"card bg-base-200 border border-base-300 shadow-xl overflow-hidden h-full\"><div class=\"bg-base-300/50 p-6 border-b border-base-300 flex justify-between items-center\"><h3 class=\"font-bold text-sm uppercase tracking-wider opacity-50\">Containers</h3><div class=\"badge badge-neutral font-mono text-[10px]\" x-text=\"wallContainers.length + ' Linked'\"></div></div><div class=\"card-body p-6 space-y-8\"><div class=\"space-y-3 max-h-[500px] overflow-y-auto pr-2 bg-base-100 p-4 rounded-xl border border-base-300 shadow-inner\"><template x-for=\"(c, idx) in wallContainers\" :key=\"idx\"><div class=\"flex items-center justify-between p-4 bg-base-200/50 rounded-xl border border-base-300 hover:border-primary/50 transition-all duration-200 group\"><div class=\"flex items-center gap-4\"><div class=\"w-8 h-8 rounded-full bg-base-300 flex items-center justify-center font-mono font-bold text-xs opacity-40\" x-text=\"(idx+1)\"></div><div class=\"flex flex-col\"><span class=\"font-bold text-base\" x-text=\"c.name\"></span> <span class=\"text-[10px] opacity-40 uppercase font-bold tracking-widest\" x-text=\"'ID: ' + c.id\"></span></div></div><div class=\"flex items-center gap-2\"><input type=\"hidden\" name=\"container_ids[]\" x-model=\"c.id\"> <button type=\"button\" @click=\"wallContainers.splice(idx, 1)\" class=\"btn btn-ghost btn-sm text-error btn-square hover:bg-error/10\"><svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-5 w-5\" viewBox=\"0 0 20 20\" fill=\"currentColor\"><path fill-rule=\"evenodd\" d=\"M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z\" clip-rule=\"evenodd\"></path></svg></button></div></div></template><div x-show=\"wallContainers.length === 0\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = components.EmptyState(
+				"No containers linked",
+				"Select a container from the menu below to add it to this wall.",
+				"📦",
+			).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</div></div><div class=\"bg-base-300/30 p-6 rounded-xl border border-base-300\"><label class=\"label pt-0 pb-3\"><span class=\"label-text font-bold text-xs uppercase opacity-50 tracking-widest\">Link New Container</span></label><div class=\"flex gap-3\"><select x-model=\"selectedAddId\" class=\"select select-bordered select-md flex-1 bg-base-100\"><option value=\"\" disabled selected>Choose a container...</option><template x-for=\"c in availableContainers.filter(ac => !wallContainers.some(wc => wc.id === ac.id))\" :key=\"c.id\"><option :value=\"c.id\" x-text=\"c.name\"></option></template></select> <button type=\"button\" class=\"btn btn-md btn-primary px-6\" :disabled=\"!selectedAddId\" @click=\"if(selectedAddId) { const c = availableContainers.find(x => x.id == selectedAddId); if(c && !wallContainers.some(x => x.id == c.id)) { wallContainers.push(c); selectedAddId = ''; } }\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = icons.PlusIcon(5).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "Add to Wall</button></div></div></div></div></div></div></form></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

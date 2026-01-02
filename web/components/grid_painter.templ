@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/utils"
+	"github.com/tuxedocurly/wledger/web/icons"
 )
 
 // GridPainter renders the interactive LED mapping tool with Linear, Grid, and Compound support.
@@ -22,11 +23,16 @@ templ GridPainter(controller db.Controller, containers []db.Container, bins []db
 				<div class="lg:w-1/3">
 					<div class="flex items-center justify-between mb-4 px-1">
 						<h3 class="font-bold text-sm uppercase tracking-wider opacity-50">Containers</h3>
-						<button @click="addContainer()" class="btn btn-xs btn-primary">+ Add Container</button>
+						<div class="tooltip tooltip-bottom md:tooltip-left before:text-xs before:max-w-[12rem] before:whitespace-normal z-50" data-tip="Add a new container to this controller.">
+							<button @click="addContainer()" class="btn btn-md btn-primary">
+								@icons.PlusIcon(5)
+								Add Container
+							</button>
+						</div>
 					</div>
 					<div class="flex flex-col gap-2 max-h-[600px] overflow-y-auto pr-2 bg-base-200 p-3 rounded-xl border border-base-300 shadow-inner">
 						<template x-for="(container, idx) in containers" :key="idx">
-							<div 
+							<div
 								class="p-4 rounded-lg border border-base-300 cursor-pointer transition-all duration-200 flex items-center justify-between group"
 								:class="selectedContainerIndex === idx ? 'bg-base-100 border-primary shadow-md ring-1 ring-primary/20' : 'bg-base-100/50 hover:bg-base-100 hover:border-base-content/20'"
 								@click="selectedContainerIndex = idx"
@@ -35,141 +41,147 @@ templ GridPainter(controller db.Controller, containers []db.Container, bins []db
 									<span class="font-bold text-sm" :class="selectedContainerIndex === idx ? 'text-primary' : ''" x-text="container.name"></span>
 									<span class="text-[10px] uppercase font-bold opacity-40 tracking-widest" x-text="'Seg ' + container.segment_id + ' • ' + container.config.type"></span>
 								</div>
-								<button @click.stop="removeContainer(idx)" class="btn btn-ghost btn-xs text-error btn-square opacity-0 group-hover:opacity-100 transition-opacity">
-									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
-								</button>
+								<div class="tooltip tooltip-left before:text-xs z-50" data-tip="Remove this container.">
+									<button @click.stop="removeContainer(idx)" class="btn btn-ghost btn-sm text-error btn-square hover:bg-error/10">
+										@icons.XMarkIcon(4)
+									</button>
+								</div>
 							</div>
 						</template>
 					</div>
 				</div>
-
-				                <!-- Selected Container Editor -->
-								<div class="lg:w-2/3">
-									<div x-show="containers.length > 0" class="card bg-base-200 border border-base-300 shadow-xl h-full overflow-hidden">
-										<div class="card-body p-0 gap-0">
-				                            <!-- Header -->
-				                            <div class="bg-base-300/50 p-6 border-b border-base-300 flex justify-between items-center">
-				                                <h3 class="font-bold text-sm uppercase tracking-wider opacity-50">Edit Container</h3>
-				                                <div class="badge badge-neutral font-mono text-[10px]" x-text="'ID: ' + (currentContainer.id || 'NEW')"></div>
-				                            </div>
-				
-											<div class="p-6 space-y-8">
-												<!-- Basic Info -->
-												<fieldset class="fieldset w-full bg-base-100 p-6 rounded-xl border border-base-300 shadow-sm">
-													<legend class="fieldset-legend font-bold text-[10px] uppercase tracking-widest opacity-40">Basic Information</legend>
-													<div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
-														<div class="form-control w-full">
-															<label class="label pt-0"><span class="label-text font-bold text-xs">Name</span></label>
-															<input type="text" x-model="currentContainer.name" class="input input-bordered w-full input-sm"/>
-														</div>
-														<div class="form-control w-full">
-															<label class="label pt-0"><span class="label-text font-bold text-xs">WLED Segment ID</span></label>
-															<input type="number" x-model.number="currentContainer.segment_id" class="input input-bordered w-full input-sm" min="0"/>
-														</div>
-													</div>
-												</fieldset>
-				
-												<!-- Configuration -->
-												<fieldset class="fieldset w-full bg-base-100 p-6 rounded-xl border border-base-300 shadow-sm">
-													<legend class="fieldset-legend font-bold text-[10px] uppercase tracking-widest opacity-40">Grid Configuration</legend>
-													<div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
-														<div class="form-control w-full">
-															<label class="label pt-0"><span class="label-text font-bold text-xs">Layout Type</span></label>
-															<select x-model="currentContainer.config.type" class="select select-bordered w-full select-sm">
-																<option value="linear">Linear Strip</option>
-																<option value="grid">Matrix</option>
-																<option value="compound">Compound</option>
-															</select>
-														</div>
-														<div class="form-control w-full">
-															<label class="label pt-0"><span class="label-text font-bold text-xs">Data Start Position</span></label>
-															<select x-model="currentContainer.config.start_corner" class="select select-bordered w-full select-sm">
-																<option value="tl">Top-Left</option>
-																<option value="tr">Top-Right</option>
-																<option value="bl">Bottom-Left</option>
-																<option value="br">Bottom-Right</option>
-															</select>
-														</div>
-													</div>
-				
-													<!-- Dynamic Dimensions -->
-													<div class="mt-6 pt-6 border-t border-base-200">
-														<!-- Linear -->
-														<div x-show="currentContainer.config.type === 'linear'">
-															<div class="form-control w-full">
-																<label class="label pt-0"><span class="label-text font-bold text-xs">Total LEDs</span></label>
-																<input type="number" x-model.number="currentContainer.config.total" class="input input-bordered w-full input-sm" min="1"/>
-															</div>
-														</div>
-				
-														<!-- Grid -->
-														<div x-show="currentContainer.config.type === 'grid'" class="grid grid-cols-2 gap-6">
-															<div class="form-control w-full">
-																<label class="label pt-0"><span class="label-text font-bold text-xs">Rows</span></label>
-																<input type="number" x-model.number="currentContainer.config.rows" class="input input-bordered w-full input-sm" min="1"/>
-															</div>
-															<div class="form-control w-full">
-																<label class="label pt-0"><span class="label-text font-bold text-xs">Columns</span></label>
-																<input type="number" x-model.number="currentContainer.config.cols" class="input input-bordered w-full input-sm" min="1"/>
-															</div>
-														</div>
-				
-														<!-- Compound -->
-														<div x-show="currentContainer.config.type === 'compound'" class="space-y-6">
-															<div class="flex items-center justify-between">
-																<span class="text-[10px] font-bold opacity-40 uppercase tracking-widest">Sections</span>
-																<button type="button" @click="currentContainer.config.sections.push({rows:4,cols:4})" class="btn btn-xs btn-outline btn-primary">+ Add Section</button>
-															</div>
-															<div class="grid grid-cols-1 gap-3">
-																<template x-for="(section, sIdx) in currentContainer.config.sections" :key="sIdx">
-																	<div class="flex items-center gap-4 bg-base-200 p-3 rounded-lg border border-base-300">
-																		<div class="w-8 h-8 rounded-full bg-base-300 flex items-center justify-center font-mono font-bold text-[10px] opacity-40" x-text="(sIdx+1)"></div>
-																		
-																		<div class="grid grid-cols-2 gap-4 flex-1">
-																			<div class="form-control">
-																				<input type="number" x-model.number="section.rows" class="input input-bordered w-full text-center font-bold input-xs" placeholder="Rows" min="1"/>
-																				<label class="label justify-center py-1"><span class="label-text-alt font-bold opacity-40 uppercase text-[8px] tracking-tighter">Rows</span></label>
-																			</div>
-																			<div class="form-control">
-																				<input type="number" x-model.number="section.cols" class="input input-bordered w-full text-center font-bold input-xs" placeholder="Cols" min="1"/>
-																				<label class="label justify-center py-1"><span class="label-text-alt font-bold opacity-40 uppercase text-[8px] tracking-tighter">Cols</span></label>
-																			</div>
-																		</div>
-				
-																		<button type="button" @click="currentContainer.config.sections.splice(sIdx, 1)" class="btn btn-ghost btn-xs text-error btn-square hover:bg-error/10">
-																			<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
-																		</button>
-																	</div>
-																</template>
-															</div>
-														</div>
-													</div>
-												</fieldset>
-				
-												<!-- Tools -->
-												<div class="bg-base-300/30 p-4 rounded-xl border border-base-300">
-													<div class="flex flex-wrap gap-2">
-														<button @click="autoFill('linear')" class="btn btn-xs btn-success text-white gap-2 flex-1">
-															Auto Map (Linear)
-														</button>
-														<button @click="autoFill('serpentine')" class="btn btn-xs btn-success text-white gap-2 flex-1">
-															Auto Map (Snake)
-														</button>
-														<button @click="clearGrid()" class="btn btn-xs btn-outline btn-error gap-2 flex-1">
-															Clear Mapping
-														</button>
-													</div>
+				<!-- Selected Container Editor -->
+				<div class="lg:w-2/3">
+					<div x-show="containers.length > 0" class="card bg-base-200 border border-base-300 shadow-xl h-full">
+						<div class="card-body p-0 gap-0">
+							<!-- Header -->
+							<div class="bg-base-300/50 p-6 border-b border-base-300 flex justify-between items-center rounded-t-xl">
+								<h3 class="font-bold text-sm uppercase tracking-wider opacity-50">Edit Container</h3>
+								<div class="badge badge-neutral font-mono text-[10px]" x-text="'ID: ' + (currentContainer.id || 'NEW')"></div>
+							</div>
+							<div class="p-6 space-y-8">
+								<!-- Basic Info -->
+								<fieldset class="fieldset w-full bg-base-100 p-6 rounded-xl border border-base-300 shadow-sm">
+									<legend class="fieldset-legend font-bold text-sm uppercase tracking-widest opacity-40">Basic Information</legend>
+									<div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
+										<div class="form-control w-full">
+											<label class="label pt-0"><span class="label-text font-bold text-sm mb-2">Name</span></label>
+											<input type="text" x-model="currentContainer.name" class="input input-bordered w-full input-md"/>
+										</div>
+										<div class="form-control w-full">
+											<label class="label pt-0"><span class="label-text font-bold text-sm mb-2">WLED Segment ID</span></label>
+											<input type="number" x-model.number="currentContainer.segment_id" class="input input-bordered w-full input-md" min="0"/>
+										</div>
+									</div>
+								</fieldset>
+								<!-- Configuration -->
+								<fieldset class="fieldset w-full bg-base-100 p-6 rounded-xl border border-base-300 shadow-sm">
+									<legend class="fieldset-legend font-bold text-sm uppercase tracking-widest opacity-40">Grid Configuration</legend>
+									<div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
+										<div class="form-control w-full">
+											<label class="label pt-0"><span class="label-text font-bold text-sm mb-2">Layout Type</span></label>
+											<select x-model="currentContainer.config.type" class="select select-bordered w-full select-md">
+												<option value="linear">Linear Strip</option>
+												<option value="grid">Matrix</option>
+												<option value="compound">Compound</option>
+											</select>
+										</div>
+										<div class="form-control w-full">
+											<label class="label pt-0"><span class="label-text font-bold text-sm mb-2">Data Start Position</span></label>
+											<select x-model="currentContainer.config.start_corner" class="select select-bordered w-full select-md">
+												<option value="tl">Top-Left</option>
+												<option value="tr">Top-Right</option>
+												<option value="bl">Bottom-Left</option>
+												<option value="br">Bottom-Right</option>
+											</select>
+										</div>
+									</div>
+									<!-- Dynamic Dimensions -->
+									<div class="mt-6 pt-6 border-t border-base-200">
+										<!-- Linear -->
+										<div x-show="currentContainer.config.type === 'linear'">
+											<div class="form-control w-full">
+												<label class="label pt-0"><span class="label-text font-bold text-sm mb-2">Total LEDs</span></label>
+												<input type="number" x-model.number="currentContainer.config.total" class="input input-bordered w-full input-md" min="1"/>
+											</div>
+										</div>
+										<!-- Grid -->
+										<div x-show="currentContainer.config.type === 'grid'" class="grid grid-cols-2 gap-6">
+											<div class="form-control w-full">
+												<label class="label pt-0"><span class="label-text font-bold text-sm mb-2">Rows</span></label>
+												<input type="number" x-model.number="currentContainer.config.rows" class="input input-bordered w-full input-md" min="1"/>
+											</div>
+											<div class="form-control w-full">
+												<label class="label pt-0"><span class="label-text font-bold text-sm mb-2">Columns</span></label>
+												<input type="number" x-model.number="currentContainer.config.cols" class="input input-bordered w-full input-md" min="1"/>
+											</div>
+										</div>
+										<!-- Compound -->
+										<div x-show="currentContainer.config.type === 'compound'" class="space-y-6">
+											<div class="flex items-center justify-between">
+												<span class="text-sm font-bold opacity-50 uppercase tracking-widest">Sections</span>
+												<div class="tooltip tooltip-bottom md:tooltip-left before:text-xs before:max-w-[12rem] before:whitespace-normal z-50" data-tip="Add a new sub-section to this compound container.">
+													<button type="button" @click="currentContainer.config.sections.push({rows:4,cols:4})" class="btn btn-md btn-outline btn-primary">
+														@icons.PlusIcon(5)
+														Add Section
+													</button>
 												</div>
+											</div>
+											<div class="grid grid-cols-1 gap-3">
+												<template x-for="(section, sIdx) in currentContainer.config.sections" :key="sIdx">
+													<div class="flex items-center gap-4 bg-base-200 p-3 rounded-lg border border-base-300">
+														<div class="w-8 h-8 rounded-full bg-base-300 flex items-center justify-center font-mono font-bold text-sm opacity-50" x-text="(sIdx+1)"></div>
+														<div class="grid grid-cols-2 gap-4 flex-1">
+															<div class="form-control">
+																<input type="number" x-model.number="section.rows" class="input input-bordered w-full text-center font-bold input-md" placeholder="Rows" min="1"/>
+																<label class="label justify-center py-1"><span class="label-text-alt font-bold opacity-40 uppercase text-xs tracking-tighter">Rows</span></label>
+															</div>
+															<div class="form-control">
+																<input type="number" x-model.number="section.cols" class="input input-bordered w-full text-center font-bold input-md" placeholder="Cols" min="1"/>
+																<label class="label justify-center py-1"><span class="label-text-alt font-bold opacity-40 uppercase text-xs tracking-tighter">Cols</span></label>
+															</div>
+														</div>
+														<div class="tooltip tooltip-left before:text-xs z-50" data-tip="Remove this section.">
+															<button type="button" @click="currentContainer.config.sections.splice(sIdx, 1)" class="btn btn-ghost btn-xs text-error btn-square hover:bg-error/10">
+																@icons.XMarkIcon(4)
+															</button>
+														</div>
+													</div>
+												</template>
 											</div>
 										</div>
 									</div>
+								</fieldset>
+								<!-- Tools -->
+								<div class="bg-base-300/30 p-4 rounded-xl border border-base-300">
+									<div class="flex flex-col lg:flex-row gap-2 lg:justify-end">
+										<div class="tooltip tooltip-top lg:tooltip-left w-full lg:w-auto before:text-xs before:max-w-[12rem] md:before:max-w-[16rem] before:whitespace-normal z-50" data-tip="Automatically map LEDs in a sequential linear order starting from the selected corner.">
+											<button @click="autoFill('linear')" class="btn btn-md btn-success text-white gap-2 w-full lg:w-48">
+												Auto Map (Linear)
+											</button>
+										</div>
+										<div class="tooltip tooltip-top lg:tooltip-left w-full lg:w-auto before:text-xs before:max-w-[12rem] md:before:max-w-[16rem] before:whitespace-normal z-50" data-tip="Automatically map LEDs in a serpentine (snake) pattern starting from the selected corner.">
+											<button @click="autoFill('serpentine')" class="btn btn-md btn-success text-white gap-2 w-full lg:w-48">
+												Auto Map (Snake)
+											</button>
+										</div>
+										<div class="tooltip tooltip-top lg:tooltip-left w-full lg:w-auto before:text-xs before:max-w-[12rem] md:before:max-w-[16rem] before:whitespace-normal z-50" data-tip="Remove all LED assignments for the currently selected container.">
+											<button @click="askConfirm('clear')" class="btn btn-md btn-outline btn-error gap-2 w-full lg:w-48">
+												Clear Mapping
+											</button>
+										</div>
+									</div>
 								</div>
-							</div>		} else {
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		} else {
 			<div class="alert alert-info shadow-sm mb-6">
 				<span>Read-only mode. Log in as admin to configure.</span>
 			</div>
 		}
-
 		<div class="space-y-16 mt-8">
 			<template x-for="(container, cIdx) in containers" :key="cIdx">
 				<div class="card bg-base-200 border border-base-300 shadow-xl overflow-hidden">
@@ -180,7 +192,6 @@ templ GridPainter(controller db.Controller, containers []db.Container, bins []db
 						</div>
 						<div class="text-[10px] font-bold opacity-40 uppercase tracking-widest" x-text="getContainerTotalLeds(cIdx) + ' LEDs total'"></div>
 					</div>
-					
 					<div class="card-body p-6 space-y-8">
 						<template x-for="(section, secIdx) in getRenderSections(cIdx)" :key="secIdx">
 							<div>
@@ -214,20 +225,34 @@ templ GridPainter(controller db.Controller, containers []db.Container, bins []db
 				</div>
 			</template>
 		</div>
-
 		if canEdit {
 			<form x-ref="gridForm" method="POST" action={ templ.SafeURL(fmt.Sprintf("/hardware/%d/grid", controller.ID)) } class="mt-16 bg-base-200 p-8 rounded-2xl border border-base-300 shadow-xl flex flex-col md:flex-row justify-between items-center gap-6">
 				<div>
 					<h3 class="font-bold text-sm uppercase tracking-wider opacity-50">Save Configuration</h3>
 					<p class="text-xs opacity-40 mt-1">This will update all containers and bin mappings for this controller.</p>
 				</div>
-				<div class="flex gap-3 w-full md:w-auto">
-					<a href="/hardware" class="btn btn-ghost flex-1 md:flex-none">Cancel</a>
-					<button type="button" @click="submitGrid()" class="btn btn-primary px-12 flex-1 md:flex-none">Save Changes</button>
+				<div class="flex gap-3 w-full md:w-auto md:justify-end">
+					<div class="tooltip tooltip-bottom md:tooltip-left flex-1 md:flex-none before:text-xs before:max-w-[12rem] md:before:max-w-[16rem] z-50" data-tip="Discard changes and return to hardware settings.">
+						<a href="/hardware" class="btn btn-ghost w-full md:w-32">Cancel</a>
+					</div>
+					<div class="tooltip tooltip-bottom md:tooltip-left flex-1 md:flex-none before:text-xs before:max-w-[12rem] md:before:max-w-[16rem] z-50" data-tip="Apply the new LED configuration and bin mappings.">
+						<button type="button" @click="askConfirm('save')" class="btn btn-primary px-12 w-full md:w-48">Save Changes</button>
+					</div>
 				</div>
 				<input type="hidden" name="grid_data" :value="JSON.stringify(exportBinData())"/>
 				<input type="hidden" name="config_data" :value="JSON.stringify(exportContainerData())"/>
 			</form>
+			@Modal(ModalProps{ID: "grid_painter_confirm_modal", Title: "Are you sure?"}) {
+				<p x-text="confirmMessage" class="py-4 text-base-content/80"></p>
+				<div class="modal-action">
+					<form method="dialog">
+						<button class="btn">Cancel</button>
+					</form>
+					<button type="button" class="btn btn-error" @click="confirmAction()">
+						Confirm
+					</button>
+				</div>
+			}
 		}
 	</div>
 	<script>
@@ -237,6 +262,8 @@ templ GridPainter(controller db.Controller, containers []db.Container, bins []db
                 containers: [],
                 selectedContainerIndex: 0,
                 cells: {}, // Key: "containerIndex,localIdx"
+                confirmMessage: '',
+                pendingAction: null,
 
                 init() {
                     if (initialContainers && initialContainers.length > 0) {
@@ -298,7 +325,6 @@ templ GridPainter(controller db.Controller, containers []db.Container, bins []db
                 },
 
                 removeContainer(idx) {
-                    if (!confirm("Are you sure? This will remove all mappings for this container.")) return;
                     this.containers.splice(idx, 1);
                     // Clear cells for this container and shift others
                     const newCells = {};
@@ -491,10 +517,27 @@ templ GridPainter(controller db.Controller, containers []db.Container, bins []db
                     });
                 },
 
+                askConfirm(action) {
+                    this.pendingAction = action;
+                    if (action === 'clear') {
+                        this.confirmMessage = "Are you sure you want to clear all mappings for this container? This cannot be undone.";
+                    } else if (action === 'save') {
+                        this.confirmMessage = "Are you sure you want to save these changes? This will overwrite the existing configuration.";
+                    }
+                    document.getElementById('grid_painter_confirm_modal').showModal();
+                },
+
+                confirmAction() {
+                    if (this.pendingAction === 'clear') {
+                        this.clearGrid();
+                    } else if (this.pendingAction === 'save') {
+                        this.submitGrid();
+                    }
+                    document.getElementById('grid_painter_confirm_modal').close();
+                    this.pendingAction = null;
+                },
+
                 clearGrid() {
-                    if (!this.canEdit) return;
-                    if (!confirm("Are you sure you want to clear the mapping for this container?")) return;
-                    
                     const cIdx = this.selectedContainerIndex;
                     Object.keys(this.cells).forEach(key => {
                         if (key.startsWith(cIdx + ",")) delete this.cells[key];
@@ -502,11 +545,6 @@ templ GridPainter(controller db.Controller, containers []db.Container, bins []db
                 },
 
                 submitGrid() {
-                    const msg = "WARNING: DESTRUCTIVE ACTION\n\n" +
-                                "Saving this will OVERWRITE ALL existing container and bin data for this controller.\n\n" +
-                                "Are you sure?";
-
-                    if (!confirm(msg)) return;
                     this.$refs.gridForm.submit();
                 },
 

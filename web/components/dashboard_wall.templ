@@ -65,21 +65,15 @@ templ DashboardContainerCard(container DashboardContainer) {
 						</div>
 					</div>
 					<div class="modal-action justify-between items-center mt-6 pt-6 border-t border-base-200">
-						<div class="flex gap-4 text-[12px] font-bold uppercase tracking-wider">
+						<div class="flex gap-4 text-sm font-bold uppercase tracking-wider">
 							<div class="flex items-center gap-1.5"><div class="w-2.5 h-2.5 rounded-full bg-success"></div>OK</div>
 							<div class="flex items-center gap-1.5"><div class="w-2.5 h-2.5 rounded-full bg-warning"></div>Low</div>
 							<div class="flex items-center gap-1.5"><div class="w-2.5 h-2.5 rounded-full bg-error"></div>Critical</div>
 							<div class="flex items-center gap-1.5"><div class="w-2.5 h-2.5 rounded-full bg-base-200 border border-base-300"></div>Empty</div>
 						</div>
-						<form method="dialog">
-							<button class="btn btn-sm px-6">Close</button>
-						</form>
 					</div>
 				</div>
 			</div>
-			<form method="dialog" class="modal-backdrop">
-				<button>close</button>
-			</form>
 		</dialog>
 	</div>
 }

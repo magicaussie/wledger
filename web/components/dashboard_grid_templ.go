@@ -225,7 +225,7 @@ func DashboardGrid(ctrl DashboardController) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				for _, bin := range container.Bins {
-					var templ_7745c5c3_Var7 = []any{"w-12 h-12 rounded-md border border-base-200 flex items-center justify-center text-xs font-bold shadow-sm hover:scale-110 hover:shadow-md hover:z-10 hover:border-base-content/50 transition-all duration-200 cursor-pointer " + bin.GetClass()}
+					var templ_7745c5c3_Var7 = []any{"w-12 h-12 rounded-md border border-base-300 flex items-center justify-center text-xs font-bold shadow-sm hover:scale-110 hover:shadow-md hover:z-10 hover:border-base-content/50 transition-all duration-200 cursor-pointer " + bin.GetClass()}
 					templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var7...)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
@@ -305,7 +305,7 @@ func DashboardGrid(ctrl DashboardController) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "<div class=\"flex justify-end mt-2 pt-4 border-t border-base-content/5\"><div class=\"flex gap-4 bg-info-content px-4 py-2 rounded-full border border-base-300 shadow-sm text-sm font-bold uppercase tracking-wider\"><div class=\"flex flex-row items-center gap-2\"><div class=\"w-2 h-2 rounded-full bg-success\"></div>OK</div><div class=\"flex flex-row items-center gap-2\"><div class=\"w-2 h-2 rounded-full bg-warning\"></div>Low</div><div class=\"flex flex-row items-center gap-2\"><div class=\"w-2 h-2 rounded-full bg-error\"></div>Critical</div><div class=\"flex flex-row items-center gap-2\"><div class=\"w-2 h-2 rounded-full bg-base-200 border border-base-300\"></div>Empty</div></div></div></div></div></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "<div class=\"flex justify-end mt-2 pt-4 border-t border-base-content/5\"><div class=\"flex gap-4 px-4 py-2 rounded-full border border-base-300 shadow-sm text-xs font-bold uppercase tracking-wider\"><div class=\"flex flex-row items-center gap-2\"><div class=\"w-2 h-2 rounded-full bg-success\"></div>OK</div><div class=\"flex flex-row items-center gap-2\"><div class=\"w-2 h-2 rounded-full bg-warning\"></div>Low</div><div class=\"flex flex-row items-center gap-2\"><div class=\"w-2 h-2 rounded-full bg-error\"></div>Critical</div><div class=\"flex flex-row items-center gap-2\"><div class=\"w-2 h-2 rounded-full bg-base-200 border border-base-300\"></div>Empty</div></div></div></div></div></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
