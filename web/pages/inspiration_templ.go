@@ -49,7 +49,7 @@ func Inspiration(templates []db.InspirationTemplate, allTags []string, user auth
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = components.PageHeader("Inspiration", "Generate AI prompts based on your inventory context.", nil).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = components.PageHeader("Inspiration", "Create AI prompts for your inventory. Get inspired or save commonly used prompts.", nil).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
