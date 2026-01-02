@@ -39,13 +39,11 @@ templ GridPainter(controller db.Controller, containers []db.Container, bins []db
 							>
 								<div class="flex flex-col gap-1">
 									<span class="font-bold text-sm" :class="selectedContainerIndex === idx ? 'text-primary' : ''" x-text="container.name"></span>
-									<span class="text-[10px] uppercase font-bold opacity-40 tracking-widest" x-text="'Seg ' + container.segment_id + ' • ' + container.config.type"></span>
+									<span class="text-xs uppercase font-bold opacity-40 tracking-widest" x-text="'Seg ' + container.segment_id + ' • ' + container.config.type"></span>
 								</div>
-								<div class="tooltip tooltip-left before:text-xs z-50" data-tip="Remove this container.">
-									<button @click.stop="removeContainer(idx)" class="btn btn-ghost btn-sm text-error btn-square hover:bg-error/10">
-										@icons.XMarkIcon(4)
-									</button>
-								</div>
+								<button @click.stop="removeContainer(idx)" class="btn btn-ghost btn-sm text-error btn-square hover:bg-error/10">
+									@icons.XMarkIcon(5)
+								</button>
 							</div>
 						</template>
 					</div>
@@ -57,7 +55,7 @@ templ GridPainter(controller db.Controller, containers []db.Container, bins []db
 							<!-- Header -->
 							<div class="bg-base-300/50 p-6 border-b border-base-300 flex justify-between items-center rounded-t-xl">
 								<h3 class="font-bold text-sm uppercase tracking-wider opacity-50">Edit Container</h3>
-								<div class="badge badge-neutral font-mono text-[10px]" x-text="'ID: ' + (currentContainer.id || 'NEW')"></div>
+								<div class="badge badge-neutral font-mono text-xs" x-text="'ID: ' + (currentContainer.id || 'NEW')"></div>
 							</div>
 							<div class="p-6 space-y-8">
 								<!-- Basic Info -->
@@ -188,16 +186,16 @@ templ GridPainter(controller db.Controller, containers []db.Container, bins []db
 					<div class="bg-base-300/50 px-6 py-4 border-b border-base-300 flex items-center justify-between">
 						<div class="flex items-center gap-3">
 							<h4 class="font-bold text-sm uppercase tracking-wider opacity-50" x-text="container.name"></h4>
-							<span class="badge badge-sm badge-neutral font-mono text-[10px]" x-text="'Segment ' + container.segment_id"></span>
+							<span class="badge badge-sm badge-neutral font-mono text-xs" x-text="'Segment ' + container.segment_id"></span>
 						</div>
-						<div class="text-[10px] font-bold opacity-40 uppercase tracking-widest" x-text="getContainerTotalLeds(cIdx) + ' LEDs total'"></div>
+						<div class="text-sm font-bold opacity-40 uppercase tracking-widest" x-text="getContainerTotalLeds(cIdx) + ' LEDs total'"></div>
 					</div>
 					<div class="card-body p-6 space-y-8">
 						<template x-for="(section, secIdx) in getRenderSections(cIdx)" :key="secIdx">
 							<div>
 								<div x-show="container.config.type === 'compound'" class="mb-3 flex items-center gap-2">
-									<span class="badge badge-sm badge-ghost font-bold text-[9px] uppercase tracking-widest opacity-60" x-text="'Section ' + (secIdx + 1)"></span>
-									<span class="text-[9px] font-bold opacity-40 uppercase tracking-tighter" x-text="section.rows + '×' + section.cols"></span>
+									<span class="badge badge-sm badge-ghost font-bold text-xs uppercase tracking-widest opacity-60" x-text="'Section ' + (secIdx + 1)"></span>
+									<span class="text-sm font-bold opacity-40 uppercase tracking-tighter" x-text="section.rows + '×' + section.cols"></span>
 								</div>
 								<div class="overflow-x-auto bg-base-100 rounded-xl border border-base-300 p-6 shadow-inner">
 									<div
