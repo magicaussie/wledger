@@ -7,7 +7,7 @@ import (
 
 templ DashboardContainerCard(container DashboardContainer) {
 	<div
-		class="card bg-base-200 shadow-xl border border-base-300 hover:shadow-2xl transition-all duration-300 cursor-pointer group overflow-hidden"
+		class="card bg-base-100 shadow-xl border border-base-300 hover:shadow-2xl transition-all duration-300 cursor-pointer group overflow-hidden"
 		@click={ fmt.Sprintf("document.getElementById('container_modal_%d').showModal()", container.ID) }
 	>
 		<div class="card-body p-5">
@@ -18,12 +18,12 @@ templ DashboardContainerCard(container DashboardContainer) {
 				</div>
 				<div class={ "badge badge-xs", templ.KV("badge-success", container.ControllerOnline), templ.KV("badge-error", !container.ControllerOnline) }></div>
 			</div>
-			<div class="flex items-center gap-4 mt-4 bg-base-100 p-3 rounded-lg border border-base-300 shadow-inner">
+			<div class="flex items-center gap-4 mt-4 bg-base-200 p-3 rounded-lg border border-base-300 shadow-inner">
 				<!-- Stock Health Indicator (Color Wheel Style) -->
 				@StockHealthIndicator(container.Bins)
 				<div class="flex flex-col">
 					<span class="text-2xl font-black leading-none">{ fmt.Sprintf("%d", len(container.Bins)) }</span>
-					<span class="text-[10px] opacity-50 uppercase font-bold tracking-tighter">Total Bins</span>
+					<span class="text-xs opacity-50 uppercase font-bold tracking-tighter">Total Bins</span>
 				</div>
 			</div>
 		</div>

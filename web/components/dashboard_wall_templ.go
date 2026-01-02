@@ -34,7 +34,7 @@ func DashboardContainerCard(container DashboardContainer) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"card bg-base-200 shadow-xl border border-base-300 hover:shadow-2xl transition-all duration-300 cursor-pointer group overflow-hidden\" @click=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"card bg-base-100 shadow-xl border border-base-300 hover:shadow-2xl transition-all duration-300 cursor-pointer group overflow-hidden\" @click=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -108,7 +108,7 @@ func DashboardContainerCard(container DashboardContainer) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\"></div></div><div class=\"flex items-center gap-4 mt-4 bg-base-100 p-3 rounded-lg border border-base-300 shadow-inner\"><!-- Stock Health Indicator (Color Wheel Style) -->")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\"></div></div><div class=\"flex items-center gap-4 mt-4 bg-base-200 p-3 rounded-lg border border-base-300 shadow-inner\"><!-- Stock Health Indicator (Color Wheel Style) -->")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -129,7 +129,7 @@ func DashboardContainerCard(container DashboardContainer) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</span> <span class=\"text-[10px] opacity-50 uppercase font-bold tracking-tighter\">Total Bins</span></div></div></div><!-- Grid Preview Modal --><dialog id=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</span> <span class=\"text-xs opacity-50 uppercase font-bold tracking-tighter\">Total Bins</span></div></div></div><!-- Grid Preview Modal --><dialog id=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
