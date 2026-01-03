@@ -95,16 +95,16 @@ INSERT INTO parts (
 
 -- name: UpdatePart :exec
 UPDATE parts SET 
-    name = COALESCE(sqlc.narg('name'), name), 
-    description = COALESCE(sqlc.narg('description'), description), 
-    part_number = COALESCE(sqlc.narg('part_number'), part_number), 
-    manufacturer = COALESCE(sqlc.narg('manufacturer'), manufacturer), 
-    supplier = COALESCE(sqlc.narg('supplier'), supplier), 
-    unit_cost = COALESCE(sqlc.narg('unit_cost'), unit_cost), 
-    reorder_level = COALESCE(sqlc.narg('reorder_level'), reorder_level), 
-    min_stock_threshold = COALESCE(sqlc.narg('min_stock_threshold'), min_stock_threshold), 
-    barcode_data = COALESCE(sqlc.narg('barcode_data'), barcode_data),
-    image_path = COALESCE(sqlc.narg('image_path'), image_path),
+    name = sqlc.arg('name'), 
+    description = sqlc.arg('description'), 
+    part_number = sqlc.arg('part_number'), 
+    manufacturer = sqlc.arg('manufacturer'), 
+    supplier = sqlc.arg('supplier'), 
+    unit_cost = sqlc.arg('unit_cost'), 
+    reorder_level = sqlc.arg('reorder_level'), 
+    min_stock_threshold = sqlc.arg('min_stock_threshold'), 
+    barcode_data = sqlc.arg('barcode_data'),
+    image_path = sqlc.arg('image_path'),
     updated_at = CURRENT_TIMESTAMP
 WHERE id = sqlc.arg('id');
 

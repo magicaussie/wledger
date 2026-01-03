@@ -140,3 +140,154 @@ func TestPartAuditLogging(t *testing.T) {
 		t.Errorf("expected summary in old_value for delete, got: %s", string(deleteLog.OldValue))
 	}
 }
+
+func TestUpdatePartStockThresholdsToZero(t *testing.T) {
+	database, s, dbCleanup := setupTestDB(t)
+	defer dbCleanup()
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	tagSvc := tags.NewService(database, s)
+	docSvc := documents.NewService(s, logger)
+	svc := NewService(database, s, logger, tagSvc, docSvc)
+
+	// Create user to satisfy FK
+	_, err := s.CreateUser(context.Background(), db.CreateUserParams{
+		Email:        "admin@test.com",
+		PasswordHash: "hash",
+		Role:         "admin",
+	})
+	if err != nil {
+		t.Fatalf("failed to create user: %v", err)
+	}
+
+	ctx := context.WithValue(context.Background(), middleware.UserContextKey, int64(1))
+
+	// 1. Create part with non-zero thresholds
+	req := CreatePartRequest{
+		Name:              "Stock Part",
+		UnitCost:          10.50,
+		ReorderLevel:      5,
+		MinStockThreshold: 2,
+	}
+	id, err := svc.CreatePart(ctx, req)
+	if err != nil {
+		t.Fatalf("CreatePart failed: %v", err)
+	}
+
+	// Verify initial state
+	p, err := svc.GetPart(ctx, id)
+	if err != nil {
+		t.Fatalf("GetPart failed: %v", err)
+	}
+	if p.ReorderLevel.Int64 != 5 {
+		t.Errorf("expected reorder level 5, got %d", p.ReorderLevel.Int64)
+	}
+	if p.MinStockThreshold.Int64 != 2 {
+		t.Errorf("expected min stock 2, got %d", p.MinStockThreshold.Int64)
+	}
+	if p.UnitCost.Float64 != 10.50 {
+		t.Errorf("expected unit cost 10.50, got %f", p.UnitCost.Float64)
+	}
+
+	// 2. Update to Zero
+	updateReq := UpdatePartRequest{
+		ID:                id,
+		Name:              "Stock Part Updated",
+		ReorderLevel:      0,
+		MinStockThreshold: 0,
+		UnitCost:          0,
+	}
+	err = svc.UpdatePart(ctx, updateReq)
+	if err != nil {
+		t.Fatalf("UpdatePart failed: %v", err)
+	}
+
+	// 3. Verify update
+	pUpdated, err := svc.GetPart(ctx, id)
+	if err != nil {
+		t.Fatalf("GetPart failed: %v", err)
+	}
+
+	if pUpdated.ReorderLevel.Int64 != 0 {
+		t.Errorf("expected reorder level 0, got %d", pUpdated.ReorderLevel.Int64)
+	}
+	if pUpdated.MinStockThreshold.Int64 != 0 {
+		t.Errorf("expected min stock 0, got %d", pUpdated.MinStockThreshold.Int64)
+	}
+	if pUpdated.UnitCost.Float64 != 0 {
+		t.Errorf("expected unit cost 0, got %f", pUpdated.UnitCost.Float64)
+	}
+}
+
+func TestUpdatePartClearFields(t *testing.T) {
+	database, s, dbCleanup := setupTestDB(t)
+	defer dbCleanup()
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	tagSvc := tags.NewService(database, s)
+	docSvc := documents.NewService(s, logger)
+	svc := NewService(database, s, logger, tagSvc, docSvc)
+
+	// Create user to satisfy FK
+	_, err := s.CreateUser(context.Background(), db.CreateUserParams{
+		Email:        "admin@test.com",
+		PasswordHash: "hash",
+		Role:         "admin",
+	})
+	if err != nil {
+		t.Fatalf("failed to create user: %v", err)
+	}
+
+	ctx := context.WithValue(context.Background(), middleware.UserContextKey, int64(1))
+
+	// 1. Create part with full details
+	req := CreatePartRequest{
+		Name:         "Full Part",
+		Description:  "Has Description",
+		PartNumber:   "PN-123",
+		Manufacturer: "Has Manufacturer",
+		Supplier:     "Has Supplier",
+		BarcodeData:  "BC-123",
+	}
+	id, err := svc.CreatePart(ctx, req)
+	if err != nil {
+		t.Fatalf("CreatePart failed: %v", err)
+	}
+
+	// 2. Update to clear some fields
+	updateReq := UpdatePartRequest{
+		ID:           id,
+		Name:         "Full Part Updated",
+		Description:  "", // Clear
+		PartNumber:   "", // Clear
+		Manufacturer: "Has Manufacturer", // Keep
+		Supplier:     "", // Clear
+		BarcodeData:  "", // Clear
+	}
+	err = svc.UpdatePart(ctx, updateReq)
+	if err != nil {
+		t.Fatalf("UpdatePart failed: %v", err)
+	}
+
+	// 3. Verify
+	p, err := svc.GetPart(ctx, id)
+	if err != nil {
+		t.Fatalf("GetPart failed: %v", err)
+	}
+
+	if p.Description.String != "" || p.Description.Valid {
+		t.Errorf("expected description to be cleared, got %q (Valid: %v)", p.Description.String, p.Description.Valid)
+	}
+	if p.PartNumber.String != "" || p.PartNumber.Valid {
+		t.Errorf("expected part number to be cleared, got %q (Valid: %v)", p.PartNumber.String, p.PartNumber.Valid)
+	}
+	if p.Supplier.String != "" || p.Supplier.Valid {
+		t.Errorf("expected supplier to be cleared, got %q (Valid: %v)", p.Supplier.String, p.Supplier.Valid)
+	}
+	if p.BarcodeData.String != "" || p.BarcodeData.Valid {
+		t.Errorf("expected barcode to be cleared, got %q (Valid: %v)", p.BarcodeData.String, p.BarcodeData.Valid)
+	}
+	if p.Manufacturer.String != "Has Manufacturer" {
+		t.Errorf("expected manufacturer to remain, got %q", p.Manufacturer.String)
+	}
+}
