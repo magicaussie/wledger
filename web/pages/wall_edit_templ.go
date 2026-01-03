@@ -71,20 +71,20 @@ func WallEdit(user auth.User, wall db.Wall, wallContainers []components.Dashboar
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("{ wallContainers: %s, availableContainers: %s, selectedAddId: '' }", utils.JSON(wallContainers), utils.JSON(allContainers)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/wall_edit.templ`, Line: 23, Col: 152}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/wall_edit.templ`, Line: 24, Col: 148}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\" class=\"mb-12\"><form method=\"POST\" action=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\" x-init=\"\n\t\t\t\t$nextTick(() => {\n\t\t\t\t\tnew Sortable($refs.wallContainerList, {\n\t\t\t\t\t\thandle: '.drag-handle',\n\t\t\t\t\t\tdraggable: '.group',\n\t\t\t\t\t\tanimation: 150,\n\t\t\t\t\t\tghostClass: 'sortable-ghost',\n\t\t\t\t\t\tchosenClass: 'sortable-chosen',\n\t\t\t\t\t\tdragClass: 'sortable-drag',\n\t\t\t\t\t\tonStart: () => {\n\t\t\t\t\t\t\tif (window.navigator.vibrate) window.navigator.vibrate(5);\n\t\t\t\t\t\t},\n\t\t\t\t\t\tonEnd: (evt) => {\n\t\t\t\t\t\t\t// Calculate new order from a clone to avoid immediate reactive conflicts\n\t\t\t\t\t\t\tconst newOrder = [...wallContainers];\n\t\t\t\t\t\t\tconst item = newOrder.splice(evt.oldIndex, 1)[0];\n\t\t\t\t\t\t\tnewOrder.splice(evt.newIndex, 0, item);\n\n\t\t\t\t\t\t\t// Force Alpine to completely re-render the list\n\t\t\t\t\t\t\t// clear the array and then set it back in nextTick.\n\t\t\t\t\t\t\t// This destroys the old DOM elements and creates new\n\t\t\t\t\t\t\t// clean ones with correct scopes.\n\t\t\t\t\t\t\twallContainers = [];\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t$nextTick(() => {\n\t\t\t\t\t\t\t\twallContainers = newOrder;\n\t\t\t\t\t\t\t\tif (window.navigator.vibrate) window.navigator.vibrate(10);\n\t\t\t\t\t\t\t});\n\t\t\t\t\t\t}\n\t\t\t\t\t});\n\t\t\t\t})\n\t\t\t\" class=\"mb-12\"><form method=\"POST\" action=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var5 templ.SafeURL
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/walls/%d", wall.ID)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/wall_edit.templ`, Line: 24, Col: 80}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/wall_edit.templ`, Line: 59, Col: 80}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -97,7 +97,7 @@ func WallEdit(user auth.User, wall db.Wall, wallContainers []components.Dashboar
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(wall.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/wall_edit.templ`, Line: 35, Col: 57}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/wall_edit.templ`, Line: 70, Col: 57}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -110,7 +110,7 @@ func WallEdit(user auth.User, wall db.Wall, wallContainers []components.Dashboar
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(wall.Description.String)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/wall_edit.templ`, Line: 39, Col: 110}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/wall_edit.templ`, Line: 74, Col: 110}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -123,13 +123,21 @@ func WallEdit(user auth.User, wall db.Wall, wallContainers []components.Dashboar
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("if(confirm('Delete this wall?')) { const f = document.createElement('form'); f.method='POST'; f.action='/walls/%d/delete'; document.body.appendChild(f); f.submit(); }", wall.ID))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/wall_edit.templ`, Line: 46, Col: 209}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/wall_edit.templ`, Line: 81, Col: 209}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\">Delete Wall</button></div></div></div></div><!-- Containers Management Card --><div class=\"lg:w-2/3\"><div class=\"card bg-base-200 border border-base-300 shadow-xl overflow-hidden h-full\"><div class=\"bg-base-300/50 p-6 border-b border-base-300 flex justify-between items-center\"><h3 class=\"font-bold text-sm uppercase tracking-wider opacity-50\">Containers</h3><div class=\"badge badge-neutral font-mono text-[10px]\" x-text=\"wallContainers.length + ' Linked'\"></div></div><div class=\"card-body p-6 space-y-8\"><div class=\"space-y-3 max-h-[500px] overflow-y-auto pr-2 bg-base-100 p-4 rounded-xl border border-base-300 shadow-inner\"><template x-for=\"(c, idx) in wallContainers\" :key=\"idx\"><div class=\"flex items-center justify-between p-4 bg-base-200/50 rounded-xl border border-base-300 hover:border-primary/50 transition-all duration-200 group\"><div class=\"flex items-center gap-4\"><div class=\"w-8 h-8 rounded-full bg-base-300 flex items-center justify-center font-mono font-bold text-xs opacity-40\" x-text=\"(idx+1)\"></div><div class=\"flex flex-col\"><span class=\"font-bold text-base\" x-text=\"c.name\"></span> <span class=\"text-[10px] opacity-40 uppercase font-bold tracking-widest\" x-text=\"'ID: ' + c.id\"></span></div></div><div class=\"flex items-center gap-2\"><input type=\"hidden\" name=\"container_ids[]\" x-model=\"c.id\"> <button type=\"button\" @click=\"wallContainers.splice(idx, 1)\" class=\"btn btn-ghost btn-sm text-error btn-square hover:bg-error/10\"><svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-5 w-5\" viewBox=\"0 0 20 20\" fill=\"currentColor\"><path fill-rule=\"evenodd\" d=\"M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z\" clip-rule=\"evenodd\"></path></svg></button></div></div></template><div x-show=\"wallContainers.length === 0\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\">Delete Wall</button></div></div></div></div><!-- Containers Management Card --><div class=\"lg:w-2/3\"><div class=\"card bg-base-200 border border-base-300 shadow-xl overflow-hidden h-full\"><div class=\"bg-base-300/50 p-6 border-b border-base-300 flex justify-between items-center\"><h3 class=\"font-bold text-sm uppercase tracking-wider opacity-50\">Containers</h3><div class=\"badge badge-neutral font-mono text-[10px]\" x-text=\"wallContainers.length + ' Linked'\"></div></div><div class=\"card-body p-6 space-y-8\"><!-- Hidden Inputs for Form Submission (Order Guaranteed by Alpine Data) --><div class=\"hidden\"><template x-for=\"c in wallContainers\" :key=\"c.id\"><input type=\"hidden\" name=\"container_ids[]\" :value=\"c.id\"></template></div><div x-ref=\"wallContainerList\" class=\"space-y-3 max-h-[500px] overflow-y-auto pr-2 bg-base-100 p-4 rounded-xl border border-base-300 shadow-inner\"><template x-for=\"(c, idx) in wallContainers\" :key=\"c.id\"><div x-data=\"{ item: c, i: idx }\" class=\"flex items-center justify-between p-4 bg-base-200/50 rounded-xl border border-base-300 hover:border-primary/50 transition-all duration-200 group\"><div class=\"flex items-center gap-4\"><div class=\"drag-handle cursor-grab active:cursor-grabbing p-2 -ml-2 opacity-20 group-hover:opacity-100 transition-opacity\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = icons.GripIcon(5).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</div><div class=\"w-8 h-8 rounded-full bg-base-300 flex items-center justify-center font-mono font-bold text-xs opacity-40\" x-text=\"(i+1)\"></div><div class=\"flex flex-col\"><span class=\"font-bold text-base\" x-text=\"item.name\"></span> <span class=\"text-[10px] opacity-40 uppercase font-bold tracking-widest\" x-text=\"'ID: ' + item.id\"></span></div></div><div class=\"flex items-center gap-2\"><button type=\"button\" @click=\"wallContainers.splice(i, 1)\" class=\"btn btn-ghost btn-sm text-error btn-square hover:bg-error/10\"><svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-5 w-5\" viewBox=\"0 0 20 20\" fill=\"currentColor\"><path fill-rule=\"evenodd\" d=\"M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z\" clip-rule=\"evenodd\"></path></svg></button></div></div></template><div x-show=\"wallContainers.length === 0\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -141,7 +149,7 @@ func WallEdit(user auth.User, wall db.Wall, wallContainers []components.Dashboar
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</div></div><div class=\"bg-base-300/30 p-6 rounded-xl border border-base-300\"><label class=\"label pt-0 pb-3\"><span class=\"label-text font-bold text-xs uppercase opacity-50 tracking-widest\">Link New Container</span></label><div class=\"flex gap-3\"><select x-model=\"selectedAddId\" class=\"select select-bordered select-md flex-1 bg-base-100\"><option value=\"\" disabled selected>Choose a container...</option><template x-for=\"c in availableContainers.filter(ac => !wallContainers.some(wc => wc.id === ac.id))\" :key=\"c.id\"><option :value=\"c.id\" x-text=\"c.name\"></option></template></select> <button type=\"button\" class=\"btn btn-md btn-primary px-6\" :disabled=\"!selectedAddId\" @click=\"if(selectedAddId) { const c = availableContainers.find(x => x.id == selectedAddId); if(c && !wallContainers.some(x => x.id == c.id)) { wallContainers.push(c); selectedAddId = ''; } }\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</div></div><div class=\"bg-base-300/30 p-6 rounded-xl border border-base-300\"><label class=\"label pt-0 pb-3\"><span class=\"label-text font-bold text-xs uppercase opacity-50 tracking-widest\">Link New Container</span></label><div class=\"flex gap-3\"><select x-model=\"selectedAddId\" class=\"select select-bordered select-md flex-1 bg-base-100\"><option value=\"\" disabled selected>Choose a container...</option><template x-for=\"c in availableContainers.filter(ac => !wallContainers.some(wc => wc.id === ac.id))\" :key=\"c.id\"><option :value=\"c.id\" x-text=\"c.name\"></option></template></select> <button type=\"button\" class=\"btn btn-md btn-primary px-6\" :disabled=\"!selectedAddId\" @click=\"if(selectedAddId) { const c = availableContainers.find(x => x.id == selectedAddId); if(c && !wallContainers.some(x => x.id == c.id)) { wallContainers.push(c); selectedAddId = ''; } }\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -149,7 +157,7 @@ func WallEdit(user auth.User, wall db.Wall, wallContainers []components.Dashboar
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "Add to Wall</button></div></div></div></div></div></div></form></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "Add to Wall</button></div></div></div></div></div></div></form></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

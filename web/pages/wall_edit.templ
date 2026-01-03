@@ -20,7 +20,42 @@ templ WallEdit(user auth.User, wall db.Wall, wallContainers []components.Dashboa
 			<h1 class="text-3xl font-bold mt-2">Edit { wall.Name }</h1>
 			<h2 class="opacity-70">Configure a wall with containers to organize your inventory dashboard.</h2>
 		</div>
-		<div x-data={ fmt.Sprintf("{ wallContainers: %s, availableContainers: %s, selectedAddId: '' }", utils.JSON(wallContainers), utils.JSON(allContainers)) } class="mb-12">
+		<div
+			x-data={ fmt.Sprintf("{ wallContainers: %s, availableContainers: %s, selectedAddId: '' }", utils.JSON(wallContainers), utils.JSON(allContainers)) }
+			x-init="
+				$nextTick(() => {
+					new Sortable($refs.wallContainerList, {
+						handle: '.drag-handle',
+						draggable: '.group',
+						animation: 150,
+						ghostClass: 'sortable-ghost',
+						chosenClass: 'sortable-chosen',
+						dragClass: 'sortable-drag',
+						onStart: () => {
+							if (window.navigator.vibrate) window.navigator.vibrate(5);
+						},
+						onEnd: (evt) => {
+							// Calculate new order from a clone to avoid immediate reactive conflicts
+							const newOrder = [...wallContainers];
+							const item = newOrder.splice(evt.oldIndex, 1)[0];
+							newOrder.splice(evt.newIndex, 0, item);
+
+							// Force Alpine to completely re-render the list
+							// clear the array and then set it back in nextTick.
+							// This destroys the old DOM elements and creates new
+							// clean ones with correct scopes.
+							wallContainers = [];
+							
+							$nextTick(() => {
+								wallContainers = newOrder;
+								if (window.navigator.vibrate) window.navigator.vibrate(10);
+							});
+						}
+					});
+				})
+			"
+			class="mb-12"
+		>
 			<form method="POST" action={ templ.SafeURL(fmt.Sprintf("/walls/%d", wall.ID)) }>
 				<div class="flex flex-col lg:flex-row gap-8">
 					<!-- Wall Settings Card -->
@@ -57,19 +92,33 @@ templ WallEdit(user auth.User, wall db.Wall, wallContainers []components.Dashboa
 								<div class="badge badge-neutral font-mono text-[10px]" x-text="wallContainers.length + ' Linked'"></div>
 							</div>
 							<div class="card-body p-6 space-y-8">
-								<div class="space-y-3 max-h-[500px] overflow-y-auto pr-2 bg-base-100 p-4 rounded-xl border border-base-300 shadow-inner">
-									<template x-for="(c, idx) in wallContainers" :key="idx">
-										<div class="flex items-center justify-between p-4 bg-base-200/50 rounded-xl border border-base-300 hover:border-primary/50 transition-all duration-200 group">
+								<!-- Hidden Inputs for Form Submission (Order Guaranteed by Alpine Data) -->
+								<div class="hidden">
+									<template x-for="c in wallContainers" :key="c.id">
+										<input type="hidden" name="container_ids[]" :value="c.id"/>
+									</template>
+								</div>
+								<div
+									x-ref="wallContainerList"
+									class="space-y-3 max-h-[500px] overflow-y-auto pr-2 bg-base-100 p-4 rounded-xl border border-base-300 shadow-inner"
+								>
+									<template x-for="(c, idx) in wallContainers" :key="c.id">
+										<div
+											x-data="{ item: c, i: idx }"
+											class="flex items-center justify-between p-4 bg-base-200/50 rounded-xl border border-base-300 hover:border-primary/50 transition-all duration-200 group"
+										>
 											<div class="flex items-center gap-4">
-												<div class="w-8 h-8 rounded-full bg-base-300 flex items-center justify-center font-mono font-bold text-xs opacity-40" x-text="(idx+1)"></div>
+												<div class="drag-handle cursor-grab active:cursor-grabbing p-2 -ml-2 opacity-20 group-hover:opacity-100 transition-opacity">
+													@icons.GripIcon(5)
+												</div>
+												<div class="w-8 h-8 rounded-full bg-base-300 flex items-center justify-center font-mono font-bold text-xs opacity-40" x-text="(i+1)"></div>
 												<div class="flex flex-col">
-													<span class="font-bold text-base" x-text="c.name"></span>
-													<span class="text-[10px] opacity-40 uppercase font-bold tracking-widest" x-text="'ID: ' + c.id"></span>
+													<span class="font-bold text-base" x-text="item.name"></span>
+													<span class="text-[10px] opacity-40 uppercase font-bold tracking-widest" x-text="'ID: ' + item.id"></span>
 												</div>
 											</div>
 											<div class="flex items-center gap-2">
-												<input type="hidden" name="container_ids[]" x-model="c.id"/>
-												<button type="button" @click="wallContainers.splice(idx, 1)" class="btn btn-ghost btn-sm text-error btn-square hover:bg-error/10">
+												<button type="button" @click="wallContainers.splice(i, 1)" class="btn btn-ghost btn-sm text-error btn-square hover:bg-error/10">
 													<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
 												</button>
 											</div>

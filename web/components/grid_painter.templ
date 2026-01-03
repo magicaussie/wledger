@@ -23,15 +23,12 @@ templ GridPainter(controller db.Controller, containers []db.Container, bins []db
 				<div class="lg:w-1/3">
 					<div class="flex items-center justify-between mb-4 px-1">
 						<h3 class="font-bold text-sm uppercase tracking-wider opacity-50">Containers</h3>
-						<div class="tooltip tooltip-bottom md:tooltip-left before:text-xs before:max-w-[12rem] before:whitespace-normal z-50" data-tip="Add a new container to this controller.">
-							<button @click="addContainer()" class="btn btn-md btn-primary">
-								@icons.PlusIcon(5)
-								Add Container
-							</button>
-						</div>
+						<button @click="addContainer()" class="btn btn-md btn-primary">
+							@icons.PlusIcon(5)
+							Add Container
+						</button>
 					</div>
 					<div
-						x-ref="containerList"
 						class="flex flex-col gap-2 max-h-[600px] overflow-y-auto pr-2 bg-base-200 p-3 rounded-xl border border-base-300 shadow-inner"
 					>
 						<template x-for="(container, idx) in containers" :key="idx">
@@ -39,16 +36,10 @@ templ GridPainter(controller db.Controller, containers []db.Container, bins []db
 								class="p-4 rounded-lg border border-base-300 cursor-pointer transition-all duration-200 flex items-center justify-between group"
 								:class="selectedContainerIndex === idx ? 'bg-base-100 border-primary shadow-md ring-1 ring-primary/20' : 'bg-base-100/50 hover:bg-base-100 hover:border-base-content/20'"
 								@click="selectedContainerIndex = idx"
-								:data-id="idx"
 							>
-								<div class="flex items-center gap-3">
-									<div class="drag-handle cursor-grab active:cursor-grabbing p-3 -ml-3 opacity-20 group-hover:opacity-100 transition-opacity">
-										@icons.GripIcon(5)
-									</div>
-									<div class="flex flex-col gap-1">
-										<span class="font-bold text-sm" :class="selectedContainerIndex === idx ? 'text-primary' : ''" x-text="container.name"></span>
-										<span class="text-xs uppercase font-bold opacity-40 tracking-widest" x-text="'Seg ' + container.segment_id + ' • ' + container.config.type"></span>
-									</div>
+								<div class="flex flex-col gap-1">
+									<span class="font-bold text-sm" :class="selectedContainerIndex === idx ? 'text-primary' : ''" x-text="container.name"></span>
+									<span class="text-xs uppercase font-bold opacity-40 tracking-widest" x-text="'Seg ' + container.segment_id + ' • ' + container.config.type"></span>
 								</div>
 								<button @click.stop="removeContainer(idx)" class="btn btn-ghost btn-sm text-error btn-square hover:bg-error/10">
 									@icons.XMarkIcon(5)
@@ -299,26 +290,6 @@ templ GridPainter(controller db.Controller, containers []db.Container, bins []db
                             }
                         }
                     });
-
-                    if (this.canEdit) {
-                        this.$nextTick(() => {
-                            new Sortable(this.$refs.containerList, {
-                                handle: '.drag-handle',
-                                animation: 150,
-                                ghostClass: 'sortable-ghost',
-                                chosenClass: 'sortable-chosen',
-                                dragClass: 'sortable-drag',
-                                forceFallback: true,
-                                fallbackOnBody: true,
-                                onStart: () => {
-                                    if (window.navigator.vibrate) window.navigator.vibrate(5);
-                                },
-                                onEnd: (evt) => {
-                                    this.reorderContainers(evt.oldIndex, evt.newIndex);
-                                }
-                            });
-                        });
-                    }
                 },
 
                 parseConfig(jsonStr) {
@@ -362,57 +333,6 @@ templ GridPainter(controller db.Controller, containers []db.Container, bins []db
                     this.cells = newCells;
                     if (this.selectedContainerIndex >= this.containers.length) {
                         this.selectedContainerIndex = Math.max(0, this.containers.length - 1);
-                    }
-                },
-
-                reorderContainers(oldIndex, newIndex) {
-                    if (oldIndex === newIndex) return;
-
-                    // Reorder the containers array
-                    const item = this.containers.splice(oldIndex, 1)[0];
-                    this.containers.splice(newIndex, 0, item);
-
-                    // Update selectedContainerIndex to follow the moved item if it was selected
-                    // Or adjust it if it was affected by the shift
-                    if (this.selectedContainerIndex === oldIndex) {
-                        this.selectedContainerIndex = newIndex;
-                    } else {
-                        // If moved from after selected to before selected
-                        if (oldIndex > this.selectedContainerIndex && newIndex <= this.selectedContainerIndex) {
-                            this.selectedContainerIndex++;
-                        }
-                        // If moved from before selected to after selected
-                        else if (oldIndex < this.selectedContainerIndex && newIndex >= this.selectedContainerIndex) {
-                            this.selectedContainerIndex--;
-                        }
-                    }
-
-                    // Re-key the cells object
-                    const newCells = {};
-                    Object.keys(this.cells).forEach(key => {
-                        const [cIdx, lIdx] = key.split(',').map(Number);
-                        let newCIdx = cIdx;
-
-                        if (cIdx === oldIndex) {
-                            newCIdx = newIndex;
-                        } else if (oldIndex < newIndex) {
-                            // Moving down: items between old and new shift up
-                            if (cIdx > oldIndex && cIdx <= newIndex) {
-                                newCIdx = cIdx - 1;
-                            }
-                        } else if (oldIndex > newIndex) {
-                            // Moving up: items between new and old shift down
-                            if (cIdx < oldIndex && cIdx >= newIndex) {
-                                newCIdx = cIdx + 1;
-                            }
-                        }
-                        newCells[`${newCIdx},${lIdx}`] = this.cells[key];
-                    });
-                    this.cells = newCells;
-
-                    // Trigger vibration for haptic feedback
-                    if (window.navigator.vibrate) {
-                        window.navigator.vibrate(10);
                     }
                 },
 
