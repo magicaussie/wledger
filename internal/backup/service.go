@@ -382,7 +382,16 @@ func (s *service) restoreData(ctx context.Context, qtx db.Querier, manifest Mani
 		}
 	}
 	for _, c := range manifest.Containers {
-		if err := qtx.RestoreContainer(ctx, db.RestoreContainerParams(c)); err != nil {
+		if err := qtx.RestoreContainer(ctx, db.RestoreContainerParams{
+			ID:            c.ID,
+			Name:          c.Name,
+			ControllerID:  c.ControllerID,
+			SegmentID:     c.SegmentID,
+			ConfigJson:    c.ConfigJson,
+			PositionIndex: c.PositionIndex,
+			CreatedAt:     c.CreatedAt,
+			UpdatedAt:     c.UpdatedAt,
+		}); err != nil {
 			return fmt.Errorf("container restore: %w", err)
 		}
 	}

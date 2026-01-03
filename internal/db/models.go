@@ -32,13 +32,14 @@ type Bin struct {
 }
 
 type Container struct {
-	ID           int64          `json:"id"`
-	Name         string         `json:"name"`
-	ControllerID int64          `json:"controller_id"`
-	SegmentID    int64          `json:"segment_id"`
-	ConfigJson   sql.NullString `json:"config_json"`
-	CreatedAt    sql.NullTime   `json:"created_at"`
-	UpdatedAt    sql.NullTime   `json:"updated_at"`
+	ID            int64          `json:"id"`
+	Name          string         `json:"name"`
+	ControllerID  int64          `json:"controller_id"`
+	SegmentID     int64          `json:"segment_id"`
+	ConfigJson    sql.NullString `json:"config_json"`
+	CreatedAt     sql.NullTime   `json:"created_at"`
+	UpdatedAt     sql.NullTime   `json:"updated_at"`
+	PositionIndex int64          `json:"position_index"`
 }
 
 type Controller struct {

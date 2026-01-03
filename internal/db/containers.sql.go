@@ -11,16 +11,17 @@ import (
 )
 
 const createContainer = `-- name: CreateContainer :one
-INSERT INTO containers (name, controller_id, segment_id, config_json)
-VALUES (?, ?, ?, ?)
+INSERT INTO containers (name, controller_id, segment_id, config_json, position_index)
+VALUES (?, ?, ?, ?, ?)
 RETURNING id
 `
 
 type CreateContainerParams struct {
-	Name         string         `json:"name"`
-	ControllerID int64          `json:"controller_id"`
-	SegmentID    int64          `json:"segment_id"`
-	ConfigJson   sql.NullString `json:"config_json"`
+	Name          string         `json:"name"`
+	ControllerID  int64          `json:"controller_id"`
+	SegmentID     int64          `json:"segment_id"`
+	ConfigJson    sql.NullString `json:"config_json"`
+	PositionIndex int64          `json:"position_index"`
 }
 
 func (q *Queries) CreateContainer(ctx context.Context, arg CreateContainerParams) (int64, error) {
@@ -29,6 +30,7 @@ func (q *Queries) CreateContainer(ctx context.Context, arg CreateContainerParams
 		arg.ControllerID,
 		arg.SegmentID,
 		arg.ConfigJson,
+		arg.PositionIndex,
 	)
 	var id int64
 	err := row.Scan(&id)
@@ -45,7 +47,7 @@ func (q *Queries) DeleteContainer(ctx context.Context, id int64) error {
 }
 
 const getAllContainers = `-- name: GetAllContainers :many
-SELECT id, name, controller_id, segment_id, config_json, created_at, updated_at FROM containers ORDER BY name
+SELECT id, name, controller_id, segment_id, config_json, created_at, updated_at, position_index FROM containers ORDER BY name
 `
 
 func (q *Queries) GetAllContainers(ctx context.Context) ([]Container, error) {
@@ -65,6 +67,7 @@ func (q *Queries) GetAllContainers(ctx context.Context) ([]Container, error) {
 			&i.ConfigJson,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PositionIndex,
 		); err != nil {
 			return nil, err
 		}
@@ -80,7 +83,7 @@ func (q *Queries) GetAllContainers(ctx context.Context) ([]Container, error) {
 }
 
 const getContainer = `-- name: GetContainer :one
-SELECT id, name, controller_id, segment_id, config_json, created_at, updated_at FROM containers WHERE id = ?
+SELECT id, name, controller_id, segment_id, config_json, created_at, updated_at, position_index FROM containers WHERE id = ?
 `
 
 func (q *Queries) GetContainer(ctx context.Context, id int64) (Container, error) {
@@ -94,12 +97,13 @@ func (q *Queries) GetContainer(ctx context.Context, id int64) (Container, error)
 		&i.ConfigJson,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PositionIndex,
 	)
 	return i, err
 }
 
 const getContainersByController = `-- name: GetContainersByController :many
-SELECT id, name, controller_id, segment_id, config_json, created_at, updated_at FROM containers WHERE controller_id = ? ORDER BY id
+SELECT id, name, controller_id, segment_id, config_json, created_at, updated_at, position_index FROM containers WHERE controller_id = ? ORDER BY position_index ASC, id ASC
 `
 
 func (q *Queries) GetContainersByController(ctx context.Context, controllerID int64) ([]Container, error) {
@@ -119,6 +123,7 @@ func (q *Queries) GetContainersByController(ctx context.Context, controllerID in
 			&i.ConfigJson,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PositionIndex,
 		); err != nil {
 			return nil, err
 		}
@@ -134,18 +139,19 @@ func (q *Queries) GetContainersByController(ctx context.Context, controllerID in
 }
 
 const restoreContainer = `-- name: RestoreContainer :exec
-INSERT INTO containers (id, name, controller_id, segment_id, config_json, created_at, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, ?)
+INSERT INTO containers (id, name, controller_id, segment_id, config_json, position_index, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type RestoreContainerParams struct {
-	ID           int64          `json:"id"`
-	Name         string         `json:"name"`
-	ControllerID int64          `json:"controller_id"`
-	SegmentID    int64          `json:"segment_id"`
-	ConfigJson   sql.NullString `json:"config_json"`
-	CreatedAt    sql.NullTime   `json:"created_at"`
-	UpdatedAt    sql.NullTime   `json:"updated_at"`
+	ID            int64          `json:"id"`
+	Name          string         `json:"name"`
+	ControllerID  int64          `json:"controller_id"`
+	SegmentID     int64          `json:"segment_id"`
+	ConfigJson    sql.NullString `json:"config_json"`
+	PositionIndex int64          `json:"position_index"`
+	CreatedAt     sql.NullTime   `json:"created_at"`
+	UpdatedAt     sql.NullTime   `json:"updated_at"`
 }
 
 func (q *Queries) RestoreContainer(ctx context.Context, arg RestoreContainerParams) error {
@@ -155,6 +161,7 @@ func (q *Queries) RestoreContainer(ctx context.Context, arg RestoreContainerPara
 		arg.ControllerID,
 		arg.SegmentID,
 		arg.ConfigJson,
+		arg.PositionIndex,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)
@@ -163,15 +170,16 @@ func (q *Queries) RestoreContainer(ctx context.Context, arg RestoreContainerPara
 
 const updateContainerConfig = `-- name: UpdateContainerConfig :exec
 UPDATE containers
-SET name = ?, config_json = ?, segment_id = ?, updated_at = CURRENT_TIMESTAMP
+SET name = ?, config_json = ?, segment_id = ?, position_index = ?, updated_at = CURRENT_TIMESTAMP
 WHERE id = ?
 `
 
 type UpdateContainerConfigParams struct {
-	Name       string         `json:"name"`
-	ConfigJson sql.NullString `json:"config_json"`
-	SegmentID  int64          `json:"segment_id"`
-	ID         int64          `json:"id"`
+	Name          string         `json:"name"`
+	ConfigJson    sql.NullString `json:"config_json"`
+	SegmentID     int64          `json:"segment_id"`
+	PositionIndex int64          `json:"position_index"`
+	ID            int64          `json:"id"`
 }
 
 func (q *Queries) UpdateContainerConfig(ctx context.Context, arg UpdateContainerConfigParams) error {
@@ -179,6 +187,7 @@ func (q *Queries) UpdateContainerConfig(ctx context.Context, arg UpdateContainer
 		arg.Name,
 		arg.ConfigJson,
 		arg.SegmentID,
+		arg.PositionIndex,
 		arg.ID,
 	)
 	return err

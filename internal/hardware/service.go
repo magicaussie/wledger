@@ -58,10 +58,11 @@ func (s *service) CreateController(ctx context.Context, params db.CreateControll
 
 	// Create Default Container for the new controller
 	_, err = s.store.CreateContainer(ctx, db.CreateContainerParams{
-		Name:         row.Name + " (Main)",
-		ControllerID: row.ID,
-		SegmentID:    0,
-		ConfigJson:   sql.NullString{String: `{"type":"grid","rows":8,"cols":8}`, Valid: true},
+		Name:          row.Name + " (Main)",
+		ControllerID:  row.ID,
+		SegmentID:     0,
+		PositionIndex: 0,
+		ConfigJson:    sql.NullString{String: `{"type":"grid","rows":8,"cols":8}`, Valid: true},
 	})
 	if err != nil {
 		s.logger.Error("failed to create default container for new controller", "err", err)
@@ -133,10 +134,11 @@ func (s *service) GetBinsByController(ctx context.Context, id int64) ([]db.Bin, 
 }
 
 type containerInJSON struct {
-	ID        *int64                 `json:"id"`
-	Name      string                 `json:"name"`
-	SegmentID int64                  `json:"segment_id"`
-	Config    mapper.ContainerConfig `json:"config"`
+	ID            *int64                 `json:"id"`
+	Name          string                 `json:"name"`
+	SegmentID     int64                  `json:"segment_id"`
+	PositionIndex int64                  `json:"position_index"`
+	Config        mapper.ContainerConfig `json:"config"`
 }
 
 type binInJSON struct {
@@ -177,10 +179,11 @@ func (s *service) SaveGrid(ctx context.Context, controllerID int64, gridDataJSON
 			if c.ID != nil {
 				// Update existing
 				err := q.UpdateContainerConfig(ctx, db.UpdateContainerConfigParams{
-					ID:         *c.ID,
-					Name:       c.Name,
-					SegmentID:  c.SegmentID,
-					ConfigJson: sql.NullString{String: configStr, Valid: true},
+					ID:            *c.ID,
+					Name:          c.Name,
+					SegmentID:     c.SegmentID,
+					PositionIndex: int64(i), // Use loop index as position
+					ConfigJson:    sql.NullString{String: configStr, Valid: true},
 				})
 				if err != nil {
 					return fmt.Errorf("failed to update container %d: %w", *c.ID, err)
@@ -190,10 +193,11 @@ func (s *service) SaveGrid(ctx context.Context, controllerID int64, gridDataJSON
 			} else {
 				// Create new
 				newID, err := q.CreateContainer(ctx, db.CreateContainerParams{
-					Name:         c.Name,
-					ControllerID: controllerID,
-					SegmentID:    c.SegmentID,
-					ConfigJson:   sql.NullString{String: configStr, Valid: true},
+					Name:          c.Name,
+					ControllerID:  controllerID,
+					SegmentID:     c.SegmentID,
+					PositionIndex: int64(i), // Use loop index as position
+					ConfigJson:    sql.NullString{String: configStr, Valid: true},
 				})
 				if err != nil {
 					return fmt.Errorf("failed to create container: %w", err)
