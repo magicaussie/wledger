@@ -12,6 +12,7 @@
 > **The Ultimate Inventory Management System for Makers.**
 > *Organize your electronic components and find them instantly with WLED.*
 
+Check out the official WLEDger documentation site [here](https://tuxedocurly.github.io/wledger/)
 ## What is WLEDger?
 
 WLEDger (WLED + Ledger) is a modern, high-performance inventory system designed specifically for electronics hobbyists, makers, and labs. It solves the problem of "I know I have this part, but where is it?" by integrating with **WLED** controllers.
