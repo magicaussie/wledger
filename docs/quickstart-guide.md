@@ -8,7 +8,7 @@ nav_order: 2
 
 Get WLEDger V2 up and running in minutes.
 
-## 🐳 Option 1: Docker (Recommended)
+## Docker (Recommended)
 
 The easiest way to run WLEDger is with Docker Compose. This ensures you have all dependencies without cluttering your system.
 
@@ -17,8 +17,7 @@ The easiest way to run WLEDger is with Docker Compose. This ensures you have all
 Create a folder for WLEDger on your server or computer:
 
 ```bash
-mkdir wledger
-cd wledger
+mkdir wledger && cd wledger && mkdir data uploads logs
 ```
 
 ### 2. Create `docker-compose.yml`
@@ -65,44 +64,14 @@ docker compose up -d
 
 ---
 
-## 🛠 Option 2: Run from Source
-
-If you prefer to run the binary directly or are developing on WLEDger, you'll need **Go 1.25+** and **Node.js 23+**.
-
-1. **Clone the Repository:**
-
-    ```bash
-    git clone https://github.com/tuxedocurly/wledger.git
-    cd wledger
-    ```
-
-2. **Install Dependencies:**
-
-    ```bash
-    make install_dependencies
-    ```
-
-3. **Build and Run:**
-
-    ```bash
-    make build
-    ./bin/wledger
-    ```
-
-    * *Note: This will build the production binary. For development with live reloading, use `make dev`.*
-
-4. Access the app at `http://localhost:8080`.
-
----
-
 ## Hardware Setup
 
 To get the full experience, you'll need to connect WLEDger to a WLED controller.
 
 **Prerequisites:**
 
-* A microcontroller running [WLED](https://kno.wled.ge/) (e.g., ESP32, Wemos D1 Mini).
-* Addressable LED LEDs (WS2812B/NeoPixel) connected to the controller.
+* A microcontroller running [WLED](https://kno.wled.ge/) (e.g. Sparkle Motion, Dig2Go, ESP32, Wemos D1 Mini).
+* Addressable LEDs (WS2812B/NeoPixel) connected to the controller.
 * The IP address of your WLED controller.
 
 ### 1. Add Controller in WLEDger
@@ -121,7 +90,7 @@ To get the full experience, you'll need to connect WLEDger to a WLED controller.
     * **Strip:** Use this for linear shelves or single rows of bins.
     * **Compound:** Use this to define custom sections for complex bin arrangements.
 4. Use the **Auto Map** feature or manually click/drag to define your bins. Each bin will be assigned a unique ID.
-5. Click **"Save Map"**.
+5. Click **"Save"**.
 
 ### 3. Organize with Walls (Optional)
 
@@ -135,6 +104,8 @@ By default, the dashboard will show you all of your configured controllers, cont
 > You can create as many walls as you want! You can also mix and match containers from various controllers on a single wall. Nice!
 
 ### 4. Assign Parts
+
+> You can save time by bulk importing your parts. Navigate to "Inventory" and click the "Import" button. Download the CSV template an import it using Google Sheets, Excel, etc to quickly define all your parts. Export the file as a CSV, then upload it using the "Import" button on the Inventory page, or copy and paste the raw CSV data.
 
 1. Go to **Inventory**.
 2. Create a new part or edit an existing one.

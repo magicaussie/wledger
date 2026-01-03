@@ -38,7 +38,7 @@ func PartLocateButton(partID int64, className string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var2 = []any{"btn btn-ghost text-accent z-10", className}
+		var templ_7745c5c3_Var2 = []any{"btn btn-outline text-accent z-10", className}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var2...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err

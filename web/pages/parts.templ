@@ -70,16 +70,16 @@ templ PartCards(parts []PartView, search string, page int) {
 							<span class="text-warning text-xs ml-1">★</span>
 						}
 					</span>
-					if part.TotalStock > 0 {
-						@components.PartLocateButton(part.ID, "btn-sm -mr-2 -mt-1")
-					}
 				</h2>
 				<p class="text-xs opacity-70 truncate">{ part.Description.String }</p>
 				<div class="flex justify-between items-end mt-4">
 					<div class="flex flex-col">
 						<span class="text-s font-mono opacity-50"># { part.PartNumber.String }</span>
-						<span class="badge badge- badge-info mt-1">Stock: { fmt.Sprintf("%d", part.TotalStock) }</span>
+						<span class="badge badge-info font-semibold mt-1">Stock: { fmt.Sprintf("%d", part.TotalStock) }</span>
 					</div>
+					if part.TotalStock > 0 {
+						@components.PartLocateButton(part.ID, "btn-sm")
+					}
 				</div>
 			</div>
 		</a>

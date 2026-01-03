@@ -31,7 +31,7 @@ func ForceReset() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<!doctype html><html data-theme=\"dark\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Update Password Required</title><link rel=\"icon\" href=\"/static/img/favicon.ico\"><link href=\"/static/css/output.css\" rel=\"stylesheet\"></head><body class=\"flex items-center justify-center min-h-screen bg-base-300\"><div class=\"card w-96 bg-base-100 shadow-2xl\"><div class=\"card-body\"><div class=\"text-center mb-6\"><div class=\"text-5xl mb-2\">🔐</div><h2 class=\"card-title justify-center text-2xl font-bold\">Set Your Password</h2><p class=\"text-sm opacity-70 mt-2\">Your account requires a password change before you can proceed.</p></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<!doctype html><html data-theme=\"dark\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Password Change Required</title><link rel=\"icon\" href=\"/static/img/favicon.ico\"><link href=\"/static/css/output.css\" rel=\"stylesheet\"></head><body class=\"flex items-center justify-center min-h-screen bg-base-300\"><div class=\"card w-96 bg-base-100 shadow-2xl\"><div class=\"card-body\"><div class=\"text-center mb-6\"><div class=\"text-5xl mb-2 grayscale\">🔐</div><h2 class=\"card-title justify-center text-2xl font-bold\">Set Your Password</h2><p class=\"text-sm opacity-70 mt-2\">Your account requires a password change before you can proceed.</p></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

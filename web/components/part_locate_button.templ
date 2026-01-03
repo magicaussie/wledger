@@ -10,7 +10,7 @@ templ PartLocateButton(partID int64, className string) {
 		<button
 			hx-post={ fmt.Sprintf("/parts/%d/locate", partID) }
 			hx-swap="none"
-			class={ "btn btn-ghost text-accent z-10", className }
+			class={ "btn btn-outline text-accent z-10", className }
 			title="Locate all assignments"
 		>
 			@icons.EyeIcon(5)
