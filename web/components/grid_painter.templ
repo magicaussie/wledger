@@ -183,10 +183,10 @@ templ GridPainter(controller db.Controller, containers []db.Container, bins []db
 		<div class="space-y-16 mt-8">
 			<template x-for="(container, cIdx) in containers" :key="cIdx">
 				<div class="card bg-base-200 border border-base-300 shadow-xl overflow-hidden">
-					<div class="bg-base-300/50 px-6 py-4 border-b border-base-300 flex items-center justify-between">
-						<div class="flex items-center gap-3">
+					<div class="bg-base-300/50 px-6 py-4 border-b border-base-300 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+						<div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
 							<h4 class="font-bold text-sm uppercase tracking-wider opacity-50" x-text="container.name"></h4>
-							<span class="badge badge-sm badge-neutral font-mono text-xs" x-text="'Segment ' + container.segment_id"></span>
+							<span class="badge badge-sm badge-neutral font-mono text-xs whitespace-nowrap" x-text="'Segment ' + container.segment_id"></span>
 						</div>
 						<div class="text-sm font-bold opacity-40 uppercase tracking-widest" x-text="getContainerTotalLeds(cIdx) + ' LEDs total'"></div>
 					</div>
@@ -229,13 +229,9 @@ templ GridPainter(controller db.Controller, containers []db.Container, bins []db
 					<h3 class="font-bold text-sm uppercase tracking-wider opacity-50">Save Configuration</h3>
 					<p class="text-xs opacity-40 mt-1">This will update all containers and bin mappings for this controller.</p>
 				</div>
-				<div class="flex gap-3 w-full md:w-auto md:justify-end">
-					<div class="tooltip tooltip-bottom md:tooltip-left flex-1 md:flex-none before:text-xs before:max-w-[12rem] md:before:max-w-[16rem] z-50" data-tip="Discard changes and return to hardware settings.">
-						<a href="/hardware" class="btn btn-ghost w-full md:w-32">Cancel</a>
-					</div>
-					<div class="tooltip tooltip-bottom md:tooltip-left flex-1 md:flex-none before:text-xs before:max-w-[12rem] md:before:max-w-[16rem] z-50" data-tip="Apply the new LED configuration and bin mappings.">
-						<button type="button" @click="askConfirm('save')" class="btn btn-primary px-12 w-full md:w-48">Save Changes</button>
-					</div>
+				<div class="flex flex-col sm:flex-row gap-3 w-full md:w-auto md:justify-end">
+					<a href="/hardware" class="btn btn-ghost w-full sm:w-32 whitespace-nowrap">Cancel</a>
+					<button type="button" @click="askConfirm('save')" class="btn btn-primary px-8 sm:px-12 w-full sm:w-auto md:w-48 whitespace-nowrap">Save Changes</button>
 				</div>
 				<input type="hidden" name="grid_data" :value="JSON.stringify(exportBinData())"/>
 				<input type="hidden" name="config_data" :value="JSON.stringify(exportContainerData())"/>
