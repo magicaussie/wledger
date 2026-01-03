@@ -152,19 +152,19 @@ templ GridPainter(controller db.Controller, containers []db.Container, bins []db
 								</fieldset>
 								<!-- Tools -->
 								<div class="bg-base-300/30 p-4 rounded-xl border border-base-300">
-									<div class="flex flex-col lg:flex-row gap-2 lg:justify-end">
-										<div class="tooltip tooltip-top lg:tooltip-left w-full lg:w-auto before:text-xs before:max-w-[12rem] md:before:max-w-[16rem] before:whitespace-normal z-50" data-tip="Automatically map LEDs in a sequential linear order starting from the selected corner.">
-											<button @click="autoFill('linear')" class="btn btn-md btn-success text-white gap-2 w-full lg:w-48">
+									<div class="flex flex-col sm:flex-row flex-wrap justify-center sm:justify-end gap-2">
+										<div class="tooltip tooltip-top lg:tooltip-left w-full sm:w-auto before:text-xs before:max-w-[12rem] md:before:max-w-[16rem] before:whitespace-normal z-50" data-tip="Automatically map LEDs in a sequential linear order starting from the selected corner.">
+											<button @click="autoFill('linear')" class="btn btn-md btn-success text-white gap-2 w-full whitespace-nowrap">
 												Auto Map (Linear)
 											</button>
 										</div>
-										<div class="tooltip tooltip-top lg:tooltip-left w-full lg:w-auto before:text-xs before:max-w-[12rem] md:before:max-w-[16rem] before:whitespace-normal z-50" data-tip="Automatically map LEDs in a serpentine (snake) pattern starting from the selected corner.">
-											<button @click="autoFill('serpentine')" class="btn btn-md btn-success text-white gap-2 w-full lg:w-48">
+										<div class="tooltip tooltip-top lg:tooltip-left w-full sm:w-auto before:text-xs before:max-w-[12rem] md:before:max-w-[16rem] before:whitespace-normal z-50" data-tip="Automatically map LEDs in a serpentine (snake) pattern starting from the selected corner.">
+											<button @click="autoFill('serpentine')" class="btn btn-md btn-success text-white gap-2 w-full whitespace-nowrap">
 												Auto Map (Snake)
 											</button>
 										</div>
-										<div class="tooltip tooltip-top lg:tooltip-left w-full lg:w-auto before:text-xs before:max-w-[12rem] md:before:max-w-[16rem] before:whitespace-normal z-50" data-tip="Remove all LED assignments for the currently selected container.">
-											<button @click="askConfirm('clear')" class="btn btn-md btn-outline btn-error gap-2 w-full lg:w-48">
+										<div class="tooltip tooltip-top lg:tooltip-left w-full sm:w-auto before:text-xs before:max-w-[12rem] md:before:max-w-[16rem] before:whitespace-normal z-50" data-tip="Remove all LED assignments for the currently selected container.">
+											<button @click="askConfirm('clear')" class="btn btn-md btn-outline btn-error gap-2 w-full whitespace-nowrap">
 												Clear Mapping
 											</button>
 										</div>
