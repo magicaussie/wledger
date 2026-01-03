@@ -1,6 +1,7 @@
 # Binaries
 /tmp
 /bin
+server
 
 # Local Database
 /data/*
