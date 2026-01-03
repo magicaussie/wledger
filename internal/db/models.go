@@ -146,6 +146,12 @@ type Setting struct {
 	InspirationSeedsApplied sql.NullBool   `json:"inspiration_seeds_applied"`
 }
 
+type SystemFlag struct {
+	Key       string       `json:"key"`
+	Value     string       `json:"value"`
+	UpdatedAt sql.NullTime `json:"updated_at"`
+}
+
 type Tag struct {
 	ID   int64  `json:"id"`
 	Name string `json:"name"`

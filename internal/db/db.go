@@ -240,6 +240,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.getDashboardStatsStmt, err = db.PrepareContext(ctx, getDashboardStats); err != nil {
 		return nil, fmt.Errorf("error preparing query GetDashboardStats: %w", err)
 	}
+	if q.getFlagStmt, err = db.PrepareContext(ctx, getFlag); err != nil {
+		return nil, fmt.Errorf("error preparing query GetFlag: %w", err)
+	}
 	if q.getInspirationTemplateStmt, err = db.PrepareContext(ctx, getInspirationTemplate); err != nil {
 		return nil, fmt.Errorf("error preparing query GetInspirationTemplate: %w", err)
 	}
@@ -369,8 +372,14 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.searchPartsStmt, err = db.PrepareContext(ctx, searchParts); err != nil {
 		return nil, fmt.Errorf("error preparing query SearchParts: %w", err)
 	}
+	if q.setFlagStmt, err = db.PrepareContext(ctx, setFlag); err != nil {
+		return nil, fmt.Errorf("error preparing query SetFlag: %w", err)
+	}
 	if q.setPasswordResetFlagStmt, err = db.PrepareContext(ctx, setPasswordResetFlag); err != nil {
 		return nil, fmt.Errorf("error preparing query SetPasswordResetFlag: %w", err)
+	}
+	if q.updateBinLedIndexStmt, err = db.PrepareContext(ctx, updateBinLedIndex); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateBinLedIndex: %w", err)
 	}
 	if q.updateColorsStmt, err = db.PrepareContext(ctx, updateColors); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateColors: %w", err)
@@ -773,6 +782,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing getDashboardStatsStmt: %w", cerr)
 		}
 	}
+	if q.getFlagStmt != nil {
+		if cerr := q.getFlagStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getFlagStmt: %w", cerr)
+		}
+	}
 	if q.getInspirationTemplateStmt != nil {
 		if cerr := q.getInspirationTemplateStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getInspirationTemplateStmt: %w", cerr)
@@ -988,9 +1002,19 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing searchPartsStmt: %w", cerr)
 		}
 	}
+	if q.setFlagStmt != nil {
+		if cerr := q.setFlagStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing setFlagStmt: %w", cerr)
+		}
+	}
 	if q.setPasswordResetFlagStmt != nil {
 		if cerr := q.setPasswordResetFlagStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing setPasswordResetFlagStmt: %w", cerr)
+		}
+	}
+	if q.updateBinLedIndexStmt != nil {
+		if cerr := q.updateBinLedIndexStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateBinLedIndexStmt: %w", cerr)
 		}
 	}
 	if q.updateColorsStmt != nil {
@@ -1164,6 +1188,7 @@ type Queries struct {
 	getDashboardGridStmt               *sql.Stmt
 	getDashboardGridByControllerStmt   *sql.Stmt
 	getDashboardStatsStmt              *sql.Stmt
+	getFlagStmt                        *sql.Stmt
 	getInspirationTemplateStmt         *sql.Stmt
 	getPartStmt                        *sql.Stmt
 	getPartAssignmentsStmt             *sql.Stmt
@@ -1207,7 +1232,9 @@ type Queries struct {
 	restoreWallStmt                    *sql.Stmt
 	restoreWallCardStmt                *sql.Stmt
 	searchPartsStmt                    *sql.Stmt
+	setFlagStmt                        *sql.Stmt
 	setPasswordResetFlagStmt           *sql.Stmt
+	updateBinLedIndexStmt              *sql.Stmt
 	updateColorsStmt                   *sql.Stmt
 	updateContainerConfigStmt          *sql.Stmt
 	updateControllerStatusStmt         *sql.Stmt
@@ -1298,6 +1325,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		getDashboardGridStmt:               q.getDashboardGridStmt,
 		getDashboardGridByControllerStmt:   q.getDashboardGridByControllerStmt,
 		getDashboardStatsStmt:              q.getDashboardStatsStmt,
+		getFlagStmt:                        q.getFlagStmt,
 		getInspirationTemplateStmt:         q.getInspirationTemplateStmt,
 		getPartStmt:                        q.getPartStmt,
 		getPartAssignmentsStmt:             q.getPartAssignmentsStmt,
@@ -1341,7 +1369,9 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		restoreWallStmt:                    q.restoreWallStmt,
 		restoreWallCardStmt:                q.restoreWallCardStmt,
 		searchPartsStmt:                    q.searchPartsStmt,
+		setFlagStmt:                        q.setFlagStmt,
 		setPasswordResetFlagStmt:           q.setPasswordResetFlagStmt,
+		updateBinLedIndexStmt:              q.updateBinLedIndexStmt,
 		updateColorsStmt:                   q.updateColorsStmt,
 		updateContainerConfigStmt:          q.updateContainerConfigStmt,
 		updateControllerStatusStmt:         q.updateControllerStatusStmt,

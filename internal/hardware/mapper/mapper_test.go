@@ -27,14 +27,14 @@ func TestCalculateGlobalIndex(t *testing.T) {
 			wantIndex: 10,
 		},
 		{
-			name: "Two Containers Same Segment (C1=64, C2=16)",
+			name: "Two Containers Same Segment (Absolute Index 69)",
 			containers: []db.Container{
 				{ID: 1, SegmentID: 0, ConfigJson: sql.NullString{String: `{"type":"grid","rows":8,"cols":8}`, Valid: true}}, // 64
 				{ID: 2, SegmentID: 0, ConfigJson: sql.NullString{String: `{"type":"linear","total":16}`, Valid: true}},      // 16
 			},
-			targetBin: db.Bin{ContainerID: 2, LedIndex: sql.NullInt64{Int64: 5, Valid: true}}, // 5th LED in C2
+			targetBin: db.Bin{ContainerID: 2, LedIndex: sql.NullInt64{Int64: 69, Valid: true}},
 			wantSegment: 0,
-			wantIndex: 64 + 5, // 69
+			wantIndex: 69,
 		},
 		{
 			name: "Two Containers Different Segments",
@@ -44,18 +44,18 @@ func TestCalculateGlobalIndex(t *testing.T) {
 			},
 			targetBin: db.Bin{ContainerID: 2, LedIndex: sql.NullInt64{Int64: 5, Valid: true}},
 			wantSegment: 1,
-			wantIndex: 5, // Reset to 0 for new segment
+			wantIndex: 5,
 		},
 		{
-			name: "Compound Container",
+			name: "Compound Container (Absolute Index 32)",
 			containers: []db.Container{
 				// Compound: 2 sections of 4x4 = 16 + 16 = 32
 				{ID: 1, SegmentID: 0, ConfigJson: sql.NullString{String: `{"type":"compound","sections":[{"rows":4,"cols":4},{"rows":4,"cols":4}]}`, Valid: true}},
 				{ID: 2, SegmentID: 0, ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true}},
 			},
-			targetBin: db.Bin{ContainerID: 2, LedIndex: sql.NullInt64{Int64: 0, Valid: true}},
+			targetBin: db.Bin{ContainerID: 2, LedIndex: sql.NullInt64{Int64: 32, Valid: true}},
 			wantSegment: 0,
-			wantIndex: 32 + 0,
+			wantIndex: 32,
 		},
         {
             name: "Container Not Found",

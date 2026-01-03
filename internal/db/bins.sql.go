@@ -191,6 +191,22 @@ func (q *Queries) RestoreBin(ctx context.Context, arg RestoreBinParams) error {
 	return err
 }
 
+const updateBinLedIndex = `-- name: UpdateBinLedIndex :exec
+UPDATE bins
+SET led_index = ?
+WHERE id = ?
+`
+
+type UpdateBinLedIndexParams struct {
+	LedIndex sql.NullInt64 `json:"led_index"`
+	ID       int64         `json:"id"`
+}
+
+func (q *Queries) UpdateBinLedIndex(ctx context.Context, arg UpdateBinLedIndexParams) error {
+	_, err := q.exec(ctx, q.updateBinLedIndexStmt, updateBinLedIndex, arg.LedIndex, arg.ID)
+	return err
+}
+
 const upsertBin = `-- name: UpsertBin :exec
 INSERT INTO bins (name, container_id, led_index, width, grid_x, grid_y)
 VALUES (?, ?, ?, ?, ?, ?)

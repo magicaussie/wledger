@@ -53,6 +53,12 @@ func main() {
 	// Initialize store
 	store := db.NewStore(database)
 
+	// Run Data Migrations
+	if err := hardware.MigrateLegacyLedIndices(context.Background(), store, log); err != nil {
+		log.Error("Failed to run hardware data migrations", "error", err)
+		os.Exit(1)
+	}
+
 	// Ensure Settings exist
 	if err := store.InitSettings(context.Background()); err != nil {
 		log.Error("Failed to initialize settings", "error", err)

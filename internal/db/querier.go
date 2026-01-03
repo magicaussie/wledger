@@ -84,6 +84,7 @@ type Querier interface {
 	GetDashboardGrid(ctx context.Context) ([]GetDashboardGridRow, error)
 	GetDashboardGridByController(ctx context.Context, id int64) ([]GetDashboardGridByControllerRow, error)
 	GetDashboardStats(ctx context.Context) (GetDashboardStatsRow, error)
+	GetFlag(ctx context.Context, key string) (string, error)
 	GetInspirationTemplate(ctx context.Context, id int64) (InspirationTemplate, error)
 	GetPart(ctx context.Context, id int64) (Part, error)
 	GetPartAssignments(ctx context.Context, partID int64) ([]GetPartAssignmentsRow, error)
@@ -128,7 +129,9 @@ type Querier interface {
 	RestoreWall(ctx context.Context, arg RestoreWallParams) error
 	RestoreWallCard(ctx context.Context, arg RestoreWallCardParams) error
 	SearchParts(ctx context.Context, arg SearchPartsParams) ([]SearchPartsRow, error)
+	SetFlag(ctx context.Context, arg SetFlagParams) error
 	SetPasswordResetFlag(ctx context.Context, arg SetPasswordResetFlagParams) error
+	UpdateBinLedIndex(ctx context.Context, arg UpdateBinLedIndexParams) error
 	UpdateColors(ctx context.Context, arg UpdateColorsParams) error
 	UpdateContainerConfig(ctx context.Context, arg UpdateContainerConfigParams) error
 	UpdateControllerStatus(ctx context.Context, arg UpdateControllerStatusParams) error

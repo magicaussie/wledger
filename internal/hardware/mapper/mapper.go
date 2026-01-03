@@ -37,36 +37,14 @@ func CalculateGlobalIndex(containers []db.Container, targetBin db.Bin) (int64, i
 		return 0, 0, fmt.Errorf("target container %d not found in provided list", targetBin.ContainerID)
 	}
 
-	targetSegment := targetContainer.SegmentID
-	var offset int64 = 0
-
-	// Iterate and Calculate Offset
-	for _, c := range containers {
-		// Only consider containers on the same segment
-		if c.SegmentID != targetSegment {
-			continue
-		}
-
-		if c.ID == targetContainer.ID {
-			// Found it.
-			if !targetBin.LedIndex.Valid {
-				return 0, 0, fmt.Errorf("target bin has no LED index")
-			}
-			return targetSegment, offset + targetBin.LedIndex.Int64, nil
-		}
-
-		// Add length of this container to offset
-		length, err := getContainerLength(c)
-		if err != nil {
-			return 0, 0, fmt.Errorf("failed to calculate length for container %d: %w", c.ID, err)
-		}
-		offset += length
+	if !targetBin.LedIndex.Valid {
+		return 0, 0, fmt.Errorf("target bin has no LED index")
 	}
 
-	return 0, 0, fmt.Errorf("should be unreachable")
+	return targetContainer.SegmentID, targetBin.LedIndex.Int64, nil
 }
 
-func getContainerLength(c db.Container) (int64, error) {
+func GetContainerLength(c db.Container) (int64, error) {
 	if !c.ConfigJson.Valid {
 		return 0, nil
 	}

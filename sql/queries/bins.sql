@@ -30,6 +30,11 @@ ON CONFLICT(container_id, led_index) DO UPDATE SET
     grid_x = excluded.grid_x,
     grid_y = excluded.grid_y;
 
+-- name: UpdateBinLedIndex :exec
+UPDATE bins
+SET led_index = ?
+WHERE id = ?;
+
 -- name: DeleteBin :exec
 DELETE FROM bins WHERE id = ?;
 
