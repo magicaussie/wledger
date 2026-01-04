@@ -24,6 +24,7 @@ type Service interface {
 	CreatePart(ctx context.Context, req CreatePartRequest) (int64, error)
 	UpdatePart(ctx context.Context, req UpdatePartRequest) error
 	DeletePart(ctx context.Context, id int64) error
+	DeleteParts(ctx context.Context, ids []int64) error
 	GetPart(ctx context.Context, id int64) (db.Part, error)
 	ListParts(ctx context.Context, search string, page int) ([]pages.PartView, error)
 	GetPartDetail(ctx context.Context, id int64) (PartDetail, error)
@@ -445,6 +446,43 @@ func (s *service) DeletePart(ctx context.Context, id int64) error {
 	}
 	audit.Log(ctx, s.store, "DELETE", "PART", id, "Deleted part", summary, nil)
 	return s.store.DeletePart(ctx, id)
+}
+
+func (s *service) DeleteParts(ctx context.Context, ids []int64) error {
+	return s.store.ExecTx(ctx, func(q db.Querier) error {
+		for _, id := range ids {
+			// Get part for audit and cleanup
+			p, err := q.GetPart(ctx, id)
+			if err != nil {
+				return err
+			}
+
+			// Delete files (non-transactional, but better than leaving them)
+			if p.ImagePath.Valid {
+				images.DeleteByWebPath(p.ImagePath.String)
+			}
+			docs, _ := q.GetPartDocs(ctx, id)
+			for _, doc := range docs {
+				if strings.HasPrefix(doc.FilePath, config.UrlPrefixUploads) {
+					relPath := strings.TrimPrefix(doc.FilePath, config.UrlPrefixUploads)
+					diskPath := filepath.Join(config.DirUploads, relPath)
+					os.Remove(diskPath)
+				}
+			}
+
+			summary := map[string]any{
+				"id":          p.ID,
+				"name":        p.Name,
+				"part_number": p.PartNumber.String,
+			}
+			audit.Log(ctx, q, "DELETE", "PART", id, "Deleted part (Bulk)", summary, nil)
+
+			if err := q.DeletePart(ctx, id); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func (s *service) cleanupFiles(args ...interface{}) {

@@ -99,6 +99,13 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 			r.Post("/parts", h.HandlePartsCreate)
 			r.Get("/parts/import/template", h.HandlePartsImportTemplate)
 			r.Post("/parts/import", h.HandlePartsImport)
+			r.Handle("/parts/bulk", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodPost || r.Method == http.MethodDelete {
+					h.HandlePartsBulkDelete(w, r)
+				} else {
+					w.WriteHeader(http.StatusMethodNotAllowed)
+				}
+			}))
 
 			r.Get("/parts/{id}/edit", h.HandlePartEdit)
 			r.Post("/parts/{id}/update", h.HandlePartUpdate)

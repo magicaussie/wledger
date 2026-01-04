@@ -144,6 +144,49 @@ func (h *Handler) HandlePartDelete(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/parts", http.StatusSeeOther)
 }
 
+// DELETE /parts/bulk
+func (h *Handler) HandlePartsBulkDelete(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUserFromRequest(r)
+	if !user.CanWrite() {
+		h.UIError.Respond(w, r, nil, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		h.UIError.Respond(w, r, err, "Failed to parse form", http.StatusBadRequest)
+		return
+	}
+
+	idStrings := r.Form["ids"]
+	if len(idStrings) == 0 {
+		// Try to parse from JSON if form is empty (HTMX can send both depending on config)
+		h.Logger.Warn("no IDs provided for bulk delete")
+	}
+
+	var ids []int64
+	for _, s := range idStrings {
+		if id, err := strconv.ParseInt(s, 10, 64); err == nil {
+			ids = append(ids, id)
+		}
+	}
+
+	if len(ids) == 0 {
+		h.UIError.Respond(w, r, nil, "No parts selected", http.StatusBadRequest)
+		return
+	}
+
+	err := h.Parts.DeleteParts(r.Context(), ids)
+	if err != nil {
+		h.UIError.Respond(w, r, err, "Failed to delete parts", http.StatusInternalServerError)
+		return
+	}
+
+	// For HTMX response:
+	// Redirect to /parts to ensure a clean state
+	w.Header().Set("HX-Redirect", "/parts")
+	w.WriteHeader(http.StatusOK)
+}
+
 // -----------------------------------------------------------
 // SUB-RESOURCES (HTMX)
 // -----------------------------------------------------------
@@ -174,7 +217,7 @@ func (h *Handler) HandleDocDelete(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) HandleBinOptions(w http.ResponseWriter, r *http.Request) {
 	cid, _ := strconv.Atoi(r.URL.Query().Get("controller_id"))
-	
+
 	containers, err := h.Queries.GetContainersByController(r.Context(), int64(cid))
 	if err != nil {
 		h.Logger.Error("failed to fetch containers", "err", err, "controller_id", cid)
@@ -189,7 +232,7 @@ func (h *Handler) HandleBinOptions(w http.ResponseWriter, r *http.Request) {
 			allBins = append(allBins, bins...)
 		}
 	}
-	
+
 	components.BinOptions(allBins).Render(r.Context(), w)
 }
 
