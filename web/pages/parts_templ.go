@@ -80,12 +80,12 @@ func PartsList(user auth.User, parts []PartView, search string, page int) templ.
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</div><div x-show=\"selectedIds.length > 0\" class=\"w-full\" x-cloak><!-- Bulk Toolbar --><div class=\"flex flex-col sm:flex-row items-center justify-between bg-base-200 p-2 rounded-lg border border-primary/30 gap-3\"><div class=\"flex items-center justify-between w-full sm:w-auto gap-4\"><span class=\"text-sm font-bold ml-2\"><span x-text=\"selectedIds.length\"></span> selected</span> <button class=\"btn btn-sm btn-ghost\" @click=\"deselectAll()\">Cancel</button></div><div class=\"flex gap-2 w-full sm:w-auto\"><button class=\"btn btn-sm btn-outline flex-1 sm:flex-none\" @click=\"selectAll()\">Select All Visible</button> ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</div><div x-show=\"selectedIds.length > 0\" class=\"w-full\" x-cloak><!-- Bulk Toolbar --><div class=\"flex flex-col sm:flex-row items-center justify-between bg-base-200 p-2 rounded-lg border border-primary/30 gap-3\"><div class=\"flex items-center justify-between w-full sm:w-auto gap-4\"><span class=\"text-sm font-bold ml-2\"><span x-text=\"selectedIds.length\"></span> selected</span> <button class=\"btn btn-md btn-outline\" @click=\"deselectAll()\">Cancel</button></div><div class=\"flex gap-2 w-full sm:w-auto\"><button class=\"btn btn-md btn-primary flex-1 sm:flex-none\" @click=\"selectAll()\">Select All Visible</button> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			if user.CanWrite() {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<button class=\"btn btn-sm btn-error flex-1 sm:flex-none\" @click=\"document.getElementById('bulk_delete_modal').showModal()\">Delete</button>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<button class=\"btn btn-md btn-error flex-1 sm:flex-none\" @click=\"document.getElementById('bulk_delete_modal').showModal()\">Delete</button>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
