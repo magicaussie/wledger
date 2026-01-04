@@ -37,6 +37,8 @@ You need some addressable LEDs. The most common and well-supported type is the *
 
 Other options, such as SK6812 (and many more), are available as well.
 
+> Reddit user u/ShroomShroomBeepBeep made a great suggestion - instead of using LED strips (tons of soldering required) you could use some seed style strips, such as [these](https://amzn.to/49hMWyz).
+
 ### Storage Bins (The "Inventory")
 
 WLEDger works by lighting up 1 or more bins when you need to locate a part. For this to work well, the storage bins you choose should be clear or semi-transparent.
@@ -96,6 +98,8 @@ This is the fastest, cleanest, and most "plug-and-play" method. It's designed to
 ---
 
 ## Path 2: The "Cheapest" Build (DIY Wiring)
+
+> Reddit user u/ShroomShroomBeepBeep made a great suggestion - instead of using LED strips (tons of soldering required) you could use some seed style strips, such as [these](https://amzn.to/49hMWyz).
 
 This is the classic DIY method. It's *very* cheap to build, but requires the most time. You will cut an LED strip into 64 individual pieces and solder them all back together.
 
