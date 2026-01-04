@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
+	"net/url"
 	"strconv"
 	"strings"
 )
@@ -21,6 +22,8 @@ type PartImportRow struct {
 	MinStockThreshold int
 	BarcodeData       string
 	InitialQuantity   int
+	Tags              []string
+	Links             []string
 }
 
 // Validate checks the business rules for a single row
@@ -39,6 +42,12 @@ func (r PartImportRow) Validate() error {
 	}
 	if r.MinStockThreshold < 0 {
 		return fmt.Errorf("row %d: 'Min Stock' cannot be negative", r.RowNumber)
+	}
+	for _, link := range r.Links {
+		u, err := url.ParseRequestURI(link)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
+			return fmt.Errorf("row %d: invalid URL: %s", r.RowNumber, link)
+		}
 	}
 	return nil
 }
@@ -180,6 +189,33 @@ func ParsePartsCSV(input io.Reader) ([]PartImportRow, error) {
 				return nil, fmt.Errorf("row %d: %w", rowNum, err)
 			} else {
 				row.InitialQuantity = val
+			}
+		}
+
+		// Parse Multi-value fields (Tags & Links)
+		if key := findColumn("tags"); key != "" {
+			s := getString(key)
+			if s != "" {
+				parts := strings.Split(s, "|")
+				for _, p := range parts {
+					trimmed := strings.TrimSpace(p)
+					if trimmed != "" {
+						row.Tags = append(row.Tags, trimmed)
+					}
+				}
+			}
+		}
+
+		if key := findColumn("links", "urls"); key != "" {
+			s := getString(key)
+			if s != "" {
+				parts := strings.Split(s, "|")
+				for _, p := range parts {
+					trimmed := strings.TrimSpace(p)
+					if trimmed != "" {
+						row.Links = append(row.Links, trimmed)
+					}
+				}
 			}
 		}
 

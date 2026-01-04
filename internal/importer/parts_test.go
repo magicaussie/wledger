@@ -64,6 +64,15 @@ Chip,NE555,10,$1.50`,
 			expectError: true,
 			check:       nil,
 		},
+		{
+			name: "With Tags and Links",
+			csvContent: `Name,Tags,Links
+Microcontroller,IC|SMD,http://example.com/datasheet|http://example.com/product`,
+			expectError: false,
+			check: func(rows []PartImportRow) bool {
+				return len(rows) == 1 && len(rows[0].Tags) == 2 && rows[0].Tags[0] == "IC" && len(rows[0].Links) == 2
+			},
+		},
 	}
 
 	for _, tc := range tests {

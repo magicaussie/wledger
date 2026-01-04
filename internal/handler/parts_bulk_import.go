@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/tuxedocurly/wledger/internal/audit"
@@ -18,8 +19,8 @@ import (
 func (h *Handler) HandlePartsImportTemplate(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/csv")
 	w.Header().Set("Content-Disposition", "attachment;filename=wledger_import_template.csv")
-	w.Write([]byte("Name,Description,Part Number,Manufacturer,Supplier,Unit Cost,Reorder Level,Min Stock,Barcode,Quantity\n"))
-	w.Write([]byte("Example Part,10k Resistor,R-10k,Vishay,DigiKey,0.05,50,10,12345678,100\n"))
+	w.Write([]byte("Name,Description,Part Number,Manufacturer,Supplier,Unit Cost,Reorder Level,Min Stock,Barcode,Quantity,Tags,Links\n"))
+	w.Write([]byte("Example Part,10k Resistor,R-10k,Vishay,DigiKey,0.05,50,10,12345678,100,Resistor|SMD,https://example.com/resistor\n"))
 }
 
 // POST /parts/import
@@ -91,6 +92,26 @@ func (h *Handler) HandlePartsImport(w http.ResponseWriter, r *http.Request) {
 					returnErr = fmt.Errorf("Row %d Error: Duplicate Barcode '%s'", row.RowNumber, row.BarcodeData)
 				}
 				return returnErr
+			}
+
+			// Sync Tags
+			if len(row.Tags) > 0 {
+				if err := h.Tags.SyncTags(r.Context(), q, partID, row.Tags); err != nil {
+					h.Logger.Error("failed to sync tags during import", "err", err, "row", row.RowNumber)
+					return fmt.Errorf("Row %d Error saving tags: %v", row.RowNumber, err)
+				}
+			}
+
+			// Add Links
+			for _, linkURL := range row.Links {
+				label := ""
+				if u, err := url.Parse(linkURL); err == nil {
+					label = u.Hostname()
+				}
+				if err := h.Documents.AddLink(r.Context(), q, partID, linkURL, label); err != nil {
+					h.Logger.Error("failed to add link during import", "err", err, "row", row.RowNumber, "url", linkURL)
+					return fmt.Errorf("Row %d Error saving link %s: %v", row.RowNumber, linkURL, err)
+				}
 			}
 
 			// Insert Orphaned Stock if Quantity > 0
