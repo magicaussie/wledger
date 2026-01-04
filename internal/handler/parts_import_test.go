@@ -1,13 +1,86 @@
 package handler
 
 import (
+	"context"
+	"database/sql"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/tuxedocurly/wledger/internal/auth"
+	"github.com/tuxedocurly/wledger/internal/db"
 )
+
+func TestHandlePartsImport_WithLocation(t *testing.T) {
+	h, dbConn := setupPartTest(t)
+	defer dbConn.Close()
+	defer cleanupPartTest()
+	ctx := context.Background()
+
+	// Setup Data: Controller, Container, Bin
+	controller, _ := h.Queries.CreateController(ctx, db.CreateControllerParams{
+		Name: "Test Controller", IpAddress: "192.168.1.100",
+	})
+	containerID, _ := h.Queries.CreateContainer(ctx, db.CreateContainerParams{
+		Name: "Test Container", ControllerID: controller.ID, SegmentID: 2,
+	})
+	binID, _ := h.Queries.CreateBin(ctx, db.CreateBinParams{
+		Name: "Bin 5", ContainerID: containerID, LedIndex: sql.NullInt64{Int64: 5, Valid: true},
+	})
+
+	// Prepare CSV Content with valid location
+	csvContent := "Name,Controller IP,Segment ID,LED Index,Quantity\n" +
+		"Located Part,192.168.1.100,2,5,50\n"
+
+	req := createMultipartRequest(t, "/parts/import", "POST", map[string]string{
+		"raw_text": csvContent,
+	}, map[string]string{})
+	req = req.WithContext(auth.WithUser(req.Context(), auth.User{Role: "admin"}))
+
+	rr := httptest.NewRecorder()
+	h.HandlePartsImport(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected 200 OK, got %d. Body: %s", rr.Code, rr.Body.String())
+	}
+
+	// Verify Part Created and Assigned
+	var partID int64
+	dbConn.QueryRow("SELECT id FROM parts WHERE name = ?", "Located Part").Scan(&partID)
+
+	var count int
+	dbConn.QueryRow("SELECT quantity FROM part_assignments WHERE part_id = ? AND bin_id = ?", partID, binID).Scan(&count)
+	if count != 50 {
+		t.Errorf("expected 50 quantity in bin %d, got %d", binID, count)
+	}
+}
+
+func TestHandlePartsImport_InvalidLocation(t *testing.T) {
+	h, dbConn := setupPartTest(t)
+	defer dbConn.Close()
+	defer cleanupPartTest()
+
+	// Prepare CSV Content with non-existent location
+	csvContent := "Name,Controller IP,Segment ID,LED Index\n" +
+		"Bad Loc,999.999.999.999,0,0\n"
+
+	req := createMultipartRequest(t, "/parts/import", "POST", map[string]string{
+		"raw_text": csvContent,
+	}, map[string]string{})
+	req = req.WithContext(auth.WithUser(req.Context(), auth.User{Role: "admin"}))
+
+	rr := httptest.NewRecorder()
+	h.HandlePartsImport(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected 200 OK (HTMX pattern), got %d", rr.Code)
+	}
+
+	if !strings.Contains(rr.Body.String(), "Location not found") {
+		t.Errorf("expected error message about location not found, got: %s", rr.Body.String())
+	}
+}
 
 func TestHandlePartsImport_WithTagsAndLinks(t *testing.T) {
 	h, dbConn := setupPartTest(t)

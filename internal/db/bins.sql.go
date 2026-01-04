@@ -126,6 +126,27 @@ func (q *Queries) GetBin(ctx context.Context, id int64) (Bin, error) {
 	return i, err
 }
 
+const getBinByLocation = `-- name: GetBinByLocation :one
+SELECT b.id 
+FROM bins b
+JOIN containers c ON b.container_id = c.id
+JOIN controllers ct ON c.controller_id = ct.id
+WHERE ct.ip_address = ? AND c.segment_id = ? AND b.led_index = ?
+`
+
+type GetBinByLocationParams struct {
+	IpAddress string        `json:"ip_address"`
+	SegmentID int64         `json:"segment_id"`
+	LedIndex  sql.NullInt64 `json:"led_index"`
+}
+
+func (q *Queries) GetBinByLocation(ctx context.Context, arg GetBinByLocationParams) (int64, error) {
+	row := q.queryRow(ctx, q.getBinByLocationStmt, getBinByLocation, arg.IpAddress, arg.SegmentID, arg.LedIndex)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getBinsByContainer = `-- name: GetBinsByContainer :many
 SELECT id, name, container_id, led_index, width, grid_x, grid_y FROM bins 
 WHERE container_id = ? 

@@ -24,6 +24,9 @@ type PartImportRow struct {
 	InitialQuantity   int
 	Tags              []string
 	Links             []string
+	ControllerIP      string
+	SegmentID         *int
+	LEDIndex          *int
 }
 
 // Validate checks the business rules for a single row
@@ -49,6 +52,24 @@ func (r PartImportRow) Validate() error {
 			return fmt.Errorf("row %d: invalid URL: %s", r.RowNumber, link)
 		}
 	}
+
+	// Location Validation
+	hasIP := r.ControllerIP != ""
+	hasSeg := r.SegmentID != nil
+	hasLed := r.LEDIndex != nil
+
+	if hasIP || hasSeg || hasLed {
+		if !hasIP {
+			return fmt.Errorf("row %d: 'Controller IP' is required when specifying location", r.RowNumber)
+		}
+		if !hasSeg {
+			return fmt.Errorf("row %d: 'Segment ID' is required when specifying location", r.RowNumber)
+		}
+		if !hasLed {
+			return fmt.Errorf("row %d: 'LED Index' is required when specifying location", r.RowNumber)
+		}
+	}
+
 	return nil
 }
 
@@ -189,6 +210,33 @@ func ParsePartsCSV(input io.Reader) ([]PartImportRow, error) {
 				return nil, fmt.Errorf("row %d: %w", rowNum, err)
 			} else {
 				row.InitialQuantity = val
+			}
+		}
+
+		// Location Fields
+		if key := findColumn("controllerip", "ipaddress", "ip"); key != "" {
+			row.ControllerIP = getString(key)
+		}
+
+		if key := findColumn("segmentid", "segment", "seg"); key != "" {
+			s := getString(key)
+			if s != "" {
+				if val, err := parseColumnInt(key); err != nil {
+					return nil, fmt.Errorf("row %d: %w", rowNum, err)
+				} else {
+					row.SegmentID = &val
+				}
+			}
+		}
+
+		if key := findColumn("ledindex", "led", "binindex", "bin"); key != "" {
+			s := getString(key)
+			if s != "" {
+				if val, err := parseColumnInt(key); err != nil {
+					return nil, fmt.Errorf("row %d: %w", rowNum, err)
+				} else {
+					row.LEDIndex = &val
+				}
 			}
 		}
 

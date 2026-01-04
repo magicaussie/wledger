@@ -19,8 +19,8 @@ import (
 func (h *Handler) HandlePartsImportTemplate(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/csv")
 	w.Header().Set("Content-Disposition", "attachment;filename=wledger_import_template.csv")
-	w.Write([]byte("Name,Description,Part Number,Manufacturer,Supplier,Unit Cost,Reorder Level,Min Stock,Barcode,Quantity,Tags,Links\n"))
-	w.Write([]byte("Example Part,10k Resistor,R-10k,Vishay,DigiKey,0.05,50,10,12345678,100,Resistor|SMD,https://example.com/resistor\n"))
+	w.Write([]byte("Name,Description,Part Number,Manufacturer,Supplier,Unit Cost,Reorder Level,Min Stock,Barcode,Quantity,Tags,Links,Controller IP,Segment ID,LED Index\n"))
+	w.Write([]byte("Example Part,Resistor 10-K,MPN123,TI,DigiKey,0.05,50,10,12345678,100,Resistor|SMD,https://example.com/resistor,192.168.1.100,0,5\n"))
 }
 
 // POST /parts/import
@@ -114,11 +114,31 @@ func (h *Handler) HandlePartsImport(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 
-			// Insert Orphaned Stock if Quantity > 0
+			count++
+
+			// Resolve Bin ID if location is provided
+			var binID sql.NullInt64
+			if row.ControllerIP != "" {
+				resolvedBinID, err := q.GetBinByLocation(r.Context(), db.GetBinByLocationParams{
+					IpAddress: row.ControllerIP,
+					SegmentID: int64(*row.SegmentID),
+					LedIndex:  sql.NullInt64{Int64: int64(*row.LEDIndex), Valid: true},
+				})
+				if err != nil {
+					h.Logger.Error("failed to resolve bin location during import", "err", err, "row", row.RowNumber, "ip", row.ControllerIP, "seg", *row.SegmentID, "led", *row.LEDIndex)
+					if err == sql.ErrNoRows {
+						return fmt.Errorf("Row %d Error: Location not found (IP: %s, Seg: %d, LED: %d)", row.RowNumber, row.ControllerIP, *row.SegmentID, *row.LEDIndex)
+					}
+					return fmt.Errorf("Row %d Error resolving location: %v", row.RowNumber, err)
+				}
+				binID = sql.NullInt64{Int64: resolvedBinID, Valid: true}
+			}
+
+			// Insert Stock if Quantity > 0
 			if row.InitialQuantity > 0 {
 				err = q.CreatePartAssignment(r.Context(), db.CreatePartAssignmentParams{
 					PartID:   partID,
-					BinID:    sql.NullInt64{Valid: false}, // Orphaned
+					BinID:    binID,
 					Quantity: int64(row.InitialQuantity),
 				})
 				if err != nil {
@@ -126,7 +146,6 @@ func (h *Handler) HandlePartsImport(w http.ResponseWriter, r *http.Request) {
 					return fmt.Errorf("Row %d Error saving stock: %v", row.RowNumber, err)
 				}
 			}
-			count++
 		}
 
 		// Audit Log

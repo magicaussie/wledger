@@ -216,6 +216,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.getBinStmt, err = db.PrepareContext(ctx, getBin); err != nil {
 		return nil, fmt.Errorf("error preparing query GetBin: %w", err)
 	}
+	if q.getBinByLocationStmt, err = db.PrepareContext(ctx, getBinByLocation); err != nil {
+		return nil, fmt.Errorf("error preparing query GetBinByLocation: %w", err)
+	}
 	if q.getBinsByContainerStmt, err = db.PrepareContext(ctx, getBinsByContainer); err != nil {
 		return nil, fmt.Errorf("error preparing query GetBinsByContainer: %w", err)
 	}
@@ -742,6 +745,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing getBinStmt: %w", cerr)
 		}
 	}
+	if q.getBinByLocationStmt != nil {
+		if cerr := q.getBinByLocationStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getBinByLocationStmt: %w", cerr)
+		}
+	}
 	if q.getBinsByContainerStmt != nil {
 		if cerr := q.getBinsByContainerStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getBinsByContainerStmt: %w", cerr)
@@ -1180,6 +1188,7 @@ type Queries struct {
 	getAssignmentStmt                  *sql.Stmt
 	getAssignmentIDStmt                *sql.Stmt
 	getBinStmt                         *sql.Stmt
+	getBinByLocationStmt               *sql.Stmt
 	getBinsByContainerStmt             *sql.Stmt
 	getContainerStmt                   *sql.Stmt
 	getContainersByControllerStmt      *sql.Stmt
@@ -1317,6 +1326,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		getAssignmentStmt:                  q.getAssignmentStmt,
 		getAssignmentIDStmt:                q.getAssignmentIDStmt,
 		getBinStmt:                         q.getBinStmt,
+		getBinByLocationStmt:               q.getBinByLocationStmt,
 		getBinsByContainerStmt:             q.getBinsByContainerStmt,
 		getContainerStmt:                   q.getContainerStmt,
 		getContainersByControllerStmt:      q.getContainersByControllerStmt,

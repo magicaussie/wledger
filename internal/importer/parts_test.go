@@ -73,6 +73,15 @@ Microcontroller,IC|SMD,http://example.com/datasheet|http://example.com/product`,
 				return len(rows) == 1 && len(rows[0].Tags) == 2 && rows[0].Tags[0] == "IC" && len(rows[0].Links) == 2
 			},
 		},
+		{
+			name: "With Location Data",
+			csvContent: `Name,Controller IP,Segment ID,LED Index
+Led,192.168.1.100,2,5`,
+			expectError: false,
+			check: func(rows []PartImportRow) bool {
+				return len(rows) == 1 && rows[0].ControllerIP == "192.168.1.100" && *rows[0].SegmentID == 2 && *rows[0].LEDIndex == 5
+			},
+		},
 	}
 
 	for _, tc := range tests {
