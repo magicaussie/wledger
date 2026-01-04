@@ -21,9 +21,10 @@ SELECT p.*,
      LIMIT 1), 0) as locate_controller_id
 FROM parts p
 LEFT JOIN part_assignments pa ON p.id = pa.part_id
+WHERE (sqlc.narg('bin_id') IS NULL OR pa.bin_id = sqlc.narg('bin_id'))
 GROUP BY p.id
 ORDER BY p.name
-LIMIT ? OFFSET ?;
+LIMIT sqlc.arg('limit') OFFSET sqlc.arg('offset');
 
 -- name: SearchParts :many
 SELECT p.*, 
@@ -46,10 +47,11 @@ SELECT p.*,
 FROM parts_fts fts
 JOIN parts p ON fts.rowid = p.id
 LEFT JOIN part_assignments pa ON p.id = pa.part_id
-WHERE parts_fts MATCH ?
+WHERE parts_fts MATCH sqlc.arg('query')
+  AND (sqlc.narg('bin_id') IS NULL OR pa.bin_id = sqlc.narg('bin_id'))
 GROUP BY p.id, fts.rank
 ORDER BY fts.rank
-LIMIT ? OFFSET ?;
+LIMIT sqlc.arg('limit') OFFSET sqlc.arg('offset');
 
 -- name: GetAllParts :many
 SELECT * FROM parts ORDER BY id;

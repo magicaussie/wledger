@@ -23,6 +23,7 @@ func (h *Handler) HandlePartsList(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUserFromRequest(r)
 	search := r.URL.Query().Get("q")
 	pageStr := r.URL.Query().Get("page")
+	binStr := r.URL.Query().Get("bin")
 	scroll := r.URL.Query().Get("scroll") == "true"
 
 	page, _ := strconv.Atoi(pageStr)
@@ -30,7 +31,14 @@ func (h *Handler) HandlePartsList(w http.ResponseWriter, r *http.Request) {
 		page = 1
 	}
 
-	viewParts, err := h.Parts.ListParts(r.Context(), search, page)
+	var binID *int64
+	if binStr != "" {
+		if id, err := strconv.ParseInt(binStr, 10, 64); err == nil {
+			binID = &id
+		}
+	}
+
+	viewParts, err := h.Parts.ListParts(r.Context(), search, page, binID)
 	if err != nil {
 		h.UIError.Respond(w, r, err, "Failed to fetch parts", http.StatusInternalServerError)
 		return
@@ -39,10 +47,10 @@ func (h *Handler) HandlePartsList(w http.ResponseWriter, r *http.Request) {
 	// Render logic
 	if scroll {
 		// If infinite scroll, return JUST the new cards (appended to bottom)
-		pages.PartCards(viewParts, search, page).Render(r.Context(), w)
+		pages.PartCards(viewParts, search, page, binID).Render(r.Context(), w)
 	} else {
 		// If full page load or search replacement, return the full wrapper
-		pages.PartsList(user, viewParts, search, page).Render(r.Context(), w)
+		pages.PartsList(user, viewParts, search, page, binID).Render(r.Context(), w)
 	}
 }
 

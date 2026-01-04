@@ -162,7 +162,7 @@ func TestUpdatePartStockThresholdsToZero(t *testing.T) {
 
 	ctx := context.WithValue(context.Background(), middleware.UserContextKey, int64(1))
 
-	// 1. Create part with non-zero thresholds
+	// Create part with non-zero thresholds
 	req := CreatePartRequest{
 		Name:              "Stock Part",
 		UnitCost:          10.50,
@@ -189,7 +189,7 @@ func TestUpdatePartStockThresholdsToZero(t *testing.T) {
 		t.Errorf("expected unit cost 10.50, got %f", p.UnitCost.Float64)
 	}
 
-	// 2. Update to Zero
+	// Update to Zero
 	updateReq := UpdatePartRequest{
 		ID:                id,
 		Name:              "Stock Part Updated",
@@ -202,7 +202,7 @@ func TestUpdatePartStockThresholdsToZero(t *testing.T) {
 		t.Fatalf("UpdatePart failed: %v", err)
 	}
 
-	// 3. Verify update
+	// Verify update
 	pUpdated, err := svc.GetPart(ctx, id)
 	if err != nil {
 		t.Fatalf("GetPart failed: %v", err)
@@ -240,7 +240,7 @@ func TestUpdatePartClearFields(t *testing.T) {
 
 	ctx := context.WithValue(context.Background(), middleware.UserContextKey, int64(1))
 
-	// 1. Create part with full details
+	// Create part with full details
 	req := CreatePartRequest{
 		Name:         "Full Part",
 		Description:  "Has Description",
@@ -254,22 +254,22 @@ func TestUpdatePartClearFields(t *testing.T) {
 		t.Fatalf("CreatePart failed: %v", err)
 	}
 
-	// 2. Update to clear some fields
+	// Update to clear some fields
 	updateReq := UpdatePartRequest{
 		ID:           id,
 		Name:         "Full Part Updated",
-		Description:  "", // Clear
-		PartNumber:   "", // Clear
+		Description:  "",                 // Clear
+		PartNumber:   "",                 // Clear
 		Manufacturer: "Has Manufacturer", // Keep
-		Supplier:     "", // Clear
-		BarcodeData:  "", // Clear
+		Supplier:     "",                 // Clear
+		BarcodeData:  "",                 // Clear
 	}
 	err = svc.UpdatePart(ctx, updateReq)
 	if err != nil {
 		t.Fatalf("UpdatePart failed: %v", err)
 	}
 
-	// 3. Verify
+	// Verify
 	p, err := svc.GetPart(ctx, id)
 	if err != nil {
 		t.Fatalf("GetPart failed: %v", err)

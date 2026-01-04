@@ -31,7 +31,7 @@ type PartView struct {
 }
 
 // PartsList is the full page wrapper
-func PartsList(user auth.User, parts []PartView, search string, page int) templ.Component {
+func PartsList(user auth.User, parts []PartView, search string, page int, binID *int64) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -120,7 +120,7 @@ func PartsList(user auth.User, parts []PartView, search string, page int) templ.
 					return templ_7745c5c3_Err
 				}
 			} else {
-				templ_7745c5c3_Err = PartCards(parts, search, page).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = PartCards(parts, search, page, binID).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -171,7 +171,7 @@ func PartsList(user auth.User, parts []PartView, search string, page int) templ.
 	})
 }
 
-func PartCards(parts []PartView, search string, page int) templ.Component {
+func PartCards(parts []PartView, search string, page int, binID *int64) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -375,9 +375,9 @@ func PartCards(parts []PartView, search string, page int) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var16 string
-			templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/parts?page=%d&q=%s&scroll=true", page+1, url.QueryEscape(search)))
+			templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/parts?page=%d&q=%s&scroll=true%s", page+1, url.QueryEscape(search), binQuery(binID)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/parts.templ`, Line: 162, Col: 91}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/parts.templ`, Line: 162, Col: 110}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 			if templ_7745c5c3_Err != nil {
@@ -390,6 +390,13 @@ func PartCards(parts []PartView, search string, page int) templ.Component {
 		}
 		return nil
 	})
+}
+
+func binQuery(binID *int64) string {
+	if binID == nil {
+		return ""
+	}
+	return fmt.Sprintf("&bin=%d", *binID)
 }
 
 func navigateTo(url string) templ.ComponentScript {

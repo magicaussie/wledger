@@ -26,7 +26,7 @@ type Service interface {
 	DeletePart(ctx context.Context, id int64) error
 	DeleteParts(ctx context.Context, ids []int64) error
 	GetPart(ctx context.Context, id int64) (db.Part, error)
-	ListParts(ctx context.Context, search string, page int) ([]pages.PartView, error)
+	ListParts(ctx context.Context, search string, page int, binID *int64) ([]pages.PartView, error)
 	GetPartDetail(ctx context.Context, id int64) (PartDetail, error)
 }
 
@@ -105,41 +105,51 @@ func (s *service) GetPart(ctx context.Context, id int64) (db.Part, error) {
 	return s.store.GetPart(ctx, id)
 }
 
-func (s *service) ListParts(ctx context.Context, search string, page int) ([]pages.PartView, error) {
+func (s *service) ListParts(ctx context.Context, search string, page int, binID *int64) ([]pages.PartView, error) {
 	if page < 1 {
 		page = 1
 	}
 	limit := 20
 	offset := (page - 1) * limit
 
+	var binIDParam interface{}
+	if binID != nil {
+		binIDParam = sql.NullInt64{Int64: *binID, Valid: true}
+	} else {
+		binIDParam = sql.NullInt64{Valid: false}
+	}
+
 	var viewParts []pages.PartView
 	if search != "" {
 		// FTS5 Search
 		query := search + "*"
-					rows, err := s.store.SearchParts(ctx, db.SearchPartsParams{
-						PartsFts: sql.NullString{String: query, Valid: true},
-						Limit:    int64(limit),
-						Offset:   int64(offset),
-					})
-					if err != nil {
-						return nil, err
-					}
-					for _, row := range rows {
-						viewParts = append(viewParts, pages.PartView{
-							ID:            row.ID,
-							Name:          row.Name,
-							Description:   row.Description,
-							PartNumber:    row.PartNumber,
-							ImagePath:     row.ImagePath,
-							IsFavorite:    row.IsFavorite,
-							UnitCost:      row.UnitCost,
-							TotalStock:    row.TotalStock,
-							ValidStock:    row.ValidStock,
-							OrphanedStock: row.OrphanedStock,
-						})
-					}	} else {
+		rows, err := s.store.SearchParts(ctx, db.SearchPartsParams{
+			Query:  sql.NullString{String: query, Valid: true},
+			BinID:  binIDParam,
+			Limit:  int64(limit),
+			Offset: int64(offset),
+		})
+		if err != nil {
+			return nil, err
+		}
+		for _, row := range rows {
+			viewParts = append(viewParts, pages.PartView{
+				ID:            row.ID,
+				Name:          row.Name,
+				Description:   row.Description,
+				PartNumber:    row.PartNumber,
+				ImagePath:     row.ImagePath,
+				IsFavorite:    row.IsFavorite,
+				UnitCost:      row.UnitCost,
+				TotalStock:    row.TotalStock,
+				ValidStock:    row.ValidStock,
+				OrphanedStock: row.OrphanedStock,
+			})
+		}
+	} else {
 		// Standard List
 		rows, err := s.store.ListParts(ctx, db.ListPartsParams{
+			BinID:  binIDParam,
 			Limit:  int64(limit),
 			Offset: int64(offset),
 		})

@@ -23,7 +23,7 @@ type PartView struct {
 }
 
 // PartsList is the full page wrapper
-templ PartsList(user auth.User, parts []PartView, search string, page int) {
+templ PartsList(user auth.User, parts []PartView, search string, page int, binID *int64) {
 	@layouts.Base("Inventory", user) {
 		<div
 			x-data="{ 
@@ -76,7 +76,7 @@ templ PartsList(user auth.User, parts []PartView, search string, page int) {
 						}
 					}
 				} else {
-					@PartCards(parts, search, page)
+					@PartCards(parts, search, page, binID)
 				}
 			</div>
 			@components.ImportModal()
@@ -102,7 +102,7 @@ templ PartsList(user auth.User, parts []PartView, search string, page int) {
 	}
 }
 
-templ PartCards(parts []PartView, search string, page int) {
+templ PartCards(parts []PartView, search string, page int, binID *int64) {
 	// Render the cards
 	for _, part := range parts {
 		<div
@@ -159,7 +159,7 @@ templ PartCards(parts []PartView, search string, page int) {
 	// sentinel for loading more parts
 	if len(parts) >= 20 {
 		<div
-			hx-get={ fmt.Sprintf("/parts?page=%d&q=%s&scroll=true", page+1, url.QueryEscape(search)) }
+			hx-get={ fmt.Sprintf("/parts?page=%d&q=%s&scroll=true%s", page+1, url.QueryEscape(search), binQuery(binID)) }
 			hx-trigger="intersect once"
 			hx-swap="outerHTML"
 			class="col-span-full h-12 w-full flex justify-center items-center opacity-50 text-xs"
@@ -167,6 +167,13 @@ templ PartCards(parts []PartView, search string, page int) {
 			<span class="loading loading-dots loading-lg text-primary"></span>
 		</div>
 	}
+}
+
+func binQuery(binID *int64) string {
+	if binID == nil {
+		return ""
+	}
+	return fmt.Sprintf("&bin=%d", *binID)
 }
 
 script navigateTo(url string) {

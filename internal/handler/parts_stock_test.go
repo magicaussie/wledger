@@ -47,7 +47,7 @@ func TestPartList_StockBreakdown(t *testing.T) {
 	})
 
 	// Test ListParts service method directly
-	viewParts, err := h.Parts.ListParts(ctx, "", 1)
+	viewParts, err := h.Parts.ListParts(ctx, "", 1, nil)
 	if err != nil {
 		t.Fatalf("ListParts failed: %v", err)
 	}

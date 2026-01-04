@@ -552,14 +552,16 @@ SELECT p.id, p.name, p.description, p.part_number, p.manufacturer, p.supplier, p
      LIMIT 1), 0) as locate_controller_id
 FROM parts p
 LEFT JOIN part_assignments pa ON p.id = pa.part_id
+WHERE (?1 IS NULL OR pa.bin_id = ?1)
 GROUP BY p.id
 ORDER BY p.name
-LIMIT ? OFFSET ?
+LIMIT ?3 OFFSET ?2
 `
 
 type ListPartsParams struct {
-	Limit  int64 `json:"limit"`
-	Offset int64 `json:"offset"`
+	BinID  interface{} `json:"bin_id"`
+	Offset int64       `json:"offset"`
+	Limit  int64       `json:"limit"`
 }
 
 type ListPartsRow struct {
@@ -586,7 +588,7 @@ type ListPartsRow struct {
 }
 
 func (q *Queries) ListParts(ctx context.Context, arg ListPartsParams) ([]ListPartsRow, error) {
-	rows, err := q.query(ctx, q.listPartsStmt, listParts, arg.Limit, arg.Offset)
+	rows, err := q.query(ctx, q.listPartsStmt, listParts, arg.BinID, arg.Offset, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -805,16 +807,18 @@ SELECT p.id, p.name, p.description, p.part_number, p.manufacturer, p.supplier, p
 FROM parts_fts fts
 JOIN parts p ON fts.rowid = p.id
 LEFT JOIN part_assignments pa ON p.id = pa.part_id
-WHERE parts_fts MATCH ?
+WHERE parts_fts MATCH ?1
+  AND (?2 IS NULL OR pa.bin_id = ?2)
 GROUP BY p.id, fts.rank
 ORDER BY fts.rank
-LIMIT ? OFFSET ?
+LIMIT ?4 OFFSET ?3
 `
 
 type SearchPartsParams struct {
-	PartsFts sql.NullString `json:"parts_fts"`
-	Limit    int64          `json:"limit"`
-	Offset   int64          `json:"offset"`
+	Query  sql.NullString `json:"query"`
+	BinID  interface{}    `json:"bin_id"`
+	Offset int64          `json:"offset"`
+	Limit  int64          `json:"limit"`
 }
 
 type SearchPartsRow struct {
@@ -841,7 +845,12 @@ type SearchPartsRow struct {
 }
 
 func (q *Queries) SearchParts(ctx context.Context, arg SearchPartsParams) ([]SearchPartsRow, error) {
-	rows, err := q.query(ctx, q.searchPartsStmt, searchParts, arg.PartsFts, arg.Limit, arg.Offset)
+	rows, err := q.query(ctx, q.searchPartsStmt, searchParts,
+		arg.Query,
+		arg.BinID,
+		arg.Offset,
+		arg.Limit,
+	)
 	if err != nil {
 		return nil, err
 	}
