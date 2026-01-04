@@ -6,14 +6,13 @@ import (
 )
 
 templ PartLocateButton(partID int64, className string) {
-	<object class="inline-block" onClick="event.preventDefault(); event.stopPropagation()">
-		<button
-			hx-post={ fmt.Sprintf("/parts/%d/locate", partID) }
-			hx-swap="none"
-			class={ "btn btn-outline text-accent z-10", className }
-			title="Locate all assignments"
-		>
-			@icons.EyeIcon(5)
-		</button>
-	</object>
+	<button
+		hx-post={ fmt.Sprintf("/parts/%d/locate", partID) }
+		hx-swap="none"
+		class={ "btn btn-outline text-accent z-10", className }
+		title="Locate all assignments"
+		onclick="event.stopPropagation()"
+	>
+		@icons.EyeIcon(5)
+	</button>
 }

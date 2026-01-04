@@ -10,14 +10,16 @@ import (
 )
 
 type PartView struct {
-	ID          int64
-	Name        string
-	Description sql.NullString
-	PartNumber  sql.NullString
-	ImagePath   sql.NullString
-	IsFavorite  sql.NullBool
-	UnitCost    sql.NullFloat64
-	TotalStock  int64
+	ID            int64
+	Name          string
+	Description   sql.NullString
+	PartNumber    sql.NullString
+	ImagePath     sql.NullString
+	IsFavorite    sql.NullBool
+	UnitCost      sql.NullFloat64
+	TotalStock    int64
+	ValidStock    int64
+	OrphanedStock int64
 }
 
 // PartsList is the full page wrapper
@@ -47,9 +49,9 @@ templ PartsList(user auth.User, parts []PartView, search string, page int) {
 templ PartCards(parts []PartView, search string, page int) {
 	// Render the cards
 	for _, part := range parts {
-		<a
-			href={ templ.SafeURL(fmt.Sprintf("/parts/%d", part.ID)) }
-			class="card bg-base-200 shadow-xl hover:shadow-2xl transition-shadow cursor-pointer block group"
+		<div
+			onclick={ navigateTo(fmt.Sprintf("/parts/%d", part.ID)) }
+			class="card bg-base-200 shadow-xl hover:shadow-2xl hover:z-50 transition-all cursor-pointer block group"
 		>
 			<figure class="h-48 bg-base-300 relative overflow-hidden">
 				if part.ImagePath.Valid && part.ImagePath.String != "" {
@@ -59,7 +61,7 @@ templ PartCards(parts []PartView, search string, page int) {
 						class="object-cover w-full h-full transform transition-transform duration-500 group-hover:scale-110"
 					/>
 				} else {
-					<div class="flex items-center justify-center w-full h-full text-4xl opacity-20 transform transition-transform duration-500 group-hover:scale-110">📷</div>
+					<div class="flex items-center justify-center w-full h-full text-4xl opacity-30 transform transition-transform duration-500 group-hover:scale-110 grayscale">📷</div>
 				}
 			</figure>
 			<div class="card-body p-4 relative z-10 bg-base-200">
@@ -77,12 +79,17 @@ templ PartCards(parts []PartView, search string, page int) {
 						<span class="text-s font-mono opacity-50"># { part.PartNumber.String }</span>
 						<span class="badge badge-info font-semibold mt-1">Stock: { fmt.Sprintf("%d", part.TotalStock) }</span>
 					</div>
-					if part.TotalStock > 0 {
-						@components.PartLocateButton(part.ID, "btn-sm")
-					}
+					<div class="flex items-center gap-2">
+						if part.OrphanedStock > 0 {
+							@components.OrphanedStockWarning()
+						}
+						if part.ValidStock > 0 {
+							@components.PartLocateButton(part.ID, "btn-sm")
+						}
+					</div>
 				</div>
 			</div>
-		</a>
+		</div>
 	}
 	// sentinel for loading more parts
 	if len(parts) >= 20 {
@@ -95,4 +102,8 @@ templ PartCards(parts []PartView, search string, page int) {
 			<span class="loading loading-dots loading-lg text-primary"></span>
 		</div>
 	}
+}
+
+script navigateTo(url string) {
+	window.location.href = url;
 }

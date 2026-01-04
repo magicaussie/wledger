@@ -1,0 +1,15 @@
+package components
+
+import "github.com/tuxedocurly/wledger/web/icons"
+
+templ OrphanedStockWarning() {
+	<div
+		class="tooltip tooltip-warning tooltip-left md:tooltip-top z-50"
+		data-tip="This part has orphaned stock."
+		onclick="event.stopPropagation(); event.preventDefault();"
+	>
+		<span class="text-warning cursor-help">
+			@icons.WarningIcon(6)
+		</span>
+	</div>
+}

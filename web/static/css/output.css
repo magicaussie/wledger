@@ -4029,6 +4029,14 @@
       --input-color: var(--color-error);
     }
   }
+  .tooltip-warning {
+    @layer daisyui.l1.l2 {
+      --tt-bg: var(--color-warning);
+      > .tooltip-content, &[data-tip]:before {
+        color: var(--color-warning-content);
+      }
+    }
+  }
   .text-\[\#ff5e5b\] {
     color: #ff5e5b;
   }
@@ -4453,6 +4461,13 @@
       }
     }
   }
+  .hover\:z-50 {
+    &:hover {
+      @media (hover: hover) {
+        z-index: 50;
+      }
+    }
+  }
   .hover\:scale-110 {
     &:hover {
       @media (hover: hover) {
@@ -4730,6 +4745,20 @@
         &:after {
           transform: translateX(var(--tt-pos, -0.25rem)) translateY(-50%) rotate(90deg);
           inset: 50% auto auto calc(var(--tt-tail) + 1px);
+        }
+      }
+    }
+  }
+  .md\:tooltip-top {
+    @media (width >= 48rem) {
+      @layer daisyui.l1.l2 {
+        > .tooltip-content, &[data-tip]:before {
+          transform: translateX(-50%) translateY(var(--tt-pos, 0.25rem));
+          inset: auto auto var(--tt-off) 50%;
+        }
+        &:after {
+          transform: translateX(-50%) translateY(var(--tt-pos, 0.25rem));
+          inset: auto auto var(--tt-tail) 50%;
         }
       }
     }

@@ -535,6 +535,8 @@ func (q *Queries) GetPartLinks(ctx context.Context, partID int64) ([]PartLink, e
 const listParts = `-- name: ListParts :many
 SELECT p.id, p.name, p.description, p.part_number, p.manufacturer, p.supplier, p.unit_cost, p.reorder_level, p.min_stock_threshold, p.barcode_data, p.image_path, p.is_favorite, p.tags, p.created_at, p.updated_at, 
     CAST(COALESCE(SUM(pa.quantity), 0) AS INTEGER) as total_stock,
+    CAST(COALESCE(SUM(CASE WHEN pa.bin_id IS NOT NULL THEN pa.quantity ELSE 0 END), 0) AS INTEGER) as valid_stock,
+    CAST(COALESCE(SUM(CASE WHEN pa.bin_id IS NULL THEN pa.quantity ELSE 0 END), 0) AS INTEGER) as orphaned_stock,
     (SELECT pa2.bin_id 
      FROM part_assignments pa2 
      WHERE pa2.part_id = p.id AND pa2.quantity > 0 
@@ -577,6 +579,8 @@ type ListPartsRow struct {
 	CreatedAt          sql.NullTime    `json:"created_at"`
 	UpdatedAt          sql.NullTime    `json:"updated_at"`
 	TotalStock         int64           `json:"total_stock"`
+	ValidStock         int64           `json:"valid_stock"`
+	OrphanedStock      int64           `json:"orphaned_stock"`
 	LocateBinID        sql.NullInt64   `json:"locate_bin_id"`
 	LocateControllerID interface{}     `json:"locate_controller_id"`
 }
@@ -607,6 +611,8 @@ func (q *Queries) ListParts(ctx context.Context, arg ListPartsParams) ([]ListPar
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.TotalStock,
+			&i.ValidStock,
+			&i.OrphanedStock,
 			&i.LocateBinID,
 			&i.LocateControllerID,
 		); err != nil {
@@ -781,6 +787,8 @@ func (q *Queries) RestorePartLink(ctx context.Context, arg RestorePartLinkParams
 const searchParts = `-- name: SearchParts :many
 SELECT p.id, p.name, p.description, p.part_number, p.manufacturer, p.supplier, p.unit_cost, p.reorder_level, p.min_stock_threshold, p.barcode_data, p.image_path, p.is_favorite, p.tags, p.created_at, p.updated_at, 
     CAST(COALESCE(SUM(pa.quantity), 0) AS INTEGER) as total_stock,
+    CAST(COALESCE(SUM(CASE WHEN pa.bin_id IS NOT NULL THEN pa.quantity ELSE 0 END), 0) AS INTEGER) as valid_stock,
+    CAST(COALESCE(SUM(CASE WHEN pa.bin_id IS NULL THEN pa.quantity ELSE 0 END), 0) AS INTEGER) as orphaned_stock,
     (SELECT pa2.bin_id 
      FROM part_assignments pa2 
      WHERE pa2.part_id = p.id AND pa2.quantity > 0 
@@ -826,6 +834,8 @@ type SearchPartsRow struct {
 	CreatedAt          sql.NullTime    `json:"created_at"`
 	UpdatedAt          sql.NullTime    `json:"updated_at"`
 	TotalStock         int64           `json:"total_stock"`
+	ValidStock         int64           `json:"valid_stock"`
+	OrphanedStock      int64           `json:"orphaned_stock"`
 	LocateBinID        sql.NullInt64   `json:"locate_bin_id"`
 	LocateControllerID interface{}     `json:"locate_controller_id"`
 }
@@ -856,6 +866,8 @@ func (q *Queries) SearchParts(ctx context.Context, arg SearchPartsParams) ([]Sea
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.TotalStock,
+			&i.ValidStock,
+			&i.OrphanedStock,
 			&i.LocateBinID,
 			&i.LocateControllerID,
 		); err != nil {

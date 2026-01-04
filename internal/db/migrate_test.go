@@ -16,8 +16,6 @@ func TestMigrate(t *testing.T) {
 	defer conn.Close()
 
 	// Apply migrations
-	// We need to point to the migrations directory relative to the package
-	// But Migrate function uses "sql/schema". In tests, we might need to adjust this.
 	err = db.Migrate(conn)
 	if err != nil {
 		t.Fatalf("failed to migrate: %v", err)

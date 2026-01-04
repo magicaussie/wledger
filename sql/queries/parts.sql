@@ -4,6 +4,8 @@ SELECT * FROM parts WHERE id = ?;
 -- name: ListParts :many
 SELECT p.*, 
     CAST(COALESCE(SUM(pa.quantity), 0) AS INTEGER) as total_stock,
+    CAST(COALESCE(SUM(CASE WHEN pa.bin_id IS NOT NULL THEN pa.quantity ELSE 0 END), 0) AS INTEGER) as valid_stock,
+    CAST(COALESCE(SUM(CASE WHEN pa.bin_id IS NULL THEN pa.quantity ELSE 0 END), 0) AS INTEGER) as orphaned_stock,
     (SELECT pa2.bin_id 
      FROM part_assignments pa2 
      WHERE pa2.part_id = p.id AND pa2.quantity > 0 
@@ -26,6 +28,8 @@ LIMIT ? OFFSET ?;
 -- name: SearchParts :many
 SELECT p.*, 
     CAST(COALESCE(SUM(pa.quantity), 0) AS INTEGER) as total_stock,
+    CAST(COALESCE(SUM(CASE WHEN pa.bin_id IS NOT NULL THEN pa.quantity ELSE 0 END), 0) AS INTEGER) as valid_stock,
+    CAST(COALESCE(SUM(CASE WHEN pa.bin_id IS NULL THEN pa.quantity ELSE 0 END), 0) AS INTEGER) as orphaned_stock,
     (SELECT pa2.bin_id 
      FROM part_assignments pa2 
      WHERE pa2.part_id = p.id AND pa2.quantity > 0 

@@ -115,27 +115,28 @@ func (s *service) ListParts(ctx context.Context, search string, page int) ([]pag
 	if search != "" {
 		// FTS5 Search
 		query := search + "*"
-		rows, err := s.store.SearchParts(ctx, db.SearchPartsParams{
-			PartsFts: sql.NullString{String: query, Valid: true},
-			Limit:    int64(limit),
-			Offset:   int64(offset),
-		})
-		if err != nil {
-			return nil, err
-		}
-		for _, row := range rows {
-			viewParts = append(viewParts, pages.PartView{
-				ID:          row.ID,
-				Name:        row.Name,
-				Description: row.Description,
-				PartNumber:  row.PartNumber,
-				ImagePath:   row.ImagePath,
-				IsFavorite:  row.IsFavorite,
-				UnitCost:    row.UnitCost,
-				TotalStock:  row.TotalStock,
-			})
-		}
-	} else {
+					rows, err := s.store.SearchParts(ctx, db.SearchPartsParams{
+						PartsFts: sql.NullString{String: query, Valid: true},
+						Limit:    int64(limit),
+						Offset:   int64(offset),
+					})
+					if err != nil {
+						return nil, err
+					}
+					for _, row := range rows {
+						viewParts = append(viewParts, pages.PartView{
+							ID:            row.ID,
+							Name:          row.Name,
+							Description:   row.Description,
+							PartNumber:    row.PartNumber,
+							ImagePath:     row.ImagePath,
+							IsFavorite:    row.IsFavorite,
+							UnitCost:      row.UnitCost,
+							TotalStock:    row.TotalStock,
+							ValidStock:    row.ValidStock,
+							OrphanedStock: row.OrphanedStock,
+						})
+					}	} else {
 		// Standard List
 		rows, err := s.store.ListParts(ctx, db.ListPartsParams{
 			Limit:  int64(limit),
@@ -146,14 +147,16 @@ func (s *service) ListParts(ctx context.Context, search string, page int) ([]pag
 		}
 		for _, row := range rows {
 			viewParts = append(viewParts, pages.PartView{
-				ID:          row.ID,
-				Name:        row.Name,
-				Description: row.Description,
-				PartNumber:  row.PartNumber,
-				ImagePath:   row.ImagePath,
-				IsFavorite:  row.IsFavorite,
-				UnitCost:    row.UnitCost,
-				TotalStock:  row.TotalStock,
+				ID:            row.ID,
+				Name:          row.Name,
+				Description:   row.Description,
+				PartNumber:    row.PartNumber,
+				ImagePath:     row.ImagePath,
+				IsFavorite:    row.IsFavorite,
+				UnitCost:      row.UnitCost,
+				TotalStock:    row.TotalStock,
+				ValidStock:    row.ValidStock,
+				OrphanedStock: row.OrphanedStock,
 			})
 		}
 	}
