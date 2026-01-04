@@ -88,7 +88,7 @@ This is the fastest, cleanest, and most "plug-and-play" method. It's designed to
 | :--- | :--- |
 | **Bins** | [High Quality 8x8 Transparent Bin Organizer](https://amzn.to/43vlFGY) |
 | **MCU** | [Adafruit Sparkle Motion Mini](https://www.adafruit.com/product/6160) |
-| **LEDs** | [8x Custom 8-LED PCBs](/hardware/README.md) (Order from JLCPCB, PCBWay, Seeed Fusion, ...) |
+| **LEDs** | [8x Custom 8-LED PCBs](https://github.com/tuxedocurly/wledger/tree/main/hardware) (Order from JLCPCB, PCBWay, Seeed Fusion, ...) |
 | **Backer** | A sheet of cardboard, MDF, or thin plywood to attach the PCBs to. |
 | **Power** | 5V 4A+ Power Supply (USB brick, battery pack, etc) |
 | **Wiring** | Wire (22 AWG is good) |
