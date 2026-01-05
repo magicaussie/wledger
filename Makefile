@@ -34,31 +34,25 @@ install_dependencies:
 		
 	@echo "🎉 All dependencies installed!"
 
-# Run all dev watchers (with initial generation)
+# Run all dev watchers
 .PHONY: dev
 dev:
 	@echo "Running initial code generation..."
 	@make --no-print-directory generate
 	@echo ""
 	@echo "Starting development watchers..."
-	@make --no-print-directory -j3 dev-templ dev-tailwind dev-server
+	@make --no-print-directory -j2 dev-templ dev-tailwind
 
-# Watch Templ files
+# Watch Templ files AND Run Server
+# We use --cmd to run the server directly after generation
 .PHONY: dev-templ
 dev-templ:
-	templ generate --watch --proxy="http://localhost:8080"
+	templ generate --watch --proxy="http://localhost:8080" --cmd="go run -tags fts5 ./cmd/server"
 
 # Watch CSS (Tailwind v4)
 .PHONY: dev-tailwind
 dev-tailwind:
 	npx @tailwindcss/cli -i ./web/static/css/input.css -o ./web/static/css/output.css --watch
-
-# Watch Go Server
-.PHONY: dev-server
-dev-server:
-# Give Templ/Tailwind a moment to grab locks/ports
-	@sleep 2
-	air -c air.toml
 
 # Generate all code (useful after git pull or initial setup)
 .PHONY: generate
