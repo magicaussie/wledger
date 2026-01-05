@@ -2,12 +2,12 @@ let html5QrcodeScanner;
 let activeTargetInputId = null;
 
 function startGlobalScanner(targetInputId) {
-    // 1. Security Check
+    // Security Check
     if (!window.isSecureContext) {
         alert(
             "Camera access is blocked because this page is not served over HTTPS.\n\n" +
-            "To fix this:\n"
-            "1. Use a Reverse Proxy with HTTPS (Caddy/Nginx)\n"
+            "To fix this:\n",
+            "1. Use a Reverse Proxy with HTTPS (Caddy/Nginx)\n",
             "2. Or enable the 'Insecure origins' flag in your browser settings for this IP."
         );
         return;
@@ -15,19 +15,19 @@ function startGlobalScanner(targetInputId) {
 
     activeTargetInputId = targetInputId;
     const modal = document.getElementById('global_scanner_modal');
-    
+
     if (modal) {
         modal.showModal();
-        
+
         setTimeout(() => {
             if (!html5QrcodeScanner) {
                 html5QrcodeScanner = new Html5QrcodeScanner(
-                    "reader", 
-                    { 
-                        fps: 10, 
+                    "reader",
+                    {
+                        fps: 10,
                         qrbox: { width: 250, height: 250 },
                         aspectRatio: 1.0,
-                        showTorchButtonIfSupported: true 
+                        showTorchButtonIfSupported: true
                     },
                     false
                 );
@@ -41,7 +41,7 @@ function startGlobalScanner(targetInputId) {
 
 function stopGlobalScanner() {
     const modal = document.getElementById('global_scanner_modal');
-    
+
     if (html5QrcodeScanner) {
         try {
             html5QrcodeScanner.clear().catch(err => {
@@ -51,7 +51,7 @@ function stopGlobalScanner() {
             console.warn("Scanner clear error:", e);
         }
     }
-    
+
     if (modal) {
         modal.close();
     }
