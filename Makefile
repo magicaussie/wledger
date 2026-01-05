@@ -13,12 +13,26 @@ help:
 .PHONY: install_dependencies
 install_dependencies:
 	@echo "Installing Go development tools..."
-	@go install github.com/a-h/templ/cmd/templ@latest
-	@go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
-	@go install github.com/air-verse/air@latest
+	
+	@# Attempt to install, print success on completion, or print error and exit on failure
+	@go install github.com/a-h/templ/cmd/templ@latest \
+		&& echo "✅ Templ installed successfully" \
+		|| (echo "❌ Templ installation failed" && exit 1)
+		
+	@go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest \
+		&& echo "✅ sqlc installed successfully" \
+		|| (echo "❌ sqlc installation failed" && exit 1)
+		
+	@go install github.com/air-verse/air@latest \
+		&& echo "✅ Air installed successfully" \
+		|| (echo "❌ Air installation failed" && exit 1)
+
 	@echo "Installing Node.js dependencies..."
-	@npm install
-	@echo "Dependencies installed!"
+	@npm install \
+		&& echo "✅ Node dependencies installed" \
+		|| (echo "❌ npm install failed" && exit 1)
+		
+	@echo "🎉 All dependencies installed!"
 
 # Run all dev watchers (with initial generation)
 .PHONY: dev
