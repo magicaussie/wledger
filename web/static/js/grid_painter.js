@@ -3,7 +3,7 @@ document.addEventListener('alpine:init', () => {
         canEdit: canEdit,
         containers: [],
         selectedContainerIndex: 0,
-        cells: {}, 
+        cells: {},
         confirmMessage: '',
         pendingAction: null,
 
@@ -18,9 +18,9 @@ document.addEventListener('alpine:init', () => {
             // Retrieve and Parse Data safely
             const rawContainers = document.getElementById(containersDataId).textContent;
             const rawBins = document.getElementById(binsDataId).textContent;
-            
+
             const initialContainers = JSON.parse(decodeHtml(rawContainers));
-            const existingBins = JSON.parse(decodeHtml(rawBins));
+            const existingBins = JSON.parse(decodeHtml(rawBins)) || [];
 
             if (initialContainers && initialContainers.length > 0) {
                 this.containers = initialContainers.map(c => ({
@@ -37,7 +37,7 @@ document.addEventListener('alpine:init', () => {
             existingBins.forEach(b => {
                 const led = b.led_index?.Int64 || 0;
                 const cID = b.container_id;
-                
+
                 // Find container index by ID
                 const cIdx = this.containers.findIndex(c => c.id === cID);
                 if (cIdx !== -1) {
@@ -54,18 +54,37 @@ document.addEventListener('alpine:init', () => {
         },
 
         parseConfig(jsonStr) {
+            const defaultConfig = {
+                type: 'grid',
+                rows: 8,
+                cols: 8,
+                total: 64,
+                start_corner: 'tl',
+                sections: [{ rows: 4, cols: 4 }]
+            };
+
+            if (!jsonStr || typeof jsonStr !== 'string') {
+                return defaultConfig;
+            }
+
             try {
                 const cfg = JSON.parse(jsonStr);
+
+                if (!cfg || typeof cfg !== 'object') {
+                    return defaultConfig;
+                }
+
                 return {
                     type: cfg.type || 'grid',
-                    rows: cfg.rows || 8,
-                    cols: cfg.cols || 8,
-                    total: cfg.total || 8,
+                    rows: Number(cfg.rows) || 8,
+                    cols: Number(cfg.cols) || 8,
+                    total: Number(cfg.total) || 64,
                     start_corner: cfg.start_corner || 'tl',
-                    sections: cfg.sections || [{ rows: 4, cols: 4 }]
+                    sections: Array.isArray(cfg.sections) ? cfg.sections : [{ rows: 4, cols: 4 }]
                 };
             } catch (e) {
-                return { type: 'grid', rows: 8, cols: 8, start_corner: 'tl' };
+                console.warn('Error parsing container config:', e);
+                return defaultConfig;
             }
         },
 
@@ -88,7 +107,7 @@ document.addEventListener('alpine:init', () => {
                 if (cIdx < idx) {
                     newCells[key] = this.cells[key];
                 } else if (cIdx > idx) {
-                    newCells[`${cIdx-1},${lIdx}`] = this.cells[key];
+                    newCells[`${cIdx - 1},${lIdx}`] = this.cells[key];
                 }
             });
             this.cells = newCells;
@@ -123,7 +142,7 @@ document.addEventListener('alpine:init', () => {
             const cfg = this.containers[cIdx].config;
             if (cfg.type === 'linear') return { x: cellIdx, y: 0 };
             if (cfg.type === 'grid') return { x: cellIdx % cfg.cols, y: Math.floor(cellIdx / cfg.cols) };
-            
+
             // Compound
             let count = 0;
             for (let sIdx = 0; sIdx < cfg.sections.length; sIdx++) {
@@ -142,7 +161,7 @@ document.addEventListener('alpine:init', () => {
             const cfg = this.containers[cIdx].config;
             if (cfg.type === 'linear') return gx;
             if (cfg.type === 'grid') return (gy * cfg.cols) + gx;
-            
+
             // Compound
             let currentYBase = 0;
             let currentCountBase = 0;
@@ -198,14 +217,14 @@ document.addEventListener('alpine:init', () => {
         getNextAvailableLedIndex(cIdx) {
             const targetSegment = this.containers[cIdx].segment_id;
             const used = new Set();
-            
+
             Object.keys(this.cells).forEach(key => {
                 const [ci, _] = key.split(',').map(Number);
                 if (this.containers[ci].segment_id === targetSegment) {
                     used.add(this.cells[key].led_index);
                 }
             });
-            
+
             let i = 0;
             while (used.has(i)) i++;
             return i;
@@ -216,14 +235,14 @@ document.addEventListener('alpine:init', () => {
             const charCode = 65 + (x % 26);
             const char = String.fromCharCode(charCode);
             const colLetter = char.repeat(Math.floor(x / 26) + 1);
-            const baseName = `${colLetter}${y+1}`;
+            const baseName = `${colLetter}${y + 1}`;
 
             if (this.containers[cIdx].config.type === 'compound' && sectionIndex !== undefined) {
-                 return `S${sectionIndex+1}-${baseName}`;
+                return `S${sectionIndex + 1}-${baseName}`;
             }
 
             if (this.containers.length > 1) {
-                return `C${cIdx+1}-${baseName}`;
+                return `C${cIdx + 1}-${baseName}`;
             }
             return baseName;
         },
@@ -243,7 +262,7 @@ document.addEventListener('alpine:init', () => {
             if (!this.canEdit) return;
             const cIdx = this.selectedContainerIndex;
             const cfg = this.containers[cIdx].config;
-            
+
             // Clear cells for current container
             Object.keys(this.cells).forEach(key => {
                 if (key.startsWith(cIdx + ",")) delete this.cells[key];
@@ -325,7 +344,7 @@ document.addEventListener('alpine:init', () => {
                             const { x, y } = this.getXY(cIdx, localIdx);
                             result.push({
                                 container_index: cIdx,
-                                x: x, 
+                                x: x,
                                 y: y + globalYOffset,
                                 led_index: cell.led_index,
                                 name: cell.name

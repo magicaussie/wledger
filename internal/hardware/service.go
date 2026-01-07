@@ -39,7 +39,27 @@ func NewService(store db.Store, wledClient *wled.Client, logger *slog.Logger) Se
 }
 
 func (s *service) GetContainers(ctx context.Context, controllerID int64) ([]db.Container, error) {
-	return s.store.GetContainersByController(ctx, controllerID)
+	containers, err := s.store.GetContainersByController(ctx, controllerID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate config JSON for each container and log if corrupted
+	for _, c := range containers {
+		if c.ConfigJson.Valid && c.ConfigJson.String != "" {
+			var js json.RawMessage
+			if err := json.Unmarshal([]byte(c.ConfigJson.String), &js); err != nil {
+				s.logger.Error("corrupted container configuration detected",
+					"container_id", c.ID,
+					"controller_id", controllerID,
+					"err", err,
+					"json", c.ConfigJson.String,
+				)
+			}
+		}
+	}
+
+	return containers, nil
 }
 
 func (s *service) ListControllers(ctx context.Context) ([]db.Controller, error) {
@@ -254,7 +274,7 @@ func (s *service) SaveGrid(ctx context.Context, controllerID int64, gridDataJSON
 
 			for _, b := range containerInputBins {
 				key := fmt.Sprintf("%d,%d", b.X, b.Y)
-				
+
 				if existing, found := existingByPos[key]; found {
 					// Update existing bin
 					err := q.UpdateBin(ctx, db.UpdateBinParams{
