@@ -135,7 +135,38 @@ Visit `http://localhost:8080` to see the WLEDger UI.
 - **Node.js:** Version 23+ (for running `npm`)
 - **Make:** A `make` compatible command line tool.
 
-These tools are required for code generation, dependency management, and running the application.
+> Before running `make generate` or `make dev` be sure that Go is installed and in your system path, or the commands will not work.
+
+<details>
+<summary><strong>How to add Go to your system path</strong></summary>
+<h2>Bash</h2>
+
+Add the path to your `.bashrc` (or `.bash_profile` on macOS):
+```bash
+echo 'export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin' >> ~/.bashrc
+source ~/.bashrc
+```
+
+<h2>ZSH</h2>
+
+Add the path to your `.zshrc`:
+
+```bash
+echo 'export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin' >> ~/.zshrc
+source ~/.zshrc
+```
+<h2>Fish</h2>
+
+Run the following command once (this persists automatically):
+
+```bash
+fish_add_path /usr/local/go/bin $HOME/go/bin
+```
+</details>
+
+<br>
+
+These tools are provided for convenience to install dependencies, generate code, and run the dev server.
 
 ```bash
 # 1. Clone the repository
@@ -146,20 +177,24 @@ cd wledger
 # This will install the required Go tools and npm packages.
 make install_dependencies
 
-# 3. Build the binary
-make build
+# 3. auto-gen code to ensure it's up to date
+make generate
 
 # 4. Run the application
-./bin/wledger
+make dev
 ```
+> Once you've verified things are working on the dev server, run `make build` to generate the binary, then run it.
 
 ### Development
 
-WLEDger uses `Templ` for live reloading and `make` for task orchestration.
+WLEDger uses `Templ` for live reloading on `localhost:7331` and `make` for task orchestration.
+
+Example (run dev server):
 
 ```bash
 make dev
 ```
+Review the [Makefile](./Makefile) for a list of available commands.
 
 This will start:
 
