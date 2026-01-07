@@ -100,7 +100,7 @@ templ InspirationCard(t db.InspirationTemplate, canWrite bool) {
 							hx-target="body"
 							hx-swap="beforeend"
 						>
-							@icons.PencilIcon(5)
+							@icons.Pencil(templ.Attributes{"class": "w-5 h-5"})
 						</button>
 						<button
 							class="btn btn-outline btn-error btn-sm btn-square"
@@ -109,7 +109,7 @@ templ InspirationCard(t db.InspirationTemplate, canWrite bool) {
 							hx-target="closest .card"
 							hx-swap="outerHTML"
 						>
-							@icons.TrashIcon(5)
+							@icons.Trash(templ.Attributes{"class": "w-5 h-5"})
 						</button>
 					</div>
 				}
@@ -125,13 +125,13 @@ templ InspirationCard(t db.InspirationTemplate, canWrite bool) {
 				>
 					<template x-if="!copied">
 						<div class="flex items-center gap-2">
-							@icons.ClipboardIcon(4)
+							@icons.Clipboard(templ.Attributes{"class": "w-4 h-4"})
 							<span>Copy Prompt</span>
 						</div>
 					</template>
 					<template x-if="copied">
 						<div class="flex items-center gap-2">
-							@icons.ClipboardIcon(4)
+							@icons.Clipboard(templ.Attributes{"class": "w-4 h-4"})
 							<span>Copied!</span>
 						</div>
 					</template>
