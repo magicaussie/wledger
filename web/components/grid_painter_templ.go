@@ -11,6 +11,7 @@ import templruntime "github.com/a-h/templ/runtime"
 import (
 	"fmt"
 	"github.com/tuxedocurly/wledger/internal/db"
+	"github.com/tuxedocurly/wledger/internal/i18n"
 	"github.com/tuxedocurly/wledger/web/icons"
 )
 
@@ -53,7 +54,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			controller.ID,
 			canEdit))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 16, Col: 16}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 17, Col: 16}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -64,7 +65,20 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			return templ_7745c5c3_Err
 		}
 		if canEdit {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div class=\"flex flex-col lg:flex-row gap-8 mb-12\"><!-- Container List --><div class=\"lg:w-1/3\"><div class=\"flex items-center justify-between mb-4 px-1\"><h3 class=\"font-bold text-sm uppercase tracking-wider opacity-50\">Containers</h3><button @click=\"addContainer()\" class=\"btn btn-md btn-primary\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div class=\"flex flex-col lg:flex-row gap-8 mb-12\"><!-- Container List --><div class=\"lg:w-1/3\"><div class=\"flex items-center justify-between mb-4 px-1\"><h3 class=\"font-bold text-sm uppercase tracking-wider opacity-50\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var3 string
+			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Containers"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 25, Col: 99}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</h3><button @click=\"addContainer()\" class=\"btn btn-md btn-primary\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -72,7 +86,16 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "Add Container</button></div><div class=\"flex flex-col gap-2 max-h-[600px] overflow-y-auto pr-2 bg-base-200 p-3 rounded-xl border border-base-300 shadow-inner\"><template x-for=\"(container, idx) in containers\" :key=\"idx\"><div class=\"p-4 rounded-lg border border-base-300 cursor-pointer transition-all duration-200 flex items-center justify-between group\" :class=\"selectedContainerIndex === idx ? 'bg-base-100 border-primary shadow-md ring-1 ring-primary/20' : 'bg-base-100/50 hover:bg-base-100 hover:border-base-content/20'\" @click=\"selectedContainerIndex = idx\"><div class=\"flex flex-col gap-1\"><span class=\"font-bold text-sm\" :class=\"selectedContainerIndex === idx ? 'text-primary' : ''\" x-text=\"container.name\"></span> <span class=\"text-xs uppercase font-bold opacity-40 tracking-widest\" x-text=\"'Seg ' + container.segment_id + ' • ' + container.config.type\"></span></div><button @click.stop=\"removeContainer(idx)\" class=\"btn btn-ghost btn-sm text-error btn-square hover:bg-error/10\">")
+			var templ_7745c5c3_Var4 string
+			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "AddContainer"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 28, Col: 36}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</button></div><div class=\"flex flex-col gap-2 max-h-[600px] overflow-y-auto pr-2 bg-base-200 p-3 rounded-xl border border-base-300 shadow-inner\"><template x-for=\"(container, idx) in containers\" :key=\"idx\"><div class=\"p-4 rounded-lg border border-base-300 cursor-pointer transition-all duration-200 flex items-center justify-between group\" :class=\"selectedContainerIndex === idx ? 'bg-base-100 border-primary shadow-md ring-1 ring-primary/20' : 'bg-base-100/50 hover:bg-base-100 hover:border-base-content/20'\" @click=\"selectedContainerIndex = idx\"><div class=\"flex flex-col gap-1\"><span class=\"font-bold text-sm\" :class=\"selectedContainerIndex === idx ? 'text-primary' : ''\" x-text=\"container.name\"></span> <span class=\"text-xs uppercase font-bold opacity-40 tracking-widest\" x-text=\"`{ i18n.T(ctx, 'Segment') } ` + container.segment_id + ' • ' + container.config.type\"></span></div><button @click.stop=\"removeContainer(idx)\" class=\"btn btn-ghost btn-sm text-error btn-square hover:bg-error/10\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -80,7 +103,254 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</button></div></template></div></div><!-- Selected Container Editor --><div class=\"lg:w-2/3\"><div x-show=\"containers.length > 0\" class=\"card bg-base-200 border border-base-300 shadow-xl h-full\"><div class=\"card-body p-0 gap-0\"><!-- Header --><div class=\"bg-base-300/50 p-6 border-b border-base-300 flex justify-between items-center rounded-t-xl\"><h3 class=\"font-bold text-sm uppercase tracking-wider opacity-50\">Edit Container</h3><div class=\"badge badge-neutral font-mono text-xs\" x-text=\"'ID: ' + (currentContainer.id || 'NEW')\"></div></div><div class=\"p-6 space-y-8\"><!-- Basic Info --><fieldset class=\"fieldset w-full bg-base-100 p-6 rounded-xl border border-base-300 shadow-sm\"><legend class=\"fieldset-legend font-bold text-sm uppercase tracking-widest opacity-40\">Basic Information</legend><div class=\"grid grid-cols-1 md:grid-cols-2 gap-6 w-full\"><div class=\"form-control w-full\"><label class=\"label pt-0\"><span class=\"label-text font-bold text-sm mb-2\">Name</span></label> <input type=\"text\" x-model=\"currentContainer.name\" class=\"input input-bordered w-full input-md\"></div><div class=\"form-control w-full\"><label class=\"label pt-0\"><span class=\"label-text font-bold text-sm mb-2\">WLED Segment ID</span></label> <input type=\"number\" x-model.number=\"currentContainer.segment_id\" class=\"input input-bordered w-full input-md\" min=\"0\"></div></div></fieldset><!-- Configuration --><fieldset class=\"fieldset w-full bg-base-100 p-6 rounded-xl border border-base-300 shadow-sm\"><legend class=\"fieldset-legend font-bold text-sm uppercase tracking-widest opacity-40\">Grid Configuration</legend><div class=\"grid grid-cols-1 md:grid-cols-2 gap-6 w-full\"><div class=\"form-control w-full\"><label class=\"label pt-0\"><span class=\"label-text font-bold text-sm mb-2\">Layout Type</span></label> <select x-model=\"currentContainer.config.type\" class=\"select select-bordered w-full select-md\"><option value=\"linear\">Linear Strip</option> <option value=\"grid\">Matrix</option> <option value=\"compound\">Compound</option></select></div><div class=\"form-control w-full\"><label class=\"label pt-0\"><span class=\"label-text font-bold text-sm mb-2\">Data Start Position</span></label> <select x-model=\"currentContainer.config.start_corner\" class=\"select select-bordered w-full select-md\"><option value=\"tl\">Top-Left</option> <option value=\"tr\">Top-Right</option> <option value=\"bl\">Bottom-Left</option> <option value=\"br\">Bottom-Right</option></select></div></div><!-- Dynamic Dimensions --><div class=\"mt-6 pt-6 border-t border-base-200\"><!-- Linear --><div x-show=\"currentContainer.config.type === 'linear'\"><div class=\"form-control w-full\"><label class=\"label pt-0\"><span class=\"label-text font-bold text-sm mb-2\">Total LEDs</span></label> <input type=\"number\" x-model.number=\"currentContainer.config.total\" class=\"input input-bordered w-full input-md\" min=\"1\"></div></div><!-- Grid --><div x-show=\"currentContainer.config.type === 'grid'\" class=\"grid grid-cols-2 gap-6\"><div class=\"form-control w-full\"><label class=\"label pt-0\"><span class=\"label-text font-bold text-sm mb-2\">Rows</span></label> <input type=\"number\" x-model.number=\"currentContainer.config.rows\" class=\"input input-bordered w-full input-md\" min=\"1\"></div><div class=\"form-control w-full\"><label class=\"label pt-0\"><span class=\"label-text font-bold text-sm mb-2\">Columns</span></label> <input type=\"number\" x-model.number=\"currentContainer.config.cols\" class=\"input input-bordered w-full input-md\" min=\"1\"></div></div><!-- Compound --><div x-show=\"currentContainer.config.type === 'compound'\" class=\"space-y-6\"><div class=\"flex items-center justify-between\"><span class=\"text-sm font-bold opacity-50 uppercase tracking-widest\">Sections</span><div class=\"tooltip tooltip-bottom md:tooltip-left before:text-xs before:max-w-[12rem] before:whitespace-normal z-50\" data-tip=\"Add a new sub-section to this compound container.\"><button type=\"button\" @click=\"currentContainer.config.sections.push({rows:4,cols:4})\" class=\"btn btn-md btn-outline btn-primary\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</button></div></template></div></div><!-- Selected Container Editor --><div class=\"lg:w-2/3\"><div x-show=\"containers.length > 0\" class=\"card bg-base-200 border border-base-300 shadow-xl h-full\"><div class=\"card-body p-0 gap-0\"><!-- Header --><div class=\"bg-base-300/50 p-6 border-b border-base-300 flex justify-between items-center rounded-t-xl\"><h3 class=\"font-bold text-sm uppercase tracking-wider opacity-50\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var5 string
+			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "EditContainer"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 57, Col: 104}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</h3><div class=\"badge badge-neutral font-mono text-xs\" x-text=\"'ID: ' + (currentContainer.id || 'NEW')\"></div></div><div class=\"p-6 space-y-8\"><!-- Basic Info --><fieldset class=\"fieldset w-full bg-base-100 p-6 rounded-xl border border-base-300 shadow-sm\"><legend class=\"fieldset-legend font-bold text-sm uppercase tracking-widest opacity-40\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var6 string
+			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "BasicInformation"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 63, Col: 129}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</legend><div class=\"grid grid-cols-1 md:grid-cols-2 gap-6 w-full\"><div class=\"form-control w-full\"><label class=\"label pt-0\"><span class=\"label-text font-bold text-sm mb-2\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var7 string
+			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Name"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 66, Col: 106}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</span></label> <input type=\"text\" x-model=\"currentContainer.name\" class=\"input input-bordered w-full input-md\"></div><div class=\"form-control w-full\"><label class=\"label pt-0\"><span class=\"label-text font-bold text-sm mb-2\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var8 string
+			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "WledSegmentId"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 70, Col: 115}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</span></label> <input type=\"number\" x-model.number=\"currentContainer.segment_id\" class=\"input input-bordered w-full input-md\" min=\"0\"></div></div></fieldset><!-- Configuration --><fieldset class=\"fieldset w-full bg-base-100 p-6 rounded-xl border border-base-300 shadow-sm\"><legend class=\"fieldset-legend font-bold text-sm uppercase tracking-widest opacity-40\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var9 string
+			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "GridConfiguration"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 77, Col: 130}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</legend><div class=\"grid grid-cols-1 md:grid-cols-2 gap-6 w-full\"><div class=\"form-control w-full\"><label class=\"label pt-0\"><span class=\"label-text font-bold text-sm mb-2\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var10 string
+			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "LayoutType"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 80, Col: 112}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</span></label> <select x-model=\"currentContainer.config.type\" class=\"select select-bordered w-full select-md\"><option value=\"linear\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var11 string
+			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "LinearStrip"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 82, Col: 63}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</option> <option value=\"grid\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var12 string
+			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Matrix"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 83, Col: 56}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "</option> <option value=\"compound\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var13 string
+			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Compound"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 84, Col: 62}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "</option></select></div><div class=\"form-control w-full\"><label class=\"label pt-0\"><span class=\"label-text font-bold text-sm mb-2\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var14 string
+			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "DataStartPosition"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 88, Col: 119}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "</span></label> <select x-model=\"currentContainer.config.start_corner\" class=\"select select-bordered w-full select-md\"><option value=\"tl\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var15 string
+			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "TopLeft"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 90, Col: 55}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "</option> <option value=\"tr\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var16 string
+			templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "TopRight"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 91, Col: 56}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "</option> <option value=\"bl\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var17 string
+			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "BottomLeft"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 92, Col: 58}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "</option> <option value=\"br\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var18 string
+			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "BottomRight"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 93, Col: 59}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "</option></select></div></div><!-- Dynamic Dimensions --><div class=\"mt-6 pt-6 border-t border-base-200\"><!-- Linear --><div x-show=\"currentContainer.config.type === 'linear'\"><div class=\"form-control w-full\"><label class=\"label pt-0\"><span class=\"label-text font-bold text-sm mb-2\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var19 string
+			templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "TotalLeds"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 102, Col: 112}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "</span></label> <input type=\"number\" x-model.number=\"currentContainer.config.total\" class=\"input input-bordered w-full input-md\" min=\"1\"></div></div><!-- Grid --><div x-show=\"currentContainer.config.type === 'grid'\" class=\"grid grid-cols-2 gap-6\"><div class=\"form-control w-full\"><label class=\"label pt-0\"><span class=\"label-text font-bold text-sm mb-2\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var20 string
+			templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Rows"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 109, Col: 107}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "</span></label> <input type=\"number\" x-model.number=\"currentContainer.config.rows\" class=\"input input-bordered w-full input-md\" min=\"1\"></div><div class=\"form-control w-full\"><label class=\"label pt-0\"><span class=\"label-text font-bold text-sm mb-2\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var21 string
+			templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Cols"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 113, Col: 107}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "</span></label> <input type=\"number\" x-model.number=\"currentContainer.config.cols\" class=\"input input-bordered w-full input-md\" min=\"1\"></div></div><!-- Compound --><div x-show=\"currentContainer.config.type === 'compound'\" class=\"space-y-6\"><div class=\"flex items-center justify-between\"><span class=\"text-sm font-bold opacity-50 uppercase tracking-widest\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var22 string
+			templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Sections"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 120, Col: 106}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "</span><div class=\"tooltip tooltip-bottom md:tooltip-left before:text-xs before:max-w-[12rem] before:whitespace-normal z-50\" data-tip=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var23 string
+			templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "AddSection"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 121, Col: 166}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "\"><button type=\"button\" @click=\"currentContainer.config.sections.push({rows:4,cols:4})\" class=\"btn btn-md btn-outline btn-primary\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -88,7 +358,68 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "Add Section</button></div></div><div class=\"grid grid-cols-1 gap-3\"><template x-for=\"(section, sIdx) in currentContainer.config.sections\" :key=\"sIdx\"><div class=\"flex items-center gap-4 bg-base-200 p-3 rounded-lg border border-base-300\"><div class=\"w-8 h-8 rounded-full bg-base-300 flex items-center justify-center font-mono font-bold text-sm opacity-50\" x-text=\"(sIdx+1)\"></div><div class=\"grid grid-cols-2 gap-4 flex-1\"><div class=\"form-control\"><input type=\"number\" x-model.number=\"section.rows\" class=\"input input-bordered w-full text-center font-bold input-md\" placeholder=\"Rows\" min=\"1\"> <label class=\"label justify-center py-1\"><span class=\"label-text-alt font-bold opacity-40 uppercase text-xs tracking-tighter\">Rows</span></label></div><div class=\"form-control\"><input type=\"number\" x-model.number=\"section.cols\" class=\"input input-bordered w-full text-center font-bold input-md\" placeholder=\"Cols\" min=\"1\"> <label class=\"label justify-center py-1\"><span class=\"label-text-alt font-bold opacity-40 uppercase text-xs tracking-tighter\">Cols</span></label></div></div><div class=\"tooltip tooltip-left before:text-xs z-50\" data-tip=\"Remove this section.\"><button type=\"button\" @click=\"currentContainer.config.sections.splice(sIdx, 1)\" class=\"btn btn-ghost btn-xs text-error btn-square hover:bg-error/10\">")
+			var templ_7745c5c3_Var24 string
+			templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "AddSection"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 124, Col: 41}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "</button></div></div><div class=\"grid grid-cols-1 gap-3\"><template x-for=\"(section, sIdx) in currentContainer.config.sections\" :key=\"sIdx\"><div class=\"flex items-center gap-4 bg-base-200 p-3 rounded-lg border border-base-300\"><div class=\"w-8 h-8 rounded-full bg-base-300 flex items-center justify-center font-mono font-bold text-sm opacity-50\" x-text=\"(sIdx+1)\"></div><div class=\"grid grid-cols-2 gap-4 flex-1\"><div class=\"form-control\"><input type=\"number\" x-model.number=\"section.rows\" class=\"input input-bordered w-full text-center font-bold input-md\" placeholder=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var25 string
+			templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Rows"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 134, Col: 167}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "\" min=\"1\"> <label class=\"label justify-center py-1\"><span class=\"label-text-alt font-bold opacity-40 uppercase text-xs tracking-tighter\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var26 string
+			templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Rows"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 135, Col: 163}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "</span></label></div><div class=\"form-control\"><input type=\"number\" x-model.number=\"section.cols\" class=\"input input-bordered w-full text-center font-bold input-md\" placeholder=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var27 string
+			templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Cols"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 138, Col: 167}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "\" min=\"1\"> <label class=\"label justify-center py-1\"><span class=\"label-text-alt font-bold opacity-40 uppercase text-xs tracking-tighter\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var28 string
+			templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Cols"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 139, Col: 163}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "</span></label></div></div><div class=\"tooltip tooltip-left before:text-xs z-50\" data-tip=\"Remove this section.\"><button type=\"button\" @click=\"currentContainer.config.sections.splice(sIdx, 1)\" class=\"btn btn-ghost btn-xs text-error btn-square hover:bg-error/10\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -96,39 +427,182 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</button></div></div></template></div></div></div></fieldset><!-- Tools --><div class=\"bg-base-300/30 p-4 rounded-xl border border-base-300\"><div class=\"flex flex-col sm:flex-row flex-wrap justify-center sm:justify-end gap-2\"><div class=\"tooltip tooltip-top lg:tooltip-left w-full sm:w-auto before:text-xs before:max-w-[12rem] md:before:max-w-[16rem] before:whitespace-normal z-50\" data-tip=\"Automatically map LEDs in a sequential linear order starting from the selected corner.\"><button @click=\"autoFill('linear')\" class=\"btn btn-md btn-success text-white gap-2 w-full whitespace-nowrap\">Auto Map (Linear)</button></div><div class=\"tooltip tooltip-top lg:tooltip-left w-full sm:w-auto before:text-xs before:max-w-[12rem] md:before:max-w-[16rem] before:whitespace-normal z-50\" data-tip=\"Automatically map LEDs in a serpentine (snake) pattern starting from the selected corner.\"><button @click=\"autoFill('serpentine')\" class=\"btn btn-md btn-success text-white gap-2 w-full whitespace-nowrap\">Auto Map (Snake)</button></div><div class=\"tooltip tooltip-top lg:tooltip-left w-full sm:w-auto before:text-xs before:max-w-[12rem] md:before:max-w-[16rem] before:whitespace-normal z-50\" data-tip=\"Remove all LED assignments for the currently selected container.\"><button @click=\"askConfirm('clear')\" class=\"btn btn-md btn-outline btn-error gap-2 w-full whitespace-nowrap\">Clear Mapping</button></div></div></div></div></div></div></div></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "</button></div></div></template></div></div></div></fieldset><!-- Tools --><div class=\"bg-base-300/30 p-4 rounded-xl border border-base-300\"><div class=\"flex flex-col sm:flex-row flex-wrap justify-center sm:justify-end gap-2\"><div class=\"tooltip tooltip-top lg:tooltip-left w-full sm:w-auto before:text-xs before:max-w-[12rem] md:before:max-w-[16rem] before:whitespace-normal z-50\" data-tip=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var29 string
+			templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "AutoMapLinear"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 156, Col: 205}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "\"><button @click=\"autoFill('linear')\" class=\"btn btn-md btn-success text-white gap-2 w-full whitespace-nowrap\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var30 string
+			templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "AutoMapLinear"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 158, Col: 42}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "</button></div><div class=\"tooltip tooltip-top lg:tooltip-left w-full sm:w-auto before:text-xs before:max-w-[12rem] md:before:max-w-[16rem] before:whitespace-normal z-50\" data-tip=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var31 string
+			templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "AutoMapSnake"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 161, Col: 204}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "\"><button @click=\"autoFill('serpentine')\" class=\"btn btn-md btn-success text-white gap-2 w-full whitespace-nowrap\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var32 string
+			templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "AutoMapSnake"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 163, Col: 41}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "</button></div><div class=\"tooltip tooltip-top lg:tooltip-left w-full sm:w-auto before:text-xs before:max-w-[12rem] md:before:max-w-[16rem] before:whitespace-normal z-50\" data-tip=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var33 string
+			templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "ClearMapping"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 166, Col: 204}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "\"><button @click=\"askConfirm('clear')\" class=\"btn btn-md btn-outline btn-error gap-2 w-full whitespace-nowrap\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var34 string
+			templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "ClearMapping"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 168, Col: 41}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "</button></div></div></div></div></div></div></div></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<div class=\"alert alert-info shadow-sm mb-6\"><span>Read-only mode. Log in as admin to configure.</span></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "<div class=\"alert alert-info shadow-sm mb-6\"><span>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var35 string
+			templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "ReadOnlyMode"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 180, Col: 39}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 39, "</span></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<div class=\"space-y-16 mt-8\"><template x-for=\"(container, cIdx) in containers\" :key=\"cIdx\"><div class=\"card bg-base-200 border border-base-300 shadow-xl overflow-hidden\"><div class=\"bg-base-300/50 px-6 py-4 border-b border-base-300 flex flex-col sm:flex-row sm:items-center justify-between gap-4\"><div class=\"flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3\"><h4 class=\"font-bold text-sm uppercase tracking-wider opacity-50\" x-text=\"container.name\"></h4><span class=\"badge badge-sm badge-neutral font-mono text-xs whitespace-nowrap\" x-text=\"'Segment ' + container.segment_id\"></span></div><div class=\"text-sm font-bold opacity-40 uppercase tracking-widest\" x-text=\"getContainerTotalLeds(cIdx) + ' LEDs total'\"></div></div><div class=\"card-body p-6 space-y-8\"><template x-for=\"(section, secIdx) in getRenderSections(cIdx)\" :key=\"secIdx\"><div><div x-show=\"container.config.type === 'compound'\" class=\"mb-3 flex items-center gap-2\"><span class=\"badge badge-sm badge-ghost font-bold text-xs uppercase tracking-widest opacity-60\" x-text=\"'Section ' + (secIdx + 1)\"></span> <span class=\"text-sm font-bold opacity-40 uppercase tracking-tighter\" x-text=\"section.rows + '×' + section.cols\"></span></div><div class=\"overflow-x-auto bg-base-100 rounded-xl border border-base-300 p-6 shadow-inner\"><div class=\"grid gap-1.5 select-none mx-auto\" :style=\"`grid-template-columns: repeat(${section.cols}, 2.5rem); width: fit-content;`\"><template x-for=\"i in (section.rows * section.cols)\"><div class=\"aspect-square border border-base-300 rounded-md flex flex-col items-center justify-center text-xs transition-all duration-200 relative overflow-hidden shadow-sm\" :class=\"[\n\t\t\t\t\t\t\t\t\t\t\t\t\tgetCellClass(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1), \n\t\t\t\t\t\t\t\t\t\t\t\t\tcanEdit ? 'cursor-pointer hover:scale-110 hover:z-10 hover:shadow-md hover:border-base-content/50' : 'cursor-default'\n\t\t\t\t\t\t\t\t\t\t\t\t]\" @click=\"toggleCell(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1)\"><span x-text=\"getGlobalLedIndex(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1)\" class=\"font-black text-[9px] leading-tight\"></span> <span x-show=\"getBinName(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1)\" x-text=\"getBinName(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1)\" class=\"text-[7px] font-bold opacity-70 truncate w-full text-center px-0.5 leading-tight\"></span></div></template></div></div></div></template></div></div></template></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "<div class=\"space-y-16 mt-8\"><template x-for=\"(container, cIdx) in containers\" :key=\"cIdx\"><div class=\"card bg-base-200 border border-base-300 shadow-xl overflow-hidden\"><div class=\"bg-base-300/50 px-6 py-4 border-b border-base-300 flex flex-col sm:flex-row sm:items-center justify-between gap-4\"><div class=\"flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3\"><h4 class=\"font-bold text-sm uppercase tracking-wider opacity-50\" x-text=\"container.name\"></h4><span class=\"badge badge-sm badge-neutral font-mono text-xs whitespace-nowrap\" x-text=\"`{ i18n.T(ctx, 'Segment') } ` + container.segment_id\"></span></div><div class=\"text-sm font-bold opacity-40 uppercase tracking-widest\" x-text=\"getContainerTotalLeds(cIdx) + ` { i18n.T(ctx, 'LedsTotal') }` \"></div></div><div class=\"card-body p-6 space-y-8\"><template x-for=\"(section, secIdx) in getRenderSections(cIdx)\" :key=\"secIdx\"><div><div x-show=\"container.config.type === 'compound'\" class=\"mb-3 flex items-center gap-2\"><span class=\"badge badge-sm badge-ghost font-bold text-xs uppercase tracking-widest opacity-60\" x-text=\"`{ i18n.T(ctx, 'Sections') } ` + (secIdx + 1)\"></span> <span class=\"text-sm font-bold opacity-40 uppercase tracking-tighter\" x-text=\"section.rows + '×' + section.cols\"></span></div><div class=\"overflow-x-auto bg-base-100 rounded-xl border border-base-300 p-6 shadow-inner\"><div class=\"grid gap-1.5 select-none mx-auto\" :style=\"`grid-template-columns: repeat(${section.cols}, 2.5rem); width: fit-content;`\"><template x-for=\"i in (section.rows * section.cols)\"><div class=\"aspect-square border border-base-300 rounded-md flex flex-col items-center justify-center text-xs transition-all duration-200 relative overflow-hidden shadow-sm\" :class=\"[\n\t\t\t\t\t\t\t\t\t\t\t\t\tgetCellClass(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1), \n\t\t\t\t\t\t\t\t\t\t\t\t\tcanEdit ? 'cursor-pointer hover:scale-110 hover:z-10 hover:shadow-md hover:border-base-content/50' : 'cursor-default'\n\t\t\t\t\t\t\t\t\t\t\t\t]\" @click=\"toggleCell(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1)\"><span x-text=\"getGlobalLedIndex(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1)\" class=\"font-black text-[9px] leading-tight\"></span> <span x-show=\"getBinName(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1)\" x-text=\"getBinName(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1)\" class=\"text-[7px] font-bold opacity-70 truncate w-full text-center px-0.5 leading-tight\"></span></div></template></div></div></div></template></div></div></template></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if canEdit {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<form x-ref=\"gridForm\" method=\"POST\" action=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "<form x-ref=\"gridForm\" method=\"POST\" action=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var3 templ.SafeURL
-			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/hardware/%d/grid", controller.ID)))
+			var templ_7745c5c3_Var36 templ.SafeURL
+			templ_7745c5c3_Var36, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/hardware/%d/grid", controller.ID)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 226, Col: 111}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 227, Col: 111}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "\" class=\"mt-16 bg-base-200 p-8 rounded-2xl border border-base-300 shadow-xl flex flex-col md:flex-row justify-between items-center gap-6\"><div><h3 class=\"font-bold text-sm uppercase tracking-wider opacity-50\">Save Configuration</h3><p class=\"text-xs opacity-40 mt-1\">This will update all containers and bin mappings for this controller.</p></div><div class=\"flex flex-col sm:flex-row gap-3 w-full md:w-auto md:justify-end\"><a href=\"/hardware\" class=\"btn btn-ghost w-full sm:w-32 whitespace-nowrap\">Cancel</a> <button type=\"button\" @click=\"askConfirm('save')\" class=\"btn btn-primary px-8 sm:px-12 w-full sm:w-auto md:w-48 whitespace-nowrap\">Save Changes</button></div><input type=\"hidden\" name=\"grid_data\" :value=\"JSON.stringify(exportBinData())\"> <input type=\"hidden\" name=\"config_data\" :value=\"JSON.stringify(exportContainerData())\"></form>")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var36))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Var4 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 42, "\" class=\"mt-16 bg-base-200 p-8 rounded-2xl border border-base-300 shadow-xl flex flex-col md:flex-row justify-between items-center gap-6\"><div><h3 class=\"font-bold text-sm uppercase tracking-wider opacity-50\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var37 string
+			templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "SaveConfiguration"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 229, Col: 105}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var37))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "</h3><p class=\"text-xs opacity-40 mt-1\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var38 string
+			templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "SaveConfigurationDesc"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 230, Col: 78}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var38))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "</p></div><div class=\"flex flex-col sm:flex-row gap-3 w-full md:w-auto md:justify-end\"><a href=\"/hardware\" class=\"btn btn-ghost w-full sm:w-32 whitespace-nowrap\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var39 string
+			templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Cancel"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 233, Col: 103}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var39))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 45, "</a> <button type=\"button\" @click=\"askConfirm('save')\" class=\"btn btn-primary px-8 sm:px-12 w-full sm:w-auto md:w-48 whitespace-nowrap\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var40 string
+			templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "SaveChanges"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 234, Col: 164}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var40))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 46, "</button></div><input type=\"hidden\" name=\"grid_data\" :value=\"JSON.stringify(exportBinData())\"> <input type=\"hidden\" name=\"config_data\" :value=\"JSON.stringify(exportContainerData())\"></form>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Var41 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 				templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 				templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
 				if !templ_7745c5c3_IsBuffer {
@@ -140,18 +614,44 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<p x-text=\"confirmMessage\" class=\"py-4 text-base-content/80\"></p><div class=\"modal-action\"><form method=\"dialog\"><button class=\"btn\">Cancel</button></form><button type=\"button\" class=\"btn btn-error\" @click=\"confirmAction()\">Confirm</button></div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 47, "<p x-text=\"confirmMessage\" class=\"py-4 text-base-content/80\"></p><div class=\"modal-action\"><form method=\"dialog\"><button class=\"btn\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var42 string
+				templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Cancel"))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 243, Col: 49}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var42))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 48, "</button></form><button type=\"button\" class=\"btn btn-error\" @click=\"confirmAction()\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var43 string
+				templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Confirm"))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 246, Col: 30}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var43))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 49, "</button></div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = Modal(ModalProps{ID: "grid_painter_confirm_modal", Title: "Are you sure?"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var4), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = Modal(ModalProps{ID: "grid_painter_confirm_modal", Title: i18n.T(ctx, "AreYouSure")}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var41), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</div><script src=\"/static/js/grid_painter.js\"></script>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 50, "</div><script src=\"/static/js/grid_painter.js\"></script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

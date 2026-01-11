@@ -796,5 +796,116 @@
   },
   "ImportFailed": {
     "other": "导入失败"
+  },
+  "TotalBins": {
+    "other": "料箱总数"
+  },
+  "Online": {
+    "other": "在线"
+  },
+  "Offline": {
+    "other": "离线"
+  },
+  "LegendOK": {
+    "other": "正常"
+  },
+  "LegendLow": {
+    "other": "低"
+  },
+  "LegendCritical": {
+    "other": "严重不足"
+  },
+  "LegendEmpty": {
+    "other": "空"
+  },
+  "AddContainer": {
+    "other": "添加容器"
+  },
+  "EditContainer": {
+    "other": "编辑容器"
+  },
+  "BasicInformation": {
+    "other": "基本信息"
+  },
+  "WledSegmentId": {
+    "other": "WLED 分段 ID"
+  },
+  "GridConfiguration": {
+    "other": "网格配置"
+  },
+  "LayoutType": {
+    "other": "布局类型"
+  },
+  "LinearStrip": {
+    "other": "线性灯带"
+  },
+  "Matrix": {
+    "other": "矩阵"
+  },
+  "Compound": {
+    "other": "复合"
+  },
+  "DataStartPosition": {
+    "other": "数据起始位置"
+  },
+  "TopLeft": {
+    "other": "左上"
+  },
+  "TopRight": {
+    "other": "右上"
+  },
+  "BottomLeft": {
+    "other": "左下"
+  },
+  "BottomRight": {
+    "other": "右下"
+  },
+  "TotalLeds": {
+    "other": "LED 总数"
+  },
+  "Rows": {
+    "other": "行"
+  },
+  "Cols": {
+    "other": "列"
+  },
+  "Sections": {
+    "other": "分段"
+  },
+  "AddSection": {
+    "other": "添加分段"
+  },
+  "AutoMapLinear": {
+    "other": "自动映射（线性）"
+  },
+  "AutoMapSnake": {
+    "other": "自动映射（蛇形）"
+  },
+  "ClearMapping": {
+    "other": "清除映射"
+  },
+  "LedsTotal": {
+    "other": "LED 总数"
+  },
+  "ReadOnlyMode": {
+    "other": "只读模式。请以管理员身份登录进行配置。"
+  },
+  "SaveConfiguration": {
+    "other": "保存配置"
+  },
+  "SaveConfigurationDesc": {
+    "other": "这将更新此控制器的所有容器和料箱映射。"
+  },
+  "AreYouSure": {
+    "other": "您确定吗？"
+  },
+  "Controller": {
+    "other": "控制器"
+  },
+  "Segment": {
+    "other": "分段"
+  },
+  "Confirm": {
+    "other": "确认"
   }
 }

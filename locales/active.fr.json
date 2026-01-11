@@ -796,5 +796,116 @@
   },
   "ImportFailed": {
     "other": "Échec de l'importation"
+  },
+  "TotalBins": {
+    "other": "Total Bacs"
+  },
+  "Online": {
+    "other": "En ligne"
+  },
+  "Offline": {
+    "other": "Hors ligne"
+  },
+  "LegendOK": {
+    "other": "OK"
+  },
+  "LegendLow": {
+    "other": "Bas"
+  },
+  "LegendCritical": {
+    "other": "Critique"
+  },
+  "LegendEmpty": {
+    "other": "Vide"
+  },
+  "AddContainer": {
+    "other": "Ajouter un conteneur"
+  },
+  "EditContainer": {
+    "other": "Modifier le conteneur"
+  },
+  "BasicInformation": {
+    "other": "Informations de base"
+  },
+  "WledSegmentId": {
+    "other": "ID de segment WLED"
+  },
+  "GridConfiguration": {
+    "other": "Configuration de la grille"
+  },
+  "LayoutType": {
+    "other": "Type de disposition"
+  },
+  "LinearStrip": {
+    "other": "Bande linéaire"
+  },
+  "Matrix": {
+    "other": "Matrice"
+  },
+  "Compound": {
+    "other": "Composé"
+  },
+  "DataStartPosition": {
+    "other": "Position de début des données"
+  },
+  "TopLeft": {
+    "other": "Haut-Gauche"
+  },
+  "TopRight": {
+    "other": "Haut-Droite"
+  },
+  "BottomLeft": {
+    "other": "Bas-Gauche"
+  },
+  "BottomRight": {
+    "other": "Bas-Droite"
+  },
+  "TotalLeds": {
+    "other": "Total LED"
+  },
+  "Rows": {
+    "other": "Lignes"
+  },
+  "Cols": {
+    "other": "Colonnes"
+  },
+  "Sections": {
+    "other": "Sections"
+  },
+  "AddSection": {
+    "other": "Ajouter une section"
+  },
+  "AutoMapLinear": {
+    "other": "Auto Map (Linéaire)"
+  },
+  "AutoMapSnake": {
+    "other": "Auto Map (Serpent)"
+  },
+  "ClearMapping": {
+    "other": "Effacer le mappage"
+  },
+  "LedsTotal": {
+    "other": "LEDs au total"
+  },
+  "ReadOnlyMode": {
+    "other": "Mode lecture seule. Connectez-vous en tant qu'administrateur pour configurer."
+  },
+  "SaveConfiguration": {
+    "other": "Enregistrer la configuration"
+  },
+  "SaveConfigurationDesc": {
+    "other": "Cela mettra à jour tous les conteneurs et les mappages de bacs pour ce contrôleur."
+  },
+  "AreYouSure": {
+    "other": "Êtes-vous sûr ?"
+  },
+  "Controller": {
+    "other": "Contrôleur"
+  },
+  "Segment": {
+    "other": "Segment"
+  },
+  "Confirm": {
+    "other": "Confirmer"
   }
 }

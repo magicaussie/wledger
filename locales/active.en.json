@@ -814,5 +814,116 @@
   },
   "ImportFailed": {
     "other": "Import Failed"
+  },
+  "TotalBins": {
+    "other": "Total Bins"
+  },
+  "Online": {
+    "other": "Online"
+  },
+  "Offline": {
+    "other": "Offline"
+  },
+  "LegendOK": {
+    "other": "OK"
+  },
+  "LegendLow": {
+    "other": "Low"
+  },
+  "LegendCritical": {
+    "other": "Critical"
+  },
+  "LegendEmpty": {
+    "other": "Empty"
+  },
+  "AddContainer": {
+    "other": "Add Container"
+  },
+  "EditContainer": {
+    "other": "Edit Container"
+  },
+  "BasicInformation": {
+    "other": "Basic Information"
+  },
+  "WledSegmentId": {
+    "other": "WLED Segment ID"
+  },
+  "GridConfiguration": {
+    "other": "Grid Configuration"
+  },
+  "LayoutType": {
+    "other": "Layout Type"
+  },
+  "LinearStrip": {
+    "other": "Linear Strip"
+  },
+  "Matrix": {
+    "other": "Matrix"
+  },
+  "Compound": {
+    "other": "Compound"
+  },
+  "DataStartPosition": {
+    "other": "Data Start Position"
+  },
+  "TopLeft": {
+    "other": "Top-Left"
+  },
+  "TopRight": {
+    "other": "Top-Right"
+  },
+  "BottomLeft": {
+    "other": "Bottom-Left"
+  },
+  "BottomRight": {
+    "other": "Bottom-Right"
+  },
+  "TotalLeds": {
+    "other": "Total LEDs"
+  },
+  "Rows": {
+    "other": "Rows"
+  },
+  "Cols": {
+    "other": "Cols"
+  },
+  "Sections": {
+    "other": "Sections"
+  },
+  "AddSection": {
+    "other": "Add Section"
+  },
+  "AutoMapLinear": {
+    "other": "Auto Map (Linear)"
+  },
+  "AutoMapSnake": {
+    "other": "Auto Map (Snake)"
+  },
+  "ClearMapping": {
+    "other": "Clear Mapping"
+  },
+  "LedsTotal": {
+    "other": "LEDs total"
+  },
+  "ReadOnlyMode": {
+    "other": "Read-only mode. Log in as admin to configure."
+  },
+  "SaveConfiguration": {
+    "other": "Save Configuration"
+  },
+  "SaveConfigurationDesc": {
+    "other": "This will update all containers and bin mappings for this controller."
+  },
+  "AreYouSure": {
+    "other": "Are you sure?"
+  },
+  "Controller": {
+    "other": "Controller"
+  },
+  "Segment": {
+    "other": "Segment"
+  },
+  "Confirm": {
+    "other": "Confirm"
   }
 }

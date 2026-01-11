@@ -796,5 +796,116 @@
   },
   "ImportFailed": {
     "other": "Ошибка импорта"
+  },
+  "TotalBins": {
+    "other": "Всего ячеек"
+  },
+  "Online": {
+    "other": "В сети"
+  },
+  "Offline": {
+    "other": "Не в сети"
+  },
+  "LegendOK": {
+    "other": "OK"
+  },
+  "LegendLow": {
+    "other": "Низкий"
+  },
+  "LegendCritical": {
+    "other": "Критический"
+  },
+  "LegendEmpty": {
+    "other": "Пусто"
+  },
+  "AddContainer": {
+    "other": "Добавить контейнер"
+  },
+  "EditContainer": {
+    "other": "Редактировать контейнер"
+  },
+  "BasicInformation": {
+    "other": "Основная информация"
+  },
+  "WledSegmentId": {
+    "other": "ID сегмента WLED"
+  },
+  "GridConfiguration": {
+    "other": "Конфигурация сетки"
+  },
+  "LayoutType": {
+    "other": "Тип макета"
+  },
+  "LinearStrip": {
+    "other": "Линейная лента"
+  },
+  "Matrix": {
+    "other": "Матрица"
+  },
+  "Compound": {
+    "other": "Составной"
+  },
+  "DataStartPosition": {
+    "other": "Начальная позиция данных"
+  },
+  "TopLeft": {
+    "other": "Сверху-Слева"
+  },
+  "TopRight": {
+    "other": "Сверху-Справа"
+  },
+  "BottomLeft": {
+    "other": "Снизу-Слева"
+  },
+  "BottomRight": {
+    "other": "Снизу-Справа"
+  },
+  "TotalLeds": {
+    "other": "Всего светодиодов"
+  },
+  "Rows": {
+    "other": "Строки"
+  },
+  "Cols": {
+    "other": "Столбцы"
+  },
+  "Sections": {
+    "other": "Секции"
+  },
+  "AddSection": {
+    "other": "Добавить секцию"
+  },
+  "AutoMapLinear": {
+    "other": "Авто-карта (Линейная)"
+  },
+  "AutoMapSnake": {
+    "other": "Авто-карта (Змейка)"
+  },
+  "ClearMapping": {
+    "other": "Очистить карту"
+  },
+  "LedsTotal": {
+    "other": "Всего светодиодов"
+  },
+  "ReadOnlyMode": {
+    "other": "Режим только для чтения. Войдите как администратор для настройки."
+  },
+  "SaveConfiguration": {
+    "other": "Сохранить конфигурацию"
+  },
+  "SaveConfigurationDesc": {
+    "other": "Это обновит все контейнеры и привязки ячеек для этого контроллера."
+  },
+  "AreYouSure": {
+    "other": "Вы уверены?"
+  },
+  "Controller": {
+    "other": "Контроллер"
+  },
+  "Segment": {
+    "other": "Сегмент"
+  },
+  "Confirm": {
+    "other": "Подтвердить"
   }
 }

@@ -796,5 +796,116 @@
   },
   "ImportFailed": {
     "other": "Import fehlgeschlagen"
+  },
+  "TotalBins": {
+    "other": "Fächer Gesamt"
+  },
+  "Online": {
+    "other": "Online"
+  },
+  "Offline": {
+    "other": "Offline"
+  },
+  "LegendOK": {
+    "other": "OK"
+  },
+  "LegendLow": {
+    "other": "Niedrig"
+  },
+  "LegendCritical": {
+    "other": "Kritisch"
+  },
+  "LegendEmpty": {
+    "other": "Leer"
+  },
+  "AddContainer": {
+    "other": "Container hinzufügen"
+  },
+  "EditContainer": {
+    "other": "Container bearbeiten"
+  },
+  "BasicInformation": {
+    "other": "Basisinformationen"
+  },
+  "WledSegmentId": {
+    "other": "WLED Segment-ID"
+  },
+  "GridConfiguration": {
+    "other": "Gitter-Konfiguration"
+  },
+  "LayoutType": {
+    "other": "Layout-Typ"
+  },
+  "LinearStrip": {
+    "other": "Linearer Streifen"
+  },
+  "Matrix": {
+    "other": "Matrix"
+  },
+  "Compound": {
+    "other": "Verbund"
+  },
+  "DataStartPosition": {
+    "other": "Daten-Startposition"
+  },
+  "TopLeft": {
+    "other": "Oben-Links"
+  },
+  "TopRight": {
+    "other": "Oben-Rechts"
+  },
+  "BottomLeft": {
+    "other": "Unten-Links"
+  },
+  "BottomRight": {
+    "other": "Unten-Rechts"
+  },
+  "TotalLeds": {
+    "other": "LEDs Gesamt"
+  },
+  "Rows": {
+    "other": "Zeilen"
+  },
+  "Cols": {
+    "other": "Spalten"
+  },
+  "Sections": {
+    "other": "Sektionen"
+  },
+  "AddSection": {
+    "other": "Sektion hinzufügen"
+  },
+  "AutoMapLinear": {
+    "other": "Auto-Map (Linear)"
+  },
+  "AutoMapSnake": {
+    "other": "Auto-Map (Schlange)"
+  },
+  "ClearMapping": {
+    "other": "Zuordnung löschen"
+  },
+  "LedsTotal": {
+    "other": "LEDs gesamt"
+  },
+  "ReadOnlyMode": {
+    "other": "Nur-Lese-Modus. Melden Sie sich als Admin an, um zu konfigurieren."
+  },
+  "SaveConfiguration": {
+    "other": "Konfiguration speichern"
+  },
+  "SaveConfigurationDesc": {
+    "other": "Dies aktualisiert alle Container und Fachzuordnungen für diesen Controller."
+  },
+  "AreYouSure": {
+    "other": "Sind Sie sicher?"
+  },
+  "Controller": {
+    "other": "Controller"
+  },
+  "Segment": {
+    "other": "Segment"
+  },
+  "Confirm": {
+    "other": "Bestätigen"
   }
 }

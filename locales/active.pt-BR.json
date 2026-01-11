@@ -796,5 +796,116 @@
   },
   "ImportFailed": {
     "other": "Falha na Importação"
+  },
+  "TotalBins": {
+    "other": "Total de Caixas"
+  },
+  "Online": {
+    "other": "Online"
+  },
+  "Offline": {
+    "other": "Offline"
+  },
+  "LegendOK": {
+    "other": "OK"
+  },
+  "LegendLow": {
+    "other": "Baixo"
+  },
+  "LegendCritical": {
+    "other": "Crítico"
+  },
+  "LegendEmpty": {
+    "other": "Vazio"
+  },
+  "AddContainer": {
+    "other": "Adicionar Contêiner"
+  },
+  "EditContainer": {
+    "other": "Editar Contêiner"
+  },
+  "BasicInformation": {
+    "other": "Informações Básicas"
+  },
+  "WledSegmentId": {
+    "other": "ID do Segmento WLED"
+  },
+  "GridConfiguration": {
+    "other": "Configuração da Grade"
+  },
+  "LayoutType": {
+    "other": "Tipo de Layout"
+  },
+  "LinearStrip": {
+    "other": "Fita Linear"
+  },
+  "Matrix": {
+    "other": "Matriz"
+  },
+  "Compound": {
+    "other": "Composto"
+  },
+  "DataStartPosition": {
+    "other": "Posição de Início de Dados"
+  },
+  "TopLeft": {
+    "other": "Superior-Esquerdo"
+  },
+  "TopRight": {
+    "other": "Superior-Direito"
+  },
+  "BottomLeft": {
+    "other": "Inferior-Esquerdo"
+  },
+  "BottomRight": {
+    "other": "Inferior-Direito"
+  },
+  "TotalLeds": {
+    "other": "Total de LEDs"
+  },
+  "Rows": {
+    "other": "Linhas"
+  },
+  "Cols": {
+    "other": "Colunas"
+  },
+  "Sections": {
+    "other": "Seções"
+  },
+  "AddSection": {
+    "other": "Adicionar Seção"
+  },
+  "AutoMapLinear": {
+    "other": "Mapeamento Auto (Linear)"
+  },
+  "AutoMapSnake": {
+    "other": "Mapeamento Auto (Cobra)"
+  },
+  "ClearMapping": {
+    "other": "Limpar Mapeamento"
+  },
+  "LedsTotal": {
+    "other": "LEDs totais"
+  },
+  "ReadOnlyMode": {
+    "other": "Modo somente leitura. Faça login como administrador para configurar."
+  },
+  "SaveConfiguration": {
+    "other": "Salvar Configuração"
+  },
+  "SaveConfigurationDesc": {
+    "other": "Isso atualizará todos os contêineres e mapeamentos de caixas para este controlador."
+  },
+  "AreYouSure": {
+    "other": "Tem certeza?"
+  },
+  "Controller": {
+    "other": "Controlador"
+  },
+  "Segment": {
+    "other": "Segmento"
+  },
+  "Confirm": {
+    "other": "Confirmar"
   }
 }
