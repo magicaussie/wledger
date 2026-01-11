@@ -70,6 +70,21 @@ Flexibility in how you manage your parts, and the data you create in WLEDger.
 - **Backup:** Easily backup all your data. Exports include all your images, docs, and part info in a human-readable format.
 - **Restore:** Restore your database from a backup in a single click.
 
+### Localization
+
+WLEDger supports multiple languages:
+
+- English
+- German (Deutsch)
+- Spanish (Español)
+- French (Français)
+- Italian (Italiano)
+- Portuguese (Português - Brasil)
+- Russian (Русский)
+- Simplified Chinese (简体中文)
+
+> Non-English translations are auto-generated and may contain inaccuracies. If you notice any translation errors or have suggestions for improvements, please [file an issue on GitHub](https://github.com/tuxedocurly/wledger/issues).
+
 ---
 
 ## The Tech Stack
