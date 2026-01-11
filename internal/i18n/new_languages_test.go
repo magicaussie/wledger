@@ -61,7 +61,7 @@ func TestNewLanguages(t *testing.T) {
 }
 
 func TestRealLocaleFiles(t *testing.T) {
-	// Point to the actual project locales directory
+	// Point to the real project locales directory
 	localesDir := "../../locales"
 
 	// Create a new bundle for this test

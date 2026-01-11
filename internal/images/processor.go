@@ -20,7 +20,7 @@ func Init() error {
 }
 
 // ProcessUpload handles the file upload, resize, and saving
-// Returns JUST the filename (e.g. "part_12345.jpg").
+// Returns the filename (e.g. "part_12345.jpg").
 // The handler is responsible for prepending the web path.
 func ProcessUpload(file multipart.File, header *multipart.FileHeader) (string, error) {
 	// Decode image
@@ -67,7 +67,7 @@ func saveJPG(img image.Image, name string) error {
 }
 
 // DeleteByWebPath takes the full web path (e.g., "/uploads/images/part_123.jpg")
-// and removes the corresponding files from the disk.
+// and removes the corresponding files from the file system.
 func DeleteByWebPath(webPath string) {
 	if webPath == "" {
 		return

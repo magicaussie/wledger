@@ -11,9 +11,9 @@ import (
 	"github.com/tuxedocurly/wledger/internal/hardware/mapper"
 )
 
-// MigrateLegacyLedIndices converts bins' relative led_index (per container) 
+// MigrateLegacyLedIndices converts bins' relative led_index (per container)
 // to absolute segment indices (across containers on same segment).
-// This reflects the legacy logic but persists it to the database.
+// This reflects legacy logic but persists it to the database.
 func MigrateLegacyLedIndices(ctx context.Context, store db.Store, logger *slog.Logger) error {
 	// Check if migration has already been applied
 	flag, err := store.GetFlag(ctx, "migration_005_applied")
