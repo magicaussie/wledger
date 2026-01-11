@@ -3,6 +3,7 @@ package db_test
 import (
 	"context"
 	"testing"
+
 	"github.com/tuxedocurly/wledger/internal/db"
 )
 
@@ -31,7 +32,7 @@ func TestSystemFlags(t *testing.T) {
 		t.Errorf("expected flag value 'true', got '%s'", val)
 	}
 
-	// Test Get non-existent flag (should return error or empty depending on impl, usually error for sqlc)
+	// Test Get non-existent flag
 	_, err = q.GetFlag(ctx, "non_existent")
 	if err == nil {
 		t.Fatal("expected error for non-existent flag")

@@ -36,9 +36,9 @@ func TestOrphanedStock(t *testing.T) {
 
 	// Create Bin
 	binID, err := q.CreateBin(ctx, db.CreateBinParams{
-		Name:         "A1",
-		ContainerID:  container,
-		LedIndex:     sql.NullInt64{Int64: 0, Valid: true},
+		Name:        "A1",
+		ContainerID: container,
+		LedIndex:    sql.NullInt64{Int64: 0, Valid: true},
 	})
 	if err != nil {
 		t.Fatalf("create bin: %v", err)
@@ -62,9 +62,7 @@ func TestOrphanedStock(t *testing.T) {
 		t.Fatalf("assign part: %v", err)
 	}
 
-	// Simulate "Delete Bin" (The critical action)
-	// In the handler, DeleteBinByLed or DeleteBinsByController are called.
-	// In this case, using DeleteBinByLed as the diffing logic uses that.
+	// Simulate "Delete Bin"
 	err = q.DeleteBinByLed(ctx, db.DeleteBinByLedParams{
 		ContainerID: container,
 		LedIndex:    sql.NullInt64{Int64: 0, Valid: true}, // Index of Bin A1
@@ -74,7 +72,7 @@ func TestOrphanedStock(t *testing.T) {
 	}
 
 	// Verify Stock Preservation
-	// fetch assignments for the part.
+	// fetch assignments for the part
 	assignments, err := q.GetPartAssignments(ctx, partID)
 	if err != nil {
 		t.Fatalf("get assignments: %v", err)

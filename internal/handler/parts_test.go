@@ -22,8 +22,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/dashboard"
+	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/documents"
 	"github.com/tuxedocurly/wledger/internal/images"
 	"github.com/tuxedocurly/wledger/internal/parts"
@@ -303,7 +303,7 @@ func TestPartUpdate_RollbackOnError(t *testing.T) {
 	// Update "Original Part" to have barcode "9999" (Conflict)
 	req := createMultipartRequest(t, "/parts/"+strconv.Itoa(int(id))+"/update", "POST", map[string]string{
 		"name":         "Updated Name",
-		"barcode_data": "9999", // Conflict!
+		"barcode_data": "9999", // Conflict
 	}, map[string]string{
 		"image": "new.png",
 	})
@@ -400,7 +400,7 @@ func TestPartStockMove_Move(t *testing.T) {
 
 	// Setup Data: Part, Bin A, Bin B, Stock in Bin A
 	p, _ := h.Queries.CreatePart(ctx, db.CreatePartParams{Name: "Part A"})
-	
+
 	c, _ := h.Queries.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
 	cont, _ := h.Queries.CreateContainer(ctx, db.CreateContainerParams{Name: "Cont", ControllerID: c.ID})
 
@@ -463,7 +463,7 @@ func TestPartStockMove_Merge(t *testing.T) {
 
 	// Setup: Part, Bin A (10), Bin B (5)
 	p, _ := h.Queries.CreatePart(ctx, db.CreatePartParams{Name: "Part A"})
-	
+
 	c, _ := h.Queries.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
 	cont, _ := h.Queries.CreateContainer(ctx, db.CreateContainerParams{Name: "Cont", ControllerID: c.ID})
 
@@ -521,7 +521,7 @@ func TestPartStockMove_Merge_Rollback(t *testing.T) {
 	ctx := context.Background()
 
 	p, _ := h.Queries.CreatePart(ctx, db.CreatePartParams{Name: "Part A"})
-	
+
 	c, _ := h.Queries.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
 	cont, _ := h.Queries.CreateContainer(ctx, db.CreateContainerParams{Name: "Cont", ControllerID: c.ID})
 

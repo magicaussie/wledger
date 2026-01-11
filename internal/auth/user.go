@@ -3,11 +3,10 @@ package auth
 import "github.com/tuxedocurly/wledger/internal/db"
 
 // User represents the context of the current requester.
-// This helps decouple the UI from the raw database schema.
 type User struct {
 	ID      int64
 	Email   string
-	Role    string // "admin", "editor", "viewer"
+	Role    string // "admin", "editor", "viewer", "guest"
 	IsGuest bool   // true if not logged in
 }
 
@@ -15,10 +14,6 @@ type User struct {
 func Guest() User {
 	return User{IsGuest: true, Role: "guest"}
 }
-
-// -------------------------------------------------------------------------
-// Capabilities (The "API" for Templates/Handlers)
-// -------------------------------------------------------------------------
 
 // IsAdmin returns true if the user has full system access.
 func (u User) IsAdmin() bool {

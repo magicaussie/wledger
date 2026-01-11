@@ -76,13 +76,8 @@ func (s *service) LogWithTx(ctx context.Context, q db.Querier, action, entityTyp
 	}
 }
 
-// Global helper for transitional period if needed, but ideally we use the service instance
+// Global helper for legacy logging. Prefer using Service methods.
 func Log(ctx context.Context, q db.Querier, action, entityType string, entityID int64, details string, oldVal, newVal any) {
-	// transitional helper
-	// This mimics the old behavior using a one-off logic or we can just keep the old logic here.
-	// For better refactoring, keep this for now but it just wraps the logic (duplicated for now to avoid package instance circular dependency if any dependency is using a global).
-	// TODO: Remove this function after refactoring all usages to use the Service instance.
-
 	// Extract userID
 	var userID int64
 	if id, ok := ctx.Value(middleware.UserContextKey).(int64); ok {

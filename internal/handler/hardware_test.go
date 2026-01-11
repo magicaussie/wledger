@@ -86,15 +86,15 @@ func TestControllerDeleteCascadesToBins(t *testing.T) {
 		t.Fatalf("failed to create container: %v", err)
 	}
 
-	// Create Bins (Simulate an 8-pixel strip)
+	// Create Bins (Simulate an 8-LED strip)
 	for i := 0; i < 8; i++ {
 		_, err := s.CreateBin(ctx, db.CreateBinParams{
-			Name:         "Bin-" + strconv.Itoa(i),
-			ContainerID:  cont,
-			LedIndex:     sql.NullInt64{Int64: int64(i), Valid: true},
-			Width:        sql.NullInt64{Int64: 1, Valid: true},
-			GridX:        sql.NullInt64{Int64: int64(i), Valid: true},
-			GridY:        sql.NullInt64{Int64: 0, Valid: true},
+			Name:        "Bin-" + strconv.Itoa(i),
+			ContainerID: cont,
+			LedIndex:    sql.NullInt64{Int64: int64(i), Valid: true},
+			Width:       sql.NullInt64{Int64: 1, Valid: true},
+			GridX:       sql.NullInt64{Int64: int64(i), Valid: true},
+			GridY:       sql.NullInt64{Int64: 0, Valid: true},
 		})
 		if err != nil {
 			t.Fatalf("failed to create bin %d: %v", i, err)
@@ -111,7 +111,7 @@ func TestControllerDeleteCascadesToBins(t *testing.T) {
 	}
 
 	// Delete Controller via HTTP Handler
-	// This exercises the `HandleHardwareDelete` method, ensuring the transaction logic works.
+	// This exercises the `HandleHardwareDelete` method, ensuring the transaction logic works
 	r := chi.NewRouter()
 	r.Post("/hardware/{id}/delete", h.HandleHardwareDelete)
 
@@ -130,8 +130,6 @@ func TestControllerDeleteCascadesToBins(t *testing.T) {
 
 	// Check Bins by Container (Should be 0)
 	binsAfter, err := s.GetBinsByContainer(ctx, cont)
-	// Note: If container is deleted by cascade, bins are deleted by cascade from container.
-	// But getting bins for a deleted container returns empty list (SQL query returns empty).
 	if err != nil {
 		t.Fatalf("failed to fetch bins after delete: %v", err)
 	}
@@ -140,7 +138,7 @@ func TestControllerDeleteCascadesToBins(t *testing.T) {
 	}
 
 	// Check Global Bin Count (Should be 0 - ensuring no orphans/ghosts)
-	// This confirms that bins were DELETED, not just set to NULL.
+	// This confirms that bins were DELETED, not just set to NULL
 	var count int
 	err = dbConn.QueryRow("SELECT count(*) FROM bins").Scan(&count)
 	if err != nil {
@@ -211,7 +209,7 @@ func TestHardwareAuditLogging(t *testing.T) {
 	// Update Grid (Grid Save)
 	ctrl, _ := s.GetControllers(ctx)
 	id := ctrl[0].ID
-	
+
 	// Fetch the default container created during controller creation
 	containers, _ := s.GetContainersByController(ctx, id)
 	contID := containers[0].ID

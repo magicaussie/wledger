@@ -23,7 +23,6 @@ import (
 
 func TestHandleAuditLogs(t *testing.T) {
 	// Reusing openTestDB and setupTestSchema from hardware_test.go
-	// Run tests with go test ./internal/handler/...
 	dbConn := openTestDB(t)
 	defer dbConn.Close()
 	setupTestSchema(t, dbConn)

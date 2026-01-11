@@ -9,13 +9,13 @@ import (
 
 // General note on "Why bcrypt?":
 // I considered using Argon2 here instead; however, since this server is
-// expected to be performant on low-end, memory constraing hardware (rpi),
+// expected to be performant on low-end, memory constrained hardware (rpi),
 // I didn't see much benefit in using Argon2 over bcrypt given I would need
-// to reduce the Argon2 parameters so much to make it usable in the worst-case
+// to reduce the Argon2 parameters to make it usable in the worst-case,
 // resource constrained scenario.
 
 const (
-	BcryptPasswordCost = 12 // TODO: test performance of 10 vs 12 if performance is an issue
+	BcryptPasswordCost = 12
 	MinPasswordLength  = 8
 	MaxBcryptBytes     = 72 // bcrypt has a hard limit of 72 bytes
 )

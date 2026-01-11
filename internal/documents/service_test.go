@@ -35,7 +35,7 @@ func setupTestDB(t *testing.T) (*sql.DB, db.Store, func()) {
 }
 
 func TestDocumentService(t *testing.T) {
-	// Setup Temp Dir to handle file uploads
+	// Setup templ dir to handle file uploads
 	wd, _ := os.Getwd()
 	tmpDir := t.TempDir()
 	os.Chdir(tmpDir)
@@ -107,7 +107,7 @@ func TestDocumentService(t *testing.T) {
 
 	// Verify File on Disk
 	// path is like /uploads/docs/test_123.txt
-	// config.DirUploads is ./app/uploads (relative to CWD)
+	// config.DirUploads is ./app/uploads
 	// config.UrlPrefixUploads is /uploads/
 	relPath := strings.TrimPrefix(path, "/uploads/") // docs/test_123.txt
 	diskPath := filepath.Join("app/uploads", relPath)

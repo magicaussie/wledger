@@ -32,7 +32,7 @@ func (s *SQLCStore) Find(token string) (b []byte, exists bool, err error) {
 		return nil, false, err
 	}
 
-	// Helper: check expiry manually if the DB doesn't handle it
+	// check expiry manually
 	if session.Expiry < float64(time.Now().Unix()) {
 		return nil, false, nil
 	}
@@ -42,7 +42,7 @@ func (s *SQLCStore) Find(token string) (b []byte, exists bool, err error) {
 
 // Commit adds a session token and data to the SQLCStore instance with the
 // given expiry time. If the session token already exists, then data and
-// expiry time are updated. This operation is atomic.
+// expiry time are updated.
 func (s *SQLCStore) Commit(token string, b []byte, expiry time.Time) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -72,4 +72,3 @@ func (s *SQLCStore) Delete(token string) error {
 
 	return s.store.DeleteSession(ctx, token)
 }
-

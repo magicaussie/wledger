@@ -22,7 +22,7 @@ func setupTestDB(t *testing.T) (*db.Queries, func()) {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
 
-	// Create queries helper
+	// create queries helper
 	q := db.New(conn)
 
 	// return cleanup function
@@ -108,7 +108,7 @@ func TestCascadeDelete(t *testing.T) {
 		t.Fatalf("create part: %v", err)
 	}
 
-	// Create Orphaned Assignment
+	// Create orphaned assignment
 	err = q.CreatePartAssignment(ctx, db.CreatePartAssignmentParams{
 		PartID:   part,
 		BinID:    sql.NullInt64{Valid: false},
@@ -124,13 +124,13 @@ func TestCascadeDelete(t *testing.T) {
 		t.Fatalf("expected 100 items, got %d", stats.TotalItemsInStock)
 	}
 
-	// Delete Part
+	// Delete part
 	err = q.DeletePart(ctx, part)
 	if err != nil {
 		t.Fatalf("delete part: %v", err)
 	}
 
-	// Verify Cascade
+	// Verify cascade
 	stats, _ = q.GetDashboardStats(ctx)
 	if stats.TotalItemsInStock != 0 {
 		t.Errorf("CASCADE FAILED: expected 0 items, got %d", stats.TotalItemsInStock)

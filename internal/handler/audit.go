@@ -64,7 +64,7 @@ func (h *Handler) HandleAuditLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Count for pagination (Legacy support, maybe can remove if template doesn't use it)
+	// Count for pagination
 	countParams := db.CountAuditLogsParams{
 		ActionType: params.ActionType,
 		EntityType: params.EntityType,

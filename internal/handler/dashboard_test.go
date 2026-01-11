@@ -16,15 +16,9 @@ func TestNewDashboardViewModel(t *testing.T) {
 	setupTestSchema(t, dbConn)
 
 	s := db.NewStore(dbConn)
-	// logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	// uiError := uierror.New(logger)
 	dashService := dashboard.NewService(s)
 
 	h := &Handler{
-		// Logger:    logger,
-		// Queries:   s,
-		// Database:  dbConn,
-		// UIError:   uiError,
 		Dashboard: dashService,
 	}
 
@@ -34,12 +28,12 @@ func TestNewDashboardViewModel(t *testing.T) {
 	// Controller B: Bin (1,1) - Critical
 	c2, _ := s.CreateController(ctx, db.CreateControllerParams{Name: "Controller B", IpAddress: "2.2.2.2"})
 	cont2, _ := s.CreateContainer(ctx, db.CreateContainerParams{Name: "C2", ControllerID: c2.ID, SegmentID: 0})
-	
+
 	b10Row, _ := s.CreateBin(ctx, db.CreateBinParams{
-		Name:         "Bin 10",
-		ContainerID:  cont2,
-		GridX:        sql.NullInt64{Int64: 1, Valid: true},
-		GridY:        sql.NullInt64{Int64: 1, Valid: true},
+		Name:        "Bin 10",
+		ContainerID: cont2,
+		GridX:       sql.NullInt64{Int64: 1, Valid: true},
+		GridY:       sql.NullInt64{Int64: 1, Valid: true},
 	})
 	b10 := b10Row
 
@@ -51,25 +45,25 @@ func TestNewDashboardViewModel(t *testing.T) {
 	cont1, _ := s.CreateContainer(ctx, db.CreateContainerParams{Name: "C1", ControllerID: c1.ID, SegmentID: 0})
 
 	b1, _ := s.CreateBin(ctx, db.CreateBinParams{
-		Name:         "Bin 1",
-		ContainerID:  cont1,
-		GridX:        sql.NullInt64{Int64: 0, Valid: true},
-		GridY:        sql.NullInt64{Int64: 0, Valid: true},
+		Name:        "Bin 1",
+		ContainerID: cont1,
+		GridX:       sql.NullInt64{Int64: 0, Valid: true},
+		GridY:       sql.NullInt64{Int64: 0, Valid: true},
 	})
 	p101, _ := s.CreatePart(ctx, db.CreatePartParams{Name: "Part 101", MinStockThreshold: sql.NullInt64{Int64: 5, Valid: true}})
 	_ = s.CreatePartAssignment(ctx, db.CreatePartAssignmentParams{PartID: p101, BinID: sql.NullInt64{Int64: b1, Valid: true}, Quantity: 10})
 
 	// Controller A: Bin (0,1) - Low
 	b2, _ := s.CreateBin(ctx, db.CreateBinParams{
-		Name:         "Bin 2",
-		ContainerID:  cont1,
-		GridX:        sql.NullInt64{Int64: 0, Valid: true},
-		GridY:        sql.NullInt64{Int64: 1, Valid: true},
+		Name:        "Bin 2",
+		ContainerID: cont1,
+		GridX:       sql.NullInt64{Int64: 0, Valid: true},
+		GridY:       sql.NullInt64{Int64: 1, Valid: true},
 	})
 	p102, _ := s.CreatePart(ctx, db.CreatePartParams{Name: "Part 102", MinStockThreshold: sql.NullInt64{Int64: 5, Valid: true}, ReorderLevel: sql.NullInt64{Int64: 10, Valid: true}})
 	_ = s.CreatePartAssignment(ctx, db.CreatePartAssignmentParams{PartID: p102, BinID: sql.NullInt64{Int64: b2, Valid: true}, Quantity: 6})
 
-	// Execute via Service (since newDashboardViewModel was moved there)
+	// Execute via Service
 	vm, err := h.Dashboard.GetGrid(ctx)
 	if err != nil {
 		t.Fatalf("failed to get grid: %v", err)

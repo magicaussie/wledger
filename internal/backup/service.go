@@ -186,12 +186,13 @@ func (s *service) Export(ctx context.Context, w io.Writer) error {
 
 	if err != nil {
 		s.logger.Error("backup failed to zip uploads", "err", err)
-		// return nil if zip succeeds
-		// TODO: implement better handling of this case
+		// TODO: implement better handling of this case. Ensure a uierror partial is
+		// returned in the frontend (or an error toast) for the user.
 	}
 
 	// Log audit
 	audit.Log(ctx, s.store, "BACKUP", "SYSTEM", 0, "Downloaded system backup", nil, nil)
+	// return nil if zip succeeds
 	return nil
 }
 
@@ -242,10 +243,10 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 		return errors.New("invalid Backup: restore_data.json missing")
 	}
 
-	// Preparation: Extract Uploads to Temp Directory
+	// Extract uploads to temp directory
 	timestamp := time.Now().UnixNano()
 	// Use a hidden folder inside uploadsDir to ensure same-filesystem operations
-	// This avoids "cross-device link" errors when uploadsDir is a Docker volume
+	// This avoids cross-device link errors when uploadsDir is a Docker volume
 	tempDir := filepath.Join(s.uploadsDir, fmt.Sprintf(".restore_tmp_%d", timestamp))
 
 	s.logger.Debug("extracting uploads to temp directory", "temp_dir", tempDir)
@@ -351,7 +352,7 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 		return err
 	}
 
-	// Atomic Swap of Assets (Modified for Volume compatibility)
+	// Atomic swap of assets
 	s.logger.Debug("swapping upload contents", "dir", s.uploadsDir)
 
 	// Create backup folder inside uploadsDir
@@ -368,7 +369,7 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 			return err
 		}
 		for _, entry := range entries {
-			// Skip the special directories we created
+			// skip the temp directories
 			if entry.Name() == filepath.Base(tempDir) || entry.Name() == filepath.Base(backupDir) {
 				continue
 			}

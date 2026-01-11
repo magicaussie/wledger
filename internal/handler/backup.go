@@ -27,7 +27,6 @@ func (h *Handler) HandleBackupDownload(w http.ResponseWriter, r *http.Request) {
 	// Stream Backup to Response
 	if err := h.Backup.Export(r.Context(), w); err != nil {
 		h.Logger.Error("failed to generate backup", "err", err)
-		// Since headers are already sent, a clean error response can't be sent.
 		// The zip might be corrupted on the client side if this fails mid-stream.
 		return
 	}

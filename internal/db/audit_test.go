@@ -51,7 +51,7 @@ func TestListAuditLogs(t *testing.T) {
 		t.Fatalf("failed to create audit log 2: %v", err)
 	}
 
-	// Test ListAuditLogs (this will fail to compile because it's not generated yet)
+	// Test ListAuditLogs
 	params := db.ListAuditLogsParams{
 		Limit:      10,
 		Offset:     0,

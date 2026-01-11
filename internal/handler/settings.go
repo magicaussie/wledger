@@ -24,7 +24,7 @@ func (h *Handler) HandleSettings(w http.ResponseWriter, r *http.Request) {
 	var err error
 
 	// Fetch Admin Data (Only if User is Admin)
-	// Viewers/Editors don't need this data since the template hides those sections.
+	// Viewers/Editors don't need this data since the template hides those sections
 	if user.IsAdmin() {
 		settings, err = h.Settings.GetSettings(r.Context())
 		if err != nil {
@@ -169,7 +169,7 @@ func (h *Handler) HandleUserForceReset(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(idStr)
 	currentUserID := h.Session.GetInt64(r.Context(), config.SessionKeyUserID)
 
-	// Don't flag yourself (UX preference, use standard change password instead)
+	// Don't flag current user
 	if int64(id) == currentUserID {
 		http.Redirect(w, r, "/settings", http.StatusSeeOther)
 		return

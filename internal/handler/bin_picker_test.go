@@ -68,7 +68,6 @@ func TestBinPicker_NoController(t *testing.T) {
 	r.ServeHTTP(rr, req)
 
 	// Expect Error or Empty
-	// Assuming it returns empty state or error if ID is missing
 	if rr.Code != http.StatusBadRequest && !strings.Contains(rr.Body.String(), "") {
 		t.Errorf("expected 400 or empty, got %d", rr.Code)
 	}
