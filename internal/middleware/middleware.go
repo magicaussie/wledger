@@ -180,7 +180,7 @@ func (m *Manager) RequirePasswordChange(next http.Handler) http.Handler {
 }
 
 // RequireRole enforces role-based access.
-// acceptedRoles: A list of roles allowed to access the route ("admin", "editor", "viewer")
+// acceptedRoles: A list of roles allowed to access the route ("admin", "editor", "viewer", "guest")
 func (m *Manager) RequireRole(acceptedRoles ...string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

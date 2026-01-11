@@ -25,7 +25,7 @@ func TestService_Locate(t *testing.T) {
 	defer server.Close()
 
 	// Extract IP/Port from server URL (e.g. 127.0.0.1:12345)
-	ip := server.URL[7:] 
+	ip := server.URL[7:]
 
 	// Setup DB
 	dbConn, err := db.Open("file:wled_test?mode=memory&cache=shared")
@@ -61,7 +61,7 @@ func TestService_Locate(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to create controller: %v", err)
 		}
-		
+
 		cont, err := store.CreateContainer(ctx, db.CreateContainerParams{
 			Name:         "Cont",
 			ControllerID: c.ID,
