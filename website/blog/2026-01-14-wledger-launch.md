@@ -33,9 +33,9 @@ Given the state of the existing ecosystem, I decided to build the tool I wanted 
 * **Data Safety & Convenience:** Built-in backup, restore, and bulk import tools.
 * ... and much more!
 
-WLEDger is the tool I've been searching for as a maker. I've been using it every, and it's become an *essential* part of my workflow.
+WLEDger is the organizational maker tool I've been searching for. It's become an *essential* part of my workflow.
 
-I hope you find WLEDger useful! My plan it to maintain and support WLEDger long into the future. If you have a feature request, feel free to submit an Issue on GitHub, or reach out to me on Discord.
+I hope you find WLEDger useful! My plan is to maintain and support WLEDger long into the future. If you have a feature request, feel free to submit an Issue on GitHub, or reach out to me on Discord.
 
 Check out the documentation to get started, or view the source on GitHub!
 
