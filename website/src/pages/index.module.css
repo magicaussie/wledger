@@ -8,16 +8,58 @@
   text-align: center;
   position: relative;
   overflow: hidden;
+  background-color: #1b1b1d; /* Dark background for the LED effect */
+  min-height: 400px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-@media screen and (max-width: 996px) {
-  .heroBanner {
-    padding: 2rem;
-  }
+.gridContainer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.gridOverlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle, transparent 20%, #1b1b1d 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.ledDot {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background-color: var(--ifm-color-primary);
+  transition: opacity 0.1s ease, transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.heroContent {
+  position: relative;
+  z-index: 2;
+  pointer-events: none; /* Let clicks pass through to the grid if needed, though buttons need pointer-events: auto */
 }
 
 .buttons {
   display: flex;
   align-items: center;
   justify-content: center;
+  pointer-events: auto; /* Re-enable clicks for buttons */
+}
+
+@media screen and (max-width: 996px) {
+  .heroBanner {
+    padding: 2rem;
+  }
 }

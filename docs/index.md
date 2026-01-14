@@ -1,7 +1,7 @@
 ---
 title: Welcome to WLEDger
-layout: default
-nav_order: 1
+slug: /
+sidebar_position: 1
 ---
 
 # Welcome to WLEDger V2
@@ -25,16 +25,16 @@ Built with **Go**, **HTMX**, and **SQLite**, WLEDger V2 is designed to be fast, 
 
 This documentation is divided into three main sections:
 
-1. **[Quick Start](./quickstart-guide.md)**
+1. **[Quick Start](./Software/quickstart-guide.md)**
     * Start here! A complete guide to installing WLEDger using Docker and setting up your first WLED controller.
 
-2. **[Build Guide](./build-guide.md)**
+2. **[Build Guide](./Hardware/build-guide.md)**
     * Learn about the hardware requirements: microcontrollers, LED strips, power supplies, and storage bin recommendations.
 
-3. **[Developer Guide](./developer-guide.md)**
+3. **[Developer Guide](./Software/developer-guide.md)**
     * For those who want to contribute or understand the code. Explains the Go/Templ/HTMX architecture and development workflow.
 
-4. **[Feature Guide](./feature-guide.md)**
+4. **[Feature Guide](./Software/feature-guide.md)**
     * Learn about all the features WLEDger offers to make the most out of your setup.
 
 ---
