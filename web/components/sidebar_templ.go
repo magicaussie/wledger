@@ -568,7 +568,7 @@ func CommunityLinks() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "</span></a></li><li><a href=\"https://discord.gg/HABg37gjrd\" target=\"_blank\" class=\"text-base-content/70\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "</span></a></li><li><a href=\"https://discord.gg/wmDdcar7Kq\" target=\"_blank\" class=\"text-base-content/70\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
