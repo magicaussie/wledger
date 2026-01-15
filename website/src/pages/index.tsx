@@ -1,4 +1,4 @@
-import React, {useRef, useEffect, useState} from 'react';
+import React, { useRef, useEffect, useState, type ReactNode } from 'react';
 import clsx from 'clsx';
 import Link from '@docusaurus/Link';
 import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
@@ -45,8 +45,8 @@ function InteractiveGrid() {
   };
 
   return (
-    <div 
-      className={styles.gridContainer} 
+    <div
+      className={styles.gridContainer}
       ref={containerRef}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
@@ -58,19 +58,19 @@ function InteractiveGrid() {
         // Approximate position of the dot center
         const dotX = col * 30 + 15;
         const dotY = row * 30 + 15;
-        
+
         // Calculate distance
         const dx = mousePos.x - dotX;
         const dy = mousePos.y - dotY;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        
+
         // Calculate brightness/scale based on distance (closer = brighter/larger)
         const maxDist = 200;
         const intensity = Math.max(0, 1 - dist / maxDist);
-        
+
         return (
-          <div 
-            key={i} 
+          <div
+            key={i}
             className={styles.ledDot}
             style={{
               left: col * 30 + 'px',
@@ -87,7 +87,7 @@ function InteractiveGrid() {
 }
 
 function HomepageHeader() {
-  const {siteConfig} = useDocusaurusContext();
+  const { siteConfig } = useDocusaurusContext();
   return (
     <header className={clsx('hero', styles.heroBanner)}>
       <InteractiveGrid />
@@ -100,7 +100,7 @@ function HomepageHeader() {
           <Link
             className="button button--secondary button--lg"
             to="/docs/Software/quickstart-guide">
-            Get Started - 5min ⏱️
+            Get WLEDger
           </Link>
         </div>
       </div>
@@ -109,11 +109,11 @@ function HomepageHeader() {
 }
 
 export default function Home(): ReactNode {
-  const {siteConfig} = useDocusaurusContext();
+  const { siteConfig } = useDocusaurusContext();
   return (
     <Layout
       title={`Hello from ${siteConfig.title}`}
-      description="Description will go into a meta tag in <head />">
+      description="WLEDger: CTRL + F for physical objects. Manage your inventory. Find your things visually using WLED.">
       <HomepageHeader />
       <main>
         <HomepageFeatures />
