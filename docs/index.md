@@ -48,4 +48,5 @@ This documentation is divided into three main sections:
 ### Community & Support
 
 * **GitHub:** [tuxedocurly/wledger](https://github.com/tuxedocurly/wledger)
-* **Discord:** [Join the TuxedoDevices Discord](https://discord.com/invite/HABg37gjrd)
+* **Discord:** [Join the WLEDger Discord](https://discord.gg/wmDdcar7Kq)
+* **Donate:** Enjoying WLEDger? Consider [buying me a coffee](https://ko-fi.com/tuxedomakes)

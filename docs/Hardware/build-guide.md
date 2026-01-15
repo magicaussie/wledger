@@ -139,4 +139,4 @@ The only rule is: **If WLED can control it, WLEDger can find it.**
 
 The possibilities are endless.
 
-Have questions? Want to show off your setup? Have a suggestion for a feature? Join the [TuxedoDevices Discord](https://discord.com/invite/HABg37gjrd) and come say hi!
+Have questions? Want to show off your setup? Have a suggestion for a feature? Join the [WLEDger Discord](https://discord.gg/wmDdcar7Kq) and come say hi!

@@ -3,7 +3,7 @@
 </p>
 <div align="center">
 
-[![Report Bug](https://img.shields.io/badge/GitHub-Report%20Bug-black?style=for-the-badge&logo=github)](https://github.com/tuxedocurly/wledger/issues) [![Join Discord](https://img.shields.io/badge/Discord-Get%20Support-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/HABg37gjrd) [![Support me on Ko-Fi](https://img.shields.io/badge/Ko--Fi-Support%20Me-FF5E5B?style=for-the-badge&logo=ko-fi&logoColor=white)](https://ko-fi.com/tuxedomakes)
+[![Report Bug](https://img.shields.io/badge/GitHub-Report%20Bug-black?style=for-the-badge&logo=github)](https://github.com/tuxedocurly/wledger/issues) [![Join Discord](https://img.shields.io/badge/Discord-Get%20Support-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/wmDdcar7Kq) [![Support WLEDger](https://img.shields.io/badge/Ko--Fi-Support%20Me-FF5E5B?style=for-the-badge&logo=ko-fi&logoColor=white)](https://ko-fi.com/tuxedomakes)
 
 </div>
 

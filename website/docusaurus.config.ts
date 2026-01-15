@@ -84,9 +84,9 @@ const config: Config = {
           position: 'left',
           label: 'Documentation',
         },
-        {to: '/blog', label: 'Blog', position: 'left'},
+        { to: '/blog', label: 'Blog', position: 'left' },
         {
-          href: 'https://discord.com/invite/HABg37gjrd',
+          href: 'https://discord.gg/wmDdcar7Kq',
           label: 'Discord',
           position: 'right',
         },
@@ -118,7 +118,7 @@ const config: Config = {
           items: [
             {
               label: 'Discord',
-              href: 'https://discord.com/invite/HABg37gjrd',
+              href: 'https://discord.gg/wmDdcar7Kq',
             },
           ],
         },
@@ -133,10 +133,14 @@ const config: Config = {
               label: 'GitHub',
               href: 'https://github.com/tuxedocurly/wledger',
             },
+            {
+              label: 'Support WLEDger',
+              href: 'https://ko-fi.com/tuxedomakes',
+            },
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} WLEDger. Built with Docusaurus.`,
+      copyright: `Copyright © ${new Date().getFullYear()} WLEDger.`,
     },
     prism: {
       theme: prismThemes.github,

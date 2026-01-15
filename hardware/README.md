@@ -51,4 +51,4 @@ The WLEDger system works perfectly well by hand-wiring individual LEDs. This is 
 ## ❗ Bounty Alert ❗
 **If you find an LED strip + storage bin combination whose spacing does not require cutting the LEDs**, please let me know! This would be a huge win for simplicity, and the community. I'll even add your name to the credits for this project (if desired). 
 
-You can reach me @TuxedoMakes on the [TuxedoDevices Discord](https://discord.com/invite/HABg37gjrd), submit an issue, or a create a pull request! 🫶
+You can reach me @TuxedoMakes on the [WLEDger Discord](https://discord.gg/wmDdcar7Kq), submit an issue, or a create a pull request! 🫶

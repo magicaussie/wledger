@@ -77,12 +77,12 @@ Mapping physical LEDs to digital bins is the core of WLEDger's locating system. 
 
 ## Inspiration (LLM Prompts)
 
-Not sure what to build with all that stuff? WLEDger can help you create prompts using *your inventor* for use with your favorite LLM tool.
+Not sure what to build with all that stuff? WLEDger can help you create prompts using *your inventory* for use with your favorite LLM tool.
 
 ### Prompt Generator
 
 * **Context-Aware:** The system generates a structured prompt containing a summarized table of your *actual* inventory.
-* **Project Ideas:** Paste the generated prompt into an LLM (Gemini, ChatGPT, Claude, etc) to get project suggestions that you can build *right now* with the parts you have on hand.
+* **Project Ideas:** Paste the generated prompt into an LLM (Gemini, ChatGPT, etc) to get project suggestions that you can build *right now* with the parts you have on hand.
 * **Customizable:** The prompt templates are fully customizable. Edit the default prompts, or create and save your own for frequent use.
 
 ---
@@ -121,7 +121,7 @@ Your data belongs to you, and WLEDger provides tools to manage it and troublesho
 
 
 
-* **Debug Mode:** Enable "Debug Logs" in the General Settings to increase the verbosity of application logs. This is useful for troubleshooting hardware connection issues or complex inventory operations.
+* **Debug Mode:** Enable "Debug Logs" in the General Settings to increase the verbosity of application logs. This is useful for troubleshooting.
 
 
 
@@ -134,4 +134,4 @@ Secure your inventory with Role-Based Access Control (RBAC).
 * **Admin:** Full access to all settings, hardware configuration, and user management.
 * **Editor:** Can add/edit/delete LLM prompts, parts, and manage stock, but cannot change system settings or hardware maps.
 * **Viewer:** Read-only access to inventory and search. Can "Locate" parts.
-* **Guest:** (Optional) Restrict access for unauthenticated users, or let unauthenticated users browse your inventory and locate parts in "read-only" mode.
+* **Guest:** (Optional) Restrict access for unauthenticated users, or let unauthenticated users browse your inventory and locate parts in read-only mode.
