@@ -112,7 +112,7 @@ export default function Home(): ReactNode {
   const { siteConfig } = useDocusaurusContext();
   return (
     <Layout
-      title={`Hello from ${siteConfig.title}`}
+      title={`Welcome to ${siteConfig.title}`}
       description="WLEDger: CTRL + F for physical objects. Manage your inventory. Find your things visually using WLED.">
       <HomepageHeader />
       <main>

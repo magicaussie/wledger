@@ -6,8 +6,8 @@
 }
 
 .featureSvg {
-  height: 200px;
-  width: 200px;
+  height: 120px;
+  width: 120px;
 }
 
 /* New Card Styling */
@@ -39,7 +39,7 @@
   .featureCard {
     padding: 1.5rem;
   }
-  
+
   .featureSvg {
     height: 120px;
     width: 120px;
