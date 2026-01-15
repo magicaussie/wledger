@@ -43,3 +43,4 @@ jobs:
           publish_dir: ./website/build
           user_name: 'github-actions[bot]'
           user_email: 'github-actions[bot]@users.noreply.github.com'
+          cname: wledger.app
