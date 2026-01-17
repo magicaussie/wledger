@@ -40,7 +40,7 @@ const config: Config = {
       'classic',
       {
         docs: {
-          path: '../docs',
+          path: 'docs',
           sidebarPath: './sidebars.ts',
           editUrl:
             'https://github.com/tuxedocurly/wledger/tree/main/website/',

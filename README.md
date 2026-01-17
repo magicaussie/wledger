@@ -223,11 +223,11 @@ This will start:
 
 | Dashboard | Inventory |
 | :---: | :---: |
-| ![Dashboard](docs/assets/dashboard_page.png) | ![Inventory](docs/assets/inventory_page.png) |
+| ![Dashboard](website/static/img/dashboard_page.png) | ![Inventory](website/static/img/inventory_page.png) |
 
 | Part Details | Settings |
 | :---: | :---: |
-| ![Part Details](docs/assets/part_details_page.png) | ![Settings](docs/assets/settings_page.png) |
+| ![Part Details](website/static/img/part_details_page.png) | ![Settings](website/static/img/settings_page.png) |
 
 ---
 

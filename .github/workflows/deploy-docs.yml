@@ -4,10 +4,9 @@ on:
   push:
     branches:
       - main
-    # Only trigger if changes are made to the website or docs directories
+    # Only trigger if changes are made to the website directory
     paths:
       - 'website/**'
-      - 'docs/**'
 
 permissions:
   contents: write
