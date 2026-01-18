@@ -5,11 +5,13 @@ sidebar_position: 2
 
 # Developer Guide
 
-Welcome to the WLEDger V2 Developer Guide. This document details the architecture, project structure, and development workflows.
+Welcome to the WLEDger Developer Guide. This document details the architecture, project structure, and development workflow.
+
+:::warning Under Construction
+This doc is a work in progress. While the development workflow is quite simple, some things may be out of date.
+:::
 
 ## Tech Stack
-
-WLEDger V2 moves away from the previous stack to a robust, type-safe, and high-performance Go architecture.
 
 * **Backend:** [Go 1.25+](https://go.dev/)
 * **Web Framework:** [Chi v5](https://github.com/go-chi/chi) (Router)

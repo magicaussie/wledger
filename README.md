@@ -1,9 +1,11 @@
 <p align="center">
-  <img src="docs/assets/wledger-logo.png" alt="WLEDger Logo" width="500">
+  <img src="website/static/img/wledger-logo.png" alt="WLEDger Logo" width="500">
 </p>
 <div align="center">
 
 [![Report Bug](https://img.shields.io/badge/GitHub-Report%20Bug-black?style=for-the-badge&logo=github)](https://github.com/tuxedocurly/wledger/issues) [![Join Discord](https://img.shields.io/badge/Discord-Get%20Support-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/wmDdcar7Kq) [![Support WLEDger](https://img.shields.io/badge/Ko--Fi-Support%20Me-FF5E5B?style=for-the-badge&logo=ko-fi&logoColor=white)](https://ko-fi.com/tuxedomakes)
+
+![](https://img.shields.io/badge/built%20with%20ai%20assistance-gemini-brightgreen?style=for-the-badge "hover!")
 
 </div>
 
@@ -13,6 +15,7 @@
 > *Organize your electronic components and find them instantly with WLED.*
 
 Check out the official WLEDger documentation site [here](https://tuxedocurly.github.io/wledger/)
+
 ## What is WLEDger?
 
 WLEDger (WLED + Ledger) is a modern, high-performance inventory system designed specifically for electronics hobbyists, makers, and labs. It solves the problem of "I know I have this part, but where is it?" by integrating with **WLED** controllers.
@@ -23,7 +26,7 @@ When you search for a component, WLEDger doesn't just tell you "Bin A1" — **it
 <summary><strong>Why I Made WLEDger</strong></summary>
 I have hundreds of electronic components in my lab. I couldn't remember what parts I had or where they were stored, leading to over-buying and under-utilizing. I wanted a system that solved these problems and got me back to doing what I love: making!
 <br><br>
-Existing tools were expensive, closed source or lacking in features/WLED integration. WLEDger bridges these gaps, providing a purpose-built, open source solution for the physical reality of a maker's workshop.
+Existing tools were expensive, closed source or lacking in features/WLED integration. WLEDger bridges these gaps, providing a purpose-built, open source inventory manager that's simple to use and feature rich.
 </details>
 
 ---
