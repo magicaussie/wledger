@@ -103,6 +103,7 @@ templ PartsList(user auth.User, parts []PartView, search string, page int, binID
 	}
 }
 
+// TODO: refactor into a standalone component
 templ PartCards(parts []PartView, search string, page int, binID *int64) {
 	// Render the cards
 	for _, part := range parts {
