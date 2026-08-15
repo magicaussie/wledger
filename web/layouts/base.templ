@@ -35,6 +35,27 @@ templ Base(title string, user auth.User) {
             .custom-scrollbar::-webkit-scrollbar-thumb { background: oklch(var(--bc) / 0.2); border-radius: 4px; }
             .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: oklch(var(--bc) / 0.4); }
 
+            /* HTMX Loading States */
+            .htmx-indicator {
+                display: none;
+            }
+            .htmx-request .htmx-indicator,
+            .htmx-indicator.htmx-request {
+                display: inline-block;
+            }
+            button.htmx-request > span:not(.htmx-indicator),
+            button.htmx-request > svg:not(.htmx-indicator) {
+                opacity: 0;
+            }
+            button.htmx-request {
+                pointer-events: none;
+            }
+            [hx-get]:not(button).htmx-request,
+            [hx-post]:not(button).htmx-request {
+                opacity: 0.5;
+                pointer-events: none;
+            }
+
             /* SortableJS Classes */
             .sortable-ghost {
                 opacity: 0.4;

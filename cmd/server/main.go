@@ -26,6 +26,8 @@ import (
 	"github.com/tuxedocurly/wledger/internal/router"
 	settingsServicePkg "github.com/tuxedocurly/wledger/internal/settings"
 	"github.com/tuxedocurly/wledger/internal/stock"
+	"github.com/tuxedocurly/wledger/internal/suppliers"
+	_ "github.com/tuxedocurly/wledger/internal/suppliers/providers"
 	"github.com/tuxedocurly/wledger/internal/tags"
 	"github.com/tuxedocurly/wledger/internal/uierror"
 	"github.com/tuxedocurly/wledger/internal/wled"
@@ -134,6 +136,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Supplier Service
+	supplierCache := suppliers.NewCache(store, log)
+	suppliersService := suppliers.NewService(store, supplierCache, log)
+
+	// Load supplier credentials from database
+	if err := suppliersService.LoadCredentials(context.Background()); err != nil {
+		log.Error("Failed to load supplier credentials", "error", err)
+	}
+
 	// Handler instantiation
 	h := handler.New(
 		log,
@@ -152,6 +163,7 @@ func main() {
 		dashboardService,
 		stockService,
 		docsService,
+		suppliersService,
 	)
 
 	// Middleware Manager

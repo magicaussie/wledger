@@ -73,7 +73,11 @@ templ PartForm(part db.Part, tags []db.Tag, allTags []db.Tag, links []db.PartLin
 						<label class="label"><span class="label-text font-medium mb-2">{ i18n.T(ctx, "Supplier") }</span></label>
 						<input type="text" name="supplier" value={ part.Supplier.String } placeholder="e.g. DigiKey" class="input input-bordered w-full"/>
 					</div>
-					<div class="form-control w-full md:col-span-3">
+					<div class="form-control w-full">
+						<label class="label"><span class="label-text font-medium mb-2">{ i18n.T(ctx, "Footprint") }</span></label>
+						<input type="text" name="footprint" value={ part.Footprint.String } placeholder="e.g. QFP-44, 0805" class="input input-bordered w-full"/>
+					</div>
+					<div class="form-control w-full md:col-span-2">
 						<label class="label"><span class="label-text font-medium mb-2">{ i18n.T(ctx, "Barcode") }</span></label>
 						<div class="join w-full">
 							<input

@@ -69,11 +69,11 @@ SELECT * FROM part_ai_prompts ORDER BY id;
 INSERT INTO parts (
     id, name, description, part_number, manufacturer, supplier, 
     unit_cost, reorder_level, min_stock_threshold, 
-    image_path, barcode_data, is_favorite, tags, created_at, updated_at
+    image_path, barcode_data, is_favorite, tags, footprint, created_at, updated_at
 ) VALUES (
     ?, ?, ?, ?, ?, ?, 
     ?, ?, ?, 
-    ?, ?, ?, ?, ?, ?
+    ?, ?, ?, ?, ?, ?, ?
 );
 
 -- name: RestorePartLink :exec
@@ -92,11 +92,11 @@ INSERT INTO part_ai_prompts (id, part_id, prompt_text, ai_response, model_used, 
 INSERT INTO parts (
     name, description, part_number, manufacturer, supplier, 
     unit_cost, reorder_level, min_stock_threshold, 
-    image_path, barcode_data
+    image_path, barcode_data, footprint
 ) VALUES (
     ?, ?, ?, ?, ?, 
     ?, ?, ?, 
-    ?, ?
+    ?, ?, ?
 ) RETURNING id;
 
 -- name: UpdatePart :exec
@@ -111,6 +111,7 @@ UPDATE parts SET
     min_stock_threshold = sqlc.arg('min_stock_threshold'), 
     barcode_data = sqlc.arg('barcode_data'),
     image_path = sqlc.arg('image_path'),
+    footprint = sqlc.arg('footprint'),
     updated_at = CURRENT_TIMESTAMP
 WHERE id = sqlc.arg('id');
 

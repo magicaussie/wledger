@@ -1,0 +1,62 @@
+[
+  {
+    "sku": "SF2032",
+    "name": "50A Red MIDI Fuse",
+    "brand": "",
+    "price": "",
+    "url": "https://www.jaycar.com.au/50a-red-midi-fuse/p/SF2032",
+    "image_url": "",
+    "available": false,
+    "updated_at": "2026-08-15T01:06:13.64689716Z"
+  },
+  {
+    "sku": "SF2142",
+    "name": "Automotive Fuse Assortment",
+    "brand": "",
+    "price": "",
+    "url": "https://www.jaycar.com.au/automotive-fuse-assortment/p/SF2142",
+    "image_url": "",
+    "available": false,
+    "updated_at": "2026-08-15T01:06:13.651501477Z"
+  },
+  {
+    "sku": "SZ2042",
+    "name": "30A 32VDC Water Resistant Inline Standard Blade Fuse Holder",
+    "brand": "",
+    "price": "",
+    "url": "https://www.jaycar.com.au/inline-standard-blade-fuse-holder/p/SZ2042",
+    "image_url": "",
+    "available": false,
+    "updated_at": "2026-08-15T01:06:13.64689716Z"
+  },
+  {
+    "sku": "SZ2079",
+    "name": "200A 32V MIDI Inline Bolt Down Fuse Holder",
+    "brand": "",
+    "price": "",
+    "url": "https://www.jaycar.com.au/midi-inline-bolt-down-fuse-holder/p/SZ2079",
+    "image_url": "",
+    "available": false,
+    "updated_at": "2026-08-15T01:06:13.64689716Z"
+  },
+  {
+    "sku": "XC4324",
+    "name": "BBC micro:bit V2 Go Development Board Bundle",
+    "brand": "BBC",
+    "price": "56.95",
+    "url": "https://www.jaycar.com.au/bbc-micro-bit-v2-go-development-board-bundle/p/XC4324",
+    "image_url": "https://media.jaycar.com.au/product/images/XC4324_bbc-micro-bit-v2-go-development-board-bundle_99665.jpg",
+    "available": true,
+    "updated_at": "2026-08-15T01:06:13.64644532Z"
+  },
+  {
+    "sku": "XC4625",
+    "name": "Acrylic Enclosure for XC4624 RGB LED Cube",
+    "brand": "",
+    "price": "",
+    "url": "https://www.jaycar.com.au/acrylic-enclosure-for-xc4624/p/XC4625",
+    "image_url": "",
+    "available": false,
+    "updated_at": "2026-08-15T01:06:13.64644532Z"
+  }
+]

@@ -57,6 +57,15 @@ func (h *Handler) HandleSettingsUpdate(w http.ResponseWriter, r *http.Request) {
 	colorLow := r.FormValue("color_low")
 	colorCritical := r.FormValue("color_critical")
 
+	// Supplier settings
+	supplierCacheTTL := 96
+	if v := r.FormValue("supplier_cache_ttl"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
+			supplierCacheTTL = parsed
+		}
+	}
+	defaultCurrency := r.FormValue("default_currency")
+
 	ctx := r.Context()
 
 	err := h.Settings.UpdateSettings(ctx, settings.UpdateSettingsParams{
@@ -68,6 +77,8 @@ func (h *Handler) HandleSettingsUpdate(w http.ResponseWriter, r *http.Request) {
 		ColorOk:             colorOk,
 		ColorLow:            colorLow,
 		ColorCritical:       colorCritical,
+		SupplierCacheTTL:    supplierCacheTTL,
+		DefaultCurrency:     defaultCurrency,
 	})
 
 	if err != nil {

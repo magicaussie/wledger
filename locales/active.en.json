@@ -335,6 +335,30 @@
   "Hardware": {
     "other": "Hardware"
   },
+  "Suppliers": {
+    "other": "Suppliers"
+  },
+  "SupplierSearch": {
+    "other": "Search Suppliers"
+  },
+  "SupplierSearchDescription": {
+    "other": "Search for parts across multiple suppliers"
+  },
+  "CacheTTL": {
+    "other": "Cache TTL"
+  },
+  "DefaultCurrency": {
+    "other": "Default Currency"
+  },
+  "ManageAPICredentials": {
+    "other": "Manage API Credentials"
+  },
+  "Footprint": {
+    "other": "Footprint"
+  },
+  "Edit": {
+    "other": "Edit"
+  },
   "AuditLogs": {
     "other": "Audit Logs"
   },

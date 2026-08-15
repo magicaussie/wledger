@@ -59,6 +59,7 @@ type CreatePartRequest struct {
 	UnitCost          float64
 	ReorderLevel      int
 	MinStockThreshold int
+	Footprint         string
 	Image             *DocUpload
 	Links             []LinkDTO
 	Documents         []DocUpload
@@ -76,6 +77,7 @@ type UpdatePartRequest struct {
 	UnitCost          float64
 	ReorderLevel      int
 	MinStockThreshold int
+	Footprint         string
 	Image             *DocUpload
 	ExistingLinks     []LinkDTO
 	NewLinks          []LinkDTO
@@ -227,6 +229,7 @@ func (s *service) CreatePart(ctx context.Context, req CreatePartRequest) (int64,
 			ReorderLevel:      sql.NullInt64{Int64: int64(req.ReorderLevel), Valid: true},
 			MinStockThreshold: sql.NullInt64{Int64: int64(req.MinStockThreshold), Valid: true},
 			ImagePath:         sql.NullString{String: imagePath, Valid: imagePath != ""},
+			Footprint:         sql.NullString{String: req.Footprint, Valid: req.Footprint != ""},
 		})
 
 		if err != nil {
@@ -319,6 +322,7 @@ func (s *service) UpdatePart(ctx context.Context, req UpdatePartRequest) error {
 			ReorderLevel:      sql.NullInt64{Int64: int64(req.ReorderLevel), Valid: true},
 			MinStockThreshold: sql.NullInt64{Int64: int64(req.MinStockThreshold), Valid: true},
 			ImagePath:         sql.NullString{String: newImagePath, Valid: newImagePath != ""},
+			Footprint:         sql.NullString{String: req.Footprint, Valid: req.Footprint != ""},
 			ID:                req.ID,
 		})
 
@@ -407,6 +411,10 @@ func (s *service) UpdatePart(ctx context.Context, req UpdatePartRequest) error {
 		if int(oldPart.MinStockThreshold.Int64) != req.MinStockThreshold {
 			oldDiff["min_stock"] = oldPart.MinStockThreshold.Int64
 			newDiff["min_stock"] = req.MinStockThreshold
+		}
+		if oldPart.Footprint.String != req.Footprint {
+			oldDiff["footprint"] = oldPart.Footprint.String
+			newDiff["footprint"] = req.Footprint
 		}
 
 		if len(oldDiff) > 0 {

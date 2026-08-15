@@ -182,6 +182,45 @@ templ Settings(user auth.User, s db.Setting, users []db.ListUsersRow) {
 										@components.ColorPicker(i18n.T(ctx, "StockLevelCritical"), "color_critical", s.ColorStockCritical.String)
 									</div>
 								</div>
+								<div>
+									<h3 class="font-bold text-sm uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2 border-t border-base-content/5 pt-6">
+										@icons.Truck(templ.Attributes{"class": "w-5 h-5"})
+										{ i18n.T(ctx, "Suppliers") }
+									</h3>
+									<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+										<div class="form-control">
+											<label class="label">
+												<span class="label-text">{ i18n.T(ctx, "CacheTTL") } (hours)</span>
+											</label>
+											<input
+												type="number"
+												name="supplier_cache_ttl"
+												value={ formatInt(int(s.SupplierCacheTtlHours.Int64)) }
+												min="1"
+												max="8760"
+												class="input input-bordered"
+											/>
+										</div>
+										<div class="form-control">
+											<label class="label">
+												<span class="label-text">{ i18n.T(ctx, "DefaultCurrency") }</span>
+											</label>
+											<select name="default_currency" class="select select-bordered">
+												<option value="USD" selected?={ s.DefaultCurrency.String == "USD" }>USD</option>
+												<option value="EUR" selected?={ s.DefaultCurrency.String == "EUR" }>EUR</option>
+												<option value="GBP" selected?={ s.DefaultCurrency.String == "GBP" }>GBP</option>
+												<option value="JPY" selected?={ s.DefaultCurrency.String == "JPY" }>JPY</option>
+												<option value="CNY" selected?={ s.DefaultCurrency.String == "CNY" }>CNY</option>
+											</select>
+										</div>
+									</div>
+									<div class="mt-4">
+										<a href="/suppliers/credentials" class="btn btn-outline btn-sm gap-2">
+											@icons.Lock(templ.Attributes{"class": "w-4 h-4"})
+											{ i18n.T(ctx, "ManageAPICredentials") }
+										</a>
+									</div>
+								</div>
 								<div class="card-actions justify-end mt-8 border-t border-base-content/10 pt-6">
 									<button class="btn btn-primary px-8 gap-2">
 										@icons.Import(templ.Attributes{"class": "w-5 h-5"})

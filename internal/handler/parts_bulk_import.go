@@ -19,8 +19,8 @@ import (
 func (h *Handler) HandlePartsImportTemplate(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/csv")
 	w.Header().Set("Content-Disposition", "attachment;filename=wledger_import_template.csv")
-	w.Write([]byte("Name,Description,Part Number,Manufacturer,Supplier,Unit Cost,Reorder Level,Min Stock,Barcode,Quantity,Tags,Links,Controller IP,Segment ID,LED Index\n"))
-	w.Write([]byte("Example Part,Resistor 10-K,MPN123,TI,DigiKey,0.05,50,10,12345678,100,Resistor|SMD,https://example.com/resistor,192.168.1.100,0,5\n"))
+	w.Write([]byte("Name,Description,Part Number,Manufacturer,Supplier,Footprint,Unit Cost,Reorder Level,Min Stock,Barcode,Quantity,Tags,Links,Controller IP,Segment ID,LED Index\n"))
+	w.Write([]byte("Example Part,Resistor 10-K,MPN123,TI,DigiKey,0805,0.05,50,10,12345678,100,Resistor|SMD,https://example.com/resistor,192.168.1.100,0,5\n"))
 }
 
 // POST /parts/import
@@ -83,6 +83,7 @@ func (h *Handler) HandlePartsImport(w http.ResponseWriter, r *http.Request) {
 				ReorderLevel:      sql.NullInt64{Int64: int64(row.ReorderLevel), Valid: true},
 				MinStockThreshold: sql.NullInt64{Int64: int64(row.MinStockThreshold), Valid: true},
 				BarcodeData:       sql.NullString{String: row.BarcodeData, Valid: row.BarcodeData != ""},
+				Footprint:         sql.NullString{String: row.Footprint, Valid: row.Footprint != ""},
 			})
 
 			if err != nil {

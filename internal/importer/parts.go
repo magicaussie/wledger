@@ -20,6 +20,7 @@ type PartImportRow struct {
 	UnitCost          float64
 	ReorderLevel      int
 	MinStockThreshold int
+	Footprint         string
 	BarcodeData       string
 	InitialQuantity   int
 	Tags              []string
@@ -179,6 +180,10 @@ func ParsePartsCSV(input io.Reader) ([]PartImportRow, error) {
 		row.Manufacturer = getString("manufacturer")
 		row.Supplier = getString("supplier")
 		row.BarcodeData = getString("barcode")
+
+		if key := findColumn("footprint", "package", "fp"); key != "" {
+			row.Footprint = getString(key)
+		}
 
 		// Numeric Fields
 		if key := findColumn("unitcost", "cost"); key != "" {

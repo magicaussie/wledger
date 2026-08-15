@@ -90,6 +90,30 @@ templ PartDetail(user auth.User, part db.Part, stock []db.GetPartAssignmentsRow,
 										}
 									</div>
 								}
+								if part.Footprint.Valid && part.Footprint.String != "" {
+									<div class="divider"></div>
+									<div class="flex justify-between">
+										<span class="opacity-70">{ i18n.T(ctx, "Footprint") }</span>
+										<span class="font-medium">{ part.Footprint.String }</span>
+									</div>
+								}
+								<div class="divider"></div>
+								<div class="flex flex-wrap gap-2">
+									<a
+										href={ templ.SafeURL(fmt.Sprintf("/suppliers/compare?part_id=%d", part.ID)) }
+										class="btn btn-outline btn-sm gap-2"
+									>
+										Compare Supplier Prices
+									</a>
+									if part.PartNumber.Valid && part.PartNumber.String != "" {
+										<a
+											href={ templ.SafeURL("/suppliers?q=" + part.PartNumber.String) }
+											class="btn btn-outline btn-sm gap-2"
+										>
+											Find on Suppliers
+										</a>
+									}
+								</div>
 							</div>
 						</div>
 					</div>

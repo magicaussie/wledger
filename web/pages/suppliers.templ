@@ -1,0 +1,632 @@
+package pages
+
+import (
+	"github.com/tuxedocurly/wledger/internal/auth"
+	"github.com/tuxedocurly/wledger/internal/db"
+	"github.com/tuxedocurly/wledger/internal/i18n"
+	"github.com/tuxedocurly/wledger/internal/suppliers"
+	"github.com/tuxedocurly/wledger/web/components"
+	"github.com/tuxedocurly/wledger/web/icons"
+	"github.com/tuxedocurly/wledger/web/layouts"
+)
+
+templ SupplierSearch(user auth.User, providers []suppliers.ProviderInfo, results []suppliers.SearchResultDTO, diagnostics []suppliers.ProviderDiagnostic, errorMsg string) {
+	@layouts.Base(i18n.T(ctx, "Suppliers"), user) {
+		@components.PageHeader(i18n.T(ctx, "SupplierSearch"), i18n.T(ctx, "SupplierSearchDescription"), nil)
+		<div class="flex gap-2 mb-4">
+			<a href="/suppliers/recent" class="btn btn-outline btn-sm gap-2">
+				@icons.File(templ.Attributes{"class": "w-4 h-4"})
+				Recently Imported
+			</a>
+			<a href="/suppliers/credentials" class="btn btn-outline btn-sm gap-2">
+				@icons.Lock(templ.Attributes{"class": "w-4 h-4"})
+				API Credentials
+			</a>
+		</div>
+		<div class="space-y-6">
+			<!-- URL Import -->
+			<div class="card bg-base-200 shadow-md border border-base-300">
+				<div class="card-body p-4">
+					<form hx-post="/suppliers/url/parse" hx-swap="none" class="flex gap-2">
+						<input
+							type="url"
+							name="url"
+							placeholder="Paste a supplier URL (e.g. mouser.com/...)"
+							class="input input-bordered flex-1"
+						/>
+						<button type="submit" class="btn btn-secondary gap-2" hx-indicator="find .htmx-indicator">
+							<span class="htmx-indicator loading loading-spinner loading-sm"></span>
+							@icons.MagnifyingGlass(templ.Attributes{"class": "w-4 h-4"})
+							Parse URL
+						</button>
+					</form>
+				</div>
+			</div>
+			<!-- Search Bar -->
+			<div class="card bg-base-200 shadow-md border border-base-300">
+				<div class="card-body p-4">
+					<form
+						hx-get="/suppliers/search"
+						hx-target="#supplier-results"
+						hx-trigger="submit, keyup changed delay:400ms from:find input[name=q]"
+						hx-indicator="#supplier-results .htmx-indicator"
+						class="space-y-4"
+					>
+						<div class="flex gap-2">
+							<input
+								type="text"
+								name="q"
+								placeholder="Search by keyword, MPN, or part number (comma-separated for multi-search)..."
+								class="input input-bordered flex-1"
+								autofocus
+							/>
+							<button type="submit" class="btn btn-primary gap-2">
+								<span class="htmx-indicator loading loading-spinner loading-sm"></span>
+								@icons.MagnifyingGlass(templ.Attributes{"class": "w-5 h-5"})
+								{ i18n.T(ctx, "Search") }
+							</button>
+						</div>
+						<!-- Provider Filter -->
+						<div class="flex flex-wrap gap-2">
+							<span class="text-xs text-gray-500 uppercase tracking-wider self-center">Providers:</span>
+							for _, p := range providers {
+								<label class="cursor-pointer label gap-1">
+									<input
+										type="checkbox"
+										name="providers"
+										value={ p.Key }
+										checked="checked"
+										class="checkbox checkbox-primary checkbox-sm"
+									/>
+									<span class="label-text text-xs">{ p.Name }</span>
+								</label>
+							}
+						</div>
+					</form>
+				</div>
+			</div>
+			<!-- Results Area -->
+			<div id="supplier-results">
+				<div class="htmx-indicator flex justify-center py-8">
+					<span class="loading loading-dots loading-lg text-primary"></span>
+				</div>
+				if errorMsg != "" {
+					<div class="alert alert-error">
+						<span>{ errorMsg }</span>
+					</div>
+				}
+				if results != nil {
+					@SupplierResults(user, results, diagnostics, errorMsg)
+				}
+			</div>
+		</div>
+	}
+}
+
+templ SupplierResults(user auth.User, results []suppliers.SearchResultDTO, diagnostics []suppliers.ProviderDiagnostic, errorMsg string) {
+	if errorMsg != "" {
+		<div class="alert alert-error text-sm py-2">
+			<span>{ errorMsg }</span>
+		</div>
+	}
+	if len(diagnostics) > 0 {
+		<div class="alert alert-warning text-sm py-2">
+			<span class="font-semibold">Some suppliers returned no results:</span>
+			<ul class="mt-1 space-y-0.5">
+				for _, d := range diagnostics {
+					<li class="flex gap-1">
+						<span class="badge badge-outline badge-xs mt-0.5">{ d.ProviderName }</span>
+						<span class="text-xs text-error">{ d.Error }</span>
+					</li>
+				}
+			</ul>
+		</div>
+	}
+	if len(results) == 0 && errorMsg == "" {
+		<div class="text-center py-12 text-gray-500">
+			<p class="text-lg">No results found.</p>
+			<p class="text-sm mt-1">Try a different search term or adjust provider filters.</p>
+		</div>
+	}
+	if len(results) > 0 {
+		<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+			for _, r := range results {
+				@SupplierResultCard(r)
+			}
+		</div>
+	}
+}
+
+templ SupplierResultCard(r suppliers.SearchResultDTO) {
+	<div class="card bg-base-100 shadow-md border border-base-300 hover:shadow-lg transition-shadow">
+		<div class="card-body p-4">
+			<div class="flex items-start gap-3">
+				if r.PreviewImageURL != "" {
+					<img src={ r.PreviewImageURL } alt={ r.Name } class="w-16 h-16 object-contain rounded"/>
+				} else {
+					<div class="w-16 h-16 bg-base-300 rounded flex items-center justify-center text-gray-500 text-xs">No Image</div>
+				}
+				<div class="flex-1 min-w-0">
+					<h3 class="font-semibold text-sm truncate">{ r.Name }</h3>
+					if r.MPN != "" {
+						<p class="text-xs text-primary">MPN: { r.MPN }</p>
+					}
+					if r.Manufacturer != "" {
+						<p class="text-xs text-gray-500">{ r.Manufacturer }</p>
+					}
+				</div>
+			</div>
+			if r.Description != "" && r.Description != r.Name {
+				<p class="text-xs text-gray-400 mt-2 line-clamp-2">{ r.Description }</p>
+			}
+			<div class="flex items-center justify-between mt-3">
+				<span class="badge badge-outline badge-xs">{ r.ProviderKey }</span>
+				<a
+					href={ templ.SafeURL("/suppliers/" + r.ProviderKey + "/" + r.ProviderID) }
+					class="btn btn-primary btn-xs gap-1"
+				>
+					View Details
+					@icons.ArrowRightLeft(templ.Attributes{"class": "w-3 h-3"})
+				</a>
+			</div>
+		</div>
+	</div>
+}
+
+templ SupplierDetail(user auth.User, detail *suppliers.PartDetailDTO, providers []suppliers.ProviderInfo, bins []db.Bin) {
+	@layouts.Base(detail.Name+" - Supplier Detail", user) {
+		<div class="space-y-6 max-w-4xl mx-auto">
+			<!-- Breadcrumb -->
+			<div class="text-sm breadcrumbs">
+				<ul>
+					<li><a href="/suppliers">Suppliers</a></li>
+					<li><a href="/suppliers?q=">{ detail.ProviderKey }</a></li>
+					<li>{ detail.Name }</li>
+				</ul>
+			</div>
+			<!-- Main Info Card -->
+			<div class="card bg-base-200 shadow-md border border-base-300">
+				<div class="card-body">
+					<div class="flex flex-col md:flex-row gap-6">
+						<!-- Image -->
+						<div class="flex-shrink-0">
+							if len(detail.Images) > 0 {
+								<img src={ detail.Images[0].URL } alt={ detail.Name } class="w-48 h-48 object-contain rounded-lg bg-white p-2"/>
+							} else {
+								<div class="w-48 h-48 bg-base-300 rounded-lg flex items-center justify-center text-gray-500">No Image</div>
+							}
+						</div>
+						<!-- Details -->
+						<div class="flex-1 space-y-3">
+							<h1 class="text-2xl font-bold">{ detail.Name }</h1>
+							if detail.MPN != "" {
+								<p class="text-sm"><span class="font-semibold">MPN:</span> <span class="text-primary">{ detail.MPN }</span></p>
+							}
+							if detail.Manufacturer != "" {
+								<p class="text-sm"><span class="font-semibold">Manufacturer:</span> { detail.Manufacturer }</p>
+							}
+							if detail.Category != "" {
+								<p class="text-sm"><span class="font-semibold">Category:</span> { detail.Category }</p>
+							}
+							if detail.Footprint != "" {
+								<p class="text-sm"><span class="font-semibold">Footprint:</span> { detail.Footprint }</p>
+							}
+							if detail.Notes != "" {
+								<p class="text-sm text-gray-400 mt-2">{ detail.Notes }</p>
+							}
+							<!-- Import Button -->
+							<form method="POST" action="/suppliers/import" class="mt-4 space-y-3">
+								<input type="hidden" name="provider_key" value={ detail.ProviderKey }/>
+								<input type="hidden" name="provider_id" value={ detail.ProviderID }/>
+								if user.CanWrite() && len(bins) > 0 {
+									<div class="flex gap-3 items-end">
+										<div class="form-control flex-1">
+											<label class="label py-0"><span class="label-text text-xs">Import to Bin (optional)</span></label>
+											<select name="bin_id" class="select select-bordered select-sm">
+												<option value="">Create part only</option>
+												for _, b := range bins {
+													<option value={ formatInt(int(b.ID)) }>{ b.Name }</option>
+												}
+											</select>
+										</div>
+										<div class="form-control w-24">
+											<label class="label py-0"><span class="label-text text-xs">Quantity</span></label>
+											<input type="number" name="quantity" value="1" min="1" class="input input-bordered input-sm"/>
+										</div>
+									</div>
+								}
+								<button type="submit" class="btn btn-primary gap-2">
+									@icons.Plus(templ.Attributes{"class": "w-5 h-5"})
+									Import to Inventory
+								</button>
+							</form>
+						</div>
+					</div>
+				</div>
+			</div>
+			<!-- Datasheets -->
+			if len(detail.Datasheets) > 0 {
+				<div class="card bg-base-200 shadow-md border border-base-300">
+					<div class="card-body p-4">
+						<h2 class="card-title text-sm">Datasheets</h2>
+						<div class="flex flex-wrap gap-2">
+							for _, ds := range detail.Datasheets {
+								<a
+									href={ templ.SafeURL(ds.URL) }
+									target="_blank"
+									class="btn btn-outline btn-xs gap-1"
+								>
+@icons.File(templ.Attributes{"class": "w-4 h-4"})
+								{ ds.Name }
+								</a>
+							}
+						</div>
+					</div>
+				</div>
+			}
+			<!-- Pricing -->
+			if len(detail.VendorInfos) > 0 {
+				<div class="card bg-base-200 shadow-md border border-base-300">
+					<div class="card-body p-4">
+						<h2 class="card-title text-sm">Pricing</h2>
+						for _, vi := range detail.VendorInfos {
+							<div class="overflow-x-auto">
+								<table class="table table-xs">
+									<thead>
+										<tr>
+											<th>Min Qty</th>
+											<th>Price</th>
+											<th>Currency</th>
+										</tr>
+									</thead>
+									<tbody>
+										for _, price := range vi.Prices {
+											<tr>
+												<td>{ formatInt(price.MinQuantity) }</td>
+												<td class="font-mono">{ price.Price }</td>
+												<td>{ price.Currency }</td>
+											</tr>
+										}
+									</tbody>
+								</table>
+							</div>
+						}
+					</div>
+				</div>
+			}
+			<!-- Parameters -->
+			if len(detail.Parameters) > 0 {
+				<div class="card bg-base-200 shadow-md border border-base-300">
+					<div class="card-body p-4">
+						<h2 class="card-title text-sm">Technical Parameters</h2>
+						<div class="overflow-x-auto">
+							<table class="table table-xs">
+								<thead>
+									<tr>
+										<th>Parameter</th>
+										<th>Value</th>
+										<th>Unit</th>
+									</tr>
+								</thead>
+								<tbody>
+									for _, param := range detail.Parameters {
+										<tr>
+											<td>{ param.Name }</td>
+											<td class="font-mono">
+												if param.ValueText != "" {
+													{ param.ValueText }
+												} else {
+													{ formatFloat(param.ValueTyp) }
+												}
+											</td>
+											<td>{ param.Unit }</td>
+										</tr>
+									}
+								</tbody>
+							</table>
+						</div>
+					</div>
+				</div>
+			}
+		</div>
+	}
+}
+
+templ SupplierCredentials(user auth.User, providers []suppliers.ProviderInfo, savedProvider string) {
+	@layouts.Base("Supplier Credentials", user) {
+		@components.PageHeader("Supplier API Credentials", "Manage API keys for supplier integrations", nil)
+		<div class="max-w-2xl mx-auto space-y-4">
+			if savedProvider != "" {
+				<div class="alert alert-success shadow-md">
+					<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+					</svg>
+					<span class="text-sm">Credentials saved successfully.</span>
+				</div>
+			}
+			for _, p := range providers {
+				if p.SupportsAuth {
+					<div class="card bg-base-200 shadow-md border border-base-300">
+						<div class="card-body p-4">
+							<div class="flex items-center justify-between gap-2">
+								<h3 class="card-title text-sm">{ p.Name }</h3>
+								if p.HasCredentials {
+									<span class="badge badge-success badge-sm gap-1">
+										<svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+											<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path>
+										</svg>
+										Configured
+									</span>
+								}
+							</div>
+							<p class="text-xs text-gray-500">Auth type: { p.AuthType }</p>
+							<form method="POST" action="/suppliers/credentials" class="mt-3 space-y-2">
+								<input type="hidden" name="provider_key" value={ p.Key }/>
+								if p.AuthType == "oauth2" {
+									<div class="form-control">
+										<label class="label py-0"><span class="label-text text-xs">Client ID</span></label>
+										<input type="password" name="api_key" placeholder="DigiKey Client ID" class="input input-bordered input-sm"/>
+									</div>
+									<div class="form-control">
+										<label class="label py-0"><span class="label-text text-xs">Client Secret</span></label>
+										<input type="password" name="api_secret" placeholder="DigiKey Client Secret" class="input input-bordered input-sm"/>
+									</div>
+									<button type="submit" class="btn btn-primary btn-sm">Save Credentials</button>
+									<p class="text-xs text-gray-400 mt-1">After saving, click Connect to authorize with { p.Name }.</p>
+									<a
+										href={ templ.SafeURL("/suppliers/oauth/start?provider=" + p.Key) }
+										class="btn btn-secondary btn-sm gap-2"
+									>
+										@icons.Plus(templ.Attributes{"class": "w-4 h-4"})
+										Connect with { p.Name }
+									</a>
+								} else {
+									<div class="form-control">
+										<label class="label py-0"><span class="label-text text-xs">API Key</span></label>
+										<input type="password" name="api_key" placeholder="Enter API key" class="input input-bordered input-sm"/>
+									</div>
+									if p.AuthType == "api_key+secret" {
+										<div class="form-control">
+											<label class="label py-0"><span class="label-text text-xs">API Secret</span></label>
+											<input type="password" name="api_secret" placeholder="Enter API secret" class="input input-bordered input-sm"/>
+										</div>
+									}
+									<button type="submit" class="btn btn-primary btn-sm">Save</button>
+								}
+							</form>
+						</div>
+					</div>
+				}
+			}
+			<div class="alert alert-info">
+				<span class="text-sm">Providers without auth (LCSC, Datasheet, RS Components, Semikron, Heilind, CDI) are always available.</span>
+			</div>
+		</div>
+	}
+}
+
+func formatInt(n int) string {
+	if n == 0 {
+		return "0"
+	}
+	if n < 0 {
+		return "-" + formatInt(-n)
+	}
+	digits := make([]byte, 0, 20)
+	for n > 0 {
+		digits = append([]byte{byte('0' + n%10)}, digits...)
+		n /= 10
+	}
+	return string(digits)
+}
+
+func formatFloat(f float64) string {
+	if f == 0 {
+		return ""
+	}
+	return formatInt(int(f))
+}
+
+templ SupplierRecent(user auth.User, parts []suppliers.RecentlyImportedPart) {
+	@layouts.Base("Recently Imported - Suppliers", user) {
+		@components.PageHeader("Recently Imported", "Parts imported from supplier integrations", nil)
+		<div class="space-y-4">
+			if len(parts) == 0 {
+				<div class="text-center py-12 text-gray-500">
+					<p class="text-lg">No parts imported yet.</p>
+					<p class="text-sm mt-1"><a href="/suppliers" class="link link-primary">Search for parts</a> to import from suppliers.</p>
+				</div>
+			}
+			if len(parts) > 0 {
+				<div class="overflow-x-auto">
+					<table class="table table-zebra">
+						<thead>
+							<tr>
+								<th>Name</th>
+								<th>MPN</th>
+								<th>Supplier</th>
+								<th>Imported</th>
+								<th></th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, p := range parts {
+								<tr>
+									<td class="font-medium">{ p.Name }</td>
+									<td class="text-primary text-sm">{ p.MPN }</td>
+									<td class="text-sm">{ p.Supplier }</td>
+									<td class="text-xs text-gray-500">{ p.ImportedAt.Format("2006-01-02 15:04") }</td>
+									<td>
+										<a
+											href={ templ.SafeURL("/parts/" + formatInt(int(p.ID))) }
+											class="btn btn-outline btn-xs gap-1"
+										>
+											View
+											@icons.ArrowRightLeft(templ.Attributes{"class": "w-3 h-3"})
+										</a>
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+		</div>
+	}
+}
+
+templ SupplierCompare(user auth.User, part db.Part, pricing []suppliers.PriceComparisonRow) {
+	@layouts.Base("Price Comparison - "+part.Name, user) {
+		<div class="space-y-6 max-w-4xl mx-auto">
+			<!-- Breadcrumb -->
+			<div class="text-sm breadcrumbs">
+				<ul>
+					<li><a href="/suppliers">Suppliers</a></li>
+					<li><a href={ templ.SafeURL("/parts/" + formatInt(int(part.ID))) }>{ part.Name }</a></li>
+					<li>Price Comparison</li>
+				</ul>
+			</div>
+			<!-- Part Info -->
+			<div class="card bg-base-200 shadow-md border border-base-300">
+				<div class="card-body p-4">
+					<div class="flex justify-between items-center">
+						<div>
+							<h1 class="text-xl font-bold">{ part.Name }</h1>
+							if part.PartNumber.Valid {
+								<p class="text-sm text-primary">MPN: { part.PartNumber.String }</p>
+							}
+							if part.Manufacturer.Valid {
+								<p class="text-sm text-gray-500">Manufacturer: { part.Manufacturer.String }</p>
+							}
+						</div>
+						<a
+							href={ templ.SafeURL("/suppliers/price-history?part_id=" + formatInt(int(part.ID))) }
+							class="btn btn-outline btn-sm gap-2"
+						>
+							View Price History
+						</a>
+					</div>
+				</div>
+			</div>
+			<!-- Pricing Table -->
+			<div class="card bg-base-200 shadow-md border border-base-300">
+				<div class="card-body p-4">
+					<h2 class="card-title text-sm">Pricing Across Suppliers</h2>
+					if len(pricing) == 0 {
+						<p class="text-sm text-gray-500">No pricing data available for this part.</p>
+					}
+					if len(pricing) > 0 {
+						<div class="overflow-x-auto">
+							<table class="table table-xs">
+								<thead>
+									<tr>
+										<th>Supplier</th>
+										<th>Min Qty</th>
+										<th>Price</th>
+										<th>Currency</th>
+										<th>Tax Incl.</th>
+									</tr>
+								</thead>
+								<tbody>
+									for _, row := range pricing {
+										<tr>
+											<td class="badge badge-outline badge-sm">{ row.ProviderKey }</td>
+											<td>{ formatInt(int(row.MinQuantity)) }</td>
+											<td class="font-mono">{ row.Price }</td>
+											<td>{ row.Currency }</td>
+											<td>
+												if row.IncludesTax {
+													Yes
+												} else {
+													No
+												}
+											</td>
+										</tr>
+									}
+								</tbody>
+							</table>
+						</div>
+					}
+				</div>
+			</div>
+		</div>
+	}
+}
+
+templ SupplierPriceHistory(user auth.User, part db.Part, history []suppliers.PriceHistoryRow) {
+	@layouts.Base("Price History - "+part.Name, user) {
+		<div class="space-y-6 max-w-4xl mx-auto">
+			<!-- Breadcrumb -->
+			<div class="text-sm breadcrumbs">
+				<ul>
+					<li><a href="/suppliers">Suppliers</a></li>
+					<li><a href={ templ.SafeURL("/suppliers/compare?part_id=" + formatInt(int(part.ID))) }>{ part.Name }</a></li>
+					<li>Price History</li>
+				</ul>
+			</div>
+			<!-- Part Info + Record Button -->
+			<div class="card bg-base-200 shadow-md border border-base-300">
+				<div class="card-body p-4 flex flex-row items-center justify-between">
+					<div>
+						<h1 class="text-xl font-bold">{ part.Name }</h1>
+						if part.PartNumber.Valid {
+							<p class="text-sm text-primary">MPN: { part.PartNumber.String }</p>
+						}
+					</div>
+					if user.CanWrite() {
+						<form method="POST" action="/suppliers/price-snapshot">
+							<input type="hidden" name="part_id" value={ formatInt(int(part.ID)) }/>
+							<button type="submit" class="btn btn-primary btn-sm gap-2">
+								@icons.Plus(templ.Attributes{"class": "w-4 h-4"})
+								Record Snapshot
+							</button>
+						</form>
+					}
+				</div>
+			</div>
+			<!-- History Table -->
+			<div class="card bg-base-200 shadow-md border border-base-300">
+				<div class="card-body p-4">
+					<h2 class="card-title text-sm">Price History</h2>
+					if len(history) == 0 {
+						<p class="text-sm text-gray-500">No price history recorded yet. Click "Record Snapshot" to capture current prices.</p>
+					}
+					if len(history) > 0 {
+						<div class="overflow-x-auto">
+							<table class="table table-xs">
+								<thead>
+									<tr>
+										<th>Date</th>
+										<th>Supplier</th>
+										<th>Min Qty</th>
+										<th>Price</th>
+										<th>Currency</th>
+										<th>Tax Incl.</th>
+									</tr>
+								</thead>
+								<tbody>
+									for _, row := range history {
+										<tr>
+											<td class="text-xs">{ row.RecordedAt.Format("2006-01-02 15:04") }</td>
+											<td class="badge badge-outline badge-sm">{ row.ProviderKey }</td>
+											<td>{ formatInt(int(row.MinQuantity)) }</td>
+											<td class="font-mono">{ row.Price }</td>
+											<td>{ row.Currency }</td>
+											<td>
+												if row.IncludesTax {
+													Yes
+												} else {
+													No
+												}
+											</td>
+										</tr>
+									}
+								</tbody>
+							</table>
+						</div>
+					}
+				</div>
+			</div>
+		</div>
+	}
+}

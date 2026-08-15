@@ -15,6 +15,7 @@ import (
 	"github.com/tuxedocurly/wledger/internal/parts"
 	"github.com/tuxedocurly/wledger/internal/settings"
 	"github.com/tuxedocurly/wledger/internal/stock"
+	"github.com/tuxedocurly/wledger/internal/suppliers"
 	"github.com/tuxedocurly/wledger/internal/tags"
 	"github.com/tuxedocurly/wledger/internal/uierror"
 	"github.com/tuxedocurly/wledger/internal/wled"
@@ -38,6 +39,7 @@ type Handler struct {
 	Dashboard   dashboard.Service
 	Stock       stock.Service
 	Documents   documents.Service
+	Suppliers   suppliers.Service
 }
 
 // New creates a new Handler with dependencies
@@ -58,6 +60,7 @@ func New(
 	dashboardService dashboard.Service,
 	stockService stock.Service,
 	docsService documents.Service,
+	suppliersService suppliers.Service,
 ) *Handler {
 	return &Handler{
 		Logger:      logger,
@@ -76,5 +79,6 @@ func New(
 		Dashboard:   dashboardService,
 		Stock:       stockService,
 		Documents:   docsService,
+		Suppliers:   suppliersService,
 	}
 }

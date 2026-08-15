@@ -70,6 +70,11 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 		// Inspiration
 		r.Get("/inspiration", h.HandleInspiration)
 		r.Get("/inspiration/{id}/generate", h.HandleInspirationGenerate)
+
+		// Suppliers (Read)
+		r.Get("/suppliers", h.HandleSupplierSearch)
+		r.Get("/suppliers/search", h.HandleSupplierSearchAPI)
+		r.Get("/suppliers/{key}/{id}", h.HandleSupplierDetail)
 	})
 
 	// -------------------------------------------------------------------------
@@ -122,6 +127,10 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 			r.Post("/parts/{id}/stock/{assignment_id}/move", h.HandlePartStockMove)
 			r.Post("/parts/{id}/stock/{assignment_id}/delete", h.HandlePartStockRemove)
 
+			// Supplier Import
+			r.Post("/suppliers/import", h.HandleSupplierImport)
+			r.Post("/suppliers/url/parse", h.HandleSupplierURLParse)
+
 			// Inspiration CRUD
 			r.Get("/inspiration/new", h.HandleInspirationNew)
 			r.Post("/inspiration", h.HandleInspirationCreate)
@@ -159,6 +168,16 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 			r.Post("/walls", h.HandleWallCreate)
 			r.Post("/walls/{id}", h.HandleWallUpdate)
 			r.Post("/walls/{id}/delete", h.HandleWallDelete)
+
+			// Supplier Credentials
+			r.Get("/suppliers/credentials", h.HandleSupplierCredentialsPage)
+			r.Post("/suppliers/credentials", h.HandleSupplierCredentialsSave)
+			r.Get("/suppliers/oauth/callback", h.HandleSupplierOAuthCallback)
+			r.Get("/suppliers/oauth/start", h.HandleSupplierOAuthStart)
+			r.Get("/suppliers/recent", h.HandleSupplierRecent)
+			r.Get("/suppliers/compare", h.HandleSupplierCompare)
+			r.Get("/suppliers/price-history", h.HandleSupplierPriceHistory)
+			r.Post("/suppliers/price-snapshot", h.HandleSupplierRecordSnapshot)
 		})
 	})
 

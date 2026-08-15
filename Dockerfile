@@ -19,8 +19,9 @@ WORKDIR /build
 # Install build dependencies (CGO requires gcc/musl-dev)
 RUN apk add --no-cache gcc musl-dev
 
-# Install templ
-RUN go install github.com/a-h/templ/cmd/templ@latest
+# Install templ and sqlc
+RUN go install github.com/a-h/templ/cmd/templ@v0.3.977
+RUN go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.29.0
 
 # Copy modules manifests
 COPY go.mod go.sum ./
@@ -29,7 +30,8 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Generate templ files
+# Generate sqlc and templ files
+RUN sqlc generate
 RUN templ generate
 
 # Build binary
@@ -40,11 +42,16 @@ RUN CGO_ENABLED=1 go build -ldflags="-s -w" -tags fts5 -o wledger ./cmd/server
 FROM alpine:latest
 WORKDIR /wledger
 
-# Install runtime dependencies
-RUN apk add --no-cache ca-certificates tzdata
+# Install runtime dependencies (Python is needed by the amazon supplier
+# provider, which shells out to scripts/amazon_helper.py)
+RUN apk add --no-cache ca-certificates tzdata python3 py3-pip
+RUN pip3 install --no-cache-dir --break-system-packages amzpy
 
 # Copy binary
 COPY --from=go-builder /build/wledger .
+
+# Copy the Amazon supplier helper script
+COPY --from=go-builder /build/scripts/amazon_helper.py ./scripts/amazon_helper.py
 
 # Copy static files (including the one generated in Node stage)
 # First copy all static files from source (images, js)

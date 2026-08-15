@@ -2,19 +2,19 @@
 INSERT OR REPLACE INTO settings (
     id, require_auth_for_read, locate_timeout_seconds, enable_locate_timeout, 
     color_locate, color_stock_ok, color_stock_low, color_stock_critical, 
-    created_at, updated_at, enable_debug_logs
+    created_at, updated_at, enable_debug_logs, supplier_cache_ttl_hours, default_currency
 ) VALUES (
     1, ?, ?, ?, 
     ?, ?, ?, ?, 
-    ?, ?, ?
+    ?, ?, ?, ?, ?
 );
 
 -- name: GetSettings :one
 SELECT * FROM settings WHERE id = 1;
 
 -- name: InitSettings :exec
-INSERT OR IGNORE INTO settings (id, require_auth_for_read, color_locate, color_stock_ok, color_stock_low, color_stock_critical, locate_timeout_seconds, enable_locate_timeout, enable_debug_logs)
-VALUES (1, 1, '#0000FF', '#00FF00', '#FFFF00', '#FF0000', 10, 1, 0);
+INSERT OR IGNORE INTO settings (id, require_auth_for_read, color_locate, color_stock_ok, color_stock_low, color_stock_critical, locate_timeout_seconds, enable_locate_timeout, enable_debug_logs, supplier_cache_ttl_hours, default_currency)
+VALUES (1, 1, '#0000FF', '#00FF00', '#FFFF00', '#FF0000', 10, 1, 0, 96, 'USD');
 
 -- name: UpdateGeneralSettings :exec
 UPDATE settings 
@@ -23,6 +23,14 @@ SET
     locate_timeout_seconds = COALESCE(sqlc.narg('locate_timeout_seconds'), locate_timeout_seconds), 
     enable_locate_timeout = COALESCE(sqlc.narg('enable_locate_timeout'), enable_locate_timeout), 
     enable_debug_logs = COALESCE(sqlc.narg('enable_debug_logs'), enable_debug_logs), 
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = 1;
+
+-- name: UpdateSupplierSettings :exec
+UPDATE settings
+SET 
+    supplier_cache_ttl_hours = COALESCE(sqlc.narg('supplier_cache_ttl_hours'), supplier_cache_ttl_hours),
+    default_currency = COALESCE(sqlc.narg('default_currency'), default_currency),
     updated_at = CURRENT_TIMESTAMP
 WHERE id = 1;
 

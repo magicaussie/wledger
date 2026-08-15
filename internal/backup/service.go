@@ -77,24 +77,48 @@ func (s *service) Export(ctx context.Context, w io.Writer) error {
 	tags, _ := s.store.ListAllTags(ctx)
 	partTags, _ := s.store.GetAllPartTags(ctx)
 
+	// Supplier data
+	supplierRefs, _ := s.store.GetAllSupplierReferences(ctx)
+	partParameters, _ := s.store.GetAllPartParameters(ctx)
+	partPricingRows, _ := s.store.GetAllPartPricing(ctx)
+	partPricing := make([]db.PartPricing, len(partPricingRows))
+	for i, row := range partPricingRows {
+		partPricing[i] = db.PartPricing{
+			ID:            row.ID,
+			PartID:        row.PartID,
+			SupplierRefID: row.SupplierRefID,
+			MinQuantity:   row.MinQuantity,
+			Price:         row.Price,
+			Currency:      row.Currency,
+			IncludesTax:   row.IncludesTax,
+		}
+	}
+	supplierCredentials, _ := s.store.GetAllSupplierCredentials(ctx)
+	priceHistory, _ := s.store.GetAllPriceHistory(ctx)
+
 	manifest := Manifest{
-		Version:         "1.0",
-		ExportedAt:      time.Now(),
-		Settings:        settings,
-		Users:           users,
-		Controllers:     controllers,
-		Containers:      containers,
-		Walls:           walls,
-		WallCards:       wallCards,
-		Bins:            bins,
-		Parts:           parts,
-		PartAssignments: assignments,
-		PartLinks:       links,
-		PartDocs:        docs,
-		PartAiPrompts:   prompts,
-		Tags:            tags,
-		PartTags:        partTags,
-		AuditLogs:       auditLogs,
+		Version:             "1.0",
+		ExportedAt:          time.Now(),
+		Settings:            settings,
+		Users:               users,
+		Controllers:         controllers,
+		Containers:          containers,
+		Walls:               walls,
+		WallCards:           wallCards,
+		Bins:                bins,
+		Parts:               parts,
+		PartAssignments:     assignments,
+		PartLinks:           links,
+		PartDocs:            docs,
+		PartAiPrompts:       prompts,
+		Tags:                tags,
+		PartTags:            partTags,
+		AuditLogs:           auditLogs,
+		SupplierRefs:        supplierRefs,
+		PartParameters:      partParameters,
+		PartPricing:         partPricing,
+		SupplierCredentials: supplierCredentials,
+		PriceHistory:        priceHistory,
 	}
 
 	zw := zip.NewWriter(w)
@@ -343,6 +367,23 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 			return fmt.Errorf("failed to clear users: %w", err)
 		}
 
+		// Clear supplier tables
+		if err := qtx.ClearPriceHistory(ctx); err != nil {
+			return fmt.Errorf("failed to clear price history: %w", err)
+		}
+		if err := qtx.ClearPartPricing(ctx); err != nil {
+			return fmt.Errorf("failed to clear part pricing: %w", err)
+		}
+		if err := qtx.ClearPartParameters(ctx); err != nil {
+			return fmt.Errorf("failed to clear part parameters: %w", err)
+		}
+		if err := qtx.ClearSupplierReferences(ctx); err != nil {
+			return fmt.Errorf("failed to clear supplier references: %w", err)
+		}
+		if err := qtx.ClearSupplierCredentials(ctx); err != nil {
+			return fmt.Errorf("failed to clear supplier credentials: %w", err)
+		}
+
 		s.logger.Debug("restoring database records from manifest")
 		return s.restoreData(ctx, qtx, manifest)
 	})
@@ -412,6 +453,8 @@ func (s *service) restoreData(ctx context.Context, qtx db.Querier, manifest Mani
 		ColorStockCritical:   manifest.Settings.ColorStockCritical,
 		CreatedAt:            manifest.Settings.CreatedAt,
 		UpdatedAt:            manifest.Settings.UpdatedAt,
+		SupplierCacheTtlHours: manifest.Settings.SupplierCacheTtlHours,
+		DefaultCurrency:       manifest.Settings.DefaultCurrency,
 	})
 	if err != nil {
 		return fmt.Errorf("settings restore: %w", err)
@@ -483,6 +526,7 @@ func (s *service) restoreData(ctx context.Context, qtx db.Querier, manifest Mani
 			BarcodeData:       p.BarcodeData,
 			IsFavorite:        p.IsFavorite,
 			Tags:              p.Tags,
+			Footprint:         p.Footprint,
 			CreatedAt:         p.CreatedAt,
 			UpdatedAt:         p.UpdatedAt,
 		}); err != nil {
@@ -527,5 +571,79 @@ func (s *service) restoreData(ctx context.Context, qtx db.Querier, manifest Mani
 			return fmt.Errorf("audit log restore: %w", err)
 		}
 	}
+
+	// Restore supplier data
+	for _, sr := range manifest.SupplierRefs {
+		if err := qtx.RestoreSupplierReference(ctx, db.RestoreSupplierReferenceParams{
+			ID:          sr.ID,
+			PartID:      sr.PartID,
+			ProviderKey: sr.ProviderKey,
+			ProviderID:  sr.ProviderID,
+			ProviderUrl: sr.ProviderUrl,
+			CreatedAt:   sr.CreatedAt,
+		}); err != nil {
+			return fmt.Errorf("supplier reference restore: %w", err)
+		}
+	}
+	for _, pp := range manifest.PartParameters {
+		if err := qtx.RestorePartParameter(ctx, db.RestorePartParameterParams{
+			ID:         pp.ID,
+			PartID:     pp.PartID,
+			Name:       pp.Name,
+			ValueText:  pp.ValueText,
+			ValueTyp:   pp.ValueTyp,
+			ValueMin:   pp.ValueMin,
+			ValueMax:   pp.ValueMax,
+			Unit:       pp.Unit,
+			Symbol:     pp.Symbol,
+			ParamGroup: pp.ParamGroup,
+		}); err != nil {
+			return fmt.Errorf("part parameter restore: %w", err)
+		}
+	}
+	for _, pr := range manifest.PartPricing {
+		if err := qtx.RestorePartPricing(ctx, db.RestorePartPricingParams{
+			ID:            pr.ID,
+			PartID:        pr.PartID,
+			SupplierRefID: pr.SupplierRefID,
+			MinQuantity:   pr.MinQuantity,
+			Price:         pr.Price,
+			Currency:      pr.Currency,
+			IncludesTax:   pr.IncludesTax,
+		}); err != nil {
+			return fmt.Errorf("part pricing restore: %w", err)
+		}
+	}
+	for _, sc := range manifest.SupplierCredentials {
+		if err := qtx.RestoreSupplierCredential(ctx, db.RestoreSupplierCredentialParams{
+			ID:             sc.ID,
+			ProviderKey:    sc.ProviderKey,
+			ApiKey:         sc.ApiKey,
+			ApiSecret:      sc.ApiSecret,
+			AccessToken:    sc.AccessToken,
+			RefreshToken:   sc.RefreshToken,
+			TokenExpiresAt: sc.TokenExpiresAt,
+			IsActive:       sc.IsActive,
+			CreatedAt:      sc.CreatedAt,
+			UpdatedAt:      sc.UpdatedAt,
+		}); err != nil {
+			return fmt.Errorf("supplier credential restore: %w", err)
+		}
+	}
+	for _, ph := range manifest.PriceHistory {
+		if err := qtx.RestorePriceHistory(ctx, db.RestorePriceHistoryParams{
+			ID:            ph.ID,
+			PartID:        ph.PartID,
+			SupplierRefID: ph.SupplierRefID,
+			MinQuantity:   ph.MinQuantity,
+			Price:         ph.Price,
+			Currency:      ph.Currency,
+			IncludesTax:   ph.IncludesTax,
+			RecordedAt:    ph.RecordedAt,
+		}); err != nil {
+			return fmt.Errorf("price history restore: %w", err)
+		}
+	}
+
 	return nil
 }

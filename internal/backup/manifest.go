@@ -7,21 +7,26 @@ import (
 )
 
 type Manifest struct {
-	Version         string              `json:"version"`
-	ExportedAt      time.Time           `json:"exported_at"`
-	Settings        db.Setting          `json:"settings"`
-	Users           []db.User           `json:"users"`
-	Controllers     []db.Controller     `json:"controllers"`
-	Containers      []db.Container      `json:"containers"`
-	Walls           []db.Wall           `json:"walls"`
-	WallCards       []db.WallCard       `json:"wall_cards"`
-	Bins            []db.Bin            `json:"bins"`
-	Parts           []db.Part           `json:"parts"`
-	PartAssignments []db.PartAssignment `json:"part_assignments"`
-	PartLinks       []db.PartLink       `json:"part_links"`
-	PartDocs        []db.PartDoc        `json:"part_docs"`
-	PartAiPrompts   []db.PartAiPrompt   `json:"part_ai_prompts"`
-	Tags            []db.Tag            `json:"tags"`
-	PartTags        []db.PartTag        `json:"part_tags"`
-	AuditLogs       []db.AuditLog       `json:"audit_logs"`
+	Version           string                      `json:"version"`
+	ExportedAt        time.Time                   `json:"exported_at"`
+	Settings          db.Setting                  `json:"settings"`
+	Users             []db.User                   `json:"users"`
+	Controllers       []db.Controller             `json:"controllers"`
+	Containers        []db.Container              `json:"containers"`
+	Walls             []db.Wall                   `json:"walls"`
+	WallCards         []db.WallCard               `json:"wall_cards"`
+	Bins              []db.Bin                    `json:"bins"`
+	Parts             []db.Part                   `json:"parts"`
+	PartAssignments   []db.PartAssignment         `json:"part_assignments"`
+	PartLinks         []db.PartLink               `json:"part_links"`
+	PartDocs          []db.PartDoc                `json:"part_docs"`
+	PartAiPrompts     []db.PartAiPrompt           `json:"part_ai_prompts"`
+	Tags              []db.Tag                    `json:"tags"`
+	PartTags          []db.PartTag                `json:"part_tags"`
+	AuditLogs         []db.AuditLog               `json:"audit_logs"`
+	SupplierRefs      []db.SupplierReference      `json:"supplier_references,omitempty"`
+	PartParameters    []db.PartParameter          `json:"part_parameters,omitempty"`
+	PartPricing       []db.PartPricing            `json:"part_pricing,omitempty"`
+	SupplierCredentials []db.SupplierCredential   `json:"supplier_credentials,omitempty"`
+	PriceHistory      []db.PriceHistory           `json:"price_history,omitempty"`
 }

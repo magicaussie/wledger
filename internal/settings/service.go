@@ -52,6 +52,8 @@ type UpdateSettingsParams struct {
 	ColorOk             string
 	ColorLow            string
 	ColorCritical       string
+	SupplierCacheTTL    int
+	DefaultCurrency     string
 }
 
 type CreateUserParams struct {
@@ -84,6 +86,15 @@ func (s *service) UpdateSettings(ctx context.Context, params UpdateSettingsParam
 			ColorStockOk:       sql.NullString{String: params.ColorOk, Valid: params.ColorOk != ""},
 			ColorStockLow:      sql.NullString{String: params.ColorLow, Valid: params.ColorLow != ""},
 			ColorStockCritical: sql.NullString{String: params.ColorCritical, Valid: params.ColorCritical != ""},
+		})
+		if err != nil {
+			return err
+		}
+
+		// Update supplier settings
+		err = q.UpdateSupplierSettings(ctx, db.UpdateSupplierSettingsParams{
+			SupplierCacheTtlHours: sql.NullInt64{Int64: int64(params.SupplierCacheTTL), Valid: params.SupplierCacheTTL > 0},
+			DefaultCurrency:       sql.NullString{String: params.DefaultCurrency, Valid: params.DefaultCurrency != ""},
 		})
 		if err != nil {
 			return err
