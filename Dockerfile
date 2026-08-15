@@ -42,16 +42,28 @@ RUN CGO_ENABLED=1 go build -ldflags="-s -w" -tags fts5 -o wledger ./cmd/server
 FROM alpine:latest
 WORKDIR /wledger
 
-# Install runtime dependencies (Python is needed by the amazon supplier
-# provider, which shells out to scripts/amazon_helper.py)
-RUN apk add --no-cache ca-certificates tzdata python3 py3-pip
-RUN pip3 install --no-cache-dir --break-system-packages amzpy
+# Install runtime dependencies (Python + Chromium needed by the amazon and spotlight
+# supplier providers, which shell out to scripts/*_helper.py using Selenium)
+RUN apk add --no-cache \
+    ca-certificates \
+    tzdata \
+    python3 \
+    py3-pip \
+    chromium \
+    chromium-chromedriver
+
+RUN pip3 install --no-cache-dir --break-system-packages amzpy selenium lxml
 
 # Copy binary
 COPY --from=go-builder /build/wledger .
 
-# Copy the Amazon supplier helper script
+# Copy supplier helper scripts
 COPY --from=go-builder /build/scripts/amazon_helper.py ./scripts/amazon_helper.py
+COPY --from=go-builder /build/scripts/spotlight_helper.py ./scripts/spotlight_helper.py
+
+# Create symlink for chromedriver so Selenium can find it
+RUN mkdir -p /root/.cache/selenium/chromedriver/linux64/152.0.7977.42 && \
+    ln -sf /usr/bin/chromedriver /root/.cache/selenium/chromedriver/linux64/152.0.7977.42/chromedriver
 
 # Copy static files (including the one generated in Node stage)
 # First copy all static files from source (images, js)

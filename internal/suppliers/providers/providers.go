@@ -23,5 +23,6 @@ import (
 	_ "github.com/tuxedocurly/wledger/internal/suppliers/providers/rs-components"
 	_ "github.com/tuxedocurly/wledger/internal/suppliers/providers/rutronik"
 	_ "github.com/tuxedocurly/wledger/internal/suppliers/providers/semikron"
+	_ "github.com/tuxedocurly/wledger/internal/suppliers/providers/spotlight"
 	_ "github.com/tuxedocurly/wledger/internal/suppliers/providers/tme"
 )
