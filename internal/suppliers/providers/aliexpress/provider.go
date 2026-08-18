@@ -11,6 +11,7 @@
 package aliexpress
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -120,7 +121,7 @@ func (p *Provider) SearchByKeyword(ctx context.Context, keyword string) ([]suppl
 		return nil, fmt.Errorf("empty search keyword")
 	}
 
-	out, err := p.runHelper(ctx, "search", keyword, "--retries", strconv.Itoa(p.searchRetry))
+	out, err := p.runHelper(ctx, 60*time.Second+time.Duration(60*p.searchRetry)*time.Second, "search", keyword, "--retries", strconv.Itoa(p.searchRetry))
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +160,7 @@ func (p *Provider) GetDetails(ctx context.Context, providerID string) (*supplier
 		return nil, fmt.Errorf("invalid AliExpress product id %q", providerID)
 	}
 
-	out, err := p.runHelper(ctx, "product", providerID, "--retries", "3")
+	out, err := p.runHelper(ctx, 180*time.Second, "product", providerID, "--retries", "3")
 	if err != nil {
 		return nil, err
 	}
@@ -248,16 +249,48 @@ func (p *Provider) GetDetails(ctx context.Context, providerID string) (*supplier
 }
 
 // runHelper executes the Node helper and returns its stdout.
-func (p *Provider) runHelper(ctx context.Context, args ...string) ([]byte, error) {
+//
+// The helper launches a real browser and typically takes 20-60s, so it must not
+// be tied to the HTTP request context: if the client disconnects or the
+// front-end proxy aborts, exec.CommandContext would SIGKILL the scrape mid-run
+// (surfacing as "signal: killed"). Instead we run it with a detached context and
+// a generous timeout; the request context is only used to bail out if it is
+// already done.
+func (p *Provider) runHelper(ctx context.Context, timeout time.Duration, args ...string) ([]byte, error) {
+	runCtx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	// If the caller's context is already cancelled, honour it immediately.
+	select {
+	case <-ctx.Done():
+		return nil, fmt.Errorf("aliexpress helper aborted: %w", ctx.Err())
+	default:
+	}
+
 	cmdArgs := append([]string{p.helperPath}, args...)
-	cmd := exec.CommandContext(ctx, p.nodePath, cmdArgs...)
+	cmd := exec.CommandContext(runCtx, p.nodePath, cmdArgs...)
 	if p.workDir != "" {
 		cmd.Dir = p.workDir
 	}
 	if p.helperEnv != nil {
 		cmd.Env = append(cmd.Env, p.helperEnv...)
 	}
-	return cmd.Output()
+
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if err != nil {
+		msg := strings.TrimSpace(stderr.String())
+		if msg != "" {
+			// Truncate huge browser logs.
+			if len(msg) > 300 {
+				msg = msg[:300] + "..."
+			}
+			return nil, fmt.Errorf("aliexpress helper failed: %w: %s", err, msg)
+		}
+		return nil, fmt.Errorf("aliexpress helper failed: %w", err)
+	}
+	return out, nil
 }
 
 // JSON wire types
@@ -270,14 +303,14 @@ type helperResponse struct {
 }
 
 type helperResult struct {
-	ID          string  `json:"id"`
-	Name        string  `json:"name"`
-	SalePrice   *float64 `json:"sale_price"`
-	SaleText    string  `json:"sale_price_text"`
-	Currency    string  `json:"currency"`
-	Image       string  `json:"image"`
-	URL         string  `json:"url"`
-	Rating      *float64 `json:"rating"`
+	ID        string   `json:"id"`
+	Name      string   `json:"name"`
+	SalePrice *float64 `json:"sale_price"`
+	SaleText  string   `json:"sale_price_text"`
+	Currency  string   `json:"currency"`
+	Image     string   `json:"image"`
+	URL       string   `json:"url"`
+	Rating    *float64 `json:"rating"`
 }
 
 func (r helperResult) priceText() string {
@@ -291,17 +324,17 @@ func (r helperResult) priceText() string {
 }
 
 type helperProduct struct {
-	ID            string           `json:"id"`
-	Title         string           `json:"title"`
-	Images        []string         `json:"images"`
-	SalePrice     *float64         `json:"sale_price"`
-	OriginalPrice *float64         `json:"original_price"`
-	Currency      string           `json:"currency"`
-	Rating        *float64         `json:"rating"`
-	RatingCount   *int             `json:"rating_count"`
-	StoreName     string           `json:"store_name"`
-	Specs         []helperSpec     `json:"specs"`
-	URL           string           `json:"url"`
+	ID            string       `json:"id"`
+	Title         string       `json:"title"`
+	Images        []string     `json:"images"`
+	SalePrice     *float64     `json:"sale_price"`
+	OriginalPrice *float64     `json:"original_price"`
+	Currency      string       `json:"currency"`
+	Rating        *float64     `json:"rating"`
+	RatingCount   *int         `json:"rating_count"`
+	StoreName     string       `json:"store_name"`
+	Specs         []helperSpec `json:"specs"`
+	URL           string       `json:"url"`
 }
 
 type helperSpec struct {
