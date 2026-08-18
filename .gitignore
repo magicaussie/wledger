@@ -2,6 +2,7 @@
 /tmp
 /bin
 server
+brandtest
 
 # Local Database
 /data/*
@@ -10,6 +11,8 @@ server
 /app/logs
 /app/data
 /app/uploads
+/app/**
+**/app/uploads
 
 # OS
 .DS_Store

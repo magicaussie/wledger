@@ -146,6 +146,7 @@ func (s *service) ListParts(ctx context.Context, search string, page int, binID 
 				TotalStock:    row.TotalStock,
 				ValidStock:    row.ValidStock,
 				OrphanedStock: row.OrphanedStock,
+				BarcodeData:   row.BarcodeData,
 			})
 		}
 	} else {
@@ -170,6 +171,7 @@ func (s *service) ListParts(ctx context.Context, search string, page int, binID 
 				TotalStock:    row.TotalStock,
 				ValidStock:    row.ValidStock,
 				OrphanedStock: row.OrphanedStock,
+				BarcodeData:   row.BarcodeData,
 			})
 		}
 	}

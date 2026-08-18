@@ -1,6 +1,9 @@
 package pages
 
 import (
+	"fmt"
+	"net/url"
+
 	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/i18n"
@@ -69,6 +72,8 @@ templ SupplierSearch(user auth.User, providers []suppliers.ProviderInfo, results
 						<!-- Provider Filter -->
 						<div class="flex flex-wrap gap-2">
 							<span class="text-xs text-gray-500 uppercase tracking-wider self-center">Providers:</span>
+							<button type="button" onclick="document.querySelectorAll('input[name=providers]').forEach(cb => cb.checked = true)" class="btn btn-ghost btn-xs">Check All</button>
+							<button type="button" onclick="document.querySelectorAll('input[name=providers]').forEach(cb => cb.checked = false)" class="btn btn-ghost btn-xs">Uncheck All</button>
 							for _, p := range providers {
 								<label class="cursor-pointer label gap-1">
 									<input
@@ -142,7 +147,11 @@ templ SupplierResultCard(r suppliers.SearchResultDTO) {
 		<div class="card-body p-4">
 			<div class="flex items-start gap-3">
 				if r.PreviewImageURL != "" {
-					<img src={ r.PreviewImageURL } alt={ r.Name } class="w-16 h-16 object-contain rounded"/>
+					if r.ProviderKey == "spotlight" {
+						<img src={ templ.SafeURL(fmt.Sprintf("/suppliers/image?url=%s&provider=spotlight", url.QueryEscape(r.PreviewImageURL))) } alt={ r.Name } class="w-16 h-16 object-contain rounded"/>
+					} else {
+						<img src={ r.PreviewImageURL } alt={ r.Name } class="w-16 h-16 object-contain rounded"/>
+					}
 				} else {
 					<div class="w-16 h-16 bg-base-300 rounded flex items-center justify-center text-gray-500 text-xs">No Image</div>
 				}
@@ -191,7 +200,11 @@ templ SupplierDetail(user auth.User, detail *suppliers.PartDetailDTO, providers 
 						<!-- Image -->
 						<div class="flex-shrink-0">
 							if len(detail.Images) > 0 {
-								<img src={ detail.Images[0].URL } alt={ detail.Name } class="w-48 h-48 object-contain rounded-lg bg-white p-2"/>
+								if detail.ProviderKey == "spotlight" {
+									<img src={ templ.SafeURL(fmt.Sprintf("/suppliers/image?url=%s&provider=spotlight", url.QueryEscape(detail.Images[0].URL))) } alt={ detail.Name } class="w-48 h-48 object-contain rounded-lg bg-white p-2"/>
+								} else {
+									<img src={ detail.Images[0].URL } alt={ detail.Name } class="w-48 h-48 object-contain rounded-lg bg-white p-2"/>
+								}
 							} else {
 								<div class="w-48 h-48 bg-base-300 rounded-lg flex items-center justify-center text-gray-500">No Image</div>
 							}
@@ -395,9 +408,9 @@ templ SupplierCredentials(user auth.User, providers []suppliers.ProviderInfo, sa
 								}
 							</form>
 						</div>
-					</div>
-				}
-			}
+		</div>
+	}
+}
 			<div class="alert alert-info">
 				<span class="text-sm">Providers without auth (LCSC, Datasheet, RS Components, Semikron, Heilind, CDI) are always available.</span>
 			</div>

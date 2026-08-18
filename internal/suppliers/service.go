@@ -3,12 +3,20 @@ package suppliers
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
+	"net/http"
+	"net/url"
+	"os/exec"
 	"strings"
 	"time"
 
+	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/internal/db"
+	"github.com/tuxedocurly/wledger/internal/images"
 )
 
 // Service provides orchestration for supplier search, detail retrieval, and import.
@@ -16,6 +24,7 @@ type Service interface {
 	Search(ctx context.Context, keyword string, providerKeys []string) ([]SearchResultDTO, []ProviderDiagnostic, error)
 	GetDetails(ctx context.Context, providerKey, providerID string) (*PartDetailDTO, error)
 	ImportFromProvider(ctx context.Context, req ImportRequest) (int64, error)
+	ResyncFromProvider(ctx context.Context, partID int64) error
 	ParseSupplierURL(ctx context.Context, rawURL string) (*URLParseResult, error)
 	GetActiveProviders() []ProviderInfo
 	GetAllProviders() []ProviderInfo
@@ -55,9 +64,10 @@ type ProviderDiagnostic struct {
 }
 
 type service struct {
-	store   db.Store
-	cache   *Cache
-	logger  *slog.Logger
+	store      db.Store
+	cache      *Cache
+	logger     *slog.Logger
+	httpClient *http.Client
 }
 
 // NewService creates a new supplier service.
@@ -66,6 +76,9 @@ func NewService(store db.Store, cache *Cache, logger *slog.Logger) Service {
 		store:  store,
 		cache:  cache,
 		logger: logger,
+		httpClient: &http.Client{
+			Timeout: 20 * time.Second,
+		},
 	}
 }
 
@@ -255,6 +268,26 @@ func (s *service) GetDetails(ctx context.Context, providerKey, providerID string
 	return detail, nil
 }
 
+// getDetailsFresh bypasses the cache and fetches fresh details from the
+// provider, refreshing the cache entry afterwards. Used by ResyncFromProvider
+// so that parts imported before richer parsing was added can be updated.
+func (s *service) getDetailsFresh(ctx context.Context, providerKey, providerID string) (*PartDetailDTO, error) {
+	provider, err := Get(providerKey)
+	if err != nil {
+		return nil, fmt.Errorf("unknown provider: %w", err)
+	}
+	if !provider.IsActive() {
+		return nil, fmt.Errorf("provider %s is not active", providerKey)
+	}
+
+	detail, err := provider.GetDetails(ctx, providerID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get details from %s: %w", providerKey, err)
+	}
+	s.cache.SetPartDetail(ctx, providerKey, providerID, detail, s.detailTTLFor(ctx, providerKey))
+	return detail, nil
+}
+
 func (s *service) ImportFromProvider(ctx context.Context, req ImportRequest) (int64, error) {
 	// Check if part already exists with this provider reference
 	existing, err := s.store.FindExistingPartByProviderRef(ctx, db.FindExistingPartByProviderRefParams{
@@ -271,6 +304,16 @@ func (s *service) ImportFromProvider(ctx context.Context, req ImportRequest) (in
 		return 0, fmt.Errorf("failed to fetch part details: %w", err)
 	}
 
+	// Download and store the supplier preview image locally (best-effort).
+	imagePath := s.downloadPartImage(ctx, detail)
+
+	// Derive the part's unit cost from the first usable supplier price.
+	unitCost, _ := firstUnitCost(detail)
+
+	// Some providers surface a GTIN/EAN as a "Barcode (GTIN)" parameter. Map it
+	// onto the part's barcode_data so scanned product barcodes resolve to it.
+	barcode := barcodeFromParameters(detail.Parameters)
+
 	// Create the part
 	var partID int64
 	err = s.store.ExecTx(ctx, func(q db.Querier) error {
@@ -281,7 +324,10 @@ func (s *service) ImportFromProvider(ctx context.Context, req ImportRequest) (in
 			PartNumber:   nullString(detail.MPN),
 			Manufacturer: nullString(detail.Manufacturer),
 			Supplier:     nullString(supplierName(detail)),
+			BarcodeData:  nullString(barcode),
 			Footprint:    nullString(detail.Footprint),
+			UnitCost:     sql.NullFloat64{Float64: unitCost, Valid: unitCost > 0},
+			ImagePath:    nullString(imagePath),
 		})
 		if err != nil {
 			return fmt.Errorf("failed to create part: %w", err)
@@ -307,12 +353,12 @@ func (s *service) ImportFromProvider(ctx context.Context, req ImportRequest) (in
 					continue
 				}
 				_, err = q.CreatePartPricing(ctx, db.CreatePartPricingParams{
-					PartID:         partID,
+					PartID:        partID,
 					SupplierRefID: srID,
-					MinQuantity:    int64(price.MinQuantity),
-					Price:          priceFloat,
-					Currency:       price.Currency,
-					IncludesTax:    sql.NullBool{Bool: price.IncludesTax, Valid: true},
+					MinQuantity:   int64(price.MinQuantity),
+					Price:         priceFloat,
+					Currency:      price.Currency,
+					IncludesTax:   sql.NullBool{Bool: price.IncludesTax, Valid: true},
 				})
 				if err != nil {
 					s.logger.Warn("failed to create pricing", "error", err)
@@ -365,6 +411,92 @@ func (s *service) ImportFromProvider(ctx context.Context, req ImportRequest) (in
 	return partID, nil
 }
 
+// ResyncFromProvider re-fetches a part's details from its supplier and updates
+// only the fields that are currently empty (description, MPN, manufacturer,
+// supplier, unit cost, image). It never overwrites user-edited data, and it is
+// safe to call on parts that were imported before richer provider parsing was
+// added.
+func (s *service) ResyncFromProvider(ctx context.Context, partID int64) error {
+	refs, err := s.store.GetSupplierReferencesByPart(ctx, partID)
+	if err != nil {
+		return fmt.Errorf("failed to get supplier references: %w", err)
+	}
+	if len(refs) == 0 {
+		return fmt.Errorf("part %d has no supplier reference", partID)
+	}
+
+	part, err := s.store.GetPart(ctx, partID)
+	if err != nil {
+		return fmt.Errorf("failed to get part: %w", err)
+	}
+
+	var lastErr error
+	for _, ref := range refs {
+		detail, err := s.getDetailsFresh(ctx, ref.ProviderKey, ref.ProviderID)
+		if err != nil {
+			lastErr = fmt.Errorf("failed to get details from %s: %w", ref.ProviderKey, err)
+			continue
+		}
+
+		name := part.Name
+		desc := part.Description
+		mpn := part.PartNumber
+		mfg := part.Manufacturer
+		supp := part.Supplier
+		cost := part.UnitCost
+		img := part.ImagePath
+
+		if !desc.Valid && detail.Description != "" {
+			desc = sql.NullString{String: detail.Description, Valid: true}
+		}
+		if !mpn.Valid && detail.MPN != "" {
+			mpn = sql.NullString{String: detail.MPN, Valid: true}
+		}
+		if !mfg.Valid && detail.Manufacturer != "" {
+			mfg = sql.NullString{String: detail.Manufacturer, Valid: true}
+		}
+		if !supp.Valid && supplierName(detail) != "" {
+			supp = sql.NullString{String: supplierName(detail), Valid: true}
+		}
+		if !cost.Valid {
+			if c, ok := firstUnitCost(detail); ok {
+				cost = sql.NullFloat64{Float64: c, Valid: true}
+			}
+		}
+		if !img.Valid {
+			if p := s.downloadPartImage(ctx, detail); p != "" {
+				img = sql.NullString{String: p, Valid: true}
+			}
+		}
+
+		if err := s.store.UpdatePart(ctx, db.UpdatePartParams{
+			Name:              name,
+			Description:       desc,
+			PartNumber:        mpn,
+			Manufacturer:      mfg,
+			Supplier:          supp,
+			UnitCost:          cost,
+			ReorderLevel:      part.ReorderLevel,
+			MinStockThreshold: part.MinStockThreshold,
+			BarcodeData:       part.BarcodeData,
+			ImagePath:         img,
+			Footprint:         part.Footprint,
+			ID:                part.ID,
+		}); err != nil {
+			lastErr = fmt.Errorf("failed to update part: %w", err)
+			continue
+		}
+
+		s.logger.Info("resynced part from supplier", "part_id", partID, "provider", ref.ProviderKey)
+		return nil
+	}
+
+	if lastErr != nil {
+		return lastErr
+	}
+	return nil
+}
+
 func (s *service) ParseSupplierURL(ctx context.Context, rawURL string) (*URLParseResult, error) {
 	return ParseSupplierURL(rawURL)
 }
@@ -388,6 +520,158 @@ func supplierName(detail *PartDetailDTO) string {
 		return detail.VendorInfos[0].DistributorName
 	}
 	return ""
+}
+
+// barcodeFromParameters extracts a GTIN/EAN barcode from the provider's
+// parameter list (e.g. "Barcode (GTIN)") so it can be stored on the part.
+func barcodeFromParameters(params []ParameterDTO) string {
+	for _, p := range params {
+		n := strings.ToLower(p.Name)
+		if strings.Contains(n, "barcode") || strings.Contains(n, "gtin") || strings.Contains(n, "ean") {
+			v := strings.TrimSpace(p.ValueText)
+			if v != "" && v != "-" {
+				return v
+			}
+		}
+	}
+	return ""
+}
+
+// downloadPartImage best-effort downloads the supplier preview image and saves
+// it into the local uploads store. Returns the web path (e.g.
+// "/uploads/images/part_123.jpg") or "" if no usable image was found/saved.
+func (s *service) downloadPartImage(ctx context.Context, detail *PartDetailDTO) string {
+	url := detail.PreviewImageURL
+	if url == "" {
+		for _, img := range detail.Images {
+			if strings.HasPrefix(img.URL, "http") {
+				url = img.URL
+				break
+			}
+		}
+	}
+	if url == "" || !strings.HasPrefix(url, "http") {
+		return ""
+	}
+
+	// Spotlight images are served behind AWS WAF and cannot be fetched with a
+	// plain HTTP client. Use the Selenium-based helper (same as the image
+	// proxy) to retrieve them.
+	if isSpotlightImageURL(url) {
+		return s.downloadSpotlightImage(ctx, url)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return ""
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36")
+	req.Header.Set("Accept", "image/avif,image/webp,image/apng,image/*,*/*;q=0.8")
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		s.logger.Debug("failed to download supplier image", "url", truncateURL(url), "error", err)
+		return ""
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return ""
+	}
+
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 10*1024*1024))
+	if err != nil {
+		return ""
+	}
+	if len(data) == 0 {
+		return ""
+	}
+
+	fileName, err := images.ProcessBytes(data)
+	if err != nil {
+		s.logger.Debug("failed to process supplier image", "url", truncateURL(url), "error", err)
+		return ""
+	}
+	return config.UrlPrefixImages + fileName
+}
+
+// isSpotlightImageURL reports whether the image is hosted by Spotlight's
+// mediastores CDN (protected by AWS WAF).
+func isSpotlightImageURL(rawURL string) bool {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+	return strings.Contains(u.Host, "spotlightstores.com")
+}
+
+// downloadSpotlightImage fetches a WAF-protected Spotlight image via the
+// Selenium helper and stores it locally.
+func (s *service) downloadSpotlightImage(ctx context.Context, imageURL string) string {
+	cmd := exec.CommandContext(ctx, "python3", "/wledger/scripts/spotlight_helper.py", "image", imageURL)
+	cmd.Dir = "/wledger"
+	output, err := cmd.Output()
+	if err != nil {
+		s.logger.Debug("spotlight image helper failed", "error", err)
+		return ""
+	}
+
+	var result struct {
+		OK          bool   `json:"ok"`
+		Error       string `json:"error"`
+		ContentType string `json:"content_type"`
+		Base64      string `json:"base64"`
+	}
+	if err := json.Unmarshal(output, &result); err != nil || !result.OK {
+		s.logger.Debug("spotlight image helper parse failed", "output", strings.TrimSpace(string(output)))
+		return ""
+	}
+
+	imgData, err := base64.StdEncoding.DecodeString(result.Base64)
+	if err != nil || len(imgData) == 0 {
+		return ""
+	}
+
+	fileName, err := images.ProcessBytes(imgData)
+	if err != nil {
+		s.logger.Debug("failed to process spotlight image", "error", err)
+		return ""
+	}
+	return config.UrlPrefixImages + fileName
+}
+
+// firstUnitCost returns the first usable price (ex-GST preferred, else any)
+// from the detail's vendor infos, plus whether one was found.
+func firstUnitCost(detail *PartDetailDTO) (float64, bool) {
+	for _, vi := range detail.VendorInfos {
+		for _, p := range vi.Prices {
+			if f, err := p.PriceAsFloat64(); err == nil && f > 0 {
+				return f, true
+			}
+		}
+		// Fall back to the free-form price string if no price-break list.
+		if f, err := parsePriceString(vi.Price); err == nil && f > 0 {
+			return f, true
+		}
+	}
+	return 0, false
+}
+
+func parsePriceString(s string) (float64, error) {
+	s = strings.TrimSpace(strings.TrimPrefix(s, "$"))
+	var f float64
+	_, err := fmt.Sscanf(s, "%f", &f)
+	if err != nil {
+		return 0, err
+	}
+	return f, nil
+}
+
+func truncateURL(u string) string {
+	if len(u) > 120 {
+		return u[:120] + "..."
+	}
+	return u
 }
 
 func (s *service) SaveCredentials(ctx context.Context, providerKey, apiKey, apiSecret string) error {
@@ -463,94 +747,94 @@ func (s *service) LoadCredentials(ctx context.Context) error {
 			}
 		}
 
-// Load and refresh OAuth tokens
-	if cred.AccessToken.Valid && cred.AccessToken.String != "" {
-		type oauthSetter interface {
-			SetCredentials(accessToken, refreshToken string, expiresAt interface{}) error
-		}
-		if os, ok := provider.(oauthSetter); ok {
-			if err := os.SetCredentials(cred.AccessToken.String, cred.RefreshToken.String, cred.TokenExpiresAt.Time); err != nil {
-				s.logger.Warn("failed to set OAuth credentials", "key", cred.ProviderKey, "error", err)
-				continue
+		// Load and refresh OAuth tokens
+		if cred.AccessToken.Valid && cred.AccessToken.String != "" {
+			type oauthSetter interface {
+				SetCredentials(accessToken, refreshToken string, expiresAt interface{}) error
 			}
+			if os, ok := provider.(oauthSetter); ok {
+				if err := os.SetCredentials(cred.AccessToken.String, cred.RefreshToken.String, cred.TokenExpiresAt.Time); err != nil {
+					s.logger.Warn("failed to set OAuth credentials", "key", cred.ProviderKey, "error", err)
+					continue
+				}
 
-			// Register a persistence callback so any runtime token refresh
-			// (which rotates the refresh token) is written back to the DB.
-			if oc, ok := provider.(oauthCallbackSetter); ok {
-				oc.OnTokenSaved(func() {
-					type credentialGetter interface {
-						GetCredentials() (accessToken, refreshToken string, expiresAt interface{}, err error)
-					}
-					cg, ok := provider.(credentialGetter)
-					if !ok {
-						return
-					}
-					at, rt, exp, err := cg.GetCredentials()
-					if err != nil {
-						s.logger.Warn("failed to get credentials for persistence", "key", cred.ProviderKey, "error", err)
-						return
-					}
-					expiresAtTime := sql.NullTime{}
-					if t, ok := exp.(time.Time); ok {
-						expiresAtTime = sql.NullTime{Time: t, Valid: true}
-					}
-					_ = s.store.UpsertSupplierCredential(ctx, db.UpsertSupplierCredentialParams{
-						ProviderKey:    cred.ProviderKey,
-						ApiKey:         cred.ApiKey,
-						ApiSecret:      cred.ApiSecret,
-						AccessToken:    sql.NullString{String: at, Valid: at != ""},
-						RefreshToken:   sql.NullString{String: rt, Valid: rt != ""},
-						TokenExpiresAt: expiresAtTime,
-						IsActive:       sql.NullBool{Bool: true, Valid: true},
-					})
-					s.logger.Info("OAuth token persisted", "key", cred.ProviderKey)
-				})
-			}
-
-			// Check if token needs refresh
-			type tokenChecker interface {
-				IsTokenExpired() bool
-			}
-			type tokenRefresher interface {
-				RefreshAccessToken(ctx context.Context) error
-			}
-			if tc, ok := provider.(tokenChecker); ok {
-				if tc.IsTokenExpired() {
-					if rf, ok := provider.(tokenRefresher); ok {
-						s.logger.Info("refreshing expired OAuth token", "key", cred.ProviderKey)
-						if err := rf.RefreshAccessToken(ctx); err != nil {
-							s.logger.Error("failed to refresh OAuth token", "key", cred.ProviderKey, "error", err)
-							continue
-						}
-
-						// Save refreshed tokens
+				// Register a persistence callback so any runtime token refresh
+				// (which rotates the refresh token) is written back to the DB.
+				if oc, ok := provider.(oauthCallbackSetter); ok {
+					oc.OnTokenSaved(func() {
 						type credentialGetter interface {
 							GetCredentials() (accessToken, refreshToken string, expiresAt interface{}, err error)
 						}
-						if cg, ok := provider.(credentialGetter); ok {
-							accessToken, refreshToken, expiresAt, err := cg.GetCredentials()
-							if err == nil {
-								expiresAtTime := sql.NullTime{}
-								if t, ok := expiresAt.(time.Time); ok {
-									expiresAtTime = sql.NullTime{Time: t, Valid: true}
+						cg, ok := provider.(credentialGetter)
+						if !ok {
+							return
+						}
+						at, rt, exp, err := cg.GetCredentials()
+						if err != nil {
+							s.logger.Warn("failed to get credentials for persistence", "key", cred.ProviderKey, "error", err)
+							return
+						}
+						expiresAtTime := sql.NullTime{}
+						if t, ok := exp.(time.Time); ok {
+							expiresAtTime = sql.NullTime{Time: t, Valid: true}
+						}
+						_ = s.store.UpsertSupplierCredential(ctx, db.UpsertSupplierCredentialParams{
+							ProviderKey:    cred.ProviderKey,
+							ApiKey:         cred.ApiKey,
+							ApiSecret:      cred.ApiSecret,
+							AccessToken:    sql.NullString{String: at, Valid: at != ""},
+							RefreshToken:   sql.NullString{String: rt, Valid: rt != ""},
+							TokenExpiresAt: expiresAtTime,
+							IsActive:       sql.NullBool{Bool: true, Valid: true},
+						})
+						s.logger.Info("OAuth token persisted", "key", cred.ProviderKey)
+					})
+				}
+
+				// Check if token needs refresh
+				type tokenChecker interface {
+					IsTokenExpired() bool
+				}
+				type tokenRefresher interface {
+					RefreshAccessToken(ctx context.Context) error
+				}
+				if tc, ok := provider.(tokenChecker); ok {
+					if tc.IsTokenExpired() {
+						if rf, ok := provider.(tokenRefresher); ok {
+							s.logger.Info("refreshing expired OAuth token", "key", cred.ProviderKey)
+							if err := rf.RefreshAccessToken(ctx); err != nil {
+								s.logger.Error("failed to refresh OAuth token", "key", cred.ProviderKey, "error", err)
+								continue
+							}
+
+							// Save refreshed tokens
+							type credentialGetter interface {
+								GetCredentials() (accessToken, refreshToken string, expiresAt interface{}, err error)
+							}
+							if cg, ok := provider.(credentialGetter); ok {
+								accessToken, refreshToken, expiresAt, err := cg.GetCredentials()
+								if err == nil {
+									expiresAtTime := sql.NullTime{}
+									if t, ok := expiresAt.(time.Time); ok {
+										expiresAtTime = sql.NullTime{Time: t, Valid: true}
+									}
+									_ = s.store.UpsertSupplierCredential(ctx, db.UpsertSupplierCredentialParams{
+										ProviderKey:    cred.ProviderKey,
+										ApiKey:         cred.ApiKey,
+										ApiSecret:      cred.ApiSecret,
+										AccessToken:    sql.NullString{String: accessToken, Valid: accessToken != ""},
+										RefreshToken:   sql.NullString{String: refreshToken, Valid: refreshToken != ""},
+										TokenExpiresAt: expiresAtTime,
+										IsActive:       sql.NullBool{Bool: true, Valid: true},
+									})
+									s.logger.Info("OAuth token refreshed and saved", "key", cred.ProviderKey)
 								}
-								_ = s.store.UpsertSupplierCredential(ctx, db.UpsertSupplierCredentialParams{
-									ProviderKey:    cred.ProviderKey,
-									ApiKey:         cred.ApiKey,
-									ApiSecret:      cred.ApiSecret,
-									AccessToken:    sql.NullString{String: accessToken, Valid: accessToken != ""},
-									RefreshToken:   sql.NullString{String: refreshToken, Valid: refreshToken != ""},
-									TokenExpiresAt: expiresAtTime,
-									IsActive:       sql.NullBool{Bool: true, Valid: true},
-								})
-								s.logger.Info("OAuth token refreshed and saved", "key", cred.ProviderKey)
 							}
 						}
 					}
 				}
 			}
 		}
-	}
 	}
 
 	return nil
@@ -646,11 +930,11 @@ type RecentlyImportedPart struct {
 }
 
 type PriceComparisonRow struct {
-	ProviderKey  string
-	MinQuantity  int64
-	Price        float64
-	Currency     string
-	IncludesTax  bool
+	ProviderKey string
+	MinQuantity int64
+	Price       float64
+	Currency    string
+	IncludesTax bool
 }
 
 func (s *service) GetRecentlyImported(ctx context.Context, limit int) ([]RecentlyImportedPart, error) {

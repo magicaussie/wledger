@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/tuxedocurly/wledger/internal/db"
@@ -86,6 +87,75 @@ func TestService_Locate(t *testing.T) {
 		// Verify that client sent the correct color
 		if receivedColor == "" {
 			t.Error("No color received by mock server")
+		}
+	})
+
+	t.Run("LocateBinMultiLedWidth", func(t *testing.T) {
+		receivedColor = ""
+		c, err := store.CreateController(ctx, db.CreateControllerParams{Name: "Test2", IpAddress: ip})
+		if err != nil {
+			t.Fatalf("failed to create controller: %v", err)
+		}
+
+		cont, err := store.CreateContainer(ctx, db.CreateContainerParams{
+			Name:         "Cont2",
+			ControllerID: c.ID,
+			SegmentID:    0,
+		})
+		if err != nil {
+			t.Fatalf("failed to create container: %v", err)
+		}
+
+		// Bin at 0-based LED index 685 spanning 15 LEDs (physical LEDs 686-700).
+		b, err := store.CreateBin(ctx, db.CreateBinParams{
+			Name: "B2", ContainerID: cont,
+			LedIndex: sql.NullInt64{Int64: 685, Valid: true},
+			Width:    sql.NullInt64{Int64: 15, Valid: true},
+		})
+		if err != nil {
+			t.Fatalf("failed to create bin: %v", err)
+		}
+
+		if err := svc.LocateBin(ctx, c.ID, b); err != nil {
+			t.Fatalf("LocateBin failed: %v", err)
+		}
+
+		if !strings.Contains(receivedColor, `"i":[685,700`) {
+			t.Errorf("expected individual LED range 685->700, got %s", receivedColor)
+		}
+	})
+
+	t.Run("LocateBinWidthDefaultsToOne", func(t *testing.T) {
+		receivedColor = ""
+		c, err := store.CreateController(ctx, db.CreateControllerParams{Name: "Test3", IpAddress: ip})
+		if err != nil {
+			t.Fatalf("failed to create controller: %v", err)
+		}
+
+		cont, err := store.CreateContainer(ctx, db.CreateContainerParams{
+			Name:         "Cont3",
+			ControllerID: c.ID,
+			SegmentID:    0,
+		})
+		if err != nil {
+			t.Fatalf("failed to create container: %v", err)
+		}
+
+		// Width 0 / missing should behave as width 1: range end == index+1.
+		b, err := store.CreateBin(ctx, db.CreateBinParams{
+			Name: "B3", ContainerID: cont,
+			LedIndex: sql.NullInt64{Int64: 685, Valid: true},
+		})
+		if err != nil {
+			t.Fatalf("failed to create bin: %v", err)
+		}
+
+		if err := svc.LocateBin(ctx, c.ID, b); err != nil {
+			t.Fatalf("LocateBin failed: %v", err)
+		}
+
+		if !strings.Contains(receivedColor, `"i":[685,686`) {
+			t.Errorf("expected single LED range 685->686, got %s", receivedColor)
 		}
 	})
 }

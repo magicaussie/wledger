@@ -383,6 +383,53 @@ def get_product_detail(url: str) -> dict:
         driver.quit()
 
 
+def fetch_image(image_url: str) -> dict:
+    """Fetch an image through Selenium to bypass AWS WAF, output as base64."""
+    import base64
+    driver = create_driver()
+    try:
+        # Use JavaScript to fetch the image as base64
+        driver.get("about:blank")
+        # Navigate to the image URL directly; Chromium will bypass WAF
+        driver.get(image_url)
+        wait_for_challenge(driver, timeout=15)
+
+        # Use JS to get image data as base64
+        js = """
+        try {
+            var img = document.querySelector('img');
+            if (!img) {
+                var bodyText = document.body.innerText || '';
+                if (bodyText.indexOf('challenge') >= 0) {
+                    return JSON.stringify({error: 'WAF challenge detected for image'});
+                }
+            }
+            var canvas = document.createElement('canvas');
+            canvas.width = img.naturalWidth || img.width;
+            canvas.height = img.naturalHeight || img.height;
+            var ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+            return JSON.stringify({data: canvas.toDataURL('image/jpeg', 0.85)});
+        } catch(e) {
+            return JSON.stringify({error: 'Failed to get image: ' + e.message});
+        }
+        """
+        result_json = driver.execute_script(js)
+        result = json.loads(result_json)
+        if "error" in result:
+            return {"ok": False, "error": result["error"]}
+
+        # Extract base64 data (strip data:image/jpeg;base64,)
+        data = result["data"]
+        header, b64data = data.split(",", 1)
+        content_type = header.split(":")[1].split(";")[0]
+        return {"ok": True, "content_type": content_type, "base64": b64data}
+    except WebDriverException as e:
+        return {"ok": False, "error": f"selenium error: {e}"}
+    finally:
+        driver.quit()
+
+
 def main():
     parser = argparse.ArgumentParser(description="Spotlight Stores product helper")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -393,6 +440,9 @@ def main():
 
     detail_parser = subparsers.add_parser("product", help="Get product detail")
     detail_parser.add_argument("url", help="Product URL or product ID")
+
+    image_parser = subparsers.add_parser("image", help="Fetch image via Selenium (bypass WAF)")
+    image_parser.add_argument("url", help="Image URL")
 
     args = parser.parse_args()
 
@@ -408,6 +458,9 @@ def main():
             print(json.dumps({"ok": False, "error": result["error"]}))
         else:
             print(json.dumps({"ok": True, "product": result}))
+    elif args.command == "image":
+        result = fetch_image(args.url)
+        print(json.dumps(result))
 
 
 if __name__ == "__main__":

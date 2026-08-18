@@ -6,6 +6,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 )
 
 type Querier interface {
@@ -118,6 +119,7 @@ type Querier interface {
 	GetLatestPriceSnapshot(ctx context.Context, partID int64) ([]GetLatestPriceSnapshotRow, error)
 	GetPart(ctx context.Context, id int64) (Part, error)
 	GetPartAssignments(ctx context.Context, partID int64) ([]GetPartAssignmentsRow, error)
+	GetPartByBarcode(ctx context.Context, barcodeData sql.NullString) (Part, error)
 	GetPartDoc(ctx context.Context, id int64) (PartDoc, error)
 	GetPartDocs(ctx context.Context, partID int64) ([]PartDoc, error)
 	GetPartLinks(ctx context.Context, partID int64) ([]PartLink, error)

@@ -22,6 +22,9 @@ templ Base(title string, user auth.User) {
 			<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 			<script src="/static/js/theme.js"></script>
 			<script src="/static/js/toast.js"></script>
+			<script src="/static/js/image_viewer.js"></script>
+			<script src="/static/js/fast_scan.js"></script>
+			<script src="/static/js/scan_router.js"></script>
 			<style id="dynamic-colors">
 		    :root {
                 --color-locate: #0000FF;
@@ -99,6 +102,7 @@ templ Base(title string, user auth.User) {
 					@components.Sidebar(user)
 				</div>
 			</div>
+			@components.BarcodeScannerModal()
 		</body>
 	</html>
 }

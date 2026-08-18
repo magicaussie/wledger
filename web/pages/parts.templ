@@ -21,6 +21,7 @@ type PartView struct {
 	TotalStock    int64
 	ValidStock    int64
 	OrphanedStock int64
+	BarcodeData   sql.NullString
 }
 
 // PartsList is the full page wrapper
@@ -49,7 +50,7 @@ templ PartsList(user auth.User, parts []PartView, search string, page int, binID
 			@components.PageHeader(i18n.T(ctx, "Inventory"), "", nil)
 			<div class="flex flex-col md:flex-row justify-end items-center mb-6 gap-4">
 				<div x-show="selectedIds.length === 0" class="w-full md:w-auto">
-					@components.PartSearchBar(search, user.CanWrite())
+					@components.PartSearchBar(search, user.CanWrite(), binID)
 				</div>
 				<div x-show="selectedIds.length > 0" class="w-full" x-cloak>
 					<!-- Bulk Toolbar -->
@@ -125,12 +126,29 @@ templ PartCards(parts []PartView, search string, page int, binID *int64) {
 					<img
 						src={ part.ImagePath.String }
 						alt={ part.Name }
-						class="object-cover w-full h-full transform transition-transform duration-500 group-hover:scale-110"
+						loading="lazy"
+						class="object-contain w-full h-full p-2"
+						@click.stop=""
 					/>
+					<div class="absolute inset-0 flex items-end justify-end p-2 z-20">
+						<button
+							type="button"
+							title="View full image"
+							class="btn btn-sm btn-ghost btn-circle bg-base-100/70 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity"
+							@click.stop=""
+							{ templ.Attributes{"onclick": fmt.Sprintf("window.openImage('part-img-%d')", part.ID)}... }
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m-3-3h6"/></svg>
+						</button>
+					</div>
 				} else {
-					<div class="flex items-center justify-center w-full h-full text-4xl opacity-30 transform transition-transform duration-500 group-hover:scale-110 grayscale">📷</div>
+					<div class="flex items-center justify-center w-full h-full text-4xl opacity-30 grayscale">📷</div>
 				}
 			</figure>
+			<!-- Zoom dialog for this card's image -->
+			if part.ImagePath.Valid && part.ImagePath.String != "" {
+				@components.ImageZoomModal(part.ID, part.Name, part.ImagePath.String)
+			}
 			<div class="card-body p-4 relative z-10 bg-base-200">
 				<h2 class="card-title text-base justify-between">
 					<span>
@@ -159,7 +177,10 @@ templ PartCards(parts []PartView, search string, page int, binID *int64) {
 				</div>
 				<div class="flex justify-between items-end mt-4">
 					<div class="flex flex-col">
-						<span class="text-s font-mono opacity-50"># { part.PartNumber.String }</span>
+						<span class="text-xs font-mono opacity-50"># { part.PartNumber.String }</span>
+						if part.BarcodeData.Valid && part.BarcodeData.String != "" {
+							<span class="text-xs font-mono opacity-40" title={ part.BarcodeData.String }>::= { truncate(part.BarcodeData.String, 18) }</span>
+						}
 						<span class="badge badge-info font-semibold mt-1">{ i18n.T(ctx, "Stock") }: { fmt.Sprintf("%d", part.TotalStock) }</span>
 					</div>
 					<div class="flex items-center gap-2">
@@ -192,6 +213,13 @@ func binQuery(binID *int64) string {
 		return ""
 	}
 	return fmt.Sprintf("&bin=%d", *binID)
+}
+
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n-3] + "..."
 }
 
 script navigateTo(url string) {

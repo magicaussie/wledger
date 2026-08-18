@@ -195,7 +195,8 @@ func (p *Provider) GetDetails(ctx context.Context, providerID string) (*supplier
 			ProviderKey:     key,
 			ProviderID:      d.ASIN,
 			Name:            d.Title,
-			Manufacturer:    d.Brand,
+			Manufacturer:    cleanAmazonBrand(d.Brand),
+			Description:     strings.Join(d.Bullets, "\n"),
 			PreviewImageURL: d.ImgURL,
 			ProviderURL:     d.URL,
 		},
@@ -367,6 +368,30 @@ func formatPrice(price float64) string {
 		return ""
 	}
 	return strings.TrimRight(strings.TrimRight(fmt.Sprintf("%.2f", price), "0"), ".")
+}
+
+// cleanAmazonBrand normalises the brand extracted from the Amazon byline.
+// For books and non-branded listings the #bylineInfo element contains the
+// author/format text (e.g. "by Sydney Dumore (Author)... Format: Paperback"),
+// which is not a brand. Keep only a genuine brand or return "".
+func cleanAmazonBrand(brand string) string {
+	brand = strings.TrimSpace(brand)
+	if brand == "" {
+		return ""
+	}
+	lower := strings.ToLower(brand)
+	if strings.HasPrefix(lower, "by ") {
+		return ""
+	}
+	if strings.Contains(lower, "(author)") || strings.Contains(lower, "format:") {
+		return ""
+	}
+	// Long free-text bylines without a "visit the X store" marker are authors,
+	// not brands.
+	if len(brand) > 40 && !strings.Contains(lower, "visit the ") {
+		return ""
+	}
+	return brand
 }
 
 // helperResponse is the outer JSON envelope produced by amazon_helper.py.

@@ -128,7 +128,6 @@ func (p *Provider) SearchByKeyword(ctx context.Context, keyword string) ([]suppl
 			Description:     item.PriceText,
 			Category:        item.Category,
 			PreviewImageURL: item.Image,
-			ProviderURL:     item.URL,
 		})
 	}
 
@@ -142,8 +141,8 @@ func (p *Provider) GetDetails(ctx context.Context, providerID string) (*supplier
 	// Try to construct the full product URL with variant slug
 	// Search results include the full URL with variant, but we only have the base product ID
 	// Use the base URL pattern; the helper will follow redirects
-	url := baseURL + "/en-au/p/" + providerID
-	results, err := p.runHelper(ctx, "product", url)
+	productURL := baseURL + "/en-au/p/" + providerID
+	results, err := p.runHelper(ctx, "product", productURL)
 	if err != nil {
 		return nil, err
 	}
@@ -164,6 +163,8 @@ func (p *Provider) GetDetails(ctx context.Context, providerID string) (*supplier
 			Name:            item.Name,
 			Description:     item.Description,
 			Category:        item.Category,
+			Manufacturer:    item.Brand,
+			MPN:             item.SKU,
 			PreviewImageURL: firstImage(item.Images),
 			ProviderURL:     item.URL,
 		},
@@ -215,6 +216,14 @@ func (p *Provider) GetDetails(ctx context.Context, providerID string) (*supplier
 	}
 
 	detail.VendorInfos = append(detail.VendorInfos, vi)
+
+	if item.EAN != "" {
+		detail.Parameters = append(detail.Parameters, suppliers.ParameterDTO{
+			Name:      "Barcode (GTIN)",
+			ValueText: item.EAN,
+			Group:     "General",
+		})
+	}
 
 	for name, value := range item.Specifications {
 		detail.Parameters = append(detail.Parameters, suppliers.ParameterDTO{

@@ -41,6 +41,9 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 	r.Post("/login", h.HandleLoginPost)
 	r.Post("/logout", h.HandleLogout)
 
+	// Public image proxy (needed for <img> tags on supplier pages)
+	r.Get("/suppliers/image", h.HandleSupplierImageProxy)
+
 	// -------------------------------------------------------------------------
 	// READ-ONLY GROUP ROUTES (Protected by RequireReadAuth + RequirePasswordChange)
 	// -------------------------------------------------------------------------
@@ -57,12 +60,17 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 		r.Get("/parts/bins_options", h.HandleBinOptions)
 		r.Get("/parts/bin_picker", h.HandleBinPicker)
 
+		// Scanning (barcode / QR)
+		r.Get("/scan", h.HandleScan)
+		r.Get("/bin/{id}/qr", h.HandleBinQR)
+
 		// Locate
 		r.Post("/hardware/{id}/locate", h.HandleHardwareLocate)
 		r.Post("/parts/{id}/locate", h.HandlePartLocate)
 
 		// Hardware (Read)
 		r.Get("/hardware", h.HandleHardwareList)
+		r.Get("/hardware/labels", h.HandleBinLabels)
 		r.Get("/hardware/{id}/status", h.HandleHardwareStatus)
 		r.Get("/hardware/{id}/grid", h.HandleHardwareGrid)
 		r.Post("/hardware/off", h.HandleGlobalOff)
@@ -150,6 +158,8 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 
 			// Hardware Configuration
 			r.Post("/hardware", h.HandleHardwareCreate)
+			r.Post("/hardware/import", h.HandleHardwareImport)
+			r.Get("/hardware/{id}/export", h.HandleHardwareExport)
 			r.Post("/hardware/{id}/delete", h.HandleHardwareDelete)
 			r.Post("/hardware/{id}/grid", h.HandleHardwareGridSave)
 

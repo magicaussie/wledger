@@ -40,17 +40,59 @@ func New(q db.Store, sm *scs.SessionManager, l *slog.Logger, uiError *uierror.Re
 func (m *Manager) RequestLogger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		ww := &statusWriter{ResponseWriter: w, status: http.StatusOK}
+		ww := &statusWriter{ResponseWriter: w, status: http.StatusOK, bytes: 0}
 		next.ServeHTTP(ww, r)
-		m.Logger.Info(
-			"http_request",
+
+		attrs := []any{
 			"method", r.Method,
 			"path", r.URL.Path,
 			"status", ww.status,
 			"duration", time.Since(start),
 			"ip", r.RemoteAddr,
-		)
+			"bytes", ww.bytes,
+		}
+		if q := r.URL.RawQuery; q != "" {
+			attrs = append(attrs, "query", q)
+		}
+		if userID, ok := r.Context().Value(UserContextKey).(int64); ok && userID != 0 {
+			attrs = append(attrs, "user_id", userID)
+		}
+		if r.URL.Path == "/suppliers/search" || strings.HasPrefix(r.URL.Path, "/suppliers/") {
+			if kw := r.URL.Query().Get("q"); kw != "" {
+				attrs = append(attrs, "keyword", kw)
+			}
+		}
+
+		// Surface 5xx / target errors distinctly for easier grepping.
+		switch {
+		case ww.status >= 500:
+			m.Logger.Error("http_request", attrs...)
+		case ww.status >= 400:
+			m.Logger.Warn("http_request", attrs...)
+		default:
+			m.Logger.Info("http_request", attrs...)
+		}
 	})
+}
+
+// statusWriter tracks the response status code and approximate body size.
+type statusWriter struct {
+	http.ResponseWriter
+	status int
+	bytes  int
+}
+
+func (w *statusWriter) Write(b []byte) (int, error) {
+	w.bytes += len(b)
+	if w.status == 0 {
+		w.status = http.StatusOK
+	}
+	return w.ResponseWriter.Write(b)
+}
+
+func (w *statusWriter) WriteHeader(status int) {
+	w.status = status
+	w.ResponseWriter.WriteHeader(status)
 }
 
 // RequireAuth forces a login for WRITE/Protected operations
@@ -305,14 +347,4 @@ func (m *Manager) I18n(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
-}
-
-type statusWriter struct {
-	http.ResponseWriter
-	status int
-}
-
-func (w *statusWriter) WriteHeader(status int) {
-	w.status = status
-	w.ResponseWriter.WriteHeader(status)
 }

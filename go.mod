@@ -14,6 +14,7 @@ require (
 	github.com/pressly/goose/v3 v3.26.0
 	golang.org/x/crypto v0.49.0
 	golang.org/x/text v0.35.0
+	rsc.io/qr v0.2.0
 )
 
 require (
@@ -27,5 +28,5 @@ require (
 
 require (
 	github.com/disintegration/imaging v1.6.2
-	golang.org/x/image v0.0.0-20191009234506-e7c1f5e7dbb8 // indirect
+	golang.org/x/image v0.0.0-20191009234506-e7c1f5e7dbb8
 )

@@ -22,6 +22,7 @@ templ BinPickerCard(container DashboardContainer) {
 				for _, bin := range container.Bins {
 					<div
 						@click={ fmt.Sprintf("$dispatch('bin-selected', {id: '%d'})", bin.ID) }
+						data-bin-id={ fmt.Sprintf("%d", bin.ID) }
 						class={ "w-12 h-12 rounded-lg border flex items-center justify-center text-xs font-bold shadow-sm hover:scale-110 hover:shadow-md hover:z-10 transition-all duration-200 cursor-pointer relative group", bin.GetClass() }
 						:class={ fmt.Sprintf("selectedBinID == '%d' ? 'ring-4 ring-primary border-primary z-20 scale-110' : 'border-base-300'", bin.ID) }
 						style={ bin.GetStyle() }

@@ -258,3 +258,22 @@ func TestCacheTTLProvider(t *testing.T) {
 		t.Errorf("DetailCacheTTL = %v, want %v", got, detailCacheTTL)
 	}
 }
+
+func TestCleanAmazonBrand(t *testing.T) {
+	cases := []struct {
+		in   string
+		want string
+	}{
+		{"by Sydney Dumore (Author), Hannah Kelly (Illustrator) Format: Paperback", ""},
+		{"Visit the SAMSUNG Store", "Visit the SAMSUNG Store"},
+		{"Samsung", "Samsung"},
+		{"visit the SONY store", "visit the SONY store"},
+		{"", ""},
+		{"   ", ""},
+	}
+	for _, c := range cases {
+		if got := cleanAmazonBrand(c.in); got != c.want {
+			t.Errorf("cleanAmazonBrand(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}

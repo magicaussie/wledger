@@ -1,6 +1,7 @@
 package images
 
 import (
+	"bytes"
 	"fmt"
 	"image"
 	"image/jpeg"
@@ -12,6 +13,10 @@ import (
 
 	"github.com/disintegration/imaging"
 	"github.com/tuxedocurly/wledger/internal/config"
+
+	// Register decoders for formats suppliers commonly serve (e.g. Altronics
+	// uses .webp). imaging.Decode relies on the image/* default decoders.
+	_ "golang.org/x/image/webp"
 )
 
 func Init() error {
@@ -64,6 +69,33 @@ func saveJPG(img image.Image, name string) error {
 	}
 	defer out.Close()
 	return jpeg.Encode(out, img, &jpeg.Options{Quality: 85})
+}
+
+// ProcessBytes decodes an image from raw bytes, resizes/saves it exactly like
+// ProcessUpload, and returns the generated filename (e.g. "part_12345.jpg").
+// The caller is responsible for prepending the web path. Used to store remote
+// supplier images onto the local filesystem.
+func ProcessBytes(data []byte) (string, error) {
+	img, err := imaging.Decode(bytes.NewReader(data))
+	if err != nil {
+		return "", fmt.Errorf("failed to decode image: %w", err)
+	}
+
+	timestamp := time.Now().UnixNano()
+	baseName := fmt.Sprintf("part_%d", timestamp)
+	fileName := baseName + ".jpg"
+
+	mainImg := imaging.Fit(img, 1024, 1024, imaging.Lanczos)
+	thumbImg := imaging.Thumbnail(img, 300, 300, imaging.Lanczos)
+
+	if err := saveJPG(mainImg, fileName); err != nil {
+		return "", err
+	}
+	if err := saveJPG(thumbImg, baseName+"_thumb.jpg"); err != nil {
+		return "", err
+	}
+
+	return fileName, nil
 }
 
 // DeleteByWebPath takes the full web path (e.g., "/uploads/images/part_123.jpg")

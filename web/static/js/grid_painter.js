@@ -6,6 +6,7 @@ document.addEventListener('alpine:init', () => {
         cells: {},
         confirmMessage: '',
         pendingAction: null,
+        selectedCellRef: null,
 
         init() {
             // Helper to decode HTML entities if the proxy escapes JSON content
@@ -44,8 +45,10 @@ document.addEventListener('alpine:init', () => {
                     const localIdx = this.getLocalIndexFromGridPos(cIdx, b.grid_x?.Int64 || 0, b.grid_y?.Int64 || 0);
                     if (localIdx !== -1) {
                         const key = `${cIdx},${localIdx}`;
+                        const width = (b.width?.Int64 >= 1) ? Number(b.width.Int64) : 1;
                         this.cells[key] = {
                             led_index: Number(led),
+                            width: width,
                             name: b.name
                         };
                     }
@@ -190,6 +193,145 @@ document.addEventListener('alpine:init', () => {
             return this.cells[key].led_index;
         },
 
+        /** 1-based start LED for a mapped bin (physical LED numbering). */
+        getStartLed(cIdx, cellIdx) {
+            const key = `${cIdx},${cellIdx}`;
+            if (!this.cells[key]) return '';
+            return (this.cells[key].led_index || 0) + 1;
+        },
+
+        /** number of LEDs a mapped bin spans (defaults to 1). */
+        getWidth(cIdx, cellIdx) {
+            const key = `${cIdx},${cellIdx}`;
+            if (!this.cells[key]) return 0;
+            return Math.max(1, this.cells[key].width || 1);
+        },
+
+        /** 1-based end LED for a mapped bin. */
+        getEndLed(cIdx, cellIdx) {
+            const key = `${cIdx},${cellIdx}`;
+            if (!this.cells[key]) return '';
+            return this.getStartLed(cIdx, cellIdx) + this.getWidth(cIdx, cellIdx) - 1;
+        },
+
+        toggleCell(cIdx, cellIdx) {
+            if (!this.canEdit) return;
+            const key = `${cIdx},${cellIdx}`;
+            if (this.cells[key]) {
+                delete this.cells[key];
+                if (this.selectedCellRef && this.selectedCellRef.key === key) {
+                    this.selectedCellRef = null;
+                }
+            } else {
+                const nextIndex = this.getNextAvailableLedIndex(cIdx);
+                const name = this.generateName(cIdx, cellIdx);
+                this.cells[key] = { led_index: nextIndex, width: 1, name: name };
+                this.selectedCellRef = { key: key, cIdx, cellIdx };
+            }
+        },
+
+        /** Cell click: select a mapped cell for LED range editing, or create a new one. */
+        onCellClick(cIdx, cellIdx) {
+            if (!this.canEdit) return;
+            const key = `${cIdx},${cellIdx}`;
+            if (this.cells[key]) {
+                this.selectedCellRef = { key, cIdx, cellIdx };
+            } else {
+                this.toggleCell(cIdx, cellIdx);
+            }
+        },
+
+        isSelectedCell(cIdx, cellIdx) {
+            return this.selectedCellRef && this.selectedCellRef.cIdx === cIdx && this.selectedCellRef.cellIdx === cellIdx;
+        },
+
+        /** Editor state - snapshots of the selected bin's LED range (1-based). */
+        get selectedCell() {
+            if (!this.selectedCellRef) return null;
+            const { cIdx, cellIdx } = this.selectedCellRef;
+            const key = `${cIdx},${cellIdx}`;
+            return this.cells[key] || null;
+        },
+
+        get selectedCellName() {
+            const cell = this.selectedCell;
+            return cell ? cell.name : '';
+        },
+
+        get selectedStartLed() {
+            const cell = this.selectedCell;
+            return cell ? (cell.led_index || 0) + 1 : 1;
+        },
+        set selectedStartLed(v) {
+            this.cells[this.selectedCellRef.key].led_index = Math.max(1, Number(v)) - 1;
+        },
+
+        get selectedEndLed() {
+            const cell = this.selectedCell;
+            return cell ? (cell.led_index || 0) + Math.max(1, cell.width || 1) : 1;
+        },
+        set selectedEndLed(v) {
+            const cell = this.cells[this.selectedCellRef.key];
+            const start = Math.max(1, Number(this.selectedStartLed));
+            const end = Math.max(start, Number(v));
+            cell.led_index = start - 1;
+            cell.width = end - start + 1;
+        },
+
+        /** Apply the edited LED range to the selected bin. */
+        applyCellRange() {
+            if (!this.selectedCellRef) return;
+            const key = this.selectedCellRef.key;
+            const cell = this.cells[key];
+            if (!cell) return;
+            const start = Math.max(1, Number(this.selectedStartLed) || 1);
+            const end = Math.max(start, Number(this.selectedEndLed) || start);
+            cell.led_index = start - 1;
+            cell.width = end - start + 1;
+        },
+
+        /** Remove the selected bin's mapping. */
+        unmapCell() {
+            if (!this.selectedCellRef) return;
+            const key = this.selectedCellRef.key;
+            delete this.cells[key];
+            this.selectedCellRef = null;
+        },
+
+        closeCellEditor() {
+            this.selectedCellRef = null;
+        },
+
+        /** Display label for a cell: shows the LED range (1-based). */
+        getCellLedLabel(cIdx, cellIdx) {
+            const key = `${cIdx},${cellIdx}`;
+            if (!this.cells[key]) return '';
+            const start = (this.cells[key].led_index || 0) + 1;
+            const width = Math.max(1, this.cells[key].width || 1);
+            return (width > 1) ? `${start}-${start + width - 1}` : `${start}`;
+        },
+
+        getNextAvailableLedIndex(cIdx) {
+            const targetSegment = this.containers[cIdx].segment_id;
+            const used = new Set();
+
+            Object.keys(this.cells).forEach(key => {
+                const [ci, _] = key.split(',').map(Number);
+                if (this.containers[ci].segment_id === targetSegment) {
+                    const cell = this.cells[key];
+                    const start = cell.led_index || 0;
+                    const count = Math.max(1, cell.width || 1);
+                    for (let j = 0; j < count; j++) {
+                        used.add(start + j);
+                    }
+                }
+            });
+
+            let i = 0;
+            while (used.has(i)) i++;
+            return i;
+        },
+
         getContainerTotalLeds(cIdx) {
             const cfg = this.containers[cIdx].config;
             if (cfg.type === 'linear') return cfg.total;
@@ -200,34 +342,6 @@ document.addEventListener('alpine:init', () => {
         getBinName(cIdx, cellIdx) {
             const key = `${cIdx},${cellIdx}`;
             return this.cells[key] ? this.cells[key].name : '';
-        },
-
-        toggleCell(cIdx, cellIdx) {
-            if (!this.canEdit) return;
-            const key = `${cIdx},${cellIdx}`;
-            if (this.cells[key]) {
-                delete this.cells[key];
-            } else {
-                const nextIndex = this.getNextAvailableLedIndex(cIdx);
-                const name = this.generateName(cIdx, cellIdx);
-                this.cells[key] = { led_index: nextIndex, name: name };
-            }
-        },
-
-        getNextAvailableLedIndex(cIdx) {
-            const targetSegment = this.containers[cIdx].segment_id;
-            const used = new Set();
-
-            Object.keys(this.cells).forEach(key => {
-                const [ci, _] = key.split(',').map(Number);
-                if (this.containers[ci].segment_id === targetSegment) {
-                    used.add(this.cells[key].led_index);
-                }
-            });
-
-            let i = 0;
-            while (used.has(i)) i++;
-            return i;
         },
 
         generateName(cIdx, cellIdx) {
@@ -267,6 +381,9 @@ document.addEventListener('alpine:init', () => {
             Object.keys(this.cells).forEach(key => {
                 if (key.startsWith(cIdx + ",")) delete this.cells[key];
             });
+            if (this.selectedCellRef && this.selectedCellRef.cIdx === cIdx) {
+                this.selectedCellRef = null;
+            }
 
             let ledCounter = this.getSegmentStartOffset(cIdx);
             const startPos = cfg.start_corner || 'tl';
@@ -288,6 +405,7 @@ document.addEventListener('alpine:init', () => {
                         if (localIdx !== -1) {
                             this.cells[`${cIdx},${localIdx}`] = {
                                 led_index: ledCounter,
+                                width: 1,
                                 name: this.generateName(cIdx, localIdx)
                             };
                         }
@@ -323,6 +441,9 @@ document.addEventListener('alpine:init', () => {
             Object.keys(this.cells).forEach(key => {
                 if (key.startsWith(cIdx + ",")) delete this.cells[key];
             });
+            if (this.selectedCellRef && this.selectedCellRef.cIdx === cIdx) {
+                this.selectedCellRef = null;
+            }
         },
 
         submitGrid() {
@@ -347,6 +468,7 @@ document.addEventListener('alpine:init', () => {
                                 x: x,
                                 y: y + globalYOffset,
                                 led_index: cell.led_index,
+                                width: Math.max(1, cell.width || 1),
                                 name: cell.name
                             });
                         }

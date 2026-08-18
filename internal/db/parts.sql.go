@@ -456,6 +456,34 @@ func (q *Queries) GetPartAssignments(ctx context.Context, partID int64) ([]GetPa
 	return items, nil
 }
 
+const getPartByBarcode = `-- name: GetPartByBarcode :one
+SELECT id, name, description, part_number, manufacturer, supplier, unit_cost, reorder_level, min_stock_threshold, barcode_data, image_path, is_favorite, tags, created_at, updated_at, footprint FROM parts WHERE barcode_data = ? LIMIT 1
+`
+
+func (q *Queries) GetPartByBarcode(ctx context.Context, barcodeData sql.NullString) (Part, error) {
+	row := q.queryRow(ctx, q.getPartByBarcodeStmt, getPartByBarcode, barcodeData)
+	var i Part
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.PartNumber,
+		&i.Manufacturer,
+		&i.Supplier,
+		&i.UnitCost,
+		&i.ReorderLevel,
+		&i.MinStockThreshold,
+		&i.BarcodeData,
+		&i.ImagePath,
+		&i.IsFavorite,
+		&i.Tags,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Footprint,
+	)
+	return i, err
+}
+
 const getPartDoc = `-- name: GetPartDoc :one
 SELECT id, part_id, file_path, file_name FROM part_docs WHERE id = ?
 `

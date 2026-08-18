@@ -14,6 +14,14 @@ templ Hardware(user auth.User, controllers []db.Controller) {
 		@components.PageHeader(i18n.T(ctx, "Hardware"), "", nil)
 		<div class="flex flex-col md:flex-row justify-end mb-6 gap-4">
 			if user.CanWrite() {
+				<a href="/hardware/labels" class="btn btn-outline gap-2">
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg>
+					{ i18n.T(ctx, "BinLabels") }
+				</a>
+				<button onclick="import_controller_modal.showModal()" class="btn btn-outline gap-2">
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+					{ i18n.T(ctx, "ImportConfig") }
+				</button>
 				<button onclick="add_controller_modal.showModal()" class="btn btn-primary gap-2">
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
 					{ i18n.T(ctx, "AddController") }
@@ -47,6 +55,10 @@ templ Hardware(user auth.User, controllers []db.Controller) {
 								<a href={ templ.SafeURL(fmt.Sprintf("/hardware/%d/grid", c.ID)) } class="btn btn-sm btn-ghost gap-2">
 									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
 									{ i18n.T(ctx, "Configure") }
+								</a>
+								<a href={ templ.SafeURL(fmt.Sprintf("/hardware/%d/export", c.ID)) } class="btn btn-sm btn-ghost gap-2" title={ i18n.T(ctx, "ExportConfig") }>
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0L8 8m4-4v12"></path></svg>
+									{ i18n.T(ctx, "Export") }
 								</a>
 								<form action={ templ.SafeURL(fmt.Sprintf("/hardware/%d/delete", c.ID)) } method="POST" { templ.Attributes{"onsubmit": fmt.Sprintf("return confirm('%s');", i18n.T(ctx, "ConfirmDeleteController"))}... }>
 									<button class="btn btn-sm btn-ghost text-error">
@@ -86,6 +98,35 @@ templ Hardware(user auth.User, controllers []db.Controller) {
 				<div class="modal-action">
 					<button type="button" class="btn" onclick="add_controller_modal.close()">{ i18n.T(ctx, "Cancel") }</button>
 					<button class="btn btn-primary">{ i18n.T(ctx, "AddController") }</button>
+				</div>
+			</form>
+		}
+		@components.Modal(components.ModalProps{
+			ID:    "import_controller_modal",
+			Title: i18n.T(ctx, "ImportConfig"),
+		}) {
+			<p class="text-sm opacity-70 mb-4">{ i18n.T(ctx, "ImportConfigHelp") }</p>
+			<form action="/hardware/import" method="POST" enctype="multipart/form-data" class="space-y-4">
+				<div class="form-control">
+					<label class="label"><span class="label-text">{ i18n.T(ctx, "ConfigFile") }</span></label>
+					<input type="file" name="config_file" accept=".json,application/json" class="file-input file-input-bordered w-full" required/>
+				</div>
+				<div class="divider text-xs opacity-50">{ i18n.T(ctx, "OptionalOverrides") }</div>
+				<div class="form-control">
+					<label class="label"><span class="label-text">{ i18n.T(ctx, "Name") }</span></label>
+					<input type="text" name="name" placeholder={ i18n.T(ctx, "LeaveBlankToUseFile") } class="input input-bordered w-full"/>
+				</div>
+				<div class="form-control">
+					<label class="label"><span class="label-text">{ i18n.T(ctx, "IPAddress") }</span></label>
+					<input type="text" name="ip_address" placeholder={ i18n.T(ctx, "LeaveBlankToUseFile") } class="input input-bordered w-full font-mono"/>
+				</div>
+				<div class="form-control">
+					<label class="label"><span class="label-text">{ i18n.T(ctx, "Port") }</span></label>
+					<input type="number" name="port" placeholder={ i18n.T(ctx, "LeaveBlankToUseFile") } class="input input-bordered w-full font-mono"/>
+				</div>
+				<div class="modal-action">
+					<button type="button" class="btn" onclick="import_controller_modal.close()">{ i18n.T(ctx, "Cancel") }</button>
+					<button class="btn btn-primary">{ i18n.T(ctx, "ImportConfig") }</button>
 				</div>
 			</form>
 		}

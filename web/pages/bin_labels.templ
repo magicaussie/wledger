@@ -1,0 +1,72 @@
+package pages
+
+import (
+	"fmt"
+
+	"github.com/tuxedocurly/wledger/internal/auth"
+	"github.com/tuxedocurly/wledger/internal/i18n"
+	"github.com/tuxedocurly/wledger/web/layouts"
+)
+
+type BinLabel struct {
+	ID   int64
+	Name string
+}
+
+type BinLabelContainer struct {
+	Name      string
+	SegmentID int64
+	Bins      []BinLabel
+}
+
+type BinLabelController struct {
+	Name       string
+	Containers []BinLabelContainer
+}
+
+// BinLabels renders a print-friendly sheet of QR labels for every bin. Each
+// label is a bordered card with the bin's QR code and name. Printing labels the
+// physical drawers so a scanner can later identify them.
+templ BinLabels(user auth.User, controllers []BinLabelController) {
+	@layouts.Base(i18n.T(ctx, "BinLabels"), user) {
+		<div class="max-w-6xl mx-auto">
+			<div class="flex items-center justify-between mb-6 not-print">
+				<div>
+					<h1 class="text-2xl font-bold">{ i18n.T(ctx, "BinLabels") }</h1>
+					<p class="text-sm opacity-60">{ i18n.T(ctx, "BinLabelsHelp") }</p>
+				</div>
+				<a href="/hardware" class="btn btn-ghost">{ i18n.T(ctx, "Back") }</a>
+			</div>
+			for _, c := range controllers {
+				<div class="mb-8">
+					<h2 class="font-bold uppercase tracking-wider text-sm mb-2 opacity-60 break-after-avoid">{ c.Name }</h2>
+					for _, container := range c.Containers {
+						<div class="mb-4">
+							<h3 class="text-xs opacity-50 uppercase tracking-widest mb-2">{ container.Name } • { i18n.T(ctx, "Segment") } { fmt.Sprintf("%d", container.SegmentID) }</h3>
+							<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 print:grid-cols-5 print:gap-2">
+								for _, bin := range container.Bins {
+									<div class="border border-base-300 rounded-lg p-2 bg-white text-black flex flex-col items-center gap-1 break-inside-avoid">
+										<img
+											src={ templ.SafeURL(fmt.Sprintf("/bin/%d/qr", bin.ID)) }
+											alt={ fmt.Sprintf("QR for %s", bin.Name) }
+											class="w-20 h-20 object-contain"
+										/>
+										<span class="font-bold text-center text-sm leading-tight">{ bin.Name }</span>
+									</div>
+								}
+								if len(container.Bins) == 0 {
+									<span class="text-xs opacity-50">{ i18n.T(ctx, "NoBins") }</span>
+								}
+							</div>
+						</div>
+					}
+				</div>
+			}
+			<div class="not-print flex justify-end sticky bottom-4 mt-8">
+				<button onclick="window.print()" class="btn btn-primary">
+					{ i18n.T(ctx, "PrintLabels") }
+				</button>
+			</div>
+		</div>
+	}
+}

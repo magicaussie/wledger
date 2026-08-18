@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"database/sql"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -52,6 +54,53 @@ func (h *Handler) HandlePartsList(w http.ResponseWriter, r *http.Request) {
 		// If full page load or search replacement, return the full wrapper
 		pages.PartsList(user, viewParts, search, page, binID).Render(r.Context(), w)
 	}
+}
+
+// binScanPrefix and partScanPrefix identify scannable codes produced by
+// WLEDger's printed QR labels so the scan router can route them precisely.
+const (
+	binScanPrefix  = "wledger:bin:"
+	partScanPrefix = "wledger:part:"
+)
+
+// BinScanCode returns the code encoded into a bin QR label.
+func BinScanCode(binID int64) string {
+	return fmt.Sprintf("%s%d", binScanPrefix, binID)
+}
+
+// GET /scan?q=<scanned> — resolves a scanned barcode/QR to a target page:
+//   - wledger:bin:<id>    -> /parts?bin=<id>       (show bin contents)
+//   - wledger:part:<code> -> exact part or search
+//   - plain barcode       -> exact part or search
+func (h *Handler) HandleScan(w http.ResponseWriter, r *http.Request) {
+	code := strings.TrimSpace(r.URL.Query().Get("q"))
+	if code == "" {
+		http.Error(w, "No code provided", http.StatusBadRequest)
+		return
+	}
+
+	switch {
+	case strings.HasPrefix(code, binScanPrefix):
+		idStr := strings.TrimPrefix(code, binScanPrefix)
+		id, err := strconv.ParseInt(idStr, 10, 64)
+		if err != nil {
+			http.Error(w, "Invalid bin code", http.StatusBadRequest)
+			return
+		}
+		http.Redirect(w, r, fmt.Sprintf("/parts?bin=%d", id), http.StatusSeeOther)
+		return
+	case strings.HasPrefix(code, partScanPrefix):
+		code = strings.TrimPrefix(code, partScanPrefix)
+	}
+
+	// Try an exact barcode match first.
+	if part, err := h.Queries.GetPartByBarcode(r.Context(), sql.NullString{String: code, Valid: code != ""}); err == nil {
+		http.Redirect(w, r, fmt.Sprintf("/parts/%d", part.ID), http.StatusSeeOther)
+		return
+	}
+
+	// Otherwise surface a search for the code.
+	http.Redirect(w, r, "/parts?q="+url.QueryEscape(code), http.StatusSeeOther)
 }
 
 // GET /parts/{id}

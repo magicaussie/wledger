@@ -907,5 +907,53 @@
   },
   "Confirm": {
     "other": "Confirmar"
+  },
+  "LedRange": {
+    "other": "LED Range"
+  },
+  "LedRangeHelp": {
+    "other": "Physical LED numbering is 1-based. The bin occupies every LED from Start to End inclusive."
+  },
+  "StartLed": {
+    "other": "Start LED"
+  },
+  "EndLed": {
+    "other": "End LED"
+  },
+  "Apply": {
+    "other": "Apply"
+  },
+  "ImportConfig": {
+    "other": "Import Config"
+  },
+  "ImportConfigHelp": {
+    "other": "Upload a hardware config JSON file to create a new controller with the same grid layout."
+  },
+  "ConfigFile": {
+    "other": "Config File"
+  },
+  "OptionalOverrides": {
+    "other": "Optional overrides"
+  },
+  "LeaveBlankToUseFile": {
+    "other": "Leave blank to use value from file"
+  },
+  "BinLabels": {
+    "other": "Bin Labels"
+  },
+  "BinLabelsHelp": {
+    "other": "Print and attach a QR label to each physical bin."
+  },
+  "PrintLabels": {
+    "other": "Print Labels"
+  },
+  "NoBins": {
+    "other": "No bins"
+  },
+  "Back": {
+    "other": "Back"
+  },
+  "ScanBarcode": {
+    "other": "Scan barcode"
   }
 }

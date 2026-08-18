@@ -1,7 +1,12 @@
 package components
 
 templ BinPickerGrid(ctrl DashboardController) {
-	<div x-data="{ selectedBinID: '' }" @bin-selected.stop="selectedBinID = $event.detail.id; $dispatch('bin-selected-form', {id: $event.detail.id})" class="space-y-8">
+	<div
+		x-data="{ selectedBinID: '' }"
+		@bin-selected.stop="selectedBinID = $event.detail.id; $dispatch('bin-selected-form', {id: $event.detail.id})"
+		class="space-y-8"
+		x-init="window.pickerReady()"
+	>
 		<input type="hidden" name="bin_id" :value="selectedBinID" required />
 		
 		if len(ctrl.Containers) == 0 {

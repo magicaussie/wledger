@@ -22,6 +22,8 @@ type Service interface {
 	GetBinsByController(ctx context.Context, id int64) ([]db.Bin, error)
 	GetContainers(ctx context.Context, controllerID int64) ([]db.Container, error)
 	SaveGrid(ctx context.Context, controllerID int64, gridDataJSON string, configJSON string) (int64, error)
+	ExportConfig(ctx context.Context, controllerID int64) ([]byte, error)
+	ImportConfig(ctx context.Context, name, ip string, port int64, data []byte) (int64, error)
 }
 
 type service struct {
@@ -166,7 +168,17 @@ type binInJSON struct {
 	X              int    `json:"x"`
 	Y              int    `json:"y"`
 	LedIndex       int    `json:"led_index"`
+	Width          int    `json:"width"`
 	Name           string `json:"name"`
+}
+
+// clampWidth ensures a bin's LED width is at least 1 (backward compatible
+// with bins that historically had no width or width < 1).
+func clampWidth(w int) int {
+	if w < 1 {
+		return 1
+	}
+	return w
 }
 
 func (s *service) SaveGrid(ctx context.Context, controllerID int64, gridDataJSON string, configJSON string) (int64, error) {
@@ -281,7 +293,7 @@ func (s *service) SaveGrid(ctx context.Context, controllerID int64, gridDataJSON
 						ID:       existing.ID,
 						Name:     b.Name,
 						LedIndex: sql.NullInt64{Int64: int64(b.LedIndex), Valid: true},
-						Width:    sql.NullInt64{Int64: 1, Valid: true},
+						Width:    sql.NullInt64{Int64: int64(clampWidth(b.Width)), Valid: true},
 						GridX:    sql.NullInt64{Int64: int64(b.X), Valid: true},
 						GridY:    sql.NullInt64{Int64: int64(b.Y), Valid: true},
 					})
@@ -295,7 +307,7 @@ func (s *service) SaveGrid(ctx context.Context, controllerID int64, gridDataJSON
 						Name:        b.Name,
 						ContainerID: dbID,
 						LedIndex:    sql.NullInt64{Int64: int64(b.LedIndex), Valid: true},
-						Width:       sql.NullInt64{Int64: 1, Valid: true},
+						Width:       sql.NullInt64{Int64: int64(clampWidth(b.Width)), Valid: true},
 						GridX:       sql.NullInt64{Int64: int64(b.X), Valid: true},
 						GridY:       sql.NullInt64{Int64: int64(b.Y), Valid: true},
 					})
@@ -304,8 +316,8 @@ func (s *service) SaveGrid(ctx context.Context, controllerID int64, gridDataJSON
 					}
 				}
 
-				if int64(b.LedIndex) >= totalLedCount {
-					totalLedCount = int64(b.LedIndex) + 1
+				if int64(b.LedIndex)+int64(clampWidth(b.Width)) > totalLedCount {
+					totalLedCount = int64(b.LedIndex) + int64(clampWidth(b.Width))
 				}
 			}
 

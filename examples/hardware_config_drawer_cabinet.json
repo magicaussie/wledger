@@ -1,0 +1,47 @@
+{
+  "version": "1.0",
+  "exported_at": "2026-08-17T07:30:00.000Z",
+  "controller": {
+    "name": "Drawer Cabinet",
+    "ip_address": "192.168.1.60",
+    "port": 80
+  },
+  "containers": [
+    {
+      "name": "String 1 (top -> rows 1-2)",
+      "segment_id": 0,
+      "position_index": 0,
+      "config": {
+        "type": "linear",
+        "rows": 0,
+        "cols": 0,
+        "total": 200,
+        "sections": null
+      }
+    },
+    {
+      "name": "String 2 (bottom rows 3-4)",
+      "segment_id": 1,
+      "position_index": 1,
+      "config": {
+        "type": "linear",
+        "rows": 0,
+        "cols": 0,
+        "total": 180,
+        "sections": null
+      }
+    }
+  ],
+  "bins": [
+    { "container_index": 0, "x": 0, "y": 0, "led_index": 0, "width": 3,  "name": "R1-D1 (3 LEDs)" },
+    { "container_index": 0, "x": 1, "y": 0, "led_index": 3, "width": 5,  "name": "R1-D2 (5 LEDs)" },
+    { "container_index": 0, "x": 2, "y": 0, "led_index": 8, "width": 2,  "name": "R1-D3 (2 LEDs)" },
+    { "container_index": 0, "x": 3, "y": 1, "led_index": 10, "width": 4,  "name": "R2-D1 (4 LEDs)" },
+    { "container_index": 0, "x": 4, "y": 1, "led_index": 14, "width": 7,  "name": "R2-D2 (7 LEDs)" },
+    { "container_index": 1, "x": 0, "y": 2, "led_index": 0, "width": 6,  "name": "R3-D1 (6 LEDs)" },
+    { "container_index": 1, "x": 1, "y": 2, "led_index": 6, "width": 3,  "name": "R3-D2 (3 LEDs)" },
+    { "container_index": 1, "x": 2, "y": 3, "led_index": 9, "width": 8,  "name": "R4-D1 (8 LEDs)" },
+    { "container_index": 1, "x": 3, "y": 3, "led_index": 17, "width": 5,  "name": "R4-D2 (5 LEDs)" },
+    { "container_index": 1, "x": 4, "y": 3, "led_index": 22, "width": 2,  "name": "R4-D3 (2 LEDs)" }
+  ]
+}

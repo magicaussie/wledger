@@ -66,5 +66,8 @@ function onGlobalScanSuccess(decodedText, decodedResult) {
             input.dispatchEvent(new Event('change'));
         }
     }
+    // Also broadcast through the unified scan event so page-level handlers
+    // (search, bin selection, etc.) react the same way as keyboard-wedge input.
+    document.dispatchEvent(new CustomEvent('fastscan', { detail: { code: decodedText } }));
     stopGlobalScanner();
 }

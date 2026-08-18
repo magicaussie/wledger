@@ -56,6 +56,9 @@ LIMIT sqlc.arg('limit') OFFSET sqlc.arg('offset');
 -- name: GetAllParts :many
 SELECT * FROM parts ORDER BY id;
 
+-- name: GetPartByBarcode :one
+SELECT * FROM parts WHERE barcode_data = ? LIMIT 1;
+
 -- name: GetAllPartLinks :many
 SELECT * FROM part_links ORDER BY id;
 

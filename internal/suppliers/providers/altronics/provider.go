@@ -5,6 +5,7 @@ package altronics
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -138,6 +139,9 @@ func (p *Provider) GetDetails(ctx context.Context, providerID string) (*supplier
 			ProviderID:  strings.ToUpper(providerID),
 			Name:        strings.TrimSpace(doc.Find("div.product-name h1").First().Text()),
 			Category:    categoryFromBreadcrumb(doc),
+			Description: productDescription(doc),
+			Manufacturer: manufacturer(doc),
+			MPN:         mpn(doc),
 			ProviderURL: baseURL + routingURL,
 		},
 		Notes: description(doc),
@@ -267,6 +271,75 @@ func description(doc *goquery.Document) string {
 		text = strings.TrimSpace(text[:idx])
 	}
 	return text
+}
+
+// productDescription extracts a useful description from the product page.
+// The visible "full-description" block can be hidden until a tab is opened, so
+// fall back to the JSON-LD description or the meta description.
+func productDescription(doc *goquery.Document) string {
+	if d := description(doc); d != "" {
+		return d
+	}
+
+	// JSON-LD Product block.
+	var ld struct {
+		Description string `json:"description"`
+	}
+	doc.Find(`script[type="application/ld+json"]`).Each(func(_ int, s *goquery.Selection) {
+		if ld.Description != "" {
+			return
+		}
+		var data struct {
+			Description string `json:"description"`
+		}
+		if json.Unmarshal([]byte(strings.TrimSpace(s.Text())), &data) == nil && data.Description != "" {
+			ld.Description = data.Description
+		}
+	})
+	if ld.Description != "" {
+		return strings.TrimSpace(ld.Description)
+	}
+
+	if m, ok := doc.Find(`meta[name="description"]`).Attr("content"); ok {
+		return strings.TrimSpace(m)
+	}
+	return ""
+}
+
+// manufacturer extracts the product brand from the JSON-LD block. Altronics
+// pages rarely expose an explicit brand element; when present, brand may be an
+// object {"name": ...} or an empty array [].
+func manufacturer(doc *goquery.Document) string {
+	var brand string
+	doc.Find(`script[type="application/ld+json"]`).Each(func(_ int, s *goquery.Selection) {
+		if brand != "" {
+			return
+		}
+		var data struct {
+			Brand json.RawMessage `json:"brand"`
+		}
+		if json.Unmarshal([]byte(strings.TrimSpace(s.Text())), &data) != nil {
+			return
+		}
+		if len(data.Brand) == 0 || string(data.Brand) == "[]" || string(data.Brand) == "null" {
+			return
+		}
+		var obj struct {
+			Name string `json:"name"`
+		}
+		if json.Unmarshal(data.Brand, &obj) == nil && obj.Name != "" {
+			brand = obj.Name
+		}
+	})
+	return brand
+}
+
+// mpn extracts a manufacturer part number. Altronics pages expose the SKU and
+// optionally a real manufacturer part number; use the SKU as a fallback.
+func mpn(doc *goquery.Document) string {
+	sku := strings.TrimSpace(doc.Find("div.sku").First().Text())
+	sku = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(sku), "SKU:"))
+	return sku
 }
 
 func imageURL(s *goquery.Selection) string {

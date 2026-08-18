@@ -1,12 +1,19 @@
 package handler
 
 import (
+	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
+	"net/url"
+	"os/exec"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/tuxedocurly/wledger/internal/auth"
@@ -40,7 +47,10 @@ func (h *Handler) HandleSupplierSearchAPI(w http.ResponseWriter, r *http.Request
 	}
 
 	results, diagnostics, _ := h.Suppliers.Search(r.Context(), keyword, providerKeys)
-	h.Logger.Info("Search returned", "results_count", len(results), "failures", len(diagnostics))
+	h.Logger.Info("supplier_search", "keyword", keyword, "results_count", len(results), "failures", len(diagnostics))
+	for _, d := range diagnostics {
+		h.Logger.Warn("supplier_search_failure", "provider", d.ProviderKey, "provider_name", d.ProviderName, "keyword", keyword, "error", d.Error)
+	}
 	pages.SupplierResults(user, results, diagnostics, "").Render(r.Context(), w)
 }
 
@@ -133,6 +143,139 @@ func (h *Handler) HandleSupplierURLParse(w http.ResponseWriter, r *http.Request)
 	}
 
 	http.Redirect(w, r, "/suppliers/"+result.ProviderKey+"/"+result.ProviderID, http.StatusSeeOther)
+}
+
+// GET /suppliers/image?url=<encoded>&provider=<key>
+func (h *Handler) HandleSupplierImageProxy(w http.ResponseWriter, r *http.Request) {
+	imageURL := r.URL.Query().Get("url")
+
+	if imageURL == "" {
+		http.Error(w, "Missing url parameter", http.StatusBadRequest)
+		return
+	}
+
+	// Validate URL
+	parsedURL, err := url.Parse(imageURL)
+	if err != nil || parsedURL.Scheme != "https" {
+		http.Error(w, "Invalid URL", http.StatusBadRequest)
+		return
+	}
+
+	// Only allow known supplier domains for security
+	allowedDomains := map[string]bool{
+		"spotlightstores.com":                             true,
+		"www.spotlightstores.com":                         true,
+		"officeworks.com.au":                              true,
+		"www.officeworks.com.au":                          true,
+		"images-officeworks-com-australia.netdna-ssl.com": true,
+		"s3-ap-southeast-2.amazonaws.com":                 true,
+		"amazon.com.au":                                   true,
+		"www.amazon.com.au":                               true,
+		"bunnings.com.au":                                 true,
+		"www.bunnings.com.au":                             true,
+		"altronics.com.au":                                true,
+		"www.altronics.com.au":                            true,
+		"core-electronics.com.au":                         true,
+		"www.core-electronics.com.au":                     true,
+		"littlebirdelectronics.com.au":                    true,
+		"www.littlebirdelectronics.com.au":                true,
+		"supercheapauto.com.au":                           true,
+		"www.supercheapauto.com.au":                       true,
+		"autobarn.com.au":                                 true,
+		"www.autobarn.com.au":                             true,
+		"medias.autobarn.com.au":                          true,
+		"media.rs-online.com":                             true,
+		"docs.rs-online.com":                              true,
+	}
+	if !allowedDomains[parsedURL.Host] {
+		http.Error(w, "Domain not allowed", http.StatusBadRequest)
+		return
+	}
+
+	// For Spotlight images (Waf-protected), use Selenium helper to fetch
+	if parsedURL.Host == "spotlightstores.com" || parsedURL.Host == "www.spotlightstores.com" {
+		imageURL := r.URL.Query().Get("url")
+		h.Logger.Debug("image proxy: fetching spotlight image via selenium", "url", imageURL)
+		cmd := exec.CommandContext(r.Context(), "python3", "/wledger/scripts/spotlight_helper.py", "image", imageURL)
+		cmd.Dir = "/wledger"
+		output, err := cmd.Output()
+		if err != nil {
+			h.Logger.Error("image proxy: helper failed", "error", err)
+			http.Error(w, "Failed to fetch image via helper", http.StatusBadGateway)
+			return
+		}
+		var result struct {
+			OK          bool   `json:"ok"`
+			Error       string `json:"error"`
+			ContentType string `json:"content_type"`
+			Base64      string `json:"base64"`
+		}
+		if err := json.Unmarshal(output, &result); err != nil || !result.OK {
+			h.Logger.Error("image proxy: failed to parse image data", "output", string(output[:minInt(len(output), 500)]))
+			http.Error(w, "Failed to parse image data", http.StatusBadGateway)
+			return
+		}
+		imgData, err := base64.StdEncoding.DecodeString(result.Base64)
+		if err != nil {
+			h.Logger.Error("image proxy: failed to decode base64", "error", err)
+			http.Error(w, "Failed to decode image", http.StatusInternalServerError)
+			return
+		}
+		h.Logger.Debug("image proxy: successfully fetched image", "content_type", result.ContentType, "size", len(imgData))
+		if result.ContentType == "" {
+			result.ContentType = "image/jpeg"
+		}
+		w.Header().Set("Content-Type", result.ContentType)
+		w.Header().Set("Cache-Control", "public, max-age=3600")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Write(imgData)
+		return
+	}
+
+	// For other providers, use direct HTTP fetch
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", imageURL, nil)
+	if err != nil {
+		http.Error(w, "Failed to create request", http.StatusInternalServerError)
+		return
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36")
+	req.Header.Set("Accept", "image/webp,image/apng,image/*,*/*;q=0.8")
+
+	client := &http.Client{Timeout: 25 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		http.Error(w, "Failed to fetch image", http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		http.Error(w, "Image not found", resp.StatusCode)
+		return
+	}
+
+	// Copy headers
+	contentType := resp.Header.Get("Content-Type")
+	if contentType != "" {
+		w.Header().Set("Content-Type", contentType)
+	} else {
+		w.Header().Set("Content-Type", "image/jpeg")
+	}
+	w.Header().Set("Cache-Control", "public, max-age=3600")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+
+	// Stream image to response
+	_, _ = io.Copy(w, io.LimitReader(resp.Body, 10*1024*1024)) // 10MB limit
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // GET /suppliers/credentials

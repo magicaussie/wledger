@@ -342,6 +342,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.getPartAssignmentsStmt, err = db.PrepareContext(ctx, getPartAssignments); err != nil {
 		return nil, fmt.Errorf("error preparing query GetPartAssignments: %w", err)
 	}
+	if q.getPartByBarcodeStmt, err = db.PrepareContext(ctx, getPartByBarcode); err != nil {
+		return nil, fmt.Errorf("error preparing query GetPartByBarcode: %w", err)
+	}
 	if q.getPartDocStmt, err = db.PrepareContext(ctx, getPartDoc); err != nil {
 		return nil, fmt.Errorf("error preparing query GetPartDoc: %w", err)
 	}
@@ -1108,6 +1111,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing getPartAssignmentsStmt: %w", cerr)
 		}
 	}
+	if q.getPartByBarcodeStmt != nil {
+		if cerr := q.getPartByBarcodeStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getPartByBarcodeStmt: %w", cerr)
+		}
+	}
 	if q.getPartDocStmt != nil {
 		if cerr := q.getPartDocStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getPartDocStmt: %w", cerr)
@@ -1638,6 +1646,7 @@ type Queries struct {
 	getLatestPriceSnapshotStmt           *sql.Stmt
 	getPartStmt                          *sql.Stmt
 	getPartAssignmentsStmt               *sql.Stmt
+	getPartByBarcodeStmt                 *sql.Stmt
 	getPartDocStmt                       *sql.Stmt
 	getPartDocsStmt                      *sql.Stmt
 	getPartLinksStmt                     *sql.Stmt
@@ -1827,6 +1836,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		getLatestPriceSnapshotStmt:           q.getLatestPriceSnapshotStmt,
 		getPartStmt:                          q.getPartStmt,
 		getPartAssignmentsStmt:               q.getPartAssignmentsStmt,
+		getPartByBarcodeStmt:                 q.getPartByBarcodeStmt,
 		getPartDocStmt:                       q.getPartDocStmt,
 		getPartDocsStmt:                      q.getPartDocsStmt,
 		getPartLinksStmt:                     q.getPartLinksStmt,

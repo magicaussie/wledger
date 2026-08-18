@@ -1,0 +1,92 @@
+{
+  "version": "1.0",
+  "exported_at": "2026-08-17T07:10:00.000Z",
+  "controller": {
+    "name": "Shelf LEDs",
+    "ip_address": "192.168.1.50",
+    "port": 80
+  },
+  "containers": [
+    {
+      "name": "Drawer 1 (Grid 8x8)",
+      "segment_id": 0,
+      "position_index": 0,
+      "config": {
+        "type": "grid",
+        "rows": 8,
+        "cols": 8,
+        "total": 64,
+        "sections": null
+      }
+    },
+    {
+      "name": "Drawer 2 (Linear 16)",
+      "segment_id": 1,
+      "position_index": 1,
+      "config": {
+        "type": "linear",
+        "rows": 0,
+        "cols": 0,
+        "total": 16,
+        "sections": null
+      }
+    },
+    {
+      "name": "Drawer 3 (Compound)",
+      "segment_id": 2,
+      "position_index": 2,
+      "config": {
+        "type": "compound",
+        "rows": 0,
+        "cols": 0,
+        "total": 0,
+        "sections": [
+          { "rows": 4, "cols": 4 },
+          { "rows": 2, "cols": 8 }
+        ]
+      }
+    }
+  ],
+  "bins": [
+    {
+      "container_index": 0,
+      "x": 0,
+      "y": 0,
+      "led_index": 0,
+      "width": 1,
+      "name": "A1"
+    },
+    {
+      "container_index": 0,
+      "x": 7,
+      "y": 7,
+      "led_index": 63,
+      "width": 1,
+      "name": "H8"
+    },
+    {
+      "container_index": 1,
+      "x": 0,
+      "y": 0,
+      "led_index": 64,
+      "width": 1,
+      "name": "A1"
+    },
+    {
+      "container_index": 1,
+      "x": 3,
+      "y": 0,
+      "led_index": 67,
+      "width": 4,
+      "name": "Drawer 43 (4 LEDs, 68-71)"
+    },
+    {
+      "container_index": 2,
+      "x": 0,
+      "y": 0,
+      "led_index": 80,
+      "width": 15,
+      "name": "Wide Drawer (15 LEDs, 81-95)"
+    }
+  ]
+}

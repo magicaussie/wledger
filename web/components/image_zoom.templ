@@ -1,0 +1,30 @@
+package components
+
+import "fmt"
+
+// ImageZoomModal renders a dialog that displays an image at full size so it can
+// be inspected (e.g. product images that are cropped in card/list previews).
+// The id must be unique per image; open it with window.openImage('<id>').
+templ ImageZoomModal(id int64, name, imagePath string) {
+	<dialog id={ fmt.Sprintf("part-img-%d", id) } class="modal">
+		<div class="modal-box bg-base-100 w-full max-w-4xl p-2 relative border-0 shadow-none">
+			<form method="dialog" class="sticky top-2 right-2 flex justify-end z-10">
+				<button class="btn btn-sm btn-circle btn-ghost">✕</button>
+			</form>
+			<figure class="flex items-center justify-center bg-base-300/50 rounded-xl min-h-[60vh] w-full">
+				<img
+					src={ imagePath }
+					alt={ name }
+					class="object-contain max-h-[80vh] w-auto rounded-lg"
+					loading="lazy"
+				/>
+			</figure>
+			<div class="flex items-center justify-between px-4 py-3">
+				<h3 class="font-bold text-sm truncate">{ name }</h3>
+			</div>
+		</div>
+		<form method="dialog" class="modal-backdrop bg-neutral/40">
+			<button>close</button>
+		</form>
+	</dialog>
+}
