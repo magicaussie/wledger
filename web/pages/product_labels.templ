@@ -1,0 +1,55 @@
+package pages
+
+import (
+	"fmt"
+
+	"github.com/tuxedocurly/wledger/internal/auth"
+	"github.com/tuxedocurly/wledger/internal/i18n"
+	"github.com/tuxedocurly/wledger/web/layouts"
+)
+
+type ProductLabel struct {
+	ID      int64
+	Name    string
+	Barcode string
+}
+
+// ProductLabels renders a print-friendly sheet of QR labels for every part
+// that has a barcode (product scanning relies on the barcode). Enabling a
+// scanner to find a physical item by scanning its shelf label.
+templ ProductLabels(user auth.User, parts []ProductLabel) {
+	@layouts.Base(i18n.T(ctx, "ProductLabels"), user) {
+		<div class="max-w-6xl mx-auto">
+			<div class="flex items-center justify-between mb-6 not-print">
+				<div>
+					<h1 class="text-2xl font-bold">{ i18n.T(ctx, "ProductLabels") }</h1>
+					<p class="text-sm opacity-60">{ i18n.T(ctx, "ProductLabelsHelp") }</p>
+				</div>
+				<div class="flex gap-2">
+					<a href="/parts" class="btn btn-ghost">{ i18n.T(ctx, "Back") }</a>
+					<button onclick="window.print()" class="btn btn-primary">{ i18n.T(ctx, "PrintLabels") }</button>
+				</div>
+			</div>
+			<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 print:grid-cols-5 print:gap-2">
+				for _, p := range parts {
+					<div class="border border-base-300 rounded-lg p-2 bg-white text-black flex flex-col items-center gap-1 break-inside-avoid">
+						<img
+							src={ templ.SafeURL(fmt.Sprintf("/parts/%d/qr?s=16", p.ID)) }
+							alt={ fmt.Sprintf("QR for %s", p.Name) }
+							class="w-24 h-24 object-contain"
+						/>
+						<span class="font-bold text-center text-[10px] leading-tight line-clamp-2">{ p.Name }</span>
+						if p.Barcode != "" {
+							<span class="text-[8px] font-mono text-center opacity-70">{ p.Barcode }</span>
+						}
+					</div>
+				}
+				if len(parts) == 0 {
+					<div class="col-span-full text-center opacity-60 py-12">
+						{ i18n.T(ctx, "NoPartBarcodes") }
+					</div>
+				}
+			</div>
+		</div>
+	}
+}

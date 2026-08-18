@@ -63,7 +63,10 @@ function onGlobalScanSuccess(decodedText, decodedResult) {
         const input = document.getElementById(activeTargetInputId);
         if (input) {
             input.value = decodedText;
-            input.dispatchEvent(new Event('change'));
+            // Dispatch both 'input' and 'change' so HTMX (which listens for
+            // 'input'/'search') and plain form listeners both react.
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
         }
     }
     // Also broadcast through the unified scan event so page-level handlers

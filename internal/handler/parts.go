@@ -115,8 +115,35 @@ func qrScaleFromQuery(r *http.Request) int {
 	return 12
 }
 
-// GET /scan?q=<scanned> — resolves a scanned barcode/QR to a target page:
-//   - wledger:bin:<id>    -> /parts?bin=<id>       (show bin contents)
+// GET /parts/labels — renders a printable sheet of QR labels for every part
+// that has a barcode. Attach the labels to the physical items / shelf so a
+// scanner can find the matching part record.
+func (h *Handler) HandleProductLabels(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUserFromRequest(r)
+
+	all, err := h.Queries.GetAllParts(r.Context())
+	if err != nil {
+		h.UIError.Respond(w, r, err, "Failed to fetch parts", http.StatusInternalServerError)
+		return
+	}
+
+	var parts []pages.ProductLabel
+	for _, p := range all {
+		barcode := strings.TrimSpace(p.BarcodeData.String)
+		if barcode == "" {
+			continue
+		}
+		parts = append(parts, pages.ProductLabel{
+			ID:      p.ID,
+			Name:    p.Name,
+			Barcode: barcode,
+		})
+	}
+
+	pages.ProductLabels(user, parts).Render(r.Context(), w)
+}
+
+// GET /scan?q=<scanned> — resolves a scanned barcode/QR to a target page://   - wledger:bin:<id>    -> /parts?bin=<id>       (show bin contents)
 //   - wledger:part:<code> -> exact part or search
 //   - plain barcode       -> exact part or search
 func (h *Handler) HandleScan(w http.ResponseWriter, r *http.Request) {

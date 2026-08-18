@@ -985,5 +985,17 @@
   },
   "DymoLabelSize": {
     "other": "Label Size (DYMO LabelWriter 550)"
+  },
+  "ProductLabels": {
+    "other": "Product Labels"
+  },
+  "ProductLabelsHelp": {
+    "other": "Print QR labels for every product with a barcode. Scanning a label opens that item."
+  },
+  "NoPartBarcodes": {
+    "other": "No parts with barcodes yet. Add barcodes to parts (or import them) then print labels."
+  },
+  "Labels": {
+    "other": "Labels"
   }
 }
