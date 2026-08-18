@@ -13,6 +13,7 @@ import (
 	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/parts"
+	"github.com/tuxedocurly/wledger/internal/qrcode"
 	"github.com/tuxedocurly/wledger/internal/stock"
 	"github.com/tuxedocurly/wledger/web/components"
 	"github.com/tuxedocurly/wledger/web/pages"
@@ -66,6 +67,42 @@ const (
 // BinScanCode returns the code encoded into a bin QR label.
 func BinScanCode(binID int64) string {
 	return fmt.Sprintf("%s%d", binScanPrefix, binID)
+}
+
+// PartScanCode returns the code encoded into a product QR label. When a
+// barcode is present the QR encodes wledger:part:<barcode>, so scanning it
+// resolves to this exact part; otherwise it falls back to the internal id.
+func PartScanCode(part db.Part) string {
+	if b := strings.TrimSpace(part.BarcodeData.String); b != "" {
+		return partScanPrefix + b
+	}
+	return partScanPrefix + fmt.Sprintf("%d", part.ID)
+}
+
+// GET /parts/{id}/qr — returns a QR PNG label for a product. Scanning the QR
+// opens the exact part page (or search when no barcode is present).
+func (h *Handler) HandlePartQR(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil || id <= 0 {
+		http.Error(w, "Invalid part id", http.StatusBadRequest)
+		return
+	}
+
+	part, err := h.Queries.GetPart(r.Context(), id)
+	if err != nil {
+		http.Error(w, "Part not found", http.StatusNotFound)
+		return
+	}
+
+	png, err := qrcode.PNG(PartScanCode(part), 0)
+	if err != nil {
+		h.UIError.Respond(w, r, err, "Failed to generate QR", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Cache-Control", "public, max-age=3600")
+	w.Write(png)
 }
 
 // GET /scan?q=<scanned> — resolves a scanned barcode/QR to a target page:

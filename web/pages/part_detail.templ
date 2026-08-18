@@ -22,18 +22,22 @@ templ PartDetail(user auth.User, part db.Part, stock []db.GetPartAssignmentsRow,
 					{Label: part.Name},
 				},
 			) {
-				if user.CanWrite() {
-					<a href={ templ.SafeURL(fmt.Sprintf("/parts/%d/edit", part.ID)) } class="btn btn-outline gap-2">
-						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
-						{ i18n.T(ctx, "EditPart") }
-					</a>
-					@components.DeleteButton(components.DeleteButtonProps{
-						ID:          fmt.Sprintf("%d", part.ID),
-						TargetURL:   fmt.Sprintf("/parts/%d/delete", part.ID),
-						Message:     i18n.T(ctx, "ConfirmDeletePart"),
-						ButtonLabel: i18n.T(ctx, "Delete"),
-					})
-				}
+if user.CanWrite() {
+				<button onclick="part_qr_modal.showModal()" class="btn btn-outline gap-2">
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg>
+					{ i18n.T(ctx, "QRCode") }
+				</button>
+				<a href={ templ.SafeURL(fmt.Sprintf("/parts/%d/edit", part.ID)) } class="btn btn-outline gap-2">
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+					{ i18n.T(ctx, "EditPart") }
+				</a>
+				@components.DeleteButton(components.DeleteButtonProps{
+					ID:          fmt.Sprintf("%d", part.ID),
+					TargetURL:   fmt.Sprintf("/parts/%d/delete", part.ID),
+					Message:     i18n.T(ctx, "ConfirmDeletePart"),
+					ButtonLabel: i18n.T(ctx, "Delete"),
+				})
+			}
 			}
 			<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
 				<div class="space-y-6">
@@ -280,6 +284,26 @@ templ PartDetail(user auth.User, part db.Part, stock []db.GetPartAssignmentsRow,
 						</div>
 					</form>
 				}
+			}
+			// QR label modal (printable)
+			@components.Modal(components.ModalProps{
+				ID:    "part_qr_modal",
+				Title: i18n.T(ctx, "QRCode"),
+			}) {
+				<div class="flex flex-col items-center gap-3">
+					<div class="bg-white p-4 rounded-lg border border-base-300 flex flex-col items-center gap-2">
+						<img src={ templ.SafeURL(fmt.Sprintf("/parts/%d/qr", part.ID)) } alt="QR code" class="w-48 h-48 object-contain"/>
+						<span class="font-bold text-sm text-black">{ part.Name }</span>
+						if part.BarcodeData.Valid && part.BarcodeData.String != "" {
+							<span class="text-xs font-mono opacity-60">{ part.BarcodeData.String }</span>
+						}
+					</div>
+					<p class="text-xs opacity-60">{ i18n.T(ctx, "QRCodeHelp") }</p>
+					<div class="modal-action w-full justify-center">
+						<button onclick="window.print()" class="btn btn-primary">{ i18n.T(ctx, "PrintLabels") }</button>
+						<form method="dialog"><button class="btn">{ i18n.T(ctx, "Close") }</button></form>
+					</div>
+				</div>
 			}
 		</div>
 	}

@@ -57,6 +57,7 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 		// Parts (Read)
 		r.Get("/parts", h.HandlePartsList)
 		r.Get("/parts/{id}", h.HandlePartDetail)
+		r.Get("/parts/{id}/qr", h.HandlePartQR)
 		r.Get("/parts/bins_options", h.HandleBinOptions)
 		r.Get("/parts/bin_picker", h.HandleBinPicker)
 

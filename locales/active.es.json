@@ -973,5 +973,14 @@
   },
   "ScanBarcode": {
     "other": "Scan barcode"
+  },
+  "QRCode": {
+    "other": "QR Code"
+  },
+  "QRCodeHelp": {
+    "other": "Attach this label to the part's storage location. Scanning it opens the part's page."
+  },
+  "Close": {
+    "other": "Close"
   }
 }
