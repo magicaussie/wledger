@@ -43,12 +43,15 @@ FROM alpine:latest
 WORKDIR /wledger
 
 # Install runtime dependencies (Python + Chromium needed by the amazon and spotlight
-# supplier providers, which shell out to scripts/*_helper.py using Selenium)
+# supplier providers, which shell out to scripts/*_helper.py using Selenium;
+# Node is needed by the aliexpress helper which uses Puppeteer against Chromium)
 RUN apk add --no-cache \
     ca-certificates \
     tzdata \
     python3 \
     py3-pip \
+    nodejs \
+    npm \
     chromium \
     chromium-chromedriver
 
@@ -60,6 +63,12 @@ COPY --from=go-builder /build/wledger .
 # Copy supplier helper scripts
 COPY --from=go-builder /build/scripts/amazon_helper.py ./scripts/amazon_helper.py
 COPY --from=go-builder /build/scripts/spotlight_helper.py ./scripts/spotlight_helper.py
+COPY --from=go-builder /build/scripts/aliexpress/aliexpress_helper.mjs ./scripts/aliexpress/aliexpress_helper.mjs
+COPY --from=go-builder /build/scripts/aliexpress/package.json ./scripts/aliexpress/package.json
+
+# Install AliExpress helper npm dependencies (Puppeteer uses system Chromium,
+# so puppeteer-core does not download a bundled browser)
+RUN cd /wledger/scripts/aliexpress && npm install --no-audit --no-fund
 
 # Create symlink for chromedriver so Selenium can find it
 RUN mkdir -p /root/.cache/selenium/chromedriver/linux64/152.0.7977.42 && \

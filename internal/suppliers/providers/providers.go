@@ -5,6 +5,7 @@ package providers
 import (
 	_ "github.com/tuxedocurly/wledger/internal/suppliers/providers/altronics"
 	_ "github.com/tuxedocurly/wledger/internal/suppliers/providers/amazon"
+	_ "github.com/tuxedocurly/wledger/internal/suppliers/providers/aliexpress"
 	_ "github.com/tuxedocurly/wledger/internal/suppliers/providers/arrow"
 	_ "github.com/tuxedocurly/wledger/internal/suppliers/providers/autobarn"
 	_ "github.com/tuxedocurly/wledger/internal/suppliers/providers/avnet"

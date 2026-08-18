@@ -184,8 +184,12 @@ func (h *Handler) HandleSupplierImageProxy(w http.ResponseWriter, r *http.Reques
 		"autobarn.com.au":                                 true,
 		"www.autobarn.com.au":                             true,
 		"medias.autobarn.com.au":                          true,
-		"media.rs-online.com":                             true,
-		"docs.rs-online.com":                              true,
+"media.rs-online.com":              true,
+		"docs.rs-online.com":               true,
+		"ae-pic-a1.aliexpress-media.com":   true,
+		"ae01.alicdn.com":                  true,
+		"img.alicdn.com":                   true,
+		"ae.alicdn.com":                    true,
 	}
 	if !allowedDomains[parsedURL.Host] {
 		http.Error(w, "Domain not allowed", http.StatusBadRequest)
