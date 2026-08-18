@@ -964,5 +964,8 @@
   },
   "Close": {
     "other": "Close"
+  },
+  "DymoLabelSize": {
+    "other": "Label Size (DYMO LabelWriter 550)"
   }
 }

@@ -95,7 +95,7 @@ func (h *Handler) HandlePartQR(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	png, err := qrcode.PNG(PartScanCode(part), 0)
+	png, err := qrcode.PNG(PartScanCode(part), qrScaleFromQuery(r))
 	if err != nil {
 		h.UIError.Respond(w, r, err, "Failed to generate QR", http.StatusInternalServerError)
 		return
@@ -103,6 +103,16 @@ func (h *Handler) HandlePartQR(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "image/png")
 	w.Header().Set("Cache-Control", "public, max-age=3600")
 	w.Write(png)
+}
+
+// qrScaleFromQuery reads an optional ?s= scale parameter, defaulting to 12.
+func qrScaleFromQuery(r *http.Request) int {
+	if s := r.URL.Query().Get("s"); s != "" {
+		if v, err := strconv.Atoi(s); err == nil && v > 0 {
+			return v
+		}
+	}
+	return 12
 }
 
 // GET /scan?q=<scanned> — resolves a scanned barcode/QR to a target page:

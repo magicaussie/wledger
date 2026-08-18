@@ -252,7 +252,7 @@ func (h *Handler) HandleBinQR(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	png, err := qrcode.PNG("wledger:bin:"+idStr, 0)
+	png, err := qrcode.PNG("wledger:bin:"+idStr, qrScaleFromQuery(r))
 	if err != nil {
 		h.UIError.Respond(w, r, err, "Failed to generate QR", http.StatusInternalServerError)
 		return
