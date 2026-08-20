@@ -7,6 +7,10 @@ services:
       # Externally reachable base URL (used for OAuth callback URLs e.g. DigiKey).
       # Must be HTTPS and match the redirect URI registered in the provider app.
       - WLEDGER_PUBLIC_URL=https://storage.localdomain
+      # Machine-to-machine API token (Home Assistant + MCP). If set, /api/v1 is
+      # mounted and requires this bearer token. Generate one, e.g.
+      #   openssl rand -hex 32
+      - WLEDGER_API_TOKEN=${WLEDGER_API_TOKEN:-}
 
     ports:
       # Maps ports in the format "HOST:CONTAINER"
@@ -28,6 +32,25 @@ services:
       - ./logs:/wledger/app/logs
 
     # Restart policy
-    # "unless-stopped" means the container will automatically start up if the server reboots
-    # or if the app crashes, but NOT if you manually run 'docker-compose down'.
+    restart: unless-stopped
+
+  # MCP server exposing WLEDger actions to LLM agents (Home Assistant
+  # conversation agent, Open WebUI, Hermes, Claude Desktop, ...). Talks to the
+  # wledger /api/v1 API with the same token. Exposes streamable HTTP on :9100
+  # (set MCP_TRANSPORT=stdio only when a client launches the process itself,
+  # e.g. Claude Desktop runs it as a command).
+  mcp-server:
+    build: .
+    container_name: wledger-mcp
+    command: ["./mcp-server"]
+    environment:
+      # Point at the wledger service on the shared docker network.
+      - WLEDGER_API_URL=http://wledger:8080
+      - WLEDGER_API_TOKEN=${WLEDGER_API_TOKEN:-}
+      # streamable HTTP (default in this compose) keeps the process alive and
+      # exposes MCP over http://<host>:9100/mcp for Home Assistant / agents.
+      - MCP_TRANSPORT=${MCP_TRANSPORT:-http}
+      - MCP_HTTP_ADDR=:9100
+    ports:
+      - "9100:9100"
     restart: unless-stopped

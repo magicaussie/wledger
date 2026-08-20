@@ -37,6 +37,7 @@ RUN templ generate
 # Build binary
 # CGO_ENABLED=1 is required for go-sqlite3
 RUN CGO_ENABLED=1 go build -ldflags="-s -w" -tags fts5 -o wledger ./cmd/server
+RUN CGO_ENABLED=1 go build -ldflags="-s -w" -tags fts5 -o mcp-server ./cmd/mcp-server
 
 # Stage 3: Runtime
 FROM alpine:latest
@@ -59,6 +60,7 @@ RUN pip3 install --no-cache-dir --break-system-packages amzpy selenium lxml
 
 # Copy binary
 COPY --from=go-builder /build/wledger .
+COPY --from=go-builder /build/mcp-server .
 
 # Copy supplier helper scripts
 COPY --from=go-builder /build/scripts/amazon_helper.py ./scripts/amazon_helper.py

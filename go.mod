@@ -1,6 +1,6 @@
 module github.com/tuxedocurly/wledger
 
-go 1.25.4
+go 1.25.5
 
 require gopkg.in/natefinch/lumberjack.v2 v2.2.1
 
@@ -19,8 +19,13 @@ require (
 
 require (
 	github.com/andybalholm/cascadia v1.3.3 // indirect
+	github.com/google/jsonschema-go v0.4.2 // indirect
+	github.com/google/uuid v1.6.0 // indirect
 	github.com/mfridman/interpolate v0.0.2 // indirect
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 // indirect
 	github.com/sethvargo/go-retry v0.3.0 // indirect
+	github.com/spf13/cast v1.7.1 // indirect
+	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/net v0.52.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
@@ -28,5 +33,6 @@ require (
 
 require (
 	github.com/disintegration/imaging v1.6.2
+	github.com/mark3labs/mcp-go v0.58.0
 	golang.org/x/image v0.0.0-20191009234506-e7c1f5e7dbb8
 )

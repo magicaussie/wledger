@@ -6,6 +6,7 @@ import (
 	"github.com/alexedwards/scs/v2"
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
+	"github.com/tuxedocurly/wledger/internal/api"
 	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/internal/handler"
 	"github.com/tuxedocurly/wledger/internal/middleware"
@@ -43,6 +44,15 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 
 	// Public image proxy (needed for <img> tags on supplier pages)
 	r.Get("/suppliers/image", h.HandleSupplierImageProxy)
+
+	// -------------------------------------------------------------------------
+	// MACHINE-TO-MACHINE API (token-authenticated; mounted only when
+	// WLEDGER_API_TOKEN is set). Used by Home Assistant and the MCP server.
+	// -------------------------------------------------------------------------
+	if api.Enabled() {
+		apiHandler := api.NewHandler(h.Queries, h.WLED, h.Parts)
+		r.Mount("/api/v1", apiHandler.Routes())
+	}
 
 	// -------------------------------------------------------------------------
 	// READ-ONLY GROUP ROUTES (Protected by RequireReadAuth + RequirePasswordChange)
