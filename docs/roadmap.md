@@ -226,3 +226,14 @@ refresh-price path would let users update an existing part from a supplier URL.
       it.
 - [ ] Backup export has a TODO for the "zip uploads failed" error path
       (`internal/backup/service.go`) — surface a UI error/toast.
+- [ ] **Unresolved-backup recovery workflow.** A backup without a
+      `bin_index_space` marker is restored with `led_coordinate_space` set to
+      `unresolved` (see `internal/ledspace` and `resolveBinIndexSpace` in
+      `internal/backup/service.go`). In that state, bin-index LED operations
+      (locate/flash) are disabled and migration 005 is blocked, so the restored
+      bins are never silently reinterpreted — but there is currently **no
+      administrator workflow to resolve it**. Add an admin action to either
+      re-import a backup that carries the marker, or explicitly confirm the
+      coordinate system, then clear the flag. Until then, an unresolved restore
+      leaves drawer/bin locating unavailable (inventory and configuration
+      viewing remain available).

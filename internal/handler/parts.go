@@ -16,6 +16,7 @@ import (
 	"github.com/tuxedocurly/wledger/internal/parts"
 	"github.com/tuxedocurly/wledger/internal/qrcode"
 	"github.com/tuxedocurly/wledger/internal/stock"
+	"github.com/tuxedocurly/wledger/internal/wled"
 	"github.com/tuxedocurly/wledger/web/components"
 	"github.com/tuxedocurly/wledger/web/pages"
 )
@@ -585,6 +586,10 @@ func (h *Handler) HandlePartLocate(w http.ResponseWriter, r *http.Request) {
 
 	err := h.WLED.LocatePart(r.Context(), int64(id))
 	if err != nil {
+		if errors.Is(err, wled.ErrCoordinateSpaceUnresolved) {
+			h.UIError.Respond(w, r, err, "Locate unavailable: LED coordinate space is unresolved", http.StatusConflict)
+			return
+		}
 		h.UIError.Respond(w, r, err, "Locate failed", http.StatusInternalServerError)
 		return
 	}

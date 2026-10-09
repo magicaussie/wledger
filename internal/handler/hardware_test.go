@@ -149,6 +149,124 @@ func TestControllerDeleteCascadesToBins(t *testing.T) {
 	}
 }
 
+// setupHardwareHandler builds a Handler wired with a hardware service for grid
+// save tests.
+func setupHardwareHandler(t *testing.T) (*Handler, db.Store, *sql.DB) {
+	t.Helper()
+	dbConn := openTestDB(t)
+	setupTestSchema(t, dbConn)
+
+	s := db.NewStore(dbConn)
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	uiError := uierror.New(logger)
+	wClient := wled.NewClient()
+	hwService := hardware.NewService(s, wClient, logger)
+
+	h := &Handler{
+		Logger:   logger,
+		Queries:  s,
+		Database: dbConn,
+		UIError:  uiError,
+		Hardware: hwService,
+	}
+	return h, s, dbConn
+}
+
+// postGridSave submits a grid save request and returns the response recorder.
+func postGridSave(t *testing.T, h *Handler, controllerID int64, gridData, configData string) *httptest.ResponseRecorder {
+	t.Helper()
+	r := chi.NewRouter()
+	r.Post("/hardware/{id}/grid", h.HandleHardwareGridSave)
+
+	form := url.Values{}
+	form.Add("grid_data", gridData)
+	form.Add("config_data", configData)
+
+	req := httptest.NewRequest(http.MethodPost, "/hardware/"+strconv.Itoa(int(controllerID))+"/grid", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	return rr
+}
+
+// TestHandleHardwareGridSave_InvalidAllocationReturns400 verifies that invalid
+// drawer allocations or bin mappings are reported as a client error (400).
+func TestHandleHardwareGridSave_InvalidAllocationReturns400(t *testing.T) {
+	h, s, dbConn := setupHardwareHandler(t)
+	defer dbConn.Close()
+	ctx := context.Background()
+
+	ctrl, err := s.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
+	if err != nil {
+		t.Fatalf("create controller: %v", err)
+	}
+
+	// Overlapping drawer allocations are invalid.
+	configData := `[{"id":null,"name":"A","segment_id":0,"led_start":0,"led_count":10,"config":{"type":"linear","total":10}},{"id":null,"name":"B","segment_id":0,"led_start":5,"led_count":10,"config":{"type":"linear","total":10}}]`
+	rr := postGridSave(t, h, ctrl.ID, `[]`, configData)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid allocation, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+// TestHandleHardwareGridSave_InvalidBinMappingReturns400 verifies that a bin
+// outside its drawer's allocation is reported as a client error (400).
+func TestHandleHardwareGridSave_InvalidBinMappingReturns400(t *testing.T) {
+	h, s, dbConn := setupHardwareHandler(t)
+	defer dbConn.Close()
+	ctx := context.Background()
+
+	ctrl, err := s.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
+	if err != nil {
+		t.Fatalf("create controller: %v", err)
+	}
+
+	configData := `[{"id":null,"name":"A","segment_id":0,"led_start":0,"led_count":10,"config":{"type":"linear","total":10}}]`
+	gridData := `[{"container_index":0,"x":0,"y":0,"led_index":15,"width":1,"name":"bad"}]`
+	rr := postGridSave(t, h, ctrl.ID, gridData, configData)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid bin mapping, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+// TestHandleHardwareGridSave_ValidReturnsSeeOther verifies that a valid
+// submission still redirects.
+func TestHandleHardwareGridSave_ValidReturnsSeeOther(t *testing.T) {
+	h, s, dbConn := setupHardwareHandler(t)
+	defer dbConn.Close()
+	ctx := context.Background()
+
+	ctrl, err := s.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
+	if err != nil {
+		t.Fatalf("create controller: %v", err)
+	}
+
+	configData := `[{"id":null,"name":"A","segment_id":0,"led_start":0,"led_count":10,"config":{"type":"linear","total":10}}]`
+	gridData := `[{"container_index":0,"x":0,"y":0,"led_index":0,"width":1,"name":"a1"}]`
+	rr := postGridSave(t, h, ctrl.ID, gridData, configData)
+	if rr.Code != http.StatusSeeOther {
+		t.Fatalf("expected 303 for valid grid, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+// TestHandleHardwareGridSave_InternalErrorReturns500 verifies that a genuine
+// internal failure is still reported as 500, not 400.
+func TestHandleHardwareGridSave_InternalErrorReturns500(t *testing.T) {
+	h, s, dbConn := setupHardwareHandler(t)
+	defer dbConn.Close()
+	ctx := context.Background()
+
+	ctrl, err := s.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
+	if err != nil {
+		t.Fatalf("create controller: %v", err)
+	}
+
+	rr := postGridSave(t, h, ctrl.ID, `not json`, `[]`)
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 for malformed payload, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
 func TestHardwareAuditLogging(t *testing.T) {
 	// Setup
 	dbConn := openTestDB(t)

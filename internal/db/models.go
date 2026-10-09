@@ -40,6 +40,8 @@ type Container struct {
 	CreatedAt     sql.NullTime   `json:"created_at"`
 	UpdatedAt     sql.NullTime   `json:"updated_at"`
 	PositionIndex int64          `json:"position_index"`
+	LedStart      int64          `json:"led_start"`
+	LedCount      int64          `json:"led_count"`
 }
 
 type Controller struct {

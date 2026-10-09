@@ -9,14 +9,31 @@ import (
 
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/hardware/mapper"
+	"github.com/tuxedocurly/wledger/internal/ledspace"
 )
+
+// Migration005FlagKey is the system_flags key recording that the legacy LED
+// index conversion (container-relative -> segment-absolute) has been applied.
+// It is also set when a known segment-relative backup is restored, so the
+// conversion can never run a second time against already-absolute indices.
+const Migration005FlagKey = "migration_005_applied"
 
 // MigrateLegacyLedIndices converts bins' relative led_index (per container)
 // to absolute segment indices (across containers on same segment).
 // This reflects legacy logic but persists it to the database.
 func MigrateLegacyLedIndices(ctx context.Context, store db.Store, logger *slog.Logger) error {
+	// Never convert bin indices whose coordinate system is unresolved: the
+	// restored data may already be segment-relative, and converting again would
+	// shift it a second time.
+	if unresolved, err := ledspace.IsUnresolved(ctx, store); err != nil {
+		return fmt.Errorf("failed to check LED coordinate space: %w", err)
+	} else if unresolved {
+		logger.Warn("skipping legacy LED index migration: restored LED coordinate space is unresolved")
+		return nil
+	}
+
 	// Check if migration has already been applied
-	flag, err := store.GetFlag(ctx, "migration_005_applied")
+	flag, err := store.GetFlag(ctx, Migration005FlagKey)
 	if err == nil && flag == "true" {
 		return nil
 	}
@@ -85,7 +102,7 @@ func MigrateLegacyLedIndices(ctx context.Context, store db.Store, logger *slog.L
 
 		// Mark migration as applied
 		return q.SetFlag(ctx, db.SetFlagParams{
-			Key:   "migration_005_applied",
+			Key:   Migration005FlagKey,
 			Value: "true",
 		})
 	})

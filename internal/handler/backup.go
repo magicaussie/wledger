@@ -1,11 +1,13 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/tuxedocurly/wledger/internal/auth"
+	"github.com/tuxedocurly/wledger/internal/backup"
 	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/web/components"
 )
@@ -63,6 +65,17 @@ func (h *Handler) HandleBackupRestore(w http.ResponseWriter, r *http.Request) {
 	// Execute Restore via Service
 	if err := h.Backup.Restore(r.Context(), file, header.Size); err != nil {
 		h.Logger.Error("restore failed", "err", err)
+
+		// A restore whose data and files were committed but whose post-restore
+		// allocation processing did not complete cleanly is a warning, not a
+		// failure. Report it distinctly so a committed restore is never shown as
+		// failed.
+		var committed *backup.RestoreCommittedError
+		if errors.As(err, &committed) {
+			components.ImportResult(true, "Restore completed with warning: "+committed.Reason+". You will be logged out.", nil).Render(r.Context(), w)
+			return
+		}
+
 		components.ImportResult(false, "Restore failed: "+err.Error(), nil).Render(r.Context(), w)
 		return
 	}

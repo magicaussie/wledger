@@ -28,6 +28,8 @@ document.addEventListener('alpine:init', () => {
                     id: c.id,
                     name: c.name,
                     segment_id: c.segment_id,
+                    led_start: Number(c.led_start) || 0,
+                    led_count: Number(c.led_count) || 0,
                     config: this.parseConfig(c.config_json?.String || "{}")
                 }));
             } else {
@@ -92,10 +94,22 @@ document.addEventListener('alpine:init', () => {
         },
 
         addContainer() {
+            // Suggest a non-overlapping start after existing drawers in segment 0.
+            // Existing drawers' allocations are never shifted.
+            const seg = 0;
+            let start = 0;
+            this.containers.forEach(c => {
+                if (c.segment_id === seg) {
+                    const end = (Number(c.led_start) || 0) + (Number(c.led_count) || 0);
+                    if (end > start) start = end;
+                }
+            });
             this.containers.push({
                 id: null,
                 name: "New Container " + (this.containers.length + 1),
-                segment_id: 0,
+                segment_id: seg,
+                led_start: start,
+                led_count: 64,
                 config: { type: 'grid', rows: 8, cols: 8, start_corner: 'tl', sections: [{ rows: 4, cols: 4 }] }
             });
             this.selectedContainerIndex = this.containers.length - 1;
@@ -361,17 +375,6 @@ document.addEventListener('alpine:init', () => {
             return baseName;
         },
 
-        getSegmentStartOffset(cIdx) {
-            const targetSegment = this.containers[cIdx].segment_id;
-            let offset = 0;
-            for (let i = 0; i < cIdx; i++) {
-                if (this.containers[i].segment_id === targetSegment) {
-                    offset += this.getContainerTotalLeds(i);
-                }
-            }
-            return offset;
-        },
-
         autoFill(mode) {
             if (!this.canEdit) return;
             const cIdx = this.selectedContainerIndex;
@@ -385,7 +388,7 @@ document.addEventListener('alpine:init', () => {
                 this.selectedCellRef = null;
             }
 
-            let ledCounter = this.getSegmentStartOffset(cIdx);
+            let ledCounter = Number(this.containers[cIdx].led_start) || 0;
             const startPos = cfg.start_corner || 'tl';
             const sections = this.getRenderSections(cIdx);
             let currentYOffset = 0;
@@ -485,6 +488,8 @@ document.addEventListener('alpine:init', () => {
                 id: c.id,
                 name: c.name,
                 segment_id: c.segment_id,
+                led_start: Number(c.led_start) || 0,
+                led_count: Number(c.led_count) || 0,
                 config: c.config
             }));
         }

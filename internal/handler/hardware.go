@@ -2,6 +2,7 @@ package handler
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,7 +14,9 @@ import (
 	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/internal/db"
+	"github.com/tuxedocurly/wledger/internal/hardware"
 	"github.com/tuxedocurly/wledger/internal/qrcode"
+	"github.com/tuxedocurly/wledger/internal/wled"
 	"github.com/tuxedocurly/wledger/web/pages"
 )
 
@@ -134,6 +137,12 @@ func (h *Handler) HandleHardwareGridSave(w http.ResponseWriter, r *http.Request)
 
 	_, err := h.Hardware.SaveGrid(ctx, int64(controllerID), gridDataJSON, configJSON)
 	if err != nil {
+		// Invalid drawer allocations or bin mappings are client errors.
+		if errors.Is(err, hardware.ErrInvalidAllocation) {
+			h.UIError.Respond(w, r, err, "Invalid grid layout: check drawer LED allocations and bin mappings", http.StatusBadRequest)
+			return
+		}
+		// Anything else is a genuine internal failure.
 		h.UIError.Respond(w, r, err, "Failed to save grid layout", http.StatusInternalServerError)
 		return
 	}
@@ -160,6 +169,10 @@ func (h *Handler) HandleHardwareLocate(w http.ResponseWriter, r *http.Request) {
 
 	err := h.WLED.LocateBin(r.Context(), int64(cid), int64(binID))
 	if err != nil {
+		if errors.Is(err, wled.ErrCoordinateSpaceUnresolved) {
+			h.UIError.Respond(w, r, err, "Locate unavailable: LED coordinate space is unresolved", http.StatusConflict)
+			return
+		}
 		h.UIError.Respond(w, r, err, "Locate failed", http.StatusInternalServerError)
 		return
 	}

@@ -72,6 +72,21 @@ templ GridPainter(controller db.Controller, containers []db.Container, bins []db
 										</div>
 									</div>
 								</fieldset>
+								<!-- LED Allocation -->
+								<fieldset class="fieldset w-full bg-base-100 p-6 rounded-xl border border-base-300 shadow-sm">
+									<legend class="fieldset-legend font-bold text-sm uppercase tracking-widest opacity-40">{ i18n.T(ctx, "LedAllocation") }</legend>
+									<div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
+										<div class="form-control w-full">
+											<label class="label pt-0"><span class="label-text font-bold text-sm mb-2">{ i18n.T(ctx, "LedStart") }</span></label>
+											<input type="number" x-model.number="currentContainer.led_start" class="input input-bordered w-full input-md" min="0"/>
+										</div>
+										<div class="form-control w-full">
+											<label class="label pt-0"><span class="label-text font-bold text-sm mb-2">{ i18n.T(ctx, "LedCount") }</span></label>
+											<input type="number" x-model.number="currentContainer.led_count" class="input input-bordered w-full input-md" min="1"/>
+										</div>
+									</div>
+									<p class="text-xs opacity-50 mt-2">{ i18n.T(ctx, "LedAllocationHelp") }</p>
+								</fieldset>
 								<!-- Configuration -->
 								<fieldset class="fieldset w-full bg-base-100 p-6 rounded-xl border border-base-300 shadow-sm">
 									<legend class="fieldset-legend font-bold text-sm uppercase tracking-widest opacity-40">{ i18n.T(ctx, "GridConfiguration") }</legend>

@@ -25,6 +25,8 @@ type containerConfig struct {
 	Name          string                 `json:"name"`
 	SegmentID     int64                  `json:"segment_id"`
 	PositionIndex int64                  `json:"position_index"`
+	LedStart      int64                  `json:"led_start"`
+	LedCount      int64                  `json:"led_count"`
 	Config        mapper.ContainerConfig `json:"config"`
 }
 
@@ -32,7 +34,7 @@ type binConfig struct {
 	ContainerIndex int    `json:"container_index"`
 	X              int    `json:"x"`
 	Y              int    `json:"y"`
-	LedIndex       int    `json:"led_index"`
+	LedIndex       *int   `json:"led_index"`
 	Width          int    `json:"width"`
 	Name           string `json:"name"`
 }
@@ -74,6 +76,8 @@ func (s *service) ExportConfig(ctx context.Context, controllerID int64) ([]byte,
 			Name:          ct.Name,
 			SegmentID:     ct.SegmentID,
 			PositionIndex: ct.PositionIndex,
+			LedStart:      ct.LedStart,
+			LedCount:      ct.LedCount,
 			Config:        cc,
 		})
 		containerIDs = append(containerIDs, ct.ID)
@@ -85,11 +89,16 @@ func (s *service) ExportConfig(ctx context.Context, controllerID int64) ([]byte,
 			continue
 		}
 		for _, b := range bins {
+			var ledIndex *int
+			if b.LedIndex.Valid {
+				v := int(b.LedIndex.Int64)
+				ledIndex = &v
+			}
 			cfg.Bins = append(cfg.Bins, binConfig{
 				ContainerIndex: i,
 				X:              int(b.GridX.Int64),
 				Y:              int(b.GridY.Int64),
-				LedIndex:       int(b.LedIndex.Int64),
+				LedIndex:       ledIndex,
 				Width:          clampWidth(int(b.Width.Int64)),
 				Name:           b.Name,
 			})
@@ -128,6 +137,45 @@ func (s *service) ImportConfig(ctx context.Context, name, ip string, port int64,
 		return 0, fmt.Errorf("controller IP address is required")
 	}
 
+	// Derive allocations for imported containers that do not specify one, then
+	// validate the resulting set.
+	segEnd := map[int64]int64{}
+	resolved := make([]db.Container, 0, len(cfg.Containers))
+	for i := range cfg.Containers {
+		ct := &cfg.Containers[i]
+		if ct.LedCount <= 0 {
+			ct.LedCount = ct.Config.Length()
+			ct.LedStart = segEnd[ct.SegmentID]
+		}
+		resolved = append(resolved, db.Container{
+			Name:      ct.Name,
+			SegmentID: ct.SegmentID,
+			LedStart:  ct.LedStart,
+			LedCount:  ct.LedCount,
+		})
+		if end := ct.LedStart + ct.LedCount; end > segEnd[ct.SegmentID] {
+			segEnd[ct.SegmentID] = end
+		}
+	}
+	if err := ValidateAllocations(resolved); err != nil {
+		return 0, fmt.Errorf("%w: %v", ErrInvalidAllocation, err)
+	}
+
+	// Validate every mapped imported bin against its drawer's allocation and
+	// reject invalid container references rather than silently skipping them.
+	binRows := make([]binMappingRow, len(cfg.Bins))
+	for i := range cfg.Bins {
+		binRows[i] = binMappingRow{
+			ContainerIndex: cfg.Bins[i].ContainerIndex,
+			Name:           cfg.Bins[i].Name,
+			LedIndex:       cfg.Bins[i].LedIndex,
+			Width:          cfg.Bins[i].Width,
+		}
+	}
+	if err := validateBinMappings(binRows, resolved); err != nil {
+		return 0, fmt.Errorf("%w: %v", ErrInvalidAllocation, err)
+	}
+
 	var newID int64
 	err := s.store.ExecTx(ctx, func(q db.Querier) error {
 		row, err := q.CreateController(ctx, db.CreateControllerParams{
@@ -148,6 +196,8 @@ func (s *service) ImportConfig(ctx context.Context, name, ip string, port int64,
 				ControllerID:  row.ID,
 				SegmentID:     ct.SegmentID,
 				PositionIndex: ct.PositionIndex,
+				LedStart:      ct.LedStart,
+				LedCount:      ct.LedCount,
 				ConfigJson:    sql.NullString{String: string(configBytes), Valid: true},
 			})
 			if err != nil {
@@ -157,13 +207,12 @@ func (s *service) ImportConfig(ctx context.Context, name, ip string, port int64,
 		}
 
 		for _, b := range cfg.Bins {
-			if b.ContainerIndex < 0 || b.ContainerIndex >= len(containerIDs) {
-				continue
-			}
+			// Container references are validated before the transaction, so direct
+			// indexing is safe here.
 			_, err := q.CreateBin(ctx, db.CreateBinParams{
 				Name:        b.Name,
 				ContainerID: containerIDs[b.ContainerIndex],
-				LedIndex:    sql.NullInt64{Int64: int64(b.LedIndex), Valid: true},
+				LedIndex:    nullIntFromPtr(b.LedIndex),
 				Width:       sql.NullInt64{Int64: int64(clampWidth(b.Width)), Valid: true},
 				GridX:       sql.NullInt64{Int64: int64(b.X), Valid: true},
 				GridY:       sql.NullInt64{Int64: int64(b.Y), Valid: true},

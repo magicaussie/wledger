@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/tuxedocurly/wledger/internal/db"
+	"github.com/tuxedocurly/wledger/internal/ledspace"
 )
 
 func TestService_Locate(t *testing.T) {
@@ -245,5 +247,171 @@ func TestService_GlobalOff(t *testing.T) {
 	}
 	if strings.Contains(okBody, "5000") {
 		t.Errorf("GlobalOff must not contain the hardcoded 5000-pixel wipe, got %s", okBody)
+	}
+}
+
+// TestService_LocateDrawerUsesAllocation verifies LocateDrawer lights the
+// drawer's explicit segment-relative allocation, independent of its bins.
+func TestService_LocateDrawerUsesAllocation(t *testing.T) {
+	var mu sync.Mutex
+	var body string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		mu.Lock()
+		body = string(b)
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+	ip := server.URL[7:]
+
+	dbConn, err := db.Open("file:locate_drawer_alloc?mode=memory&cache=shared")
+	if err != nil {
+		t.Fatalf("failed to open db: %v", err)
+	}
+	defer dbConn.Close()
+	if err := db.Migrate(dbConn); err != nil {
+		t.Fatalf("failed to migrate: %v", err)
+	}
+	store := db.NewStore(dbConn)
+	ctx := context.Background()
+	if err := store.InitSettings(ctx); err != nil {
+		t.Fatalf("init settings: %v", err)
+	}
+
+	c, err := store.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: ip})
+	if err != nil {
+		t.Fatalf("create controller: %v", err)
+	}
+	cont, err := store.CreateContainer(ctx, db.CreateContainerParams{
+		Name:         "Drawer B",
+		ControllerID: c.ID,
+		SegmentID:    2,
+		LedStart:     10,
+		LedCount:     5,
+		ConfigJson:   sql.NullString{String: `{"type":"linear","total":5}`, Valid: true},
+	})
+	if err != nil {
+		t.Fatalf("create container: %v", err)
+	}
+
+	svc := NewService(store, NewClient(), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err := svc.LocateDrawer(ctx, c.ID, cont); err != nil {
+		t.Fatalf("LocateDrawer: %v", err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if !strings.Contains(body, `"i":[10,15`) {
+		t.Errorf("expected allocation range 10->15, got %s", body)
+	}
+	if !strings.Contains(body, `"id":2`) {
+		t.Errorf("expected segment id 2, got %s", body)
+	}
+}
+
+// TestService_LocateDrawerUnallocated verifies a drawer without an allocation
+// is not located.
+func TestService_LocateDrawerUnallocated(t *testing.T) {
+	hit := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hit = true
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+	ip := server.URL[7:]
+
+	dbConn, err := db.Open("file:locate_drawer_unalloc?mode=memory&cache=shared")
+	if err != nil {
+		t.Fatalf("failed to open db: %v", err)
+	}
+	defer dbConn.Close()
+	if err := db.Migrate(dbConn); err != nil {
+		t.Fatalf("failed to migrate: %v", err)
+	}
+	store := db.NewStore(dbConn)
+	ctx := context.Background()
+	if err := store.InitSettings(ctx); err != nil {
+		t.Fatalf("init settings: %v", err)
+	}
+
+	c, _ := store.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: ip})
+	cont, _ := store.CreateContainer(ctx, db.CreateContainerParams{
+		Name: "No Alloc", ControllerID: c.ID, SegmentID: 0,
+		ConfigJson: sql.NullString{String: `{"type":"linear","total":5}`, Valid: true},
+	})
+
+	svc := NewService(store, NewClient(), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err := svc.LocateDrawer(ctx, c.ID, cont); err == nil {
+		t.Fatal("expected error for unallocated drawer")
+	}
+	if hit {
+		t.Error("no WLED request should be made for an unallocated drawer")
+	}
+}
+
+// TestService_LocateFailsWhenCoordinateSpaceUnresolved verifies that bin-index
+// LED operations fail safely (without sending a WLED command) when the
+// coordinate space is unresolved, while global-off remains available.
+func TestService_LocateFailsWhenCoordinateSpaceUnresolved(t *testing.T) {
+	var mu sync.Mutex
+	hits := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		hits++
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+	ip := server.URL[7:]
+
+	dbConn, err := db.Open("file:wled_unresolved?mode=memory&cache=shared")
+	if err != nil {
+		t.Fatalf("failed to open db: %v", err)
+	}
+	defer dbConn.Close()
+	if err := db.Migrate(dbConn); err != nil {
+		t.Fatalf("failed to migrate: %v", err)
+	}
+	store := db.NewStore(dbConn)
+	ctx := context.Background()
+	if err := store.InitSettings(ctx); err != nil {
+		t.Fatalf("init settings: %v", err)
+	}
+
+	c, _ := store.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: ip})
+	cont, _ := store.CreateContainer(ctx, db.CreateContainerParams{
+		Name: "A", ControllerID: c.ID, SegmentID: 0, LedStart: 0, LedCount: 10,
+		ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true},
+	})
+	bin, _ := store.CreateBin(ctx, db.CreateBinParams{
+		Name: "a1", ContainerID: cont, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true},
+	})
+
+	if err := ledspace.Set(ctx, store, ledspace.Unresolved); err != nil {
+		t.Fatalf("set unresolved: %v", err)
+	}
+
+	svc := NewService(store, NewClient(), slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+	if err := svc.LocateBin(ctx, c.ID, bin); !errors.Is(err, ErrCoordinateSpaceUnresolved) {
+		t.Errorf("LocateBin: expected ErrCoordinateSpaceUnresolved, got %v", err)
+	}
+	if err := svc.LocatePart(ctx, 1); !errors.Is(err, ErrCoordinateSpaceUnresolved) {
+		t.Errorf("LocatePart: expected ErrCoordinateSpaceUnresolved, got %v", err)
+	}
+	if err := svc.FlashError(ctx, c.ID, bin); !errors.Is(err, ErrCoordinateSpaceUnresolved) {
+		t.Errorf("FlashError: expected ErrCoordinateSpaceUnresolved, got %v", err)
+	}
+
+	mu.Lock()
+	if hits != 0 {
+		t.Errorf("expected no WLED requests while unresolved, got %d", hits)
+	}
+	mu.Unlock()
+
+	// Global-off must remain available.
+	if err := svc.GlobalOff(ctx); err != nil {
+		t.Errorf("GlobalOff must remain available: %v", err)
 	}
 }

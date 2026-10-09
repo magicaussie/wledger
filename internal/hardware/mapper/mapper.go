@@ -20,6 +20,29 @@ type Section struct {
 	Cols int `json:"cols"`
 }
 
+// Length returns the number of LEDs the layout describes (its capacity).
+// It is a layout estimate, not a guarantee of the mapped LED span.
+func (c ContainerConfig) Length() int64 {
+	switch c.Type {
+	case "linear":
+		return int64(c.Total)
+	case "grid":
+		return int64(c.Rows * c.Cols)
+	case "compound":
+		var total int64
+		for _, s := range c.Sections {
+			total += int64(s.Rows * s.Cols)
+		}
+		return total
+	default:
+		// Fallback for legacy or untyped grid configs
+		if c.Rows > 0 && c.Cols > 0 {
+			return int64(c.Rows * c.Cols)
+		}
+		return 0
+	}
+}
+
 // CalculateGlobalIndex determines the WLED segment and absolute LED index for a bin.
 // It assumes the `containers` slice is sorted in physical wiring order.
 func CalculateGlobalIndex(containers []db.Container, targetBin db.Bin) (int64, int64, error) {
@@ -54,22 +77,5 @@ func GetContainerLength(c db.Container) (int64, error) {
 		return 0, err
 	}
 
-	switch config.Type {
-	case "linear":
-		return int64(config.Total), nil
-	case "grid":
-		return int64(config.Rows * config.Cols), nil
-	case "compound":
-		var total int64
-		for _, s := range config.Sections {
-			total += int64(s.Rows * s.Cols)
-		}
-		return total, nil
-	default:
-		// Fallback for legacy or untyped grid configs
-		if config.Rows > 0 && config.Cols > 0 {
-			return int64(config.Rows * config.Cols), nil
-		}
-		return 0, nil
-	}
+	return config.Length(), nil
 }

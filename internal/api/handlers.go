@@ -1,10 +1,12 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
 	"github.com/tuxedocurly/wledger/internal/db"
+	"github.com/tuxedocurly/wledger/internal/wled"
 	"github.com/tuxedocurly/wledger/web/pages"
 )
 
@@ -100,6 +102,10 @@ func (h *Handler) locatePart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.wled.LocatePart(r.Context(), id); err != nil {
+		if errors.Is(err, wled.ErrCoordinateSpaceUnresolved) {
+			writeError(w, http.StatusConflict, "locate unavailable: "+err.Error())
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "locate failed: "+err.Error())
 		return
 	}
@@ -125,6 +131,10 @@ func (h *Handler) locateBin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.wled.LocateBin(r.Context(), container.ControllerID, id); err != nil {
+		if errors.Is(err, wled.ErrCoordinateSpaceUnresolved) {
+			writeError(w, http.StatusConflict, "locate unavailable: "+err.Error())
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "locate failed: "+err.Error())
 		return
 	}

@@ -928,6 +928,18 @@
   "WledSegmentId": {
     "other": "WLED Segment ID"
   },
+  "LedAllocation": {
+    "other": "LED Allocation"
+  },
+  "LedStart": {
+    "other": "LED Start"
+  },
+  "LedCount": {
+    "other": "LED Count"
+  },
+  "LedAllocationHelp": {
+    "other": "Segment-relative LED range owned by this drawer. It must not overlap another drawer in the same segment."
+  },
   "GridConfiguration": {
     "other": "Grid Configuration"
   },

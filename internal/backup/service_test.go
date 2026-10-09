@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"os"
@@ -14,6 +15,8 @@ import (
 	"time"
 
 	"github.com/tuxedocurly/wledger/internal/db"
+	"github.com/tuxedocurly/wledger/internal/hardware"
+	"github.com/tuxedocurly/wledger/internal/ledspace"
 )
 
 // setupTestDB creates an in memory DB and applies the schema using db.Migrate
@@ -132,6 +135,650 @@ func TestExport_HappyPath(t *testing.T) {
 	}
 	if manifest.Users[0].Email != "admin@example.com" {
 		t.Errorf("expected user email 'admin@example.com', got %s", manifest.Users[0].Email)
+	}
+}
+
+// TestRestore_PreservesDrawerAllocations verifies that drawer LED allocations
+// survive a backup export/restore round-trip.
+func TestRestore_PreservesDrawerAllocations(t *testing.T) {
+	database, s, dbCleanup := setupTestDB(t)
+	defer dbCleanup()
+	uploadsDir, fsCleanup := setupTestUploads(t)
+	defer fsCleanup()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	svc := NewService(database, s, uploadsDir, logger)
+	ctx := context.Background()
+
+	now := sql.NullTime{Time: time.Now(), Valid: true}
+	manifest := Manifest{
+		Version:       "1.0",
+		BinIndexSpace: ledspace.Segment,
+		Settings: db.Setting{
+			CreatedAt: now,
+			UpdatedAt: now,
+		},
+		Controllers: []db.Controller{
+			{ID: 1, Name: "C", IpAddress: "1.1.1.1", CreatedAt: now},
+		},
+		Containers: []db.Container{
+			{ID: 1, Name: "A", ControllerID: 1, SegmentID: 0, LedStart: 0, LedCount: 10,
+				ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true}, CreatedAt: now, UpdatedAt: now},
+			{ID: 2, Name: "B", ControllerID: 1, SegmentID: 0, LedStart: 10, LedCount: 10,
+				ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true}, CreatedAt: now, UpdatedAt: now},
+		},
+	}
+
+	buf := new(bytes.Buffer)
+	zw := zip.NewWriter(buf)
+	fJson, _ := zw.Create("restore_data.json")
+	json.NewEncoder(fJson).Encode(manifest)
+	zw.Close()
+	zipBytes := buf.Bytes()
+
+	if err := svc.Restore(ctx, bytes.NewReader(zipBytes), int64(len(zipBytes))); err != nil {
+		t.Fatalf("Restore failed: %v", err)
+	}
+
+	containers, err := s.GetContainersByController(ctx, 1)
+	if err != nil {
+		t.Fatalf("get containers: %v", err)
+	}
+	if len(containers) != 2 {
+		t.Fatalf("expected 2 containers, got %d", len(containers))
+	}
+	byName := map[string]db.Container{}
+	for _, c := range containers {
+		byName[c.Name] = c
+	}
+	if byName["A"].LedStart != 0 || byName["A"].LedCount != 10 {
+		t.Errorf("A = [%d,%d), want [0,10)", byName["A"].LedStart, byName["A"].LedCount)
+	}
+	if byName["B"].LedStart != 10 || byName["B"].LedCount != 10 {
+		t.Errorf("B = [%d,%d), want [10,20)", byName["B"].LedStart, byName["B"].LedCount)
+	}
+}
+
+// buildRestoreZip packages a manifest into an in-memory restore ZIP.
+func buildRestoreZip(t *testing.T, manifest Manifest) []byte {
+	t.Helper()
+	buf := new(bytes.Buffer)
+	zw := zip.NewWriter(buf)
+	fJson, err := zw.Create("restore_data.json")
+	if err != nil {
+		t.Fatalf("create zip entry: %v", err)
+	}
+	if err := json.NewEncoder(fJson).Encode(manifest); err != nil {
+		t.Fatalf("encode manifest: %v", err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatalf("close zip: %v", err)
+	}
+	return buf.Bytes()
+}
+
+// TestRestore_LegacyBackupEstablishesAllocations verifies that restoring a
+// legacy backup (created before drawer allocations existed) leaves drawer
+// locating usable immediately: the restore derives allocations for the restored
+// drawers without a restart, and never shifts the restored bin indices.
+func TestRestore_LegacyBackupEstablishesAllocations(t *testing.T) {
+	database, s, dbCleanup := setupTestDB(t)
+	defer dbCleanup()
+	uploadsDir, fsCleanup := setupTestUploads(t)
+	defer fsCleanup()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	svc := NewService(database, s, uploadsDir, logger)
+	ctx := context.Background()
+
+	now := sql.NullTime{Time: time.Now(), Valid: true}
+	manifest := Manifest{
+		Version:       "1.0",
+		BinIndexSpace: ledspace.Segment,
+		Settings:      db.Setting{CreatedAt: now, UpdatedAt: now},
+		Controllers: []db.Controller{
+			{ID: 1, Name: "C", IpAddress: "1.1.1.1", CreatedAt: now},
+		},
+		Containers: []db.Container{
+			{ID: 1, Name: "A", ControllerID: 1, SegmentID: 0,
+				ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true}, CreatedAt: now, UpdatedAt: now},
+			{ID: 2, Name: "B", ControllerID: 1, SegmentID: 0,
+				ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true}, CreatedAt: now, UpdatedAt: now},
+		},
+		Bins: []db.Bin{
+			{ID: 1, Name: "a1", ContainerID: 1, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
+			{ID: 2, Name: "b1", ContainerID: 2, LedIndex: sql.NullInt64{Int64: 10, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
+		},
+	}
+
+	zipBytes := buildRestoreZip(t, manifest)
+	if err := svc.Restore(ctx, bytes.NewReader(zipBytes), int64(len(zipBytes))); err != nil {
+		t.Fatalf("Restore failed: %v", err)
+	}
+
+	// Allocations must be usable immediately, without a restart.
+	containers, _ := s.GetContainersByController(ctx, 1)
+	byName := map[string]db.Container{}
+	for _, c := range containers {
+		byName[c.Name] = c
+	}
+	if byName["A"].LedStart != 0 || byName["A"].LedCount != 10 {
+		t.Errorf("A = [%d,%d), want [0,10)", byName["A"].LedStart, byName["A"].LedCount)
+	}
+	if byName["B"].LedStart != 10 || byName["B"].LedCount != 10 {
+		t.Errorf("B = [%d,%d), want [10,20)", byName["B"].LedStart, byName["B"].LedCount)
+	}
+
+	// The restored bin indices must be untouched (no coordinate conversion).
+	binsA, _ := s.GetBinsByContainer(ctx, 1)
+	if len(binsA) != 1 || !binsA[0].LedIndex.Valid || binsA[0].LedIndex.Int64 != 0 {
+		t.Errorf("container 1 bin index changed: %+v", binsA)
+	}
+	binsB, _ := s.GetBinsByContainer(ctx, 2)
+	if len(binsB) != 1 || !binsB[0].LedIndex.Valid || binsB[0].LedIndex.Int64 != 10 {
+		t.Errorf("container 2 bin index changed: %+v", binsB)
+	}
+}
+
+// TestRestore_LegacyBackupAmbiguousMappingPreserved verifies that a legacy
+// backup whose mappings cannot be reconciled with a derived allocation is still
+// restored: the data is preserved and the drawer is left unallocated rather
+// than guessed.
+func TestRestore_LegacyBackupAmbiguousMappingPreserved(t *testing.T) {
+	database, s, dbCleanup := setupTestDB(t)
+	defer dbCleanup()
+	uploadsDir, fsCleanup := setupTestUploads(t)
+	defer fsCleanup()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	svc := NewService(database, s, uploadsDir, logger)
+	ctx := context.Background()
+
+	now := sql.NullTime{Time: time.Now(), Valid: true}
+	manifest := Manifest{
+		Version:       "1.0",
+		BinIndexSpace: ledspace.Segment,
+		Settings:      db.Setting{CreatedAt: now, UpdatedAt: now},
+		Controllers: []db.Controller{
+			{ID: 1, Name: "C", IpAddress: "1.1.1.1", CreatedAt: now},
+		},
+		Containers: []db.Container{
+			{ID: 1, Name: "A", ControllerID: 1, SegmentID: 0,
+				ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true}, CreatedAt: now, UpdatedAt: now},
+		},
+		Bins: []db.Bin{
+			// Outside the derived [0,10) allocation: ambiguous, must not be guessed.
+			{ID: 1, Name: "a1", ContainerID: 1, LedIndex: sql.NullInt64{Int64: 15, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
+		},
+	}
+
+	zipBytes := buildRestoreZip(t, manifest)
+	if err := svc.Restore(ctx, bytes.NewReader(zipBytes), int64(len(zipBytes))); err != nil {
+		t.Fatalf("Restore failed: %v", err)
+	}
+
+	containers, _ := s.GetContainersByController(ctx, 1)
+	if len(containers) != 1 {
+		t.Fatalf("expected 1 container, got %d", len(containers))
+	}
+	if containers[0].LedCount != 0 {
+		t.Errorf("ambiguous drawer should remain unallocated, got count %d", containers[0].LedCount)
+	}
+	bins, _ := s.GetBinsByContainer(ctx, 1)
+	if len(bins) != 1 || !bins[0].LedIndex.Valid || bins[0].LedIndex.Int64 != 15 {
+		t.Errorf("restored bin data was altered: %+v", bins)
+	}
+}
+
+// TestRestore_RejectsInvalidModernBackup verifies that a modern backup with
+// overlapping drawer allocations is rejected before any data is changed.
+func TestRestore_RejectsInvalidModernBackup(t *testing.T) {
+	database, s, dbCleanup := setupTestDB(t)
+	defer dbCleanup()
+	uploadsDir, fsCleanup := setupTestUploads(t)
+	defer fsCleanup()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	svc := NewService(database, s, uploadsDir, logger)
+	ctx := context.Background()
+
+	// Seed existing state that must survive the rejected restore.
+	if err := s.InitSettings(ctx); err != nil {
+		t.Fatalf("init settings: %v", err)
+	}
+	if _, err := s.CreateUser(ctx, db.CreateUserParams{Email: "keep@example.com", PasswordHash: "x", Role: "admin"}); err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+
+	now := sql.NullTime{Time: time.Now(), Valid: true}
+	manifest := Manifest{
+		Version:       "1.0",
+		BinIndexSpace: ledspace.Segment,
+		Settings:      db.Setting{CreatedAt: now, UpdatedAt: now},
+		Controllers: []db.Controller{
+			{ID: 1, Name: "C", IpAddress: "1.1.1.1", CreatedAt: now},
+		},
+		Containers: []db.Container{
+			{ID: 1, Name: "A", ControllerID: 1, SegmentID: 0, LedStart: 0, LedCount: 10,
+				ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true}, CreatedAt: now, UpdatedAt: now},
+			{ID: 2, Name: "B", ControllerID: 1, SegmentID: 0, LedStart: 5, LedCount: 10,
+				ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true}, CreatedAt: now, UpdatedAt: now},
+		},
+	}
+
+	zipBytes := buildRestoreZip(t, manifest)
+	if err := svc.Restore(ctx, bytes.NewReader(zipBytes), int64(len(zipBytes))); err == nil {
+		t.Fatal("expected restore to reject overlapping allocations")
+	}
+
+	// Existing configuration must be unchanged.
+	if _, err := s.GetUserByEmail(ctx, "keep@example.com"); err != nil {
+		t.Errorf("existing user lost after rejected restore: %v", err)
+	}
+	controllers, _ := s.GetControllers(ctx)
+	if len(controllers) != 0 {
+		t.Errorf("rejected restore created controllers: %+v", controllers)
+	}
+}
+
+// TestRestore_RejectsModernBackupOutOfRangeBin verifies that a modern backup
+// whose mapped bin lies outside its drawer's allocation is rejected.
+func TestRestore_RejectsModernBackupOutOfRangeBin(t *testing.T) {
+	database, s, dbCleanup := setupTestDB(t)
+	defer dbCleanup()
+	uploadsDir, fsCleanup := setupTestUploads(t)
+	defer fsCleanup()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	svc := NewService(database, s, uploadsDir, logger)
+	ctx := context.Background()
+
+	now := sql.NullTime{Time: time.Now(), Valid: true}
+	manifest := Manifest{
+		Version:       "1.0",
+		BinIndexSpace: ledspace.Segment,
+		Settings:      db.Setting{CreatedAt: now, UpdatedAt: now},
+		Controllers: []db.Controller{
+			{ID: 1, Name: "C", IpAddress: "1.1.1.1", CreatedAt: now},
+		},
+		Containers: []db.Container{
+			{ID: 1, Name: "A", ControllerID: 1, SegmentID: 0, LedStart: 0, LedCount: 10,
+				ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true}, CreatedAt: now, UpdatedAt: now},
+		},
+		Bins: []db.Bin{
+			{ID: 1, Name: "a1", ContainerID: 1, LedIndex: sql.NullInt64{Int64: 15, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
+		},
+	}
+
+	zipBytes := buildRestoreZip(t, manifest)
+	if err := svc.Restore(ctx, bytes.NewReader(zipBytes), int64(len(zipBytes))); err == nil {
+		t.Fatal("expected restore to reject out-of-range bin")
+	}
+}
+
+// TestExport_IncludesBinIndexSpace verifies that new backups declare the bin
+// coordinate system explicitly.
+func TestExport_IncludesBinIndexSpace(t *testing.T) {
+	database, s, dbCleanup := setupTestDB(t)
+	defer dbCleanup()
+	uploadsDir, fsCleanup := setupTestUploads(t)
+	defer fsCleanup()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	svc := NewService(database, s, uploadsDir, logger)
+	ctx := context.Background()
+
+	var buf bytes.Buffer
+	if err := svc.Export(ctx, &buf); err != nil {
+		t.Fatalf("Export: %v", err)
+	}
+	zr, err := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+	if err != nil {
+		t.Fatalf("zip: %v", err)
+	}
+	var manifest Manifest
+	for _, f := range zr.File {
+		if f.Name == "restore_data.json" {
+			rc, _ := f.Open()
+			_ = json.NewDecoder(rc).Decode(&manifest)
+			rc.Close()
+		}
+	}
+	if manifest.BinIndexSpace != ledspace.Segment {
+		t.Errorf("bin_index_space = %q, want %q", manifest.BinIndexSpace, ledspace.Segment)
+	}
+}
+
+// TestRestore_UnmarkedLegacyBackupPreservesBinsAndDoesNotBackfill verifies that
+// a backup without a coordinate-space marker is restored with its bin indices
+// untouched, is not backfilled, and leaves the coordinate space unresolved.
+func TestRestore_UnmarkedLegacyBackupPreservesBinsAndDoesNotBackfill(t *testing.T) {
+	database, s, dbCleanup := setupTestDB(t)
+	defer dbCleanup()
+	uploadsDir, fsCleanup := setupTestUploads(t)
+	defer fsCleanup()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	svc := NewService(database, s, uploadsDir, logger)
+	ctx := context.Background()
+
+	now := sql.NullTime{Time: time.Now(), Valid: true}
+	manifest := Manifest{
+		Version:  "1.0",
+		Settings: db.Setting{CreatedAt: now, UpdatedAt: now},
+		Controllers: []db.Controller{
+			{ID: 1, Name: "C", IpAddress: "1.1.1.1", CreatedAt: now},
+		},
+		Containers: []db.Container{
+			{ID: 1, Name: "A", ControllerID: 1, SegmentID: 0,
+				ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true}, CreatedAt: now, UpdatedAt: now},
+			{ID: 2, Name: "B", ControllerID: 1, SegmentID: 0,
+				ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true}, CreatedAt: now, UpdatedAt: now},
+		},
+		Bins: []db.Bin{
+			{ID: 1, Name: "a1", ContainerID: 1, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
+			{ID: 2, Name: "b1", ContainerID: 2, LedIndex: sql.NullInt64{Int64: 10, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
+		},
+	}
+
+	zipBytes := buildRestoreZip(t, manifest)
+	err := svc.Restore(ctx, bytes.NewReader(zipBytes), int64(len(zipBytes)))
+	var committed *RestoreCommittedError
+	if !errors.As(err, &committed) {
+		t.Fatalf("expected RestoreCommittedError, got %v", err)
+	}
+
+	// Bin indices must be preserved exactly.
+	binsA, _ := s.GetBinsByContainer(ctx, 1)
+	if len(binsA) != 1 || !binsA[0].LedIndex.Valid || binsA[0].LedIndex.Int64 != 0 {
+		t.Errorf("container 1 bin changed: %+v", binsA)
+	}
+	binsB, _ := s.GetBinsByContainer(ctx, 2)
+	if len(binsB) != 1 || !binsB[0].LedIndex.Valid || binsB[0].LedIndex.Int64 != 10 {
+		t.Errorf("container 2 bin changed: %+v", binsB)
+	}
+
+	// No allocations may be derived from an unresolved coordinate space.
+	containers, _ := s.GetContainersByController(ctx, 1)
+	for _, c := range containers {
+		if c.LedCount != 0 {
+			t.Errorf("drawer %q was backfilled despite unresolved space: count %d", c.Name, c.LedCount)
+		}
+	}
+
+	unresolved, err := ledspace.IsUnresolved(ctx, s)
+	if err != nil || !unresolved {
+		t.Errorf("expected unresolved state, got unresolved=%v err=%v", unresolved, err)
+	}
+}
+
+// TestRestore_KnownGoodBackupClearsUnresolvedState verifies that restoring a
+// backup with an explicit segment marker clears a previously unresolved state.
+func TestRestore_KnownGoodBackupClearsUnresolvedState(t *testing.T) {
+	database, s, dbCleanup := setupTestDB(t)
+	defer dbCleanup()
+	uploadsDir, fsCleanup := setupTestUploads(t)
+	defer fsCleanup()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	svc := NewService(database, s, uploadsDir, logger)
+	ctx := context.Background()
+
+	now := sql.NullTime{Time: time.Now(), Valid: true}
+	unmarked := Manifest{
+		Version:  "1.0",
+		Settings: db.Setting{CreatedAt: now, UpdatedAt: now},
+		Controllers: []db.Controller{
+			{ID: 1, Name: "C", IpAddress: "1.1.1.1", CreatedAt: now},
+		},
+		Containers: []db.Container{
+			{ID: 1, Name: "A", ControllerID: 1, SegmentID: 0,
+				ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true}, CreatedAt: now, UpdatedAt: now},
+		},
+		Bins: []db.Bin{
+			{ID: 1, Name: "a1", ContainerID: 1, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
+		},
+	}
+	zipBytes := buildRestoreZip(t, unmarked)
+	if err := svc.Restore(ctx, bytes.NewReader(zipBytes), int64(len(zipBytes))); err == nil {
+		t.Fatal("expected unresolved warning from unmarked restore")
+	}
+	if unresolved, _ := ledspace.IsUnresolved(ctx, s); !unresolved {
+		t.Fatal("expected unresolved state after unmarked restore")
+	}
+
+	marked := unmarked
+	marked.BinIndexSpace = ledspace.Segment
+	zipBytes = buildRestoreZip(t, marked)
+	if err := svc.Restore(ctx, bytes.NewReader(zipBytes), int64(len(zipBytes))); err != nil {
+		t.Fatalf("known-good restore: %v", err)
+	}
+	if unresolved, _ := ledspace.IsUnresolved(ctx, s); unresolved {
+		t.Error("unresolved state was not cleared by a known-good restore")
+	}
+}
+
+// TestRestore_RejectsUnsupportedBinIndexSpace verifies that an explicit but
+// unsupported coordinate-space marker is rejected rather than defaulted.
+func TestRestore_RejectsUnsupportedBinIndexSpace(t *testing.T) {
+	database, s, dbCleanup := setupTestDB(t)
+	defer dbCleanup()
+	uploadsDir, fsCleanup := setupTestUploads(t)
+	defer fsCleanup()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	svc := NewService(database, s, uploadsDir, logger)
+	ctx := context.Background()
+
+	now := sql.NullTime{Time: time.Now(), Valid: true}
+	manifest := Manifest{
+		Version:       "1.0",
+		BinIndexSpace: "drawer", // reserved for Task 006B, not supported yet
+		Settings:      db.Setting{CreatedAt: now, UpdatedAt: now},
+		Controllers: []db.Controller{
+			{ID: 1, Name: "C", IpAddress: "1.1.1.1", CreatedAt: now},
+		},
+		Containers: []db.Container{
+			{ID: 1, Name: "A", ControllerID: 1, SegmentID: 0,
+				ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true}, CreatedAt: now, UpdatedAt: now},
+		},
+		Bins: []db.Bin{
+			{ID: 1, Name: "a1", ContainerID: 1, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
+		},
+	}
+
+	zipBytes := buildRestoreZip(t, manifest)
+	err := svc.Restore(ctx, bytes.NewReader(zipBytes), int64(len(zipBytes)))
+	if err == nil {
+		t.Fatal("expected unsupported bin_index_space to be rejected")
+	}
+	var committed *RestoreCommittedError
+	if errors.As(err, &committed) {
+		t.Fatalf("unsupported marker must be a hard failure, got warning: %v", err)
+	}
+}
+
+// TestRestore_ModernRoundTripRemainsValid verifies that a backup exported by
+// the current application restores cleanly with its hardware intact.
+func TestRestore_ModernRoundTripRemainsValid(t *testing.T) {
+	database, s, dbCleanup := setupTestDB(t)
+	defer dbCleanup()
+	uploadsDir, fsCleanup := setupTestUploads(t)
+	defer fsCleanup()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	svc := NewService(database, s, uploadsDir, logger)
+	ctx := context.Background()
+
+	if err := s.InitSettings(ctx); err != nil {
+		t.Fatalf("init settings: %v", err)
+	}
+	ctrl, err := s.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
+	if err != nil {
+		t.Fatalf("create controller: %v", err)
+	}
+	cont, err := s.CreateContainer(ctx, db.CreateContainerParams{
+		Name: "A", ControllerID: ctrl.ID, SegmentID: 0, LedStart: 0, LedCount: 10,
+		ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true},
+	})
+	if err != nil {
+		t.Fatalf("create container: %v", err)
+	}
+	if _, err := s.CreateBin(ctx, db.CreateBinParams{
+		Name: "a1", ContainerID: cont, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true},
+	}); err != nil {
+		t.Fatalf("create bin: %v", err)
+	}
+
+	var buf bytes.Buffer
+	if err := svc.Export(ctx, &buf); err != nil {
+		t.Fatalf("export: %v", err)
+	}
+	zipBytes := buf.Bytes()
+
+	if err := svc.Restore(ctx, bytes.NewReader(zipBytes), int64(len(zipBytes))); err != nil {
+		t.Fatalf("round-trip restore: %v", err)
+	}
+
+	containers, _ := s.GetContainersByController(ctx, ctrl.ID)
+	if len(containers) != 1 || containers[0].LedStart != 0 || containers[0].LedCount != 10 {
+		t.Errorf("container not preserved: %+v", containers)
+	}
+	bins, _ := s.GetBinsByContainer(ctx, cont)
+	if len(bins) != 1 || !bins[0].LedIndex.Valid || bins[0].LedIndex.Int64 != 0 {
+		t.Errorf("bin not preserved: %+v", bins)
+	}
+	if unresolved, _ := ledspace.IsUnresolved(ctx, s); unresolved {
+		t.Error("modern round-trip must not leave an unresolved coordinate space")
+	}
+}
+
+// TestRestore_KnownGoodBackupBlocksMigration005 verifies that restoring a
+// backup explicitly marked segment-relative marks migration 005 applied in the
+// same transaction, so a restart can never convert the already-absolute bin
+// indices a second time. It covers a database where the flag was absent and one
+// where it was explicitly false.
+func TestRestore_KnownGoodBackupBlocksMigration005(t *testing.T) {
+	cases := []struct {
+		name    string
+		present bool
+		value   string
+	}{
+		{"flag absent", false, ""},
+		{"flag false", true, "false"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			database, s, dbCleanup := setupTestDB(t)
+			defer dbCleanup()
+			uploadsDir, fsCleanup := setupTestUploads(t)
+			defer fsCleanup()
+
+			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+			svc := NewService(database, s, uploadsDir, logger)
+			ctx := context.Background()
+
+			if tc.present {
+				if err := s.SetFlag(ctx, db.SetFlagParams{Key: hardware.Migration005FlagKey, Value: tc.value}); err != nil {
+					t.Fatalf("seed flag: %v", err)
+				}
+			}
+
+			now := sql.NullTime{Time: time.Now(), Valid: true}
+			manifest := Manifest{
+				Version:       "1.0",
+				BinIndexSpace: ledspace.Segment,
+				Settings:      db.Setting{CreatedAt: now, UpdatedAt: now},
+				Controllers: []db.Controller{
+					{ID: 1, Name: "C", IpAddress: "1.1.1.1", CreatedAt: now},
+				},
+				Containers: []db.Container{
+					{ID: 1, Name: "A", ControllerID: 1, SegmentID: 0,
+						ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true}, CreatedAt: now, UpdatedAt: now},
+					{ID: 2, Name: "B", ControllerID: 1, SegmentID: 0,
+						ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true}, CreatedAt: now, UpdatedAt: now},
+				},
+				Bins: []db.Bin{
+					{ID: 1, Name: "a1", ContainerID: 1, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
+					{ID: 2, Name: "b1", ContainerID: 2, LedIndex: sql.NullInt64{Int64: 10, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
+				},
+			}
+
+			zipBytes := buildRestoreZip(t, manifest)
+			if err := svc.Restore(ctx, bytes.NewReader(zipBytes), int64(len(zipBytes))); err != nil {
+				t.Fatalf("restore: %v", err)
+			}
+
+			if flag, err := s.GetFlag(ctx, hardware.Migration005FlagKey); err != nil || flag != "true" {
+				t.Fatalf("migration_005_applied = %q (err %v), want true", flag, err)
+			}
+
+			// Simulate a restart: the startup migration must be a no-op.
+			if err := hardware.MigrateLegacyLedIndices(ctx, s, logger); err != nil {
+				t.Fatalf("migration: %v", err)
+			}
+			binsA, _ := s.GetBinsByContainer(ctx, 1)
+			if len(binsA) != 1 || !binsA[0].LedIndex.Valid || binsA[0].LedIndex.Int64 != 0 {
+				t.Errorf("container 1 bin changed after restart: %+v", binsA)
+			}
+			binsB, _ := s.GetBinsByContainer(ctx, 2)
+			if len(binsB) != 1 || !binsB[0].LedIndex.Valid || binsB[0].LedIndex.Int64 != 10 {
+				t.Errorf("container 2 bin changed after restart: %+v", binsB)
+			}
+		})
+	}
+}
+
+// TestRestore_UnmarkedBackupKeepsMigrationBlocked verifies that an unmarked
+// backup leaves the coordinate space unresolved and that a restart cannot run
+// migration 005 against the restored (possibly relative) bin indices.
+func TestRestore_UnmarkedBackupKeepsMigrationBlocked(t *testing.T) {
+	database, s, dbCleanup := setupTestDB(t)
+	defer dbCleanup()
+	uploadsDir, fsCleanup := setupTestUploads(t)
+	defer fsCleanup()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	svc := NewService(database, s, uploadsDir, logger)
+	ctx := context.Background()
+
+	now := sql.NullTime{Time: time.Now(), Valid: true}
+	manifest := Manifest{
+		Version:  "1.0",
+		Settings: db.Setting{CreatedAt: now, UpdatedAt: now},
+		Controllers: []db.Controller{
+			{ID: 1, Name: "C", IpAddress: "1.1.1.1", CreatedAt: now},
+		},
+		Containers: []db.Container{
+			{ID: 1, Name: "A", ControllerID: 1, SegmentID: 0,
+				ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true}, CreatedAt: now, UpdatedAt: now},
+			{ID: 2, Name: "B", ControllerID: 1, SegmentID: 0,
+				ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true}, CreatedAt: now, UpdatedAt: now},
+		},
+		Bins: []db.Bin{
+			// Container-relative indices that migration 005 would shift by 10.
+			{ID: 1, Name: "a1", ContainerID: 1, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
+			{ID: 2, Name: "b1", ContainerID: 2, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
+		},
+	}
+
+	zipBytes := buildRestoreZip(t, manifest)
+	err := svc.Restore(ctx, bytes.NewReader(zipBytes), int64(len(zipBytes)))
+	var committed *RestoreCommittedError
+	if !errors.As(err, &committed) {
+		t.Fatalf("expected RestoreCommittedError, got %v", err)
+	}
+
+	// Simulate a restart: migration 005 must remain blocked.
+	if err := hardware.MigrateLegacyLedIndices(ctx, s, logger); err != nil {
+		t.Fatalf("migration: %v", err)
+	}
+	binsB, _ := s.GetBinsByContainer(ctx, 2)
+	if len(binsB) != 1 || !binsB[0].LedIndex.Valid || binsB[0].LedIndex.Int64 != 0 {
+		t.Errorf("unresolved bins were converted by migration 005: %+v", binsB)
+	}
+	if unresolved, _ := ledspace.IsUnresolved(ctx, s); !unresolved {
+		t.Error("coordinate space should remain unresolved after restart")
 	}
 }
 

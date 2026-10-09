@@ -34,6 +34,7 @@ type Querier interface {
 	ClearWallCards(ctx context.Context) error
 	ClearWalls(ctx context.Context) error
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
+	CountUnallocatedContainers(ctx context.Context) (int64, error)
 	CountUsers(ctx context.Context) (int64, error)
 	CreateAuditLog(ctx context.Context, arg CreateAuditLogParams) error
 	CreateBin(ctx context.Context, arg CreateBinParams) (int64, error)
@@ -189,6 +190,7 @@ type Querier interface {
 	UpdateBin(ctx context.Context, arg UpdateBinParams) error
 	UpdateBinLedIndex(ctx context.Context, arg UpdateBinLedIndexParams) error
 	UpdateColors(ctx context.Context, arg UpdateColorsParams) error
+	UpdateContainerAllocation(ctx context.Context, arg UpdateContainerAllocationParams) error
 	UpdateContainerConfig(ctx context.Context, arg UpdateContainerConfigParams) error
 	UpdateControllerStatus(ctx context.Context, arg UpdateControllerStatusParams) error
 	UpdateGeneralSettings(ctx context.Context, arg UpdateGeneralSettingsParams) error

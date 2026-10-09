@@ -96,6 +96,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.countAuditLogsStmt, err = db.PrepareContext(ctx, countAuditLogs); err != nil {
 		return nil, fmt.Errorf("error preparing query CountAuditLogs: %w", err)
 	}
+	if q.countUnallocatedContainersStmt, err = db.PrepareContext(ctx, countUnallocatedContainers); err != nil {
+		return nil, fmt.Errorf("error preparing query CountUnallocatedContainers: %w", err)
+	}
 	if q.countUsersStmt, err = db.PrepareContext(ctx, countUsers); err != nil {
 		return nil, fmt.Errorf("error preparing query CountUsers: %w", err)
 	}
@@ -540,6 +543,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.updateColorsStmt, err = db.PrepareContext(ctx, updateColors); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateColors: %w", err)
 	}
+	if q.updateContainerAllocationStmt, err = db.PrepareContext(ctx, updateContainerAllocation); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateContainerAllocation: %w", err)
+	}
 	if q.updateContainerConfigStmt, err = db.PrepareContext(ctx, updateContainerConfig); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateContainerConfig: %w", err)
 	}
@@ -711,6 +717,11 @@ func (q *Queries) Close() error {
 	if q.countAuditLogsStmt != nil {
 		if cerr := q.countAuditLogsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing countAuditLogsStmt: %w", cerr)
+		}
+	}
+	if q.countUnallocatedContainersStmt != nil {
+		if cerr := q.countUnallocatedContainersStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing countUnallocatedContainersStmt: %w", cerr)
 		}
 	}
 	if q.countUsersStmt != nil {
@@ -1453,6 +1464,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing updateColorsStmt: %w", cerr)
 		}
 	}
+	if q.updateContainerAllocationStmt != nil {
+		if cerr := q.updateContainerAllocationStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateContainerAllocationStmt: %w", cerr)
+		}
+	}
 	if q.updateContainerConfigStmt != nil {
 		if cerr := q.updateContainerConfigStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing updateContainerConfigStmt: %w", cerr)
@@ -1596,6 +1612,7 @@ type Queries struct {
 	clearWallCardsStmt                   *sql.Stmt
 	clearWallsStmt                       *sql.Stmt
 	countAuditLogsStmt                   *sql.Stmt
+	countUnallocatedContainersStmt       *sql.Stmt
 	countUsersStmt                       *sql.Stmt
 	createAuditLogStmt                   *sql.Stmt
 	createBinStmt                        *sql.Stmt
@@ -1744,6 +1761,7 @@ type Queries struct {
 	updateBinStmt                        *sql.Stmt
 	updateBinLedIndexStmt                *sql.Stmt
 	updateColorsStmt                     *sql.Stmt
+	updateContainerAllocationStmt        *sql.Stmt
 	updateContainerConfigStmt            *sql.Stmt
 	updateControllerStatusStmt           *sql.Stmt
 	updateGeneralSettingsStmt            *sql.Stmt
@@ -1790,6 +1808,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		clearWallCardsStmt:                   q.clearWallCardsStmt,
 		clearWallsStmt:                       q.clearWallsStmt,
 		countAuditLogsStmt:                   q.countAuditLogsStmt,
+		countUnallocatedContainersStmt:       q.countUnallocatedContainersStmt,
 		countUsersStmt:                       q.countUsersStmt,
 		createAuditLogStmt:                   q.createAuditLogStmt,
 		createBinStmt:                        q.createBinStmt,
@@ -1938,6 +1957,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		updateBinStmt:                        q.updateBinStmt,
 		updateBinLedIndexStmt:                q.updateBinLedIndexStmt,
 		updateColorsStmt:                     q.updateColorsStmt,
+		updateContainerAllocationStmt:        q.updateContainerAllocationStmt,
 		updateContainerConfigStmt:            q.updateContainerConfigStmt,
 		updateControllerStatusStmt:           q.updateControllerStatusStmt,
 		updateGeneralSettingsStmt:            q.updateGeneralSettingsStmt,

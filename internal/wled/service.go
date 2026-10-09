@@ -2,13 +2,21 @@ package wled
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/hardware/mapper"
+	"github.com/tuxedocurly/wledger/internal/ledspace"
 )
+
+// ErrCoordinateSpaceUnresolved indicates that an LED operation which relies on
+// stored bin LED indices cannot proceed because the coordinate system of those
+// indices is unresolved (for example after restoring a backup without an
+// explicit coordinate-space marker). No WLED command is sent in this case.
+var ErrCoordinateSpaceUnresolved = errors.New("LED coordinate space is unresolved; locate and flash operations are disabled until it is resolved")
 
 type Service interface {
 	LocatePart(ctx context.Context, partID int64) error
@@ -37,6 +45,20 @@ func (s *service) Ping(ctx context.Context, ip string) (bool, error) {
 	return s.client.Ping(ctx, ip)
 }
 
+// ensureCoordinateSpaceResolved returns ErrCoordinateSpaceUnresolved when the
+// stored bin LED indices are in an unresolved coordinate space, so that no WLED
+// command is sent against a possibly incorrect physical location.
+func (s *service) ensureCoordinateSpaceResolved(ctx context.Context) error {
+	unresolved, err := ledspace.IsUnresolved(ctx, s.store)
+	if err != nil {
+		return fmt.Errorf("failed to check LED coordinate space: %w", err)
+	}
+	if unresolved {
+		return ErrCoordinateSpaceUnresolved
+	}
+	return nil
+}
+
 func (s *service) GlobalOff(ctx context.Context) error {
 	controllers, err := s.store.GetControllers(ctx)
 	if err != nil {
@@ -59,6 +81,10 @@ func (s *service) GlobalOff(ctx context.Context) error {
 }
 
 func (s *service) LocatePart(ctx context.Context, partID int64) error {
+	if err := s.ensureCoordinateSpaceResolved(ctx); err != nil {
+		return err
+	}
+
 	assignments, err := s.store.GetPartAssignments(ctx, partID)
 	if err != nil {
 		return fmt.Errorf("failed to fetch part locations: %w", err)
@@ -111,6 +137,10 @@ func (s *service) LocatePart(ctx context.Context, partID int64) error {
 }
 
 func (s *service) LocateBin(ctx context.Context, controllerID, binID int64) error {
+	if err := s.ensureCoordinateSpaceResolved(ctx); err != nil {
+		return err
+	}
+
 	controller, err := s.store.GetController(ctx, controllerID)
 	if err != nil {
 		return fmt.Errorf("controller not found: %w", err)
@@ -141,7 +171,9 @@ func (s *service) LocateBin(ctx context.Context, controllerID, binID int64) erro
 }
 
 // LocateDrawer lights up a drawer's full LED range so it can be found
-// physically. A drawer is a container.
+// physically. A drawer is a container and owns its physical LED allocation
+// (led_start/led_count, segment-relative); the range is taken directly from the
+// allocation and is independent of the drawer's bins.
 func (s *service) LocateDrawer(ctx context.Context, controllerID, containerID int64) error {
 	controller, err := s.store.GetController(ctx, controllerID)
 	if err != nil {
@@ -153,12 +185,8 @@ func (s *service) LocateDrawer(ctx context.Context, controllerID, containerID in
 		return fmt.Errorf("drawer not found: %w", err)
 	}
 
-	length, err := mapper.GetContainerLength(container)
-	if err != nil {
-		return fmt.Errorf("failed to compute drawer length: %w", err)
-	}
-	if length < 1 {
-		return fmt.Errorf("drawer %d has no LEDs to locate", containerID)
+	if container.LedCount < 1 {
+		return fmt.Errorf("drawer %d has no LED allocation to locate", containerID)
 	}
 
 	settings, _ := s.store.GetSettings(ctx)
@@ -167,12 +195,16 @@ func (s *service) LocateDrawer(ctx context.Context, controllerID, containerID in
 		color = "#0000FF"
 	}
 
-	return s.client.Apply(ctx, controller.IpAddress, int(container.SegmentID), 0, int(length), State{Color: color, Mode: ModeSolid})
+	return s.client.Apply(ctx, controller.IpAddress, int(container.SegmentID), int(container.LedStart), int(container.LedCount), State{Color: color, Mode: ModeSolid})
 }
 
 // FlashError flashes a bin's LEDs in the configured error colour (default red)
 // to signal a failed action. Best-effort.
 func (s *service) FlashError(ctx context.Context, controllerID, binID int64) error {
+	if err := s.ensureCoordinateSpaceResolved(ctx); err != nil {
+		return err
+	}
+
 	controller, err := s.store.GetController(ctx, controllerID)
 	if err != nil {
 		return fmt.Errorf("controller not found: %w", err)

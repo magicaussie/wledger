@@ -68,6 +68,13 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Derive drawer LED allocations for existing configurations (idempotent).
+	// Runs after MigrateLegacyLedIndices so bins are already segment-absolute.
+	if err := hardware.BackfillDrawerAllocations(context.Background(), store, log); err != nil {
+		log.Error("Failed to backfill drawer LED allocations", "error", err)
+		os.Exit(1)
+	}
+
 	// Ensure Settings exist
 	if err := store.InitSettings(context.Background()); err != nil {
 		log.Error("Failed to initialize settings", "error", err)

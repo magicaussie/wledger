@@ -84,6 +84,8 @@ func (s *service) CreateController(ctx context.Context, params db.CreateControll
 		ControllerID:  row.ID,
 		SegmentID:     0,
 		PositionIndex: 0,
+		LedStart:      0,
+		LedCount:      64, // matches the default 8x8 layout below
 		ConfigJson:    sql.NullString{String: `{"type":"grid","rows":8,"cols":8}`, Valid: true},
 	})
 	if err != nil {
@@ -160,6 +162,8 @@ type containerInJSON struct {
 	Name          string                 `json:"name"`
 	SegmentID     int64                  `json:"segment_id"`
 	PositionIndex int64                  `json:"position_index"`
+	LedStart      int64                  `json:"led_start"`
+	LedCount      int64                  `json:"led_count"`
 	Config        mapper.ContainerConfig `json:"config"`
 }
 
@@ -167,7 +171,7 @@ type binInJSON struct {
 	ContainerIndex int    `json:"container_index"`
 	X              int    `json:"x"`
 	Y              int    `json:"y"`
-	LedIndex       int    `json:"led_index"`
+	LedIndex       *int   `json:"led_index"`
 	Width          int    `json:"width"`
 	Name           string `json:"name"`
 }
@@ -179,6 +183,16 @@ func clampWidth(w int) int {
 		return 1
 	}
 	return w
+}
+
+// nullIntFromPtr converts an optional LED index to a nullable column value. A
+// nil pointer represents an unmapped bin and is stored as SQL NULL, preserving
+// the unmapped state without inventing a coordinate.
+func nullIntFromPtr(v *int) sql.NullInt64 {
+	if v == nil {
+		return sql.NullInt64{}
+	}
+	return sql.NullInt64{Int64: int64(*v), Valid: true}
 }
 
 func (s *service) SaveGrid(ctx context.Context, controllerID int64, gridDataJSON string, configJSON string) (int64, error) {
@@ -194,7 +208,28 @@ func (s *service) SaveGrid(ctx context.Context, controllerID int64, gridDataJSON
 
 	var totalLedCount int64 = 0
 
-	err := s.store.ExecTx(ctx, func(q db.Querier) error {
+	// Resolve and validate drawer LED allocations before writing anything.
+	resolved, err := resolveAllocations(inputContainers)
+	if err != nil {
+		return 0, fmt.Errorf("%w: %v", ErrInvalidAllocation, err)
+	}
+
+	// Validate every mapped bin against its drawer's proposed allocation before
+	// any persistent change. Unmapped bins (nil led_index) are allowed.
+	binRows := make([]binMappingRow, len(inputBins))
+	for i := range inputBins {
+		binRows[i] = binMappingRow{
+			ContainerIndex: inputBins[i].ContainerIndex,
+			Name:           inputBins[i].Name,
+			LedIndex:       inputBins[i].LedIndex,
+			Width:          inputBins[i].Width,
+		}
+	}
+	if err := validateBinMappings(binRows, resolved); err != nil {
+		return 0, fmt.Errorf("%w: %v", ErrInvalidAllocation, err)
+	}
+
+	err = s.store.ExecTx(ctx, func(q db.Querier) error {
 		// Sync Containers
 		existingContainers, err := q.GetContainersByController(ctx, controllerID)
 		if err != nil {
@@ -215,6 +250,8 @@ func (s *service) SaveGrid(ctx context.Context, controllerID int64, gridDataJSON
 					Name:          c.Name,
 					SegmentID:     c.SegmentID,
 					PositionIndex: int64(i), // Use loop index as position
+					LedStart:      c.LedStart,
+					LedCount:      c.LedCount,
 					ConfigJson:    sql.NullString{String: configStr, Valid: true},
 				})
 				if err != nil {
@@ -229,6 +266,8 @@ func (s *service) SaveGrid(ctx context.Context, controllerID int64, gridDataJSON
 					ControllerID:  controllerID,
 					SegmentID:     c.SegmentID,
 					PositionIndex: int64(i), // Use loop index as position
+					LedStart:      c.LedStart,
+					LedCount:      c.LedCount,
 					ConfigJson:    sql.NullString{String: configStr, Valid: true},
 				})
 				if err != nil {
@@ -292,7 +331,7 @@ func (s *service) SaveGrid(ctx context.Context, controllerID int64, gridDataJSON
 					err := q.UpdateBin(ctx, db.UpdateBinParams{
 						ID:       existing.ID,
 						Name:     b.Name,
-						LedIndex: sql.NullInt64{Int64: int64(b.LedIndex), Valid: true},
+						LedIndex: nullIntFromPtr(b.LedIndex),
 						Width:    sql.NullInt64{Int64: int64(clampWidth(b.Width)), Valid: true},
 						GridX:    sql.NullInt64{Int64: int64(b.X), Valid: true},
 						GridY:    sql.NullInt64{Int64: int64(b.Y), Valid: true},
@@ -306,7 +345,7 @@ func (s *service) SaveGrid(ctx context.Context, controllerID int64, gridDataJSON
 					_, err := q.CreateBin(ctx, db.CreateBinParams{
 						Name:        b.Name,
 						ContainerID: dbID,
-						LedIndex:    sql.NullInt64{Int64: int64(b.LedIndex), Valid: true},
+						LedIndex:    nullIntFromPtr(b.LedIndex),
 						Width:       sql.NullInt64{Int64: int64(clampWidth(b.Width)), Valid: true},
 						GridX:       sql.NullInt64{Int64: int64(b.X), Valid: true},
 						GridY:       sql.NullInt64{Int64: int64(b.Y), Valid: true},
@@ -316,8 +355,10 @@ func (s *service) SaveGrid(ctx context.Context, controllerID int64, gridDataJSON
 					}
 				}
 
-				if int64(b.LedIndex)+int64(clampWidth(b.Width)) > totalLedCount {
-					totalLedCount = int64(b.LedIndex) + int64(clampWidth(b.Width))
+				if b.LedIndex != nil {
+					if end := int64(*b.LedIndex) + int64(clampWidth(b.Width)); end > totalLedCount {
+						totalLedCount = end
+					}
 				}
 			}
 

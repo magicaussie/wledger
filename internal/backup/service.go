@@ -17,11 +17,26 @@ import (
 
 	"github.com/tuxedocurly/wledger/internal/audit"
 	"github.com/tuxedocurly/wledger/internal/db"
+	"github.com/tuxedocurly/wledger/internal/hardware"
+	"github.com/tuxedocurly/wledger/internal/ledspace"
 )
 
 type Service interface {
 	Export(ctx context.Context, w io.Writer) error
 	Restore(ctx context.Context, zipReader io.ReaderAt, size int64) error
+}
+
+// RestoreCommittedError reports that a restore committed its data and files but
+// a post-restore step did not complete cleanly: drawer allocation processing
+// failed, or the restored LED coordinate space remains unresolved. It is a
+// warning, not a failure, and must not be reported to the administrator as a
+// failed restore.
+type RestoreCommittedError struct {
+	Reason string
+}
+
+func (e *RestoreCommittedError) Error() string {
+	return "restore completed with warnings: " + e.Reason
 }
 
 type service struct {
@@ -99,6 +114,7 @@ func (s *service) Export(ctx context.Context, w io.Writer) error {
 	manifest := Manifest{
 		Version:             "1.0",
 		ExportedAt:          time.Now(),
+		BinIndexSpace:       ledspace.Segment,
 		Settings:            settings,
 		Users:               users,
 		Controllers:         controllers,
@@ -267,6 +283,28 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 		return errors.New("invalid Backup: restore_data.json missing")
 	}
 
+	// Resolve the coordinate system of the backup's bin LED indices. An
+	// unsupported explicit marker is rejected; an absent marker on a backup that
+	// contains bins is treated as unresolved and is never inferred from index
+	// values or timestamps.
+	space, err := resolveBinIndexSpace(manifest)
+	if err != nil {
+		return err
+	}
+
+	// Validate restored drawer allocations before touching any persisted data.
+	// When the coordinate space is known to be segment-relative, also validate
+	// that every mapped bin is contained in its drawer's allocation. Unresolved
+	// backups only have their allocation ranges checked, because bin containment
+	// cannot be assessed without a known bin coordinate space.
+	if space == ledspace.Segment {
+		if _, err := hardware.ValidateRestoredAllocations(manifest.Containers, manifest.Bins); err != nil {
+			return fmt.Errorf("invalid backup: %w", err)
+		}
+	} else if err := hardware.ValidateRestoredAllocationRanges(manifest.Containers); err != nil {
+		return fmt.Errorf("invalid backup: %w", err)
+	}
+
 	// Extract uploads to temp directory
 	timestamp := time.Now().UnixNano()
 	// Use a hidden folder inside uploadsDir to ensure same-filesystem operations
@@ -385,7 +423,24 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 		}
 
 		s.logger.Debug("restoring database records from manifest")
-		return s.restoreData(ctx, qtx, manifest)
+		if err := s.restoreData(ctx, qtx, manifest); err != nil {
+			return err
+		}
+		// Persist the coordinate-space state atomically with the restored data so
+		// it survives restarts and cannot be left stale by a crash.
+		if err := ledspace.Set(ctx, qtx, space); err != nil {
+			return err
+		}
+		if space == ledspace.Segment {
+			// The restored bins are already segment-absolute, so migration 005 must
+			// never run against them. Marking it applied here (atomically with the
+			// restore) prevents a second conversion at the next startup even when the
+			// flag was absent or false before the restore.
+			if err := qtx.SetFlag(ctx, db.SetFlagParams{Key: hardware.Migration005FlagKey, Value: "true"}); err != nil {
+				return fmt.Errorf("failed to mark migration 005 applied: %w", err)
+			}
+		}
+		return nil
 	})
 
 	if err != nil {
@@ -438,21 +493,57 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 		return fmt.Errorf("failed to swap new uploads: %w", err)
 	}
 
+	// The data and files are committed from here on. Any remaining problem is a
+	// warning, not a failed restore.
+	if space == ledspace.Unresolved {
+		s.logger.Warn("restored backup has an unresolved LED coordinate space; drawer allocation backfill skipped")
+		return &RestoreCommittedError{Reason: "restored LED coordinate space is unresolved; drawer allocations were not derived"}
+	}
+
+	// Establish a usable drawer allocation state before reporting success. This
+	// derives allocations for restored drawers that do not have one (for example
+	// legacy backups that predate drawer allocations) so drawer locating works
+	// immediately without a restart. It never runs a coordinate conversion, so
+	// restored bin indices are never shifted twice. Ambiguous mappings are left
+	// untouched and reported as warnings by the backfill rather than guessed.
+	if err := hardware.BackfillDrawerAllocations(ctx, s.store, s.logger); err != nil {
+		s.logger.Error("post-restore drawer allocation backfill failed", "err", err)
+		return &RestoreCommittedError{Reason: "drawer allocation backfill failed: " + err.Error()}
+	}
+
 	return nil
+}
+
+// resolveBinIndexSpace determines the coordinate system of a backup's bin LED
+// indices. It never infers the space from index values or timestamps: an absent
+// marker on a backup that contains bins is unresolved. A backup with no bins has
+// no coordinate system to misinterpret, so it is treated as resolved.
+func resolveBinIndexSpace(m Manifest) (string, error) {
+	switch m.BinIndexSpace {
+	case ledspace.Segment:
+		return ledspace.Segment, nil
+	case "":
+		if len(m.Bins) == 0 {
+			return ledspace.Segment, nil
+		}
+		return ledspace.Unresolved, nil
+	default:
+		return "", fmt.Errorf("unsupported backup bin_index_space %q", m.BinIndexSpace)
+	}
 }
 
 func (s *service) restoreData(ctx context.Context, qtx db.Querier, manifest Manifest) error {
 	// Settings
 	err := qtx.RestoreSettings(ctx, db.RestoreSettingsParams{
-		RequireAuthForRead:   manifest.Settings.RequireAuthForRead,
-		LocateTimeoutSeconds: manifest.Settings.LocateTimeoutSeconds,
-		EnableLocateTimeout:  manifest.Settings.EnableLocateTimeout,
-		ColorLocate:          manifest.Settings.ColorLocate,
-		ColorStockOk:         manifest.Settings.ColorStockOk,
-		ColorStockLow:        manifest.Settings.ColorStockLow,
-		ColorStockCritical:   manifest.Settings.ColorStockCritical,
-		CreatedAt:            manifest.Settings.CreatedAt,
-		UpdatedAt:            manifest.Settings.UpdatedAt,
+		RequireAuthForRead:    manifest.Settings.RequireAuthForRead,
+		LocateTimeoutSeconds:  manifest.Settings.LocateTimeoutSeconds,
+		EnableLocateTimeout:   manifest.Settings.EnableLocateTimeout,
+		ColorLocate:           manifest.Settings.ColorLocate,
+		ColorStockOk:          manifest.Settings.ColorStockOk,
+		ColorStockLow:         manifest.Settings.ColorStockLow,
+		ColorStockCritical:    manifest.Settings.ColorStockCritical,
+		CreatedAt:             manifest.Settings.CreatedAt,
+		UpdatedAt:             manifest.Settings.UpdatedAt,
 		SupplierCacheTtlHours: manifest.Settings.SupplierCacheTtlHours,
 		DefaultCurrency:       manifest.Settings.DefaultCurrency,
 	})
@@ -478,6 +569,8 @@ func (s *service) restoreData(ctx context.Context, qtx db.Querier, manifest Mani
 			SegmentID:     c.SegmentID,
 			ConfigJson:    c.ConfigJson,
 			PositionIndex: c.PositionIndex,
+			LedStart:      c.LedStart,
+			LedCount:      c.LedCount,
 			CreatedAt:     c.CreatedAt,
 			UpdatedAt:     c.UpdatedAt,
 		}); err != nil {
