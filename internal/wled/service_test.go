@@ -3,12 +3,15 @@ package wled
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/tuxedocurly/wledger/internal/db"
 )
@@ -158,4 +161,89 @@ func TestService_Locate(t *testing.T) {
 			t.Errorf("expected single LED range 685->686, got %s", receivedColor)
 		}
 	})
+}
+
+// TestService_GlobalOff verifies GlobalOff powers off every controller with a
+// device-wide power-off payload, and keeps going when one controller fails.
+func TestService_GlobalOff(t *testing.T) {
+	var mu sync.Mutex
+	var okBody string
+	var okHit, failHit bool
+	okServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		mu.Lock()
+		okBody = string(b)
+		okHit = true
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer okServer.Close()
+
+	failServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		failHit = true
+		mu.Unlock()
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer failServer.Close()
+
+	dbConn, err := db.Open("file:globaloff_test?mode=memory&cache=shared")
+	if err != nil {
+		t.Fatalf("failed to open db: %v", err)
+	}
+	defer dbConn.Close()
+	if err := db.Migrate(dbConn); err != nil {
+		t.Fatalf("failed to migrate: %v", err)
+	}
+
+	store := db.NewStore(dbConn)
+	ctx := context.Background()
+
+	if _, err := store.CreateController(ctx, db.CreateControllerParams{Name: "OK", IpAddress: okServer.URL[7:]}); err != nil {
+		t.Fatalf("failed to create healthy controller: %v", err)
+	}
+	if _, err := store.CreateController(ctx, db.CreateControllerParams{Name: "FAIL", IpAddress: failServer.URL[7:]}); err != nil {
+		t.Fatalf("failed to create failing controller: %v", err)
+	}
+
+	svc := NewService(store, NewClient(), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err := svc.GlobalOff(ctx); err != nil {
+		t.Fatalf("GlobalOff: %v", err)
+	}
+
+	// GlobalOff dispatches per controller in the background; wait for BOTH the
+	// healthy and the failing controller to be attempted, with a bounded timeout.
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		mu.Lock()
+		done := okHit && failHit
+		mu.Unlock()
+		if done {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if !okHit {
+		t.Fatal("GlobalOff did not reach the healthy controller")
+	}
+	if !failHit {
+		t.Fatal("GlobalOff did not attempt the failing controller")
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(okBody), &payload); err != nil {
+		t.Fatalf("GlobalOff body is not valid JSON: %q: %v", okBody, err)
+	}
+	if on, ok := payload["on"].(bool); !ok || on {
+		t.Errorf("GlobalOff must send on:false, got %v", payload["on"])
+	}
+	if _, ok := payload["seg"]; ok {
+		t.Errorf("GlobalOff must not send a segment array, got %s", okBody)
+	}
+	if strings.Contains(okBody, "5000") {
+		t.Errorf("GlobalOff must not contain the hardcoded 5000-pixel wipe, got %s", okBody)
+	}
 }

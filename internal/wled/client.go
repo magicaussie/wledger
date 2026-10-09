@@ -114,21 +114,16 @@ func (c *Client) LightUp(ctx context.Context, ip string, segmentID int, index in
 	return c.SetState(ctx, ip, payload)
 }
 
-// Clear resets the controller to Solid Black
+// Clear turns the controller's LEDs off. It uses the device-wide power state
+// rather than a pixel range, so it is independent of the controller's LED count,
+// segment layout and segment IDs. live:false exits realtime mode; tt:0 disables
+// the transition. No segment or individual-pixel data is sent, so unrelated
+// segment configuration and effects are left untouched.
 func (c *Client) Clear(ctx context.Context, ip string) error {
 	payload := map[string]any{
-		"on":   true,
+		"on":   false,
 		"live": false,
 		"tt":   0,
-		"seg": []map[string]any{
-			{
-				"id": 0,
-				"on": true,
-				"fx": 0,
-				"i":  []any{0, 5000, []int{0, 0, 0}}, // Wipe first 5000 pixels
-				// TODO: Handle this dynamically based on actual LED count or segment config
-			},
-		},
 	}
 
 	return c.SetState(ctx, ip, payload)
