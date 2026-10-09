@@ -44,16 +44,27 @@ an inventory system and is currently missing.
 
 ---
 
-### [ ] Favorites are half-implemented (bug)
+### [x] Favorites are half-implemented (bug)
 
 **Why:** `parts.is_favorite` exists, is restored in backups, is counted in
 dashboard stats, and renders a ★ in `web/pages/parts.templ` — but there is **no
 route or handler to ever set it**. It is currently dead data.
 
 **Scope (pick one):**
-- [ ] Wire up a toggle: `POST /parts/{id}/favorite` with an HTMX swap on the
+- [x] Wire up a toggle: `POST /parts/{id}/favorite` with an HTMX swap on the
       star, or
 - [ ] Remove the field entirely.
+
+**Implemented:**
+- Query `TogglePartFavorite` in `sql/queries/parts.sql` (atomic flip, returns
+  the new state).
+- `parts.Service.ToggleFavorite`.
+- `HandlePartFavorite` in `internal/handler/parts.go`; route in the
+  editor/admin group in `internal/router/router.go`. Returns the swapped button
+  for HTMX requests, otherwise redirects back to the part.
+- `components.PartFavoriteButton` + `icons.Star`; used on the parts list cards
+  and the part detail header. Read-only users see a static star.
+- Tests: `TestTogglePartFavorite`, `TestPartFavoriteButtonRenders{,ReadOnly}`.
 
 **Hook points:**
 - Handler: `internal/handler/parts.go`.
