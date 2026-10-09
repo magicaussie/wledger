@@ -323,14 +323,14 @@ func (r *AllocationReport) add(f AllocationFinding) {
 // against them. It is strictly read-only and never alters stored bin indices.
 // Partially populated drawers are allowed: a drawer is clean as long as every
 // mapped bin lies within its proposed allocation.
-func PreflightDrawerAllocations(ctx context.Context, store db.Store) (AllocationReport, error) {
+func PreflightDrawerAllocations(ctx context.Context, q db.Querier) (AllocationReport, error) {
 	var report AllocationReport
-	controllers, err := store.GetControllers(ctx)
+	controllers, err := q.GetControllers(ctx)
 	if err != nil {
 		return report, err
 	}
 	for _, ctrl := range controllers {
-		containers, err := store.GetContainersByController(ctx, ctrl.ID)
+		containers, err := q.GetContainersByController(ctx, ctrl.ID)
 		if err != nil {
 			return report, err
 		}
@@ -365,7 +365,7 @@ func PreflightDrawerAllocations(ctx context.Context, store db.Store) (Allocation
 			start := segOffset[c.SegmentID]
 			segOffset[c.SegmentID] = start + length
 
-			bins, err := store.GetBinsByContainer(ctx, c.ID)
+			bins, err := q.GetBinsByContainer(ctx, c.ID)
 			if err != nil {
 				return report, err
 			}
@@ -410,35 +410,44 @@ func classifyBins(bins []db.Bin, start, count int64) (AllocationClass, string) {
 // transactional and idempotent (guarded by a system flag). Containers whose
 // mappings are inconsistent are left unallocated and reported; their stored bin
 // indices are never altered.
+//
+// The coordinate-space check, the preflight and the writes all run inside the
+// same immediate transaction, so a concurrent coordinate-space conversion cannot
+// commit between them and the derived allocations always match the indices they
+// were derived from.
 func BackfillDrawerAllocations(ctx context.Context, store db.Store, logger *slog.Logger) error {
-	// Allocations are derived from segment-relative bin indices using the UI
-	// ordering. Drawer-relative indices are already relative to an allocation, and
-	// unresolved indices have no known coordinate system, so neither can be used
-	// to derive a meaningful allocation range.
-	space, err := ledspace.Current(ctx, store)
-	if err != nil {
-		return fmt.Errorf("failed to read LED coordinate space: %w", err)
-	}
-	if space != ledspace.Segment {
-		logger.Warn("skipping drawer allocation backfill: bin LED indices are not segment-relative", "space", space)
-		return nil
-	}
-
-	const flagKey = "drawer_allocation_backfilled"
-	if flag, err := store.GetFlag(ctx, flagKey); err == nil && flag == "true" {
-		// Already attempted. Re-run only if unallocated drawers exist (e.g. after
-		// restoring an older backup that predates drawer allocations).
-		if n, err := store.CountUnallocatedContainers(ctx); err == nil && n == 0 {
+	var report AllocationReport
+	ran := false
+	err := store.ExecImmediateTx(ctx, func(q db.Querier) error {
+		// Allocations are derived from segment-relative bin indices using the UI
+		// ordering. Drawer-relative indices are already relative to an allocation,
+		// and unresolved indices have no known coordinate system, so neither can be
+		// used to derive a meaningful allocation range.
+		space, err := ledspace.Current(ctx, q)
+		if err != nil {
+			return fmt.Errorf("failed to read LED coordinate space: %w", err)
+		}
+		if space != ledspace.Segment {
+			logger.Warn("skipping drawer allocation backfill: bin LED indices are not segment-relative", "space", space)
 			return nil
 		}
-	}
 
-	report, err := PreflightDrawerAllocations(ctx, store)
-	if err != nil {
-		return fmt.Errorf("allocation preflight failed: %w", err)
-	}
+		const flagKey = "drawer_allocation_backfilled"
+		if flag, err := q.GetFlag(ctx, flagKey); err == nil && flag == "true" {
+			// Already attempted. Re-run only if unallocated drawers exist (e.g. after
+			// restoring an older backup that predates drawer allocations).
+			if n, err := q.CountUnallocatedContainers(ctx); err == nil && n == 0 {
+				return nil
+			}
+		}
 
-	err = store.ExecTx(ctx, func(q db.Querier) error {
+		r, err := PreflightDrawerAllocations(ctx, q)
+		if err != nil {
+			return fmt.Errorf("allocation preflight failed: %w", err)
+		}
+		report = r
+		ran = true
+
 		for _, f := range report.Findings {
 			if f.Class == AllocationInconsistent {
 				continue
@@ -462,6 +471,10 @@ func BackfillDrawerAllocations(ctx context.Context, store db.Store, logger *slog
 	})
 	if err != nil {
 		return fmt.Errorf("allocation backfill failed: %w", err)
+	}
+
+	if !ran {
+		return nil
 	}
 
 	logger.Info("drawer LED allocation backfill complete",

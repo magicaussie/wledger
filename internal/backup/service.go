@@ -373,8 +373,10 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 		}
 	}
 
-	// Database Restore Transaction
-	err = s.store.ExecTx(ctx, func(qtx db.Querier) error {
+	// Database Restore Transaction. The write reservation is taken up front
+	// (BEGIN IMMEDIATE) so a concurrent coordinate conversion cannot commit
+	// between the restore's reads and its writes.
+	err = s.store.ExecImmediateTx(ctx, func(qtx db.Querier) error {
 		s.logger.Debug("clearing existing database records")
 		// Order matters for Foreign Keys
 		if err := qtx.ClearAuditLogs(ctx); err != nil {

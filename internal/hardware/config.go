@@ -186,9 +186,11 @@ func (s *service) ImportConfig(ctx context.Context, name, ip string, port int64,
 	}
 
 	var newID int64
-	err := s.store.ExecTx(ctx, func(q db.Querier) error {
+	err := s.store.ExecImmediateTx(ctx, func(q db.Querier) error {
 		// Read the target coordinate space inside the transaction so the imported
 		// indices are normalised and validated against a single consistent state.
+		// The write reservation is taken up front (BEGIN IMMEDIATE), so a concurrent
+		// coordinate conversion cannot commit between this read and the write.
 		// Importing into an unresolved database is rejected: the imported indices
 		// cannot be placed in a known coordinate space.
 		dbSpace, err := ledspace.Current(ctx, q)

@@ -230,9 +230,11 @@ func (s *service) SaveGrid(ctx context.Context, controllerID int64, gridDataJSON
 		}
 	}
 
-	err = s.store.ExecTx(ctx, func(q db.Querier) error {
+	err = s.store.ExecImmediateTx(ctx, func(q db.Querier) error {
 		// Read the active coordinate space from the same transaction that performs
-		// the write. Only segment-relative editing is supported at this stage, so a
+		// the write. The write reservation is taken up front (BEGIN IMMEDIATE), so a
+		// concurrent coordinate conversion cannot commit between this read and the
+		// write. Only segment-relative editing is supported at this stage, so a
 		// drawer-relative or unresolved database is rejected rather than written to
 		// with segment-relative indices (which would be a mixed-space write).
 		space, err := ledspace.Current(ctx, q)

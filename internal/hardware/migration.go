@@ -21,29 +21,33 @@ const Migration005FlagKey = "migration_005_applied"
 // MigrateLegacyLedIndices converts bins' relative led_index (per container)
 // to absolute segment indices (across containers on same segment).
 // This reflects legacy logic but persists it to the database.
+//
+// The coordinate-space check and the flag check run inside the same immediate
+// transaction as the conversion, so a concurrent coordinate-space conversion
+// cannot commit between the check and the write.
 func MigrateLegacyLedIndices(ctx context.Context, store db.Store, logger *slog.Logger) error {
-	// Only segment-relative bin indices may be converted. Drawer-relative indices
-	// are already relative to their drawer's allocation, and unresolved indices
-	// have no known coordinate system; converting either would address the wrong
-	// physical LEDs.
-	space, err := ledspace.Current(ctx, store)
-	if err != nil {
-		return fmt.Errorf("failed to read LED coordinate space: %w", err)
-	}
-	if space != ledspace.Segment {
-		logger.Warn("skipping legacy LED index migration: bin LED indices are not segment-relative", "space", space)
-		return nil
-	}
+	err := store.ExecImmediateTx(ctx, func(q db.Querier) error {
+		// Only segment-relative bin indices may be converted. Drawer-relative
+		// indices are already relative to their drawer's allocation, and
+		// unresolved indices have no known coordinate system; converting either
+		// would address the wrong physical LEDs.
+		space, err := ledspace.Current(ctx, q)
+		if err != nil {
+			return fmt.Errorf("failed to read LED coordinate space: %w", err)
+		}
+		if space != ledspace.Segment {
+			logger.Warn("skipping legacy LED index migration: bin LED indices are not segment-relative", "space", space)
+			return nil
+		}
 
-	// Check if migration has already been applied
-	flag, err := store.GetFlag(ctx, Migration005FlagKey)
-	if err == nil && flag == "true" {
-		return nil
-	}
+		// Check if migration has already been applied
+		flag, err := q.GetFlag(ctx, Migration005FlagKey)
+		if err == nil && flag == "true" {
+			return nil
+		}
 
-	logger.Info("starting legacy LED index migration (Track: Cross-Container Mapping)")
+		logger.Info("starting legacy LED index migration (Track: Cross-Container Mapping)")
 
-	err = store.ExecTx(ctx, func(q db.Querier) error {
 		controllers, err := q.GetControllers(ctx)
 		if err != nil {
 			return err
