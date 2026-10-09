@@ -3,11 +3,22 @@ package stock
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 
 	"github.com/tuxedocurly/wledger/internal/audit"
 	"github.com/tuxedocurly/wledger/internal/db"
+)
+
+// Sentinel errors returned by the stock service so callers can distinguish
+// validation failures (missing assignment, ownership mismatch) from unexpected
+// database errors.
+var (
+	// ErrAssignmentNotFound indicates the referenced stock assignment does not exist.
+	ErrAssignmentNotFound = errors.New("stock assignment not found")
+	// ErrAssignmentOwnership indicates the assignment belongs to a different part.
+	ErrAssignmentOwnership = errors.New("stock assignment does not belong to part")
 )
 
 type Service interface {
@@ -105,7 +116,7 @@ func (s *service) AdjustStock(ctx context.Context, assignmentID int64, delta int
 		assignment, err := q.GetAssignment(ctx, assignmentID)
 		if err != nil {
 			s.logger.Error("assignment not found for adjustment", "err", err, "assignment_id", assignmentID)
-			return fmt.Errorf("assignment not found: %w", err)
+			return fmt.Errorf("%w: id %d", ErrAssignmentNotFound, assignmentID)
 		}
 
 		newQty := assignment.Quantity + int64(delta)
@@ -113,10 +124,12 @@ func (s *service) AdjustStock(ctx context.Context, assignmentID int64, delta int
 			newQty = 0
 		}
 
-		err = q.UpdatePartAssignmentQuantity(ctx, db.UpdatePartAssignmentQuantityParams{
+		// Update by primary key: the part/bin keyed variant cannot match an
+		// orphaned assignment (bin_id IS NULL), which would silently update
+		// zero rows while still writing an audit entry.
+		err = q.UpdatePartAssignmentQuantityByID(ctx, db.UpdatePartAssignmentQuantityByIDParams{
 			Quantity: newQty,
-			PartID:   assignment.PartID,
-			BinID:    assignment.BinID,
+			ID:       assignmentID,
 		})
 
 		if err != nil {
@@ -142,7 +155,18 @@ func (s *service) MoveStock(ctx context.Context, req MoveStockRequest) error {
 		source, err := q.GetAssignment(ctx, req.AssignmentID)
 		if err != nil {
 			s.logger.Error("source assignment not found for stock move", "err", err, "assignment_id", req.AssignmentID)
-			return fmt.Errorf("source assignment not found: %w", err)
+			return fmt.Errorf("%w: id %d", ErrAssignmentNotFound, req.AssignmentID)
+		}
+
+		// The assignment must belong to the part named in the request. The part
+		// id and assignment id arrive as independent URL segments, so without
+		// this check a mismatched request would merge the source quantity into a
+		// different part's target assignment and delete the source row.
+		if source.PartID != req.PartID {
+			s.logger.Warn("stock move rejected: assignment does not belong to part",
+				"assignment_id", req.AssignmentID, "assignment_part_id", source.PartID, "requested_part_id", req.PartID)
+			return fmt.Errorf("%w: assignment %d belongs to part %d, not part %d",
+				ErrAssignmentOwnership, req.AssignmentID, source.PartID, req.PartID)
 		}
 
 		// Check for same bin move (No-op)
@@ -166,10 +190,9 @@ func (s *service) MoveStock(ctx context.Context, req MoveStockRequest) error {
 
 			newQty := target.Quantity + source.Quantity
 
-			err = q.UpdatePartAssignmentQuantity(ctx, db.UpdatePartAssignmentQuantityParams{
+			err = q.UpdatePartAssignmentQuantityByID(ctx, db.UpdatePartAssignmentQuantityByIDParams{
 				Quantity: newQty,
-				PartID:   req.PartID,
-				BinID:    sql.NullInt64{Int64: req.TargetBinID, Valid: true},
+				ID:       targetID,
 			})
 			if err != nil {
 				return fmt.Errorf("failed to update target stock: %w", err)
@@ -204,18 +227,33 @@ func (s *service) MoveStock(ctx context.Context, req MoveStockRequest) error {
 func (s *service) RemoveStock(ctx context.Context, req RemoveStockRequest) error {
 	return s.store.ExecTx(ctx, func(q db.Querier) error {
 		assignment, err := q.GetAssignment(ctx, req.AssignmentID)
-		if err == nil {
-			audit.Log(ctx, q, "STOCK_REMOVE", "PART", req.PartID, "Removed stock",
-				map[string]any{
-					"bin_id":   assignment.BinID.Int64,
-					"quantity": assignment.Quantity,
-				}, nil)
+		if err != nil {
+			s.logger.Error("assignment not found for stock removal", "err", err, "assignment_id", req.AssignmentID)
+			return fmt.Errorf("%w: id %d", ErrAssignmentNotFound, req.AssignmentID)
 		}
 
-		err = q.DeleteAssignment(ctx, req.AssignmentID)
-		if err != nil {
+		// The assignment must belong to the part named in the request; otherwise
+		// a mismatched request could delete another part's stock and record the
+		// removal against the wrong part.
+		if assignment.PartID != req.PartID {
+			s.logger.Warn("stock removal rejected: assignment does not belong to part",
+				"assignment_id", req.AssignmentID, "assignment_part_id", assignment.PartID, "requested_part_id", req.PartID)
+			return fmt.Errorf("%w: assignment %d belongs to part %d, not part %d",
+				ErrAssignmentOwnership, req.AssignmentID, assignment.PartID, req.PartID)
+		}
+
+		if err := q.DeleteAssignment(ctx, req.AssignmentID); err != nil {
 			return err
 		}
+
+		// Audit only after the deletion succeeds; it runs inside the same
+		// transaction, so a later failure rolls the entry back too.
+		audit.Log(ctx, q, "STOCK_REMOVE", "PART", assignment.PartID, "Removed stock",
+			map[string]any{
+				"bin_id":   assignment.BinID.Int64,
+				"quantity": assignment.Quantity,
+			}, nil)
+
 		return nil
 	})
 }

@@ -558,6 +558,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.updatePartAssignmentQuantityStmt, err = db.PrepareContext(ctx, updatePartAssignmentQuantity); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdatePartAssignmentQuantity: %w", err)
 	}
+	if q.updatePartAssignmentQuantityByIDStmt, err = db.PrepareContext(ctx, updatePartAssignmentQuantityByID); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdatePartAssignmentQuantityByID: %w", err)
+	}
 	if q.updatePartLinkStmt, err = db.PrepareContext(ctx, updatePartLink); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdatePartLink: %w", err)
 	}
@@ -1480,6 +1483,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing updatePartAssignmentQuantityStmt: %w", cerr)
 		}
 	}
+	if q.updatePartAssignmentQuantityByIDStmt != nil {
+		if cerr := q.updatePartAssignmentQuantityByIDStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updatePartAssignmentQuantityByIDStmt: %w", cerr)
+		}
+	}
 	if q.updatePartLinkStmt != nil {
 		if cerr := q.updatePartLinkStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing updatePartLinkStmt: %w", cerr)
@@ -1742,6 +1750,7 @@ type Queries struct {
 	updateInspirationTemplateStmt        *sql.Stmt
 	updatePartStmt                       *sql.Stmt
 	updatePartAssignmentQuantityStmt     *sql.Stmt
+	updatePartAssignmentQuantityByIDStmt *sql.Stmt
 	updatePartLinkStmt                   *sql.Stmt
 	updateSupplierCredentialTokenStmt    *sql.Stmt
 	updateSupplierSettingsStmt           *sql.Stmt
@@ -1935,6 +1944,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		updateInspirationTemplateStmt:        q.updateInspirationTemplateStmt,
 		updatePartStmt:                       q.updatePartStmt,
 		updatePartAssignmentQuantityStmt:     q.updatePartAssignmentQuantityStmt,
+		updatePartAssignmentQuantityByIDStmt: q.updatePartAssignmentQuantityByIDStmt,
 		updatePartLinkStmt:                   q.updatePartLinkStmt,
 		updateSupplierCredentialTokenStmt:    q.updateSupplierCredentialTokenStmt,
 		updateSupplierSettingsStmt:           q.updateSupplierSettingsStmt,

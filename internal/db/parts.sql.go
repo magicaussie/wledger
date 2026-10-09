@@ -1109,6 +1109,23 @@ func (q *Queries) UpdatePartAssignmentQuantity(ctx context.Context, arg UpdatePa
 	return err
 }
 
+const updatePartAssignmentQuantityByID = `-- name: UpdatePartAssignmentQuantityByID :exec
+UPDATE part_assignments SET quantity = ? WHERE id = ?
+`
+
+type UpdatePartAssignmentQuantityByIDParams struct {
+	Quantity int64 `json:"quantity"`
+	ID       int64 `json:"id"`
+}
+
+// Updates by primary key so assignments with a NULL bin_id (orphaned stock)
+// can be adjusted. `bin_id = NULL` never matches in SQL, so the part/bin
+// keyed variant above silently updates zero rows for orphaned assignments.
+func (q *Queries) UpdatePartAssignmentQuantityByID(ctx context.Context, arg UpdatePartAssignmentQuantityByIDParams) error {
+	_, err := q.exec(ctx, q.updatePartAssignmentQuantityByIDStmt, updatePartAssignmentQuantityByID, arg.Quantity, arg.ID)
+	return err
+}
+
 const updatePartLink = `-- name: UpdatePartLink :exec
 UPDATE part_links SET url = ?, label = ? WHERE id = ?
 `

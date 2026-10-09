@@ -222,6 +222,12 @@ WHERE id = ?;
 -- name: UpdatePartAssignmentQuantity :exec
 UPDATE part_assignments SET quantity = ? WHERE part_id = ? AND bin_id = ?;
 
+-- name: UpdatePartAssignmentQuantityByID :exec
+-- Updates by primary key so assignments with a NULL bin_id (orphaned stock)
+-- can be adjusted. `bin_id = NULL` never matches in SQL, so the part/bin
+-- keyed variant above silently updates zero rows for orphaned assignments.
+UPDATE part_assignments SET quantity = ? WHERE id = ?;
+
 -- name: DeletePartAssignment :exec
 DELETE FROM part_assignments WHERE part_id = ? AND bin_id = ?;
 
