@@ -2,6 +2,7 @@ package handler
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -251,9 +252,12 @@ func (h *Handler) HandlePartsCreate(w http.ResponseWriter, r *http.Request) {
 
 	newID, err := h.Parts.CreatePart(r.Context(), req)
 	if err != nil {
-		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+		switch {
+		case errors.Is(err, parts.ErrInvalidLinkURL):
+			h.UIError.Respond(w, r, err, "Invalid link URL: only http:// and https:// links are allowed", http.StatusBadRequest)
+		case strings.Contains(err.Error(), "UNIQUE constraint failed"):
 			h.UIError.Respond(w, r, err, "Part already exists (check barcode)", http.StatusConflict)
-		} else {
+		default:
 			h.UIError.Respond(w, r, err, "Failed to create part", http.StatusInternalServerError)
 		}
 		return
@@ -292,6 +296,10 @@ func (h *Handler) HandlePartUpdate(w http.ResponseWriter, r *http.Request) {
 
 	err = h.Parts.UpdatePart(r.Context(), req)
 	if err != nil {
+		if errors.Is(err, parts.ErrInvalidLinkURL) {
+			h.UIError.Respond(w, r, err, "Invalid link URL: only http:// and https:// links are allowed", http.StatusBadRequest)
+			return
+		}
 		h.UIError.Respond(w, r, err, "Failed to update part", http.StatusInternalServerError)
 		return
 	}

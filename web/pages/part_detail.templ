@@ -5,6 +5,7 @@ import (
 	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/i18n"
+	"github.com/tuxedocurly/wledger/internal/utils"
 	"github.com/tuxedocurly/wledger/web/components"
 	"github.com/tuxedocurly/wledger/web/icons"
 	"github.com/tuxedocurly/wledger/web/layouts"
@@ -129,10 +130,17 @@ if user.CanWrite() {
 								if len(links) > 0 {
 									<div class="flex flex-col gap-2">
 										for _, link := range links {
-											<a href={ templ.SafeURL(link.Url) } target="_blank" class="btn btn-sm btn-ghost justify-start font-normal h-auto py-2">
-												<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
-												{ link.Label.String }
-											</a>
+											if safeURL, ok := utils.SafeHTTPURL(link.Url); ok {
+												<a href={ templ.URL(safeURL) } target="_blank" class="btn btn-sm btn-ghost justify-start font-normal h-auto py-2">
+													<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+													{ link.Label.String }
+												</a>
+											} else {
+												<span class="btn btn-sm btn-ghost justify-start font-normal h-auto py-2 opacity-60 cursor-not-allowed" title="This link is not a valid http(s) URL and has been disabled">
+													<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M5.07 19h13.86a2 2 0 001.74-3L13.74 4a2 2 0 00-3.48 0L3.34 16a2 2 0 001.73 3z"></path></svg>
+													{ link.Label.String }
+												</span>
+											}
 										}
 									</div>
 								}

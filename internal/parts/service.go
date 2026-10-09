@@ -3,6 +3,7 @@ package parts
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -17,6 +18,7 @@ import (
 	"github.com/tuxedocurly/wledger/internal/documents"
 	"github.com/tuxedocurly/wledger/internal/images"
 	"github.com/tuxedocurly/wledger/internal/tags"
+	"github.com/tuxedocurly/wledger/internal/utils"
 	"github.com/tuxedocurly/wledger/web/pages"
 )
 
@@ -44,6 +46,25 @@ type LinkDTO struct {
 	ID    int64
 	Label string
 	URL   string
+}
+
+// ErrInvalidLinkURL indicates that a product link URL failed validation. Only
+// absolute http:// and https:// URLs are accepted.
+var ErrInvalidLinkURL = errors.New("invalid link URL")
+
+// validateLinkURLs rejects any non-empty link URL that is not a well-formed
+// absolute http(s) URL. Empty URLs are ignored, matching the existing behaviour
+// where an empty link field means "no link".
+func validateLinkURLs(links []LinkDTO) error {
+	for _, l := range links {
+		if l.URL == "" {
+			continue
+		}
+		if err := utils.ValidateHTTPURL(l.URL); err != nil {
+			return fmt.Errorf("%w: %v", ErrInvalidLinkURL, err)
+		}
+	}
+	return nil
 }
 
 type DocUpload struct {
@@ -247,6 +268,9 @@ func (s *service) GetPartDetail(ctx context.Context, id int64) (PartDetail, erro
 }
 
 func (s *service) CreatePart(ctx context.Context, req CreatePartRequest) (int64, error) {
+	if err := validateLinkURLs(req.Links); err != nil {
+		return 0, err
+	}
 	s.logger.Debug("starting part creation", "name", req.Name, "barcode", req.BarcodeData)
 	var imagePath string
 	if req.Image != nil && req.Image.File != nil {
@@ -337,6 +361,12 @@ func (s *service) CreatePart(ctx context.Context, req CreatePartRequest) (int64,
 }
 
 func (s *service) UpdatePart(ctx context.Context, req UpdatePartRequest) error {
+	if err := validateLinkURLs(req.ExistingLinks); err != nil {
+		return err
+	}
+	if err := validateLinkURLs(req.NewLinks); err != nil {
+		return err
+	}
 	s.logger.Debug("starting part update", "id", req.ID, "name", req.Name)
 	oldPart, err := s.store.GetPart(ctx, req.ID)
 	if err != nil {
