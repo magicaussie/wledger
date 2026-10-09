@@ -327,7 +327,9 @@ func (s *service) CreatePart(ctx context.Context, req CreatePartRequest) (int64,
 	})
 
 	if err != nil {
-		s.cleanupFiles(imagePath, uploadedDocs)
+		// imagePath is only set when a new image was successfully written
+		// during this operation, so it is always safe to delete here.
+		s.cleanupFiles(imagePath, imagePath != "", uploadedDocs)
 		return 0, err
 	}
 
@@ -475,7 +477,10 @@ func (s *service) UpdatePart(ctx context.Context, req UpdatePartRequest) error {
 	})
 
 	if err != nil {
-		s.cleanupFiles(uploadedNewImage, newImagePath, uploadedDocs)
+		// Only delete the image when this operation created it. When no new
+		// image was uploaded, newImagePath still points at the pre-existing
+		// image, which must be preserved on failure.
+		s.cleanupFiles(newImagePath, uploadedNewImage, uploadedDocs)
 		return fmt.Errorf("failed to update part: %w", err)
 	}
 
@@ -553,23 +558,13 @@ func (s *service) DeleteParts(ctx context.Context, ids []int64) error {
 	})
 }
 
-func (s *service) cleanupFiles(args ...interface{}) {
-	var imagePath string
-	var docs []string
-	var uploadedNewImage bool
-
-	for _, arg := range args {
-		switch v := arg.(type) {
-		case bool:
-			uploadedNewImage = v
-		case string:
-			imagePath = v
-		case []string:
-			docs = v
-		}
-	}
-
-	if (uploadedNewImage || imagePath != "") && imagePath != "" {
+// cleanupFiles removes files that were created by a failed operation.
+//
+// deleteImage must only be true when imagePath refers to a file written during
+// the current operation. Pre-existing images must never be deleted here, even
+// when the operation fails, because the database may still reference them.
+func (s *service) cleanupFiles(imagePath string, deleteImage bool, docs []string) {
+	if deleteImage && imagePath != "" {
 		images.DeleteByWebPath(imagePath)
 	}
 	for _, p := range docs {
