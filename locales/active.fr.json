@@ -979,5 +979,20 @@
   },
   "Labels": {
     "other": "Labels"
+  },
+  "Locate": {
+    "other": "Localiser"
+  },
+  "EditLayout": {
+    "other": "Modifier la disposition"
+  },
+  "NoBinsInDrawer": {
+    "other": "Aucun bac dans ce tiroir"
+  },
+  "EmptyBin": {
+    "other": "Vide"
+  },
+  "View": {
+    "other": "Voir"
   }
 }

@@ -106,6 +106,7 @@ type Querier interface {
 	GetAssignmentID(ctx context.Context, arg GetAssignmentIDParams) (int64, error)
 	GetBin(ctx context.Context, id int64) (Bin, error)
 	GetBinByLocation(ctx context.Context, arg GetBinByLocationParams) (int64, error)
+	GetBinContents(ctx context.Context, binID sql.NullInt64) ([]GetBinContentsRow, error)
 	GetBinsByContainer(ctx context.Context, containerID int64) ([]Bin, error)
 	GetContainer(ctx context.Context, id int64) (Container, error)
 	GetContainersByController(ctx context.Context, controllerID int64) ([]Container, error)

@@ -979,5 +979,20 @@
   },
   "Labels": {
     "other": "Labels"
+  },
+  "Locate": {
+    "other": "Найти"
+  },
+  "EditLayout": {
+    "other": "Изменить макет"
+  },
+  "NoBinsInDrawer": {
+    "other": "В этом ящике нет ячеек"
+  },
+  "EmptyBin": {
+    "other": "Пусто"
+  },
+  "View": {
+    "other": "Просмотр"
   }
 }

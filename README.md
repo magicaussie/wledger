@@ -49,6 +49,15 @@ Connect your WLED-powered LED strips or matrices to your storage.
 - **Rich Data:** Store datasheets (PDFs), images, supplier links, and cost data.
 - **Tagging:** Organize parts with flexible tagging.
 
+### QR Codes & Scanning
+
+Every level of your storage hierarchy is scannable, so a scan takes you straight to the right place.
+
+- **Cabinet / Drawer / Bin QR Codes:** Print a label sheet and stick a QR code on each cabinet, drawer, and bin.
+- **Part QR & Barcodes:** Scan a part's QR code or 1D barcode to open it instantly.
+- **USB Scanner & Webcam:** Works with keyboard-wedge USB scanners and your phone's camera.
+- **Drawer View:** Scanning a drawer opens a dedicated page that lights up the drawer's LEDs and lists its bins and contents.
+
 ### LLM Prompt Templates
 
 Don't let your parts gather dust. Copy the prompt. paste it into your favorite LLM, and get inspired or informed about your inventory.

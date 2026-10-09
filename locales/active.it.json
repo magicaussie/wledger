@@ -979,5 +979,20 @@
   },
   "Labels": {
     "other": "Labels"
+  },
+  "Locate": {
+    "other": "Localizza"
+  },
+  "EditLayout": {
+    "other": "Modifica layout"
+  },
+  "NoBinsInDrawer": {
+    "other": "Nessun contenitore in questo cassetto"
+  },
+  "EmptyBin": {
+    "other": "Vuoto"
+  },
+  "View": {
+    "other": "Visualizza"
   }
 }

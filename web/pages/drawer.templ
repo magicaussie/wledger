@@ -1,0 +1,92 @@
+package pages
+
+import (
+	"database/sql"
+	"fmt"
+
+	"github.com/tuxedocurly/wledger/internal/auth"
+	"github.com/tuxedocurly/wledger/internal/db"
+	"github.com/tuxedocurly/wledger/internal/i18n"
+	"github.com/tuxedocurly/wledger/web/components"
+	"github.com/tuxedocurly/wledger/web/icons"
+	"github.com/tuxedocurly/wledger/web/layouts"
+)
+
+// DrawerBin is a bin within a drawer, with the parts currently stored in it.
+type DrawerBin struct {
+	ID       int64
+	Name     string
+	LedIndex sql.NullInt64
+	Width    sql.NullInt64
+	Contents []db.GetBinContentsRow
+}
+
+// DrawerDetail is the drawer (container) view. Scanning a drawer QR lands here;
+// the page highlights the drawer's LEDs on load and lists its bins and contents.
+templ DrawerDetail(user auth.User, drawer db.Container, cabinet db.Controller, bins []DrawerBin) {
+	@layouts.Base(drawer.Name, user) {
+		<div class="max-w-5xl mx-auto w-full">
+			@components.PageHeader(
+				drawer.Name,
+				fmt.Sprintf("%s • %s %d", cabinet.Name, i18n.T(ctx, "Segment"), drawer.SegmentID),
+				[]components.Breadcrumb{
+					{Label: i18n.T(ctx, "Hardware"), URL: "/hardware"},
+					{Label: cabinet.Name, URL: fmt.Sprintf("/hardware/%d/grid", cabinet.ID)},
+					{Label: drawer.Name},
+				},
+			) {
+				<button
+					hx-post={ fmt.Sprintf("/drawers/%d/locate", drawer.ID) }
+					hx-swap="none"
+					class="btn btn-outline gap-2"
+				>
+					@icons.Eye(templ.Attributes{"class": "w-4 h-4"})
+					{ i18n.T(ctx, "Locate") }
+				</button>
+				if user.CanWrite() {
+					<a href={ templ.SafeURL(fmt.Sprintf("/hardware/%d/grid", cabinet.ID)) } class="btn btn-outline gap-2">
+						@icons.Settings(templ.Attributes{"class": "w-4 h-4"})
+						{ i18n.T(ctx, "EditLayout") }
+					</a>
+				}
+			}
+			<!-- Highlight the drawer's LEDs on load (e.g. after scanning its QR). -->
+			<div hx-post={ fmt.Sprintf("/drawers/%d/locate", drawer.ID) } hx-trigger="load" hx-swap="none"></div>
+
+			if len(bins) == 0 {
+				@components.EmptyState(i18n.T(ctx, "NoBins"), i18n.T(ctx, "NoBinsInDrawer"), "📦")
+			} else {
+				<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+					for _, bin := range bins {
+						<div class="card bg-base-200 shadow-md border border-base-300">
+							<div class="card-body p-4">
+								<div class="flex items-center justify-between">
+									<h3 class="font-bold">{ bin.Name }</h3>
+									if bin.LedIndex.Valid {
+										<span class="badge badge-ghost badge-sm font-mono">LED { fmt.Sprintf("%d", bin.LedIndex.Int64) }</span>
+									}
+								</div>
+								<div class="divider my-1"></div>
+								if len(bin.Contents) == 0 {
+									<span class="text-xs opacity-50">{ i18n.T(ctx, "EmptyBin") }</span>
+								} else {
+									<ul class="text-sm space-y-1">
+										for _, c := range bin.Contents {
+											<li class="flex justify-between gap-2">
+												<a href={ templ.SafeURL(fmt.Sprintf("/parts/%d", c.ID)) } class="link-hover truncate">{ c.Name }</a>
+												<span class="font-mono opacity-70 shrink-0">×{ fmt.Sprintf("%d", c.Quantity) }</span>
+											</li>
+										}
+									</ul>
+								}
+								<div class="card-actions justify-end mt-2">
+									<a href={ templ.SafeURL(fmt.Sprintf("/parts?bin=%d", bin.ID)) } class="btn btn-ghost btn-xs">{ i18n.T(ctx, "View") }</a>
+								</div>
+							</div>
+						</div>
+					}
+				</div>
+			}
+		</div>
+	}
+}

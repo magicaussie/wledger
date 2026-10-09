@@ -159,7 +159,7 @@ func (h *Handler) HandleProductLabels(w http.ResponseWriter, r *http.Request) {
 
 // GET /scan?q=<scanned> — resolves a scanned barcode/QR to a target page://   - wledger:bin:<id>     -> /parts?bin=<id>       (show bin contents)
 //   - wledger:cabinet:<id> -> /hardware/<id>/grid     (open the cabinet layout)
-//   - wledger:drawer:<id>  -> /hardware/<ctrl>/grid   (open the drawer's cabinet)
+//   - wledger:drawer:<id>  -> /drawers/<id>           (open the drawer view)
 //   - wledger:part:<code>  -> exact part or search
 //   - plain barcode        -> exact part or search
 func (h *Handler) HandleScan(w http.ResponseWriter, r *http.Request) {
@@ -195,12 +195,11 @@ func (h *Handler) HandleScan(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Invalid drawer code", http.StatusBadRequest)
 			return
 		}
-		container, err := h.Queries.GetContainer(r.Context(), id)
-		if err != nil {
+		if _, err := h.Queries.GetContainer(r.Context(), id); err != nil {
 			http.Error(w, "Drawer not found", http.StatusNotFound)
 			return
 		}
-		http.Redirect(w, r, fmt.Sprintf("/hardware/%d/grid", container.ControllerID), http.StatusSeeOther)
+		http.Redirect(w, r, fmt.Sprintf("/drawers/%d", id), http.StatusSeeOther)
 		return
 	case strings.HasPrefix(code, partScanPrefix):
 		code = strings.TrimPrefix(code, partScanPrefix)

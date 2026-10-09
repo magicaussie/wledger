@@ -979,5 +979,20 @@
   },
   "Labels": {
     "other": "Labels"
+  },
+  "Locate": {
+    "other": "Lokalisieren"
+  },
+  "EditLayout": {
+    "other": "Layout bearbeiten"
+  },
+  "NoBinsInDrawer": {
+    "other": "Keine Fächer in dieser Schublade"
+  },
+  "EmptyBin": {
+    "other": "Leer"
+  },
+  "View": {
+    "other": "Ansehen"
   }
 }

@@ -979,5 +979,20 @@
   },
   "Labels": {
     "other": "Labels"
+  },
+  "Locate": {
+    "other": "定位"
+  },
+  "EditLayout": {
+    "other": "编辑布局"
+  },
+  "NoBinsInDrawer": {
+    "other": "此抽屉中没有料箱"
+  },
+  "EmptyBin": {
+    "other": "空"
+  },
+  "View": {
+    "other": "查看"
   }
 }

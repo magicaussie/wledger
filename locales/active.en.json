@@ -1080,5 +1080,20 @@
   },
   "Labels": {
     "other": "Labels"
+  },
+  "Locate": {
+    "other": "Locate"
+  },
+  "EditLayout": {
+    "other": "Edit Layout"
+  },
+  "NoBinsInDrawer": {
+    "other": "No bins in this drawer"
+  },
+  "EmptyBin": {
+    "other": "Empty"
+  },
+  "View": {
+    "other": "View"
   }
 }

@@ -5,7 +5,7 @@
  * Scanned values can be:
  *   - wledger:bin:<id>      -> open inventory filtered to that physical bin
  *   - wledger:cabinet:<id>  -> open the cabinet (controller) layout
- *   - wledger:drawer:<id>   -> open the drawer's cabinet layout
+ *   - wledger:drawer:<id>   -> open the drawer (container) view
  *   - wledger:part:<code>   -> go to the part page (or search) for that code
  *   - a plain barcode       -> go to the part page if it matches exactly,
  *                              otherwise search the inventory for it

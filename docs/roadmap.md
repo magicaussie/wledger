@@ -107,11 +107,14 @@ full design notes and a code map of everywhere scanning must be considered.
 - [x] QR endpoints + labels for cabinets (controllers) and drawers (containers).
 - [x] Extend the scan code scheme (`wledger:cabinet:`, `wledger:drawer:`) in
       `HandleScan` and `web/static/js/scan_router.js`.
+- [x] Dedicated drawer page (`/drawers/{id}`) — highlights the drawer's LEDs on
+      load and lists its bins/contents; scanning a drawer QR lands here.
 - [ ] Make scanning context-aware for moves/CRUD (scan a drawer/cabinet as the
       target context) + drawer action sheet + error flashing.
 - [x] Decide terminology (rename UI labels vs DB tables) — see open questions.
 
 **Hook points:** `internal/handler/parts.go`, `internal/handler/hardware.go`,
+`internal/handler/drawers.go`, `web/pages/drawer.templ`,
 `web/static/js/scan_router.js`, `web/pages/bin_labels.templ`.
 
 ### [ ] Notifications / webhooks

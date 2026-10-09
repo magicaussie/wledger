@@ -216,6 +216,10 @@ version-independent; can move to device-side effects later if needed.
 1. **LED state system** — client `Apply`/`Flash` + settings (foundation).
 2. **Cabinet + Drawer QR** — endpoints, labels, scan-code routing.
 3. **Scan-a-drawer UX** — highlight + action sheet; error flashing.
+   - [x] Highlight: scanning `wledger:drawer:<id>` opens the dedicated drawer
+     page (`/drawers/{id}`), which lights the drawer's LEDs on load.
+   - [ ] Action sheet (add/remove/rename bin, move bin, edit drawer).
+   - [ ] Error flashing on unknown code / failed locate.
 4. **Scanner hardening** — `fast_scan.js` terminator/timing/prefix; webcam 1D
    formats + wider scan box.
 
@@ -225,3 +229,6 @@ version-independent; can move to device-side effects later if needed.
 
 - Flashing duration: bounded (flash N× then off) vs persistent until next action?
 - Drawer action sheet: modal on the current page vs a dedicated drawer page?
+  → Resolved: a dedicated drawer page (`/drawers/{id}`). It highlights the
+  drawer's LEDs on load and lists its bins/contents; the action sheet can be
+  layered onto this page later.

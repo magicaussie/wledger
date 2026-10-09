@@ -158,6 +158,51 @@ func (q *Queries) GetBinByLocation(ctx context.Context, arg GetBinByLocationPara
 	return id, err
 }
 
+const getBinContents = `-- name: GetBinContents :many
+SELECT p.id, p.name, p.part_number, p.image_path, pa.quantity
+FROM part_assignments pa
+JOIN parts p ON pa.part_id = p.id
+WHERE pa.bin_id = ?
+ORDER BY p.name
+`
+
+type GetBinContentsRow struct {
+	ID         int64          `json:"id"`
+	Name       string         `json:"name"`
+	PartNumber sql.NullString `json:"part_number"`
+	ImagePath  sql.NullString `json:"image_path"`
+	Quantity   int64          `json:"quantity"`
+}
+
+func (q *Queries) GetBinContents(ctx context.Context, binID sql.NullInt64) ([]GetBinContentsRow, error) {
+	rows, err := q.query(ctx, q.getBinContentsStmt, getBinContents, binID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetBinContentsRow
+	for rows.Next() {
+		var i GetBinContentsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.PartNumber,
+			&i.ImagePath,
+			&i.Quantity,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getBinsByContainer = `-- name: GetBinsByContainer :many
 SELECT id, name, container_id, led_index, width, grid_x, grid_y FROM bins 
 WHERE container_id = ? 

@@ -80,9 +80,13 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 		r.Get("/cabinet/{id}/qr", h.HandleCabinetQR)
 		r.Get("/drawer/{id}/qr", h.HandleDrawerQR)
 
+		// Drawers (containers)
+		r.Get("/drawers/{id}", h.HandleDrawerDetail)
+
 		// Locate
 		r.Post("/hardware/{id}/locate", h.HandleHardwareLocate)
 		r.Post("/parts/{id}/locate", h.HandlePartLocate)
+		r.Post("/drawers/{id}/locate", h.HandleDrawerLocate)
 
 		// Hardware (Read)
 		r.Get("/hardware", h.HandleHardwareList)

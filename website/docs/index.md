@@ -13,6 +13,7 @@ Built with **Go**, **HTMX**, and **SQLite**, WLEDger is designed to be fast, lig
 ## Key Features
 
 * **Physical Location Tracking:** Instantly locate parts by lighting up specific LEDs on your storage bins, shelves, or drawers.
+* **QR Codes & Scanning:** Print QR labels for every cabinet, drawer, bin, and part. Scan with a USB scanner or your phone's camera to jump straight to the right place.
 * **Instant Search:** Powered by SQLite **FTS5**, search your entire inventory, tags, and descriptions in milliseconds.
 * **Visual Grid Painter:** A powerful visual tool to map your physical LEDs to your storage bins using Matrix, Strip, or Compound layouts.
 * **Custom Walls / Dashboards:** Organize your storage containers and controllers into logical "Walls" for a clean, high-level overview of your entire storage setup.

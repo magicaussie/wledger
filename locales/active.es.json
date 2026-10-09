@@ -997,5 +997,20 @@
   },
   "Labels": {
     "other": "Labels"
+  },
+  "Locate": {
+    "other": "Localizar"
+  },
+  "EditLayout": {
+    "other": "Editar diseño"
+  },
+  "NoBinsInDrawer": {
+    "other": "No hay contenedores en este cajón"
+  },
+  "EmptyBin": {
+    "other": "Vacío"
+  },
+  "View": {
+    "other": "Ver"
   }
 }

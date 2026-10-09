@@ -35,7 +35,7 @@ func TestHandleScan_Routing(t *testing.T) {
 	}{
 		{"wledger:bin:5", "/parts?bin=5"},
 		{"wledger:cabinet:" + ctrlID, "/hardware/" + ctrlID + "/grid"},
-		{"wledger:drawer:" + strconv.FormatInt(cont, 10), "/hardware/" + ctrlID + "/grid"},
+		{"wledger:drawer:" + strconv.FormatInt(cont, 10), "/drawers/" + strconv.FormatInt(cont, 10)},
 	}
 
 	for _, tc := range cases {

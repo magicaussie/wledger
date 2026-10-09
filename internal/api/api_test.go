@@ -31,6 +31,10 @@ func (f *fakeWLED) LocateBin(ctx context.Context, controllerID, binID int64) err
 func (f *fakeWLED) FlashError(ctx context.Context, controllerID, binID int64) error {
 	return nil
 }
+
+func (f *fakeWLED) LocateDrawer(ctx context.Context, controllerID, containerID int64) error {
+	return nil
+}
 func (f *fakeWLED) GlobalOff(ctx context.Context) error {
 	f.off = true
 	return nil

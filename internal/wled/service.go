@@ -13,6 +13,7 @@ import (
 type Service interface {
 	LocatePart(ctx context.Context, partID int64) error
 	LocateBin(ctx context.Context, controllerID, binID int64) error
+	LocateDrawer(ctx context.Context, controllerID, containerID int64) error
 	FlashError(ctx context.Context, controllerID, binID int64) error
 	GlobalOff(ctx context.Context) error
 	Ping(ctx context.Context, ip string) (bool, error)
@@ -137,6 +138,36 @@ func (s *service) LocateBin(ctx context.Context, controllerID, binID int64) erro
 	}
 
 	return s.triggerLocate(ctx, controller.IpAddress, int(segID), int(globalIdx), int(bin.Width.Int64), settings)
+}
+
+// LocateDrawer lights up a drawer's full LED range so it can be found
+// physically. A drawer is a container.
+func (s *service) LocateDrawer(ctx context.Context, controllerID, containerID int64) error {
+	controller, err := s.store.GetController(ctx, controllerID)
+	if err != nil {
+		return fmt.Errorf("controller not found: %w", err)
+	}
+
+	container, err := s.store.GetContainer(ctx, containerID)
+	if err != nil {
+		return fmt.Errorf("drawer not found: %w", err)
+	}
+
+	length, err := mapper.GetContainerLength(container)
+	if err != nil {
+		return fmt.Errorf("failed to compute drawer length: %w", err)
+	}
+	if length < 1 {
+		return fmt.Errorf("drawer %d has no LEDs to locate", containerID)
+	}
+
+	settings, _ := s.store.GetSettings(ctx)
+	color := settings.ColorLocate.String
+	if color == "" {
+		color = "#0000FF"
+	}
+
+	return s.client.Apply(ctx, controller.IpAddress, int(container.SegmentID), 0, int(length), State{Color: color, Mode: ModeSolid})
 }
 
 // FlashError flashes a bin's LEDs in the configured error colour (default red)
