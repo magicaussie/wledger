@@ -184,6 +184,7 @@ type Querier interface {
 	SearchParts(ctx context.Context, arg SearchPartsParams) ([]SearchPartsRow, error)
 	SetFlag(ctx context.Context, arg SetFlagParams) error
 	SetPasswordResetFlag(ctx context.Context, arg SetPasswordResetFlagParams) error
+	TogglePartFavorite(ctx context.Context, id int64) (sql.NullBool, error)
 	UpdateBin(ctx context.Context, arg UpdateBinParams) error
 	UpdateBinLedIndex(ctx context.Context, arg UpdateBinLedIndexParams) error
 	UpdateColors(ctx context.Context, arg UpdateColorsParams) error

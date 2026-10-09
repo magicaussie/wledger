@@ -464,6 +464,18 @@
     "description": "Button to export a list as CSV",
     "other": "Export CSV"
   },
+  "Favorite": {
+    "description": "Label for a favorited part",
+    "other": "Favorite"
+  },
+  "AddToFavorites": {
+    "description": "Tooltip to mark a part as a favorite",
+    "other": "Add to favorites"
+  },
+  "RemoveFromFavorites": {
+    "description": "Tooltip to unmark a part as a favorite",
+    "other": "Remove from favorites"
+  },
   "PartNumber": {
     "description": "Label for a part's manufacturer part number",
     "other": "Part Number"

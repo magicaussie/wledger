@@ -1029,6 +1029,21 @@ func (q *Queries) SearchParts(ctx context.Context, arg SearchPartsParams) ([]Sea
 	return items, nil
 }
 
+const togglePartFavorite = `-- name: TogglePartFavorite :one
+UPDATE parts
+SET is_favorite = CASE WHEN is_favorite = 1 THEN 0 ELSE 1 END,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = ?
+RETURNING is_favorite
+`
+
+func (q *Queries) TogglePartFavorite(ctx context.Context, id int64) (sql.NullBool, error) {
+	row := q.queryRow(ctx, q.togglePartFavoriteStmt, togglePartFavorite, id)
+	var is_favorite sql.NullBool
+	err := row.Scan(&is_favorite)
+	return is_favorite, err
+}
+
 const updatePart = `-- name: UpdatePart :exec
 UPDATE parts SET 
     name = ?1, 

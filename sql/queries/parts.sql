@@ -146,6 +146,13 @@ UPDATE parts SET
     updated_at = CURRENT_TIMESTAMP
 WHERE id = sqlc.arg('id');
 
+-- name: TogglePartFavorite :one
+UPDATE parts
+SET is_favorite = CASE WHEN is_favorite = 1 THEN 0 ELSE 1 END,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = ?
+RETURNING is_favorite;
+
 -- name: DeletePart :exec
 DELETE FROM parts WHERE id = ?;
 

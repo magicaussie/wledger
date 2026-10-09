@@ -50,7 +50,7 @@ func (h *Handler) HandlePartsList(w http.ResponseWriter, r *http.Request) {
 	// Render logic
 	if scroll {
 		// If infinite scroll, return JUST the new cards (appended to bottom)
-		pages.PartCards(viewParts, search, page, binID).Render(r.Context(), w)
+		pages.PartCards(user, viewParts, search, page, binID).Render(r.Context(), w)
 	} else {
 		// If full page load or search replacement, return the full wrapper
 		pages.PartsList(user, viewParts, search, page, binID).Render(r.Context(), w)
@@ -502,6 +502,35 @@ func (h *Handler) HandlePartStockAdjust(w http.ResponseWriter, r *http.Request) 
 	}
 
 	http.Redirect(w, r, fmt.Sprintf("/parts/%d", partID), http.StatusSeeOther)
+}
+
+// POST /parts/{id}/favorite
+func (h *Handler) HandlePartFavorite(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUserFromRequest(r)
+	if !user.CanWrite() {
+		h.UIError.Respond(w, r, nil, "Unauthorized", http.StatusForbidden)
+		return
+	}
+
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		h.UIError.Respond(w, r, nil, "Invalid part id", http.StatusBadRequest)
+		return
+	}
+
+	isFavorite, err := h.Parts.ToggleFavorite(r.Context(), id)
+	if err != nil {
+		h.UIError.Respond(w, r, err, "Failed to update favorite", http.StatusInternalServerError)
+		return
+	}
+
+	// HTMX: swap the button in place.
+	if r.Header.Get("HX-Request") == "true" {
+		components.PartFavoriteButton(id, isFavorite, true).Render(r.Context(), w)
+		return
+	}
+
+	http.Redirect(w, r, fmt.Sprintf("/parts/%d", id), http.StatusSeeOther)
 }
 
 // POST /parts/{id}/locate

@@ -84,7 +84,7 @@ templ PartsList(user auth.User, parts []PartView, search string, page int, binID
 						}
 					}
 				} else {
-					@PartCards(parts, search, page, binID)
+					@PartCards(user, parts, search, page, binID)
 				}
 			</div>
 			@components.ImportModal()
@@ -111,7 +111,7 @@ templ PartsList(user auth.User, parts []PartView, search string, page int, binID
 }
 
 // TODO: refactor into a standalone component
-templ PartCards(parts []PartView, search string, page int, binID *int64) {
+templ PartCards(user auth.User, parts []PartView, search string, page int, binID *int64) {
 	// Render the cards
 	for _, part := range parts {
 		<div
@@ -126,6 +126,9 @@ templ PartCards(parts []PartView, search string, page int, binID *int64) {
 					:checked={ fmt.Sprintf("selectedIds.includes(%d)", part.ID) }
 					@change={ fmt.Sprintf("toggleSelection(%d)", part.ID) }
 				/>
+			</div>
+			<div class="absolute top-2 right-2 z-30" @click.stop>
+				@components.PartFavoriteButton(part.ID, part.IsFavorite.Bool, user.CanWrite())
 			</div>
 			<figure class="h-48 bg-base-300 relative overflow-hidden">
 				if part.ImagePath.Valid && part.ImagePath.String != "" {
@@ -157,12 +160,7 @@ templ PartCards(parts []PartView, search string, page int, binID *int64) {
 			}
 			<div class="card-body p-4 relative z-10 bg-base-200">
 				<h2 class="card-title text-base justify-between">
-					<span>
-						{ part.Name }
-						if part.IsFavorite.Bool {
-							<span class="text-warning text-xs ml-1">★</span>
-						}
-					</span>
+					<span>{ part.Name }</span>
 				</h2>
 				<div x-data="{ isClamped: false, showPopup: false }" class="relative" @mouseleave="showPopup = false">
 					<div

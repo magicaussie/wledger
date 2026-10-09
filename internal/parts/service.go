@@ -28,6 +28,7 @@ type Service interface {
 	GetPart(ctx context.Context, id int64) (db.Part, error)
 	ListParts(ctx context.Context, search string, page int, binID *int64) ([]pages.PartView, error)
 	ListLowStock(ctx context.Context) ([]pages.LowStockPartView, error)
+	ToggleFavorite(ctx context.Context, id int64) (bool, error)
 	GetPartDetail(ctx context.Context, id int64) (PartDetail, error)
 }
 
@@ -214,6 +215,15 @@ func (s *service) ListLowStock(ctx context.Context) ([]pages.LowStockPartView, e
 		})
 	}
 	return views, nil
+}
+
+// ToggleFavorite flips a part's favorite flag and returns the new state.
+func (s *service) ToggleFavorite(ctx context.Context, id int64) (bool, error) {
+	fav, err := s.store.TogglePartFavorite(ctx, id)
+	if err != nil {
+		return false, err
+	}
+	return fav.Bool, nil
 }
 
 func (s *service) GetPartDetail(ctx context.Context, id int64) (PartDetail, error) {

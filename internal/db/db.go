@@ -525,6 +525,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.setPasswordResetFlagStmt, err = db.PrepareContext(ctx, setPasswordResetFlag); err != nil {
 		return nil, fmt.Errorf("error preparing query SetPasswordResetFlag: %w", err)
 	}
+	if q.togglePartFavoriteStmt, err = db.PrepareContext(ctx, togglePartFavorite); err != nil {
+		return nil, fmt.Errorf("error preparing query TogglePartFavorite: %w", err)
+	}
 	if q.updateBinStmt, err = db.PrepareContext(ctx, updateBin); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateBin: %w", err)
 	}
@@ -1419,6 +1422,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing setPasswordResetFlagStmt: %w", cerr)
 		}
 	}
+	if q.togglePartFavoriteStmt != nil {
+		if cerr := q.togglePartFavoriteStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing togglePartFavoriteStmt: %w", cerr)
+		}
+	}
 	if q.updateBinStmt != nil {
 		if cerr := q.updateBinStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing updateBinStmt: %w", cerr)
@@ -1715,6 +1723,7 @@ type Queries struct {
 	searchPartsStmt                      *sql.Stmt
 	setFlagStmt                          *sql.Stmt
 	setPasswordResetFlagStmt             *sql.Stmt
+	togglePartFavoriteStmt               *sql.Stmt
 	updateBinStmt                        *sql.Stmt
 	updateBinLedIndexStmt                *sql.Stmt
 	updateColorsStmt                     *sql.Stmt
@@ -1906,6 +1915,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		searchPartsStmt:                      q.searchPartsStmt,
 		setFlagStmt:                          q.setFlagStmt,
 		setPasswordResetFlagStmt:             q.setPasswordResetFlagStmt,
+		togglePartFavoriteStmt:               q.togglePartFavoriteStmt,
 		updateBinStmt:                        q.updateBinStmt,
 		updateBinLedIndexStmt:                q.updateBinLedIndexStmt,
 		updateColorsStmt:                     q.updateColorsStmt,
