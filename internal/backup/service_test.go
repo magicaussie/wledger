@@ -17,6 +17,7 @@ import (
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/hardware"
 	"github.com/tuxedocurly/wledger/internal/ledspace"
+	"github.com/tuxedocurly/wledger/internal/wled"
 )
 
 // setupTestDB creates an in memory DB and applies the schema using db.Migrate
@@ -573,7 +574,7 @@ func TestRestore_RejectsUnsupportedBinIndexSpace(t *testing.T) {
 	now := sql.NullTime{Time: time.Now(), Valid: true}
 	manifest := Manifest{
 		Version:       "1.0",
-		BinIndexSpace: "drawer", // reserved for Task 006B, not supported yet
+		BinIndexSpace: "bogus", // not a known coordinate space
 		Settings:      db.Setting{CreatedAt: now, UpdatedAt: now},
 		Controllers: []db.Controller{
 			{ID: 1, Name: "C", IpAddress: "1.1.1.1", CreatedAt: now},
@@ -726,6 +727,331 @@ func TestRestore_KnownGoodBackupBlocksMigration005(t *testing.T) {
 				t.Errorf("container 2 bin changed after restart: %+v", binsB)
 			}
 		})
+	}
+}
+
+// TestExport_IncludesDrawerBinIndexSpace verifies that a drawer-relative
+// database exports its actual coordinate space.
+func TestExport_IncludesDrawerBinIndexSpace(t *testing.T) {
+	database, s, dbCleanup := setupTestDB(t)
+	defer dbCleanup()
+	uploadsDir, fsCleanup := setupTestUploads(t)
+	defer fsCleanup()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	svc := NewService(database, s, uploadsDir, logger)
+	ctx := context.Background()
+
+	if err := ledspace.Set(ctx, s, ledspace.Drawer); err != nil {
+		t.Fatalf("set drawer: %v", err)
+	}
+
+	var buf bytes.Buffer
+	if err := svc.Export(ctx, &buf); err != nil {
+		t.Fatalf("export: %v", err)
+	}
+
+	zr, err := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+	if err != nil {
+		t.Fatalf("read zip: %v", err)
+	}
+	var manifest Manifest
+	for _, f := range zr.File {
+		if f.Name == "restore_data.json" {
+			rc, _ := f.Open()
+			if err := json.NewDecoder(rc).Decode(&manifest); err != nil {
+				t.Fatalf("decode manifest: %v", err)
+			}
+			rc.Close()
+		}
+	}
+	if manifest.BinIndexSpace != ledspace.Drawer {
+		t.Errorf("bin_index_space = %q, want %q", manifest.BinIndexSpace, ledspace.Drawer)
+	}
+}
+
+// TestRestore_DrawerBackupRoundTrip verifies that a drawer-relative backup
+// restores with its coordinate space, allocations and drawer-relative bin
+// indices intact, and that no segment-based processing runs against it.
+func TestRestore_DrawerBackupRoundTrip(t *testing.T) {
+	database, s, dbCleanup := setupTestDB(t)
+	defer dbCleanup()
+	uploadsDir, fsCleanup := setupTestUploads(t)
+	defer fsCleanup()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	svc := NewService(database, s, uploadsDir, logger)
+	ctx := context.Background()
+
+	now := sql.NullTime{Time: time.Now(), Valid: true}
+	manifest := Manifest{
+		Version:       "1.0",
+		BinIndexSpace: ledspace.Drawer,
+		Settings:      db.Setting{CreatedAt: now, UpdatedAt: now},
+		Controllers: []db.Controller{
+			{ID: 1, Name: "C", IpAddress: "1.1.1.1", CreatedAt: now},
+		},
+		Containers: []db.Container{
+			{ID: 1, Name: "A", ControllerID: 1, SegmentID: 0, LedStart: 0, LedCount: 10,
+				ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true}, CreatedAt: now, UpdatedAt: now},
+			{ID: 2, Name: "B", ControllerID: 1, SegmentID: 0, LedStart: 10, LedCount: 10,
+				ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true}, CreatedAt: now, UpdatedAt: now},
+			// Unallocated and unmapped: a segment-based backfill would derive an
+			// allocation for it, so its staying unallocated proves the backfill was
+			// skipped for drawer-relative data.
+			{ID: 3, Name: "C", ControllerID: 1, SegmentID: 0,
+				ConfigJson: sql.NullString{String: `{"type":"linear","total":4}`, Valid: true}, CreatedAt: now, UpdatedAt: now},
+		},
+		Bins: []db.Bin{
+			{ID: 1, Name: "a1", ContainerID: 1, LedIndex: sql.NullInt64{Int64: 3, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
+			{ID: 2, Name: "b1", ContainerID: 2, LedIndex: sql.NullInt64{Int64: 5, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
+		},
+	}
+
+	zipBytes := buildRestoreZip(t, manifest)
+	if err := svc.Restore(ctx, bytes.NewReader(zipBytes), int64(len(zipBytes))); err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+
+	space, err := ledspace.Current(ctx, s)
+	if err != nil {
+		t.Fatalf("current space: %v", err)
+	}
+	if space != ledspace.Drawer {
+		t.Errorf("restored space = %q, want %q", space, ledspace.Drawer)
+	}
+
+	binsA, _ := s.GetBinsByContainer(ctx, 1)
+	if len(binsA) != 1 || !binsA[0].LedIndex.Valid || binsA[0].LedIndex.Int64 != 3 {
+		t.Errorf("drawer-relative bin A changed: %+v", binsA)
+	}
+	binsB, _ := s.GetBinsByContainer(ctx, 2)
+	if len(binsB) != 1 || !binsB[0].LedIndex.Valid || binsB[0].LedIndex.Int64 != 5 {
+		t.Errorf("drawer-relative bin B changed: %+v", binsB)
+	}
+
+	containers, _ := s.GetContainersByController(ctx, 1)
+	for _, c := range containers {
+		if c.ID == 3 && c.LedCount != 0 {
+			t.Errorf("segment-based backfill ran on drawer-relative data: container 3 led_count = %d", c.LedCount)
+		}
+	}
+
+	// A restart must not convert drawer-relative indices.
+	if err := hardware.MigrateLegacyLedIndices(ctx, s, logger); err != nil {
+		t.Fatalf("migration: %v", err)
+	}
+	binsB, _ = s.GetBinsByContainer(ctx, 2)
+	if len(binsB) != 1 || binsB[0].LedIndex.Int64 != 5 {
+		t.Errorf("drawer-relative bin was converted by migration 005: %+v", binsB)
+	}
+}
+
+// TestRestore_RejectsInvalidDrawerBackup verifies that a drawer-relative backup
+// whose bin index falls outside its drawer allocation is rejected.
+func TestRestore_RejectsInvalidDrawerBackup(t *testing.T) {
+	database, s, dbCleanup := setupTestDB(t)
+	defer dbCleanup()
+	uploadsDir, fsCleanup := setupTestUploads(t)
+	defer fsCleanup()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	svc := NewService(database, s, uploadsDir, logger)
+	ctx := context.Background()
+
+	now := sql.NullTime{Time: time.Now(), Valid: true}
+	manifest := Manifest{
+		Version:       "1.0",
+		BinIndexSpace: ledspace.Drawer,
+		Settings:      db.Setting{CreatedAt: now, UpdatedAt: now},
+		Controllers: []db.Controller{
+			{ID: 1, Name: "C", IpAddress: "1.1.1.1", CreatedAt: now},
+		},
+		Containers: []db.Container{
+			{ID: 1, Name: "A", ControllerID: 1, SegmentID: 0, LedStart: 0, LedCount: 10,
+				ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true}, CreatedAt: now, UpdatedAt: now},
+		},
+		Bins: []db.Bin{
+			// Drawer-relative index 15 is outside the [0,10) allocation.
+			{ID: 1, Name: "a1", ContainerID: 1, LedIndex: sql.NullInt64{Int64: 15, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
+		},
+	}
+
+	zipBytes := buildRestoreZip(t, manifest)
+	err := svc.Restore(ctx, bytes.NewReader(zipBytes), int64(len(zipBytes)))
+	if err == nil {
+		t.Fatal("expected an invalid drawer-relative backup to be rejected")
+	}
+	var committed *RestoreCommittedError
+	if errors.As(err, &committed) {
+		t.Fatalf("invalid drawer backup must be a hard failure, got warning: %v", err)
+	}
+}
+
+// TestRestore_UnresolvedBackupRoundTrip verifies that a database whose
+// coordinate space is unresolved exports that state, restores it unchanged, and
+// remains fully protected: bin indices are untouched, LED operations stay
+// blocked, and neither migration 005 nor the allocation backfill runs.
+func TestRestore_UnresolvedBackupRoundTrip(t *testing.T) {
+	database, s, dbCleanup := setupTestDB(t)
+	defer dbCleanup()
+	uploadsDir, fsCleanup := setupTestUploads(t)
+	defer fsCleanup()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	svc := NewService(database, s, uploadsDir, logger)
+	ctx := context.Background()
+
+	if err := s.InitSettings(ctx); err != nil {
+		t.Fatalf("init settings: %v", err)
+	}
+	ctrl, err := s.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
+	if err != nil {
+		t.Fatalf("create controller: %v", err)
+	}
+	contA, _ := s.CreateContainer(ctx, db.CreateContainerParams{
+		Name: "A", ControllerID: ctrl.ID, SegmentID: 0, LedStart: 0, LedCount: 10,
+		ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true},
+	})
+	contB, _ := s.CreateContainer(ctx, db.CreateContainerParams{
+		Name: "B", ControllerID: ctrl.ID, SegmentID: 0, LedStart: 10, LedCount: 10,
+		ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true},
+	})
+	// Unallocated and unmapped: a segment-based backfill would derive an
+	// allocation for it, so its staying unallocated proves the backfill is skipped.
+	contC, _ := s.CreateContainer(ctx, db.CreateContainerParams{
+		Name: "C", ControllerID: ctrl.ID, SegmentID: 0,
+		ConfigJson: sql.NullString{String: `{"type":"linear","total":4}`, Valid: true},
+	})
+	if _, err := s.CreateBin(ctx, db.CreateBinParams{Name: "a1", ContainerID: contA, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}}); err != nil {
+		t.Fatalf("create bin a1: %v", err)
+	}
+	if _, err := s.CreateBin(ctx, db.CreateBinParams{Name: "b1", ContainerID: contB, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}}); err != nil {
+		t.Fatalf("create bin b1: %v", err)
+	}
+	if err := ledspace.Set(ctx, s, ledspace.Unresolved); err != nil {
+		t.Fatalf("set unresolved: %v", err)
+	}
+
+	// Export and confirm the unresolved space is declared.
+	var buf bytes.Buffer
+	if err := svc.Export(ctx, &buf); err != nil {
+		t.Fatalf("export: %v", err)
+	}
+	zipBytes := buf.Bytes()
+	zr, err := zip.NewReader(bytes.NewReader(zipBytes), int64(len(zipBytes)))
+	if err != nil {
+		t.Fatalf("read zip: %v", err)
+	}
+	var manifest Manifest
+	for _, f := range zr.File {
+		if f.Name == "restore_data.json" {
+			rc, _ := f.Open()
+			if err := json.NewDecoder(rc).Decode(&manifest); err != nil {
+				t.Fatalf("decode manifest: %v", err)
+			}
+			rc.Close()
+		}
+	}
+	if manifest.BinIndexSpace != ledspace.Unresolved {
+		t.Fatalf("exported bin_index_space = %q, want %q", manifest.BinIndexSpace, ledspace.Unresolved)
+	}
+
+	// Restore: an unresolved backup is a committed warning, not a failure.
+	err = svc.Restore(ctx, bytes.NewReader(zipBytes), int64(len(zipBytes)))
+	var committed *RestoreCommittedError
+	if !errors.As(err, &committed) {
+		t.Fatalf("expected RestoreCommittedError warning, got %v", err)
+	}
+
+	// The restored state remains unresolved.
+	space, err := ledspace.Current(ctx, s)
+	if err != nil || space != ledspace.Unresolved {
+		t.Fatalf("restored space = %q (err %v), want unresolved", space, err)
+	}
+
+	// Bin indices are unchanged.
+	binsA, _ := s.GetBinsByContainer(ctx, contA)
+	if len(binsA) != 1 || !binsA[0].LedIndex.Valid || binsA[0].LedIndex.Int64 != 0 {
+		t.Errorf("bin A changed: %+v", binsA)
+	}
+	binsB, _ := s.GetBinsByContainer(ctx, contB)
+	if len(binsB) != 1 || !binsB[0].LedIndex.Valid || binsB[0].LedIndex.Int64 != 0 {
+		t.Errorf("bin B changed: %+v", binsB)
+	}
+
+	// LED operations remain blocked.
+	wsvc := wled.NewService(s, wled.NewClient(), logger)
+	if err := wsvc.LocateBin(ctx, ctrl.ID, binsA[0].ID); !errors.Is(err, wled.ErrCoordinateSpaceUnresolved) {
+		t.Errorf("LocateBin: expected ErrCoordinateSpaceUnresolved, got %v", err)
+	}
+	if err := wsvc.LocatePart(ctx, 1); !errors.Is(err, wled.ErrCoordinateSpaceUnresolved) {
+		t.Errorf("LocatePart: expected ErrCoordinateSpaceUnresolved, got %v", err)
+	}
+	if err := wsvc.FlashError(ctx, ctrl.ID, binsA[0].ID); !errors.Is(err, wled.ErrCoordinateSpaceUnresolved) {
+		t.Errorf("FlashError: expected ErrCoordinateSpaceUnresolved, got %v", err)
+	}
+
+	// No migration 005 flag, and neither migration 005 nor the backfill runs.
+	if _, err := s.GetFlag(ctx, hardware.Migration005FlagKey); err == nil {
+		t.Error("migration 005 flag must not be set for an unresolved restore")
+	}
+	if err := hardware.MigrateLegacyLedIndices(ctx, s, logger); err != nil {
+		t.Fatalf("migration: %v", err)
+	}
+	binsB, _ = s.GetBinsByContainer(ctx, contB)
+	if len(binsB) != 1 || binsB[0].LedIndex.Int64 != 0 {
+		t.Errorf("migration 005 modified unresolved bins: %+v", binsB)
+	}
+	if err := hardware.BackfillDrawerAllocations(ctx, s, logger); err != nil {
+		t.Fatalf("backfill: %v", err)
+	}
+	c, _ := s.GetContainer(ctx, contC)
+	if c.LedCount != 0 {
+		t.Errorf("allocation backfill ran on unresolved data: container C led_count = %d", c.LedCount)
+	}
+}
+
+// TestRestore_ExplicitUnresolvedMarker verifies that an explicit unresolved
+// marker is accepted, preserves its unresolved meaning, and is reported as a
+// committed warning rather than silently resolved.
+func TestRestore_ExplicitUnresolvedMarker(t *testing.T) {
+	database, s, dbCleanup := setupTestDB(t)
+	defer dbCleanup()
+	uploadsDir, fsCleanup := setupTestUploads(t)
+	defer fsCleanup()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	svc := NewService(database, s, uploadsDir, logger)
+	ctx := context.Background()
+
+	now := sql.NullTime{Time: time.Now(), Valid: true}
+	manifest := Manifest{
+		Version:       "1.0",
+		BinIndexSpace: ledspace.Unresolved,
+		Settings:      db.Setting{CreatedAt: now, UpdatedAt: now},
+		Controllers: []db.Controller{
+			{ID: 1, Name: "C", IpAddress: "1.1.1.1", CreatedAt: now},
+		},
+		Containers: []db.Container{
+			{ID: 1, Name: "A", ControllerID: 1, SegmentID: 0, LedStart: 0, LedCount: 10,
+				ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true}, CreatedAt: now, UpdatedAt: now},
+		},
+		Bins: []db.Bin{
+			{ID: 1, Name: "a1", ContainerID: 1, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
+		},
+	}
+
+	zipBytes := buildRestoreZip(t, manifest)
+	err := svc.Restore(ctx, bytes.NewReader(zipBytes), int64(len(zipBytes)))
+	var committed *RestoreCommittedError
+	if !errors.As(err, &committed) {
+		t.Fatalf("expected RestoreCommittedError warning, got %v", err)
+	}
+
+	space, err := ledspace.Current(ctx, s)
+	if err != nil || space != ledspace.Unresolved {
+		t.Fatalf("restored space = %q (err %v), want unresolved", space, err)
 	}
 }
 

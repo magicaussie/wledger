@@ -10,6 +10,7 @@ import (
 	"github.com/tuxedocurly/wledger/internal/audit"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/hardware/mapper"
+	"github.com/tuxedocurly/wledger/internal/ledspace"
 	"github.com/tuxedocurly/wledger/internal/wled"
 )
 
@@ -214,8 +215,11 @@ func (s *service) SaveGrid(ctx context.Context, controllerID int64, gridDataJSON
 		return 0, fmt.Errorf("%w: %v", ErrInvalidAllocation, err)
 	}
 
-	// Validate every mapped bin against its drawer's proposed allocation before
-	// any persistent change. Unmapped bins (nil led_index) are allowed.
+	// The grid painter still edits segment-relative LED indices (the frontend has
+	// not been switched to drawer-relative editing yet), so the submitted bin
+	// indices are interpreted as segment-relative. The active coordinate space is
+	// read and the mappings are validated inside the transaction below, so the
+	// write can never mix coordinate spaces.
 	binRows := make([]binMappingRow, len(inputBins))
 	for i := range inputBins {
 		binRows[i] = binMappingRow{
@@ -225,11 +229,27 @@ func (s *service) SaveGrid(ctx context.Context, controllerID int64, gridDataJSON
 			Width:          inputBins[i].Width,
 		}
 	}
-	if err := validateBinMappings(binRows, resolved); err != nil {
-		return 0, fmt.Errorf("%w: %v", ErrInvalidAllocation, err)
-	}
 
 	err = s.store.ExecTx(ctx, func(q db.Querier) error {
+		// Read the active coordinate space from the same transaction that performs
+		// the write. Only segment-relative editing is supported at this stage, so a
+		// drawer-relative or unresolved database is rejected rather than written to
+		// with segment-relative indices (which would be a mixed-space write).
+		space, err := ledspace.Current(ctx, q)
+		if err != nil {
+			return fmt.Errorf("failed to read LED coordinate space: %w", err)
+		}
+		if space != ledspace.Segment {
+			return fmt.Errorf("%w: grid editing is only supported for segment-relative LED indices (active space %q)", ErrInvalidAllocation, space)
+		}
+
+		// Validate every mapped bin against its drawer's allocation in the active
+		// (segment) space before any persistent change. Unmapped bins (nil
+		// led_index) are allowed.
+		if err := validateBinMappingsInSpace(space, binRows, resolved); err != nil {
+			return fmt.Errorf("%w: %v", ErrInvalidAllocation, err)
+		}
+
 		// Sync Containers
 		existingContainers, err := q.GetContainersByController(ctx, controllerID)
 		if err != nil {

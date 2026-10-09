@@ -45,18 +45,31 @@ func (s *service) Ping(ctx context.Context, ip string) (bool, error) {
 	return s.client.Ping(ctx, ip)
 }
 
-// ensureCoordinateSpaceResolved returns ErrCoordinateSpaceUnresolved when the
-// stored bin LED indices are in an unresolved coordinate space, so that no WLED
-// command is sent against a possibly incorrect physical location.
-func (s *service) ensureCoordinateSpaceResolved(ctx context.Context) error {
-	unresolved, err := ledspace.IsUnresolved(ctx, s.store)
+// resolveCoordinateSpace reads the active coordinate space and rejects an
+// unresolved one, so that no WLED command is sent against a possibly incorrect
+// physical location.
+//
+// Snapshot consistency: LocateBin, LocatePart and FlashError read the coordinate
+// space, the bin mapping and the drawer allocation inside a single read
+// transaction, so they observe one consistent state and cannot combine a bin
+// index from one configuration with a drawer allocation from another. The WLED
+// command is sent only after that transaction has finished, so no network I/O is
+// performed while the transaction is open.
+//
+// Residual race: the snapshot is released when the read transaction commits, so
+// a concurrent grid save between the commit and the WLED command can still make
+// the command target a stale physical location. This is inherent to the
+// best-effort locate/flash behaviour and is intentionally not closed by a broad
+// lock in this stage.
+func resolveCoordinateSpace(ctx context.Context, q db.Querier) (string, error) {
+	space, err := ledspace.Current(ctx, q)
 	if err != nil {
-		return fmt.Errorf("failed to check LED coordinate space: %w", err)
+		return "", fmt.Errorf("failed to read LED coordinate space: %w", err)
 	}
-	if unresolved {
-		return ErrCoordinateSpaceUnresolved
+	if space == ledspace.Unresolved {
+		return "", ErrCoordinateSpaceUnresolved
 	}
-	return nil
+	return space, nil
 }
 
 func (s *service) GlobalOff(ctx context.Context) error {
@@ -81,13 +94,71 @@ func (s *service) GlobalOff(ctx context.Context) error {
 }
 
 func (s *service) LocatePart(ctx context.Context, partID int64) error {
-	if err := s.ensureCoordinateSpaceResolved(ctx); err != nil {
+	// Resolve every assignment to a physical WLED target inside a single
+	// transaction, so the coordinate space, bin mapping and drawer allocation are
+	// read from one consistent snapshot. The WLED commands are sent afterwards so
+	// network I/O never holds the transaction open.
+	type locateTarget struct {
+		ip    string
+		segID int
+		index int
+		width int
+	}
+	var targets []locateTarget
+
+	err := s.store.ExecTx(ctx, func(q db.Querier) error {
+		space, err := resolveCoordinateSpace(ctx, q)
+		if err != nil {
+			return err
+		}
+
+		assignments, err := q.GetPartAssignments(ctx, partID)
+		if err != nil {
+			return fmt.Errorf("failed to fetch part locations: %w", err)
+		}
+
+		for _, a := range assignments {
+			if !a.ControllerIp.Valid || a.ControllerIp.String == "" || !a.LedIndex.Valid {
+				continue
+			}
+
+			// Fetch containers for this controller to calculate global index
+			containers, err := q.GetContainersByController(ctx, a.ControllerID.Int64)
+			if err != nil {
+				s.logger.Error("failed to fetch containers for locate", "controller_id", a.ControllerID.Int64, "err", err)
+				continue
+			}
+
+			// Construct db.Bin from assignment row
+			bin := db.Bin{
+				ID:          a.BinID.Int64,
+				ContainerID: a.ContainerID.Int64,
+				LedIndex:    a.LedIndex,
+				Width:       a.Width,
+			}
+
+			segID, globalIdx, err := mapper.CalculateGlobalIndex(space, containers, bin)
+			if err != nil {
+				s.logger.Error("mapping failed for part locate", "bin_id", bin.ID, "err", err)
+				continue
+			}
+
+			targets = append(targets, locateTarget{
+				ip:    a.ControllerIp.String,
+				segID: int(segID),
+				index: int(globalIdx),
+				width: int(a.Width.Int64),
+			})
+		}
+		return nil
+	})
+	if err != nil {
 		return err
 	}
 
-	assignments, err := s.store.GetPartAssignments(ctx, partID)
-	if err != nil {
-		return fmt.Errorf("failed to fetch part locations: %w", err)
+	if len(targets) == 0 {
+		s.logger.Info("no valid assignments found to locate", "part_id", partID)
+		return nil
 	}
 
 	settings, _ := s.store.GetSettings(ctx)
@@ -95,71 +166,55 @@ func (s *service) LocatePart(ctx context.Context, partID int64) error {
 		settings.ColorLocate.String = "#0000FF" // Fallback
 	}
 
-	foundAny := false
-	for _, a := range assignments {
-		if !a.ControllerIp.Valid || a.ControllerIp.String == "" || !a.LedIndex.Valid {
-			continue
+	for _, t := range targets {
+		if err := s.triggerLocate(ctx, t.ip, t.segID, t.index, t.width, settings); err != nil {
+			s.logger.Error("failed to locate assignment", "err", err)
 		}
-
-		// Fetch containers for this controller to calculate global index
-		containers, err := s.store.GetContainersByController(ctx, a.ControllerID.Int64)
-		if err != nil {
-			s.logger.Error("failed to fetch containers for locate", "controller_id", a.ControllerID.Int64, "err", err)
-			continue
-		}
-
-		// Construct db.Bin from assignment row
-		bin := db.Bin{
-			ID:          a.BinID.Int64,
-			ContainerID: a.ContainerID.Int64,
-			LedIndex:    a.LedIndex,
-			Width:       a.Width,
-		}
-
-		segID, globalIdx, err := mapper.CalculateGlobalIndex(containers, bin)
-		if err != nil {
-			s.logger.Error("mapping failed for part locate", "bin_id", bin.ID, "err", err)
-			continue
-		}
-
-		foundAny = true
-		err = s.triggerLocate(ctx, a.ControllerIp.String, int(segID), int(globalIdx), int(a.Width.Int64), settings)
-		if err != nil {
-			s.logger.Error("failed to locate assignment", "assignment_id", a.ID, "err", err)
-		}
-	}
-
-	if !foundAny {
-		s.logger.Info("no valid assignments found to locate", "part_id", partID)
 	}
 
 	return nil
 }
 
 func (s *service) LocateBin(ctx context.Context, controllerID, binID int64) error {
-	if err := s.ensureCoordinateSpaceResolved(ctx); err != nil {
+	// Read the coordinate space, bin mapping and drawer allocation from one
+	// consistent snapshot so a concurrent grid save cannot produce a mixed view.
+	var (
+		controller db.Controller
+		segID      int64
+		globalIdx  int64
+		width      int64
+	)
+	err := s.store.ExecTx(ctx, func(q db.Querier) error {
+		space, err := resolveCoordinateSpace(ctx, q)
+		if err != nil {
+			return err
+		}
+
+		controller, err = q.GetController(ctx, controllerID)
+		if err != nil {
+			return fmt.Errorf("controller not found: %w", err)
+		}
+
+		bin, err := q.GetBin(ctx, binID)
+		if err != nil {
+			return fmt.Errorf("bin not found: %w", err)
+		}
+
+		// Fetch containers for this controller
+		containers, err := q.GetContainersByController(ctx, controllerID)
+		if err != nil {
+			return fmt.Errorf("failed to fetch containers for controller: %w", err)
+		}
+
+		segID, globalIdx, err = mapper.CalculateGlobalIndex(space, containers, bin)
+		if err != nil {
+			return fmt.Errorf("mapping failed: %w", err)
+		}
+		width = bin.Width.Int64
+		return nil
+	})
+	if err != nil {
 		return err
-	}
-
-	controller, err := s.store.GetController(ctx, controllerID)
-	if err != nil {
-		return fmt.Errorf("controller not found: %w", err)
-	}
-
-	bin, err := s.store.GetBin(ctx, binID)
-	if err != nil {
-		return fmt.Errorf("bin not found: %w", err)
-	}
-
-	// Fetch containers for this controller
-	containers, err := s.store.GetContainersByController(ctx, controllerID)
-	if err != nil {
-		return fmt.Errorf("failed to fetch containers for controller: %w", err)
-	}
-
-	segID, globalIdx, err := mapper.CalculateGlobalIndex(containers, bin)
-	if err != nil {
-		return fmt.Errorf("mapping failed: %w", err)
 	}
 
 	settings, _ := s.store.GetSettings(ctx)
@@ -167,7 +222,7 @@ func (s *service) LocateBin(ctx context.Context, controllerID, binID int64) erro
 		settings.ColorLocate.String = "#0000FF"
 	}
 
-	return s.triggerLocate(ctx, controller.IpAddress, int(segID), int(globalIdx), int(bin.Width.Int64), settings)
+	return s.triggerLocate(ctx, controller.IpAddress, int(segID), int(globalIdx), int(width), settings)
 }
 
 // LocateDrawer lights up a drawer's full LED range so it can be found
@@ -201,35 +256,50 @@ func (s *service) LocateDrawer(ctx context.Context, controllerID, containerID in
 // FlashError flashes a bin's LEDs in the configured error colour (default red)
 // to signal a failed action. Best-effort.
 func (s *service) FlashError(ctx context.Context, controllerID, binID int64) error {
-	if err := s.ensureCoordinateSpaceResolved(ctx); err != nil {
+	// Read the coordinate space, bin mapping and drawer allocation from one
+	// consistent snapshot so a concurrent grid save cannot produce a mixed view.
+	var (
+		controller db.Controller
+		segID      int64
+		globalIdx  int64
+		width      int64
+	)
+	err := s.store.ExecTx(ctx, func(q db.Querier) error {
+		space, err := resolveCoordinateSpace(ctx, q)
+		if err != nil {
+			return err
+		}
+
+		controller, err = q.GetController(ctx, controllerID)
+		if err != nil {
+			return fmt.Errorf("controller not found: %w", err)
+		}
+
+		bin, err := q.GetBin(ctx, binID)
+		if err != nil {
+			return fmt.Errorf("bin not found: %w", err)
+		}
+
+		if !bin.LedIndex.Valid {
+			return fmt.Errorf("bin %d has no LED to flash", binID)
+		}
+
+		containers, err := q.GetContainersByController(ctx, controllerID)
+		if err != nil {
+			return fmt.Errorf("failed to fetch containers: %w", err)
+		}
+
+		segID, globalIdx, err = mapper.CalculateGlobalIndex(space, containers, bin)
+		if err != nil {
+			return fmt.Errorf("mapping failed: %w", err)
+		}
+		width = bin.Width.Int64
+		return nil
+	})
+	if err != nil {
 		return err
 	}
 
-	controller, err := s.store.GetController(ctx, controllerID)
-	if err != nil {
-		return fmt.Errorf("controller not found: %w", err)
-	}
-
-	bin, err := s.store.GetBin(ctx, binID)
-	if err != nil {
-		return fmt.Errorf("bin not found: %w", err)
-	}
-
-	if !bin.LedIndex.Valid {
-		return fmt.Errorf("bin %d has no LED to flash", binID)
-	}
-
-	containers, err := s.store.GetContainersByController(ctx, controllerID)
-	if err != nil {
-		return fmt.Errorf("failed to fetch containers: %w", err)
-	}
-
-	segID, globalIdx, err := mapper.CalculateGlobalIndex(containers, bin)
-	if err != nil {
-		return fmt.Errorf("mapping failed: %w", err)
-	}
-
-	width := int(bin.Width.Int64)
 	if width < 1 {
 		width = 1
 	}
@@ -240,7 +310,7 @@ func (s *service) FlashError(ctx context.Context, controllerID, binID int64) err
 		color = "#FF0000"
 	}
 
-	return s.client.Apply(ctx, controller.IpAddress, int(segID), int(globalIdx), width, State{Color: color, Mode: ModeFlash})
+	return s.client.Apply(ctx, controller.IpAddress, int(segID), int(globalIdx), int(width), State{Color: color, Mode: ModeFlash})
 }
 
 func (s *service) triggerLocate(ctx context.Context, ip string, segmentID, index, width int, settings db.Setting) error {

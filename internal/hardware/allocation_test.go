@@ -3,8 +3,10 @@ package hardware
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"math"
 	"os"
@@ -607,6 +609,76 @@ func TestImportConfigAllowsPartiallyMappedDrawer(t *testing.T) {
 	}
 }
 
+// TestSaveGridRejectsDrawerSpace verifies that the grid writer refuses to write
+// segment-relative indices into a drawer-relative database, so no mixed-space
+// write can occur while the frontend still edits in segment space.
+func TestSaveGridRejectsDrawerSpace(t *testing.T) {
+	svc, store, dbConn := setupAllocTest(t, "savegrid_drawer_space")
+	defer dbConn.Close()
+	ctx := context.Background()
+
+	if err := ledspace.Set(ctx, store, ledspace.Drawer); err != nil {
+		t.Fatalf("set drawer: %v", err)
+	}
+
+	ctrl, _ := store.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
+	configData := `[{"id":null,"name":"A","segment_id":0,"led_start":0,"led_count":10,"config":{"type":"linear","total":10}}]`
+	gridData := `[{"container_index":0,"x":0,"y":0,"led_index":0,"width":1,"name":"a1"}]`
+	if _, err := svc.SaveGrid(ctx, ctrl.ID, gridData, configData); err == nil {
+		t.Fatal("expected SaveGrid to reject a drawer-relative database")
+	}
+
+	containers, _ := store.GetContainersByController(ctx, ctrl.ID)
+	if len(containers) != 0 {
+		t.Fatalf("drawer-space SaveGrid modified the database: %+v", containers)
+	}
+}
+
+// TestSaveGridRejectsUnresolvedSpace verifies that the grid writer refuses to
+// write into an unresolved database.
+func TestSaveGridRejectsUnresolvedSpace(t *testing.T) {
+	svc, store, dbConn := setupAllocTest(t, "savegrid_unresolved_space")
+	defer dbConn.Close()
+	ctx := context.Background()
+
+	if err := ledspace.Set(ctx, store, ledspace.Unresolved); err != nil {
+		t.Fatalf("set unresolved: %v", err)
+	}
+
+	ctrl, _ := store.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
+	configData := `[{"id":null,"name":"A","segment_id":0,"led_start":0,"led_count":10,"config":{"type":"linear","total":10}}]`
+	gridData := `[{"container_index":0,"x":0,"y":0,"led_index":0,"width":1,"name":"a1"}]`
+	if _, err := svc.SaveGrid(ctx, ctrl.ID, gridData, configData); err == nil {
+		t.Fatal("expected SaveGrid to reject an unresolved database")
+	}
+}
+
+// TestBackfillDrawerAllocationsSkipsDrawer verifies that the segment-based
+// allocation backfill never derives allocations from drawer-relative indices.
+func TestBackfillDrawerAllocationsSkipsDrawer(t *testing.T) {
+	_, store, dbConn := setupAllocTest(t, "backfill_drawer")
+	defer dbConn.Close()
+	ctx := context.Background()
+
+	ctrl, _ := store.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
+	cont := mkContainer(t, store, ctx, ctrl.ID, "A", 0, `{"type":"linear","total":10}`, 0, 0)
+	mkBin(t, store, ctx, cont, "a1", 3, 1)
+
+	if err := ledspace.Set(ctx, store, ledspace.Drawer); err != nil {
+		t.Fatalf("set drawer: %v", err)
+	}
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	if err := BackfillDrawerAllocations(ctx, store, logger); err != nil {
+		t.Fatalf("backfill: %v", err)
+	}
+
+	c, _ := store.GetContainer(ctx, cont)
+	if c.LedCount != 0 {
+		t.Fatalf("backfill ran on drawer-relative data: led_count = %d", c.LedCount)
+	}
+}
+
 func TestExportImportPreservesAllocations(t *testing.T) {
 	svc, store, dbConn := setupAllocTest(t, "exportimport")
 	defer dbConn.Close()
@@ -638,5 +710,139 @@ func TestExportImportPreservesAllocations(t *testing.T) {
 	}
 	if byName["B"].LedStart != 10 || byName["B"].LedCount != 10 {
 		t.Errorf("B = [%d,%d), want [10,20)", byName["B"].LedStart, byName["B"].LedCount)
+	}
+}
+
+// TestExportConfig_IncludesBinIndexSpace verifies that the exported config
+// declares the active coordinate space.
+func TestExportConfig_IncludesBinIndexSpace(t *testing.T) {
+	cases := []struct {
+		space string
+		want  string
+	}{
+		{"", ledspace.Segment},
+		{ledspace.Segment, ledspace.Segment},
+		{ledspace.Drawer, ledspace.Drawer},
+	}
+	for _, tc := range cases {
+		t.Run(tc.want, func(t *testing.T) {
+			svc, store, dbConn := setupAllocTest(t, "export_space_"+tc.want)
+			defer dbConn.Close()
+			ctx := context.Background()
+
+			if tc.space != "" {
+				if err := ledspace.Set(ctx, store, tc.space); err != nil {
+					t.Fatalf("set space: %v", err)
+				}
+			}
+			ctrl, _ := store.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
+			mkContainer(t, store, ctx, ctrl.ID, "A", 0, `{"type":"linear","total":10}`, 0, 10)
+
+			data, err := svc.ExportConfig(ctx, ctrl.ID)
+			if err != nil {
+				t.Fatalf("export: %v", err)
+			}
+			var cfg hardwareConfig
+			if err := json.Unmarshal(data, &cfg); err != nil {
+				t.Fatalf("unmarshal: %v", err)
+			}
+			if cfg.BinIndexSpace != tc.want {
+				t.Errorf("bin_index_space = %q, want %q", cfg.BinIndexSpace, tc.want)
+			}
+		})
+	}
+}
+
+// TestImportConfig_CrossSpaceSegmentToDrawer verifies that a segment-relative
+// config imported into a drawer-relative database is normalised to
+// drawer-relative indices using each drawer's allocation.
+func TestImportConfig_CrossSpaceSegmentToDrawer(t *testing.T) {
+	svc, store, dbConn := setupAllocTest(t, "import_seg_to_drawer")
+	defer dbConn.Close()
+	ctx := context.Background()
+
+	if err := ledspace.Set(ctx, store, ledspace.Drawer); err != nil {
+		t.Fatalf("set drawer: %v", err)
+	}
+
+	// Segment-relative bin index 13 lies inside drawer A's [10,20) allocation.
+	data := `{"version":"1.0","bin_index_space":"segment","controller":{"name":"C","ip_address":"1.1.1.1"},"containers":[{"name":"A","segment_id":0,"led_start":10,"led_count":10,"config":{"type":"linear","total":10}}],"bins":[{"container_index":0,"led_index":13,"width":1,"name":"a1"}]}`
+	id, err := svc.ImportConfig(ctx, "", "", 0, []byte(data))
+	if err != nil {
+		t.Fatalf("import: %v", err)
+	}
+
+	bins, _ := svc.GetBinsByController(ctx, id)
+	if len(bins) != 1 || !bins[0].LedIndex.Valid || bins[0].LedIndex.Int64 != 3 {
+		t.Fatalf("expected drawer-relative index 3, got %+v", bins)
+	}
+}
+
+// TestImportConfig_CrossSpaceDrawerToSegment verifies that a drawer-relative
+// config imported into a segment-relative database is normalised to
+// segment-absolute indices using each drawer's allocation.
+func TestImportConfig_CrossSpaceDrawerToSegment(t *testing.T) {
+	svc, _, dbConn := setupAllocTest(t, "import_drawer_to_seg")
+	defer dbConn.Close()
+	ctx := context.Background()
+
+	data := `{"version":"1.0","bin_index_space":"drawer","controller":{"name":"C","ip_address":"1.1.1.1"},"containers":[{"name":"A","segment_id":0,"led_start":10,"led_count":10,"config":{"type":"linear","total":10}}],"bins":[{"container_index":0,"led_index":3,"width":1,"name":"a1"}]}`
+	id, err := svc.ImportConfig(ctx, "", "", 0, []byte(data))
+	if err != nil {
+		t.Fatalf("import: %v", err)
+	}
+
+	bins, _ := svc.GetBinsByController(ctx, id)
+	if len(bins) != 1 || !bins[0].LedIndex.Valid || bins[0].LedIndex.Int64 != 13 {
+		t.Fatalf("expected segment-absolute index 13, got %+v", bins)
+	}
+}
+
+// TestImportConfig_RejectsUnresolvedDatabase verifies that importing into an
+// unresolved database is rejected.
+func TestImportConfig_RejectsUnresolvedDatabase(t *testing.T) {
+	svc, store, dbConn := setupAllocTest(t, "import_unresolved_db")
+	defer dbConn.Close()
+	ctx := context.Background()
+
+	if err := ledspace.Set(ctx, store, ledspace.Unresolved); err != nil {
+		t.Fatalf("set unresolved: %v", err)
+	}
+
+	data := `{"version":"1.0","controller":{"name":"C","ip_address":"1.1.1.1"},"containers":[{"name":"A","segment_id":0,"led_start":0,"led_count":10,"config":{"type":"linear","total":10}}],"bins":[{"container_index":0,"led_index":0,"width":1,"name":"a1"}]}`
+	if _, err := svc.ImportConfig(ctx, "", "", 0, []byte(data)); err == nil {
+		t.Fatal("expected import into an unresolved database to be rejected")
+	}
+}
+
+// TestImportConfig_RejectsUnknownBinIndexSpace verifies that an explicit but
+// unknown config coordinate space is rejected.
+func TestImportConfig_RejectsUnknownBinIndexSpace(t *testing.T) {
+	svc, _, dbConn := setupAllocTest(t, "import_unknown_space")
+	defer dbConn.Close()
+	ctx := context.Background()
+
+	data := `{"version":"1.0","bin_index_space":"bogus","controller":{"name":"C","ip_address":"1.1.1.1"},"containers":[{"name":"A","segment_id":0,"led_start":0,"led_count":10,"config":{"type":"linear","total":10}}],"bins":[{"container_index":0,"led_index":0,"width":1,"name":"a1"}]}`
+	if _, err := svc.ImportConfig(ctx, "", "", 0, []byte(data)); err == nil {
+		t.Fatal("expected an unknown bin_index_space to be rejected")
+	}
+}
+
+// TestImportConfig_UnmarkedIsSegmentRelative verifies that an unmarked config is
+// treated as segment-relative, preserving the historical format contract.
+func TestImportConfig_UnmarkedIsSegmentRelative(t *testing.T) {
+	svc, _, dbConn := setupAllocTest(t, "import_unmarked")
+	defer dbConn.Close()
+	ctx := context.Background()
+
+	data := `{"version":"1.0","controller":{"name":"C","ip_address":"1.1.1.1"},"containers":[{"name":"A","segment_id":0,"led_start":10,"led_count":10,"config":{"type":"linear","total":10}}],"bins":[{"container_index":0,"led_index":13,"width":1,"name":"a1"}]}`
+	id, err := svc.ImportConfig(ctx, "", "", 0, []byte(data))
+	if err != nil {
+		t.Fatalf("import: %v", err)
+	}
+
+	bins, _ := svc.GetBinsByController(ctx, id)
+	if len(bins) != 1 || !bins[0].LedIndex.Valid || bins[0].LedIndex.Int64 != 13 {
+		t.Fatalf("expected segment-relative index 13 to be preserved, got %+v", bins)
 	}
 }

@@ -22,13 +22,16 @@ const Migration005FlagKey = "migration_005_applied"
 // to absolute segment indices (across containers on same segment).
 // This reflects legacy logic but persists it to the database.
 func MigrateLegacyLedIndices(ctx context.Context, store db.Store, logger *slog.Logger) error {
-	// Never convert bin indices whose coordinate system is unresolved: the
-	// restored data may already be segment-relative, and converting again would
-	// shift it a second time.
-	if unresolved, err := ledspace.IsUnresolved(ctx, store); err != nil {
-		return fmt.Errorf("failed to check LED coordinate space: %w", err)
-	} else if unresolved {
-		logger.Warn("skipping legacy LED index migration: restored LED coordinate space is unresolved")
+	// Only segment-relative bin indices may be converted. Drawer-relative indices
+	// are already relative to their drawer's allocation, and unresolved indices
+	// have no known coordinate system; converting either would address the wrong
+	// physical LEDs.
+	space, err := ledspace.Current(ctx, store)
+	if err != nil {
+		return fmt.Errorf("failed to read LED coordinate space: %w", err)
+	}
+	if space != ledspace.Segment {
+		logger.Warn("skipping legacy LED index migration: bin LED indices are not segment-relative", "space", space)
 		return nil
 	}
 

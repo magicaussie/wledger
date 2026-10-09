@@ -10,8 +10,9 @@ type Manifest struct {
 	Version    string    `json:"version"`
 	ExportedAt time.Time `json:"exported_at"`
 	// BinIndexSpace records the coordinate system of the bins' LED indices.
-	// "segment" means segment-relative. It is omitted by backups that predate
-	// this field, in which case the coordinate system must not be assumed.
+	// "segment" means segment-relative and "drawer" means relative to the owning
+	// drawer's allocation. It is omitted by backups that predate this field, in
+	// which case the coordinate system must not be assumed.
 	BinIndexSpace       string                  `json:"bin_index_space,omitempty"`
 	Settings            db.Setting              `json:"settings"`
 	Users               []db.User               `json:"users"`

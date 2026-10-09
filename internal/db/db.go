@@ -303,6 +303,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.getBinStmt, err = db.PrepareContext(ctx, getBin); err != nil {
 		return nil, fmt.Errorf("error preparing query GetBin: %w", err)
 	}
+	if q.getBinByContainerAndLedStmt, err = db.PrepareContext(ctx, getBinByContainerAndLed); err != nil {
+		return nil, fmt.Errorf("error preparing query GetBinByContainerAndLed: %w", err)
+	}
 	if q.getBinByLocationStmt, err = db.PrepareContext(ctx, getBinByLocation); err != nil {
 		return nil, fmt.Errorf("error preparing query GetBinByLocation: %w", err)
 	}
@@ -320,6 +323,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.getControllerStmt, err = db.PrepareContext(ctx, getController); err != nil {
 		return nil, fmt.Errorf("error preparing query GetController: %w", err)
+	}
+	if q.getControllerByIPStmt, err = db.PrepareContext(ctx, getControllerByIP); err != nil {
+		return nil, fmt.Errorf("error preparing query GetControllerByIP: %w", err)
 	}
 	if q.getControllersStmt, err = db.PrepareContext(ctx, getControllers); err != nil {
 		return nil, fmt.Errorf("error preparing query GetControllers: %w", err)
@@ -1064,6 +1070,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing getBinStmt: %w", cerr)
 		}
 	}
+	if q.getBinByContainerAndLedStmt != nil {
+		if cerr := q.getBinByContainerAndLedStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getBinByContainerAndLedStmt: %w", cerr)
+		}
+	}
 	if q.getBinByLocationStmt != nil {
 		if cerr := q.getBinByLocationStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getBinByLocationStmt: %w", cerr)
@@ -1092,6 +1103,11 @@ func (q *Queries) Close() error {
 	if q.getControllerStmt != nil {
 		if cerr := q.getControllerStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getControllerStmt: %w", cerr)
+		}
+	}
+	if q.getControllerByIPStmt != nil {
+		if cerr := q.getControllerByIPStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getControllerByIPStmt: %w", cerr)
 		}
 	}
 	if q.getControllersStmt != nil {
@@ -1681,12 +1697,14 @@ type Queries struct {
 	getAssignmentStmt                    *sql.Stmt
 	getAssignmentIDStmt                  *sql.Stmt
 	getBinStmt                           *sql.Stmt
+	getBinByContainerAndLedStmt          *sql.Stmt
 	getBinByLocationStmt                 *sql.Stmt
 	getBinContentsStmt                   *sql.Stmt
 	getBinsByContainerStmt               *sql.Stmt
 	getContainerStmt                     *sql.Stmt
 	getContainersByControllerStmt        *sql.Stmt
 	getControllerStmt                    *sql.Stmt
+	getControllerByIPStmt                *sql.Stmt
 	getControllersStmt                   *sql.Stmt
 	getDashboardGridStmt                 *sql.Stmt
 	getDashboardGridByControllerStmt     *sql.Stmt
@@ -1877,12 +1895,14 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		getAssignmentStmt:                    q.getAssignmentStmt,
 		getAssignmentIDStmt:                  q.getAssignmentIDStmt,
 		getBinStmt:                           q.getBinStmt,
+		getBinByContainerAndLedStmt:          q.getBinByContainerAndLedStmt,
 		getBinByLocationStmt:                 q.getBinByLocationStmt,
 		getBinContentsStmt:                   q.getBinContentsStmt,
 		getBinsByContainerStmt:               q.getBinsByContainerStmt,
 		getContainerStmt:                     q.getContainerStmt,
 		getContainersByControllerStmt:        q.getContainersByControllerStmt,
 		getControllerStmt:                    q.getControllerStmt,
+		getControllerByIPStmt:                q.getControllerByIPStmt,
 		getControllersStmt:                   q.getControllersStmt,
 		getDashboardGridStmt:                 q.getDashboardGridStmt,
 		getDashboardGridByControllerStmt:     q.getDashboardGridByControllerStmt,

@@ -10,6 +10,7 @@ import (
 
 	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/internal/db"
+	"github.com/tuxedocurly/wledger/internal/ledspace"
 )
 
 func TestHandlePartsImport_WithLocation(t *testing.T) {
@@ -53,6 +54,57 @@ func TestHandlePartsImport_WithLocation(t *testing.T) {
 	dbConn.QueryRow("SELECT quantity FROM part_assignments WHERE part_id = ? AND bin_id = ?", partID, binID).Scan(&count)
 	if count != 50 {
 		t.Errorf("expected 50 quantity in bin %d, got %d", binID, count)
+	}
+}
+
+// TestHandlePartsImport_DrawerSpaceLookup verifies that the CSV import keeps its
+// segment-relative contract while resolving the location against a
+// drawer-relative database: the CSV segment-relative index is converted to a
+// drawer-relative index using the owning drawer's allocation.
+func TestHandlePartsImport_DrawerSpaceLookup(t *testing.T) {
+	h, dbConn := setupPartTest(t)
+	defer dbConn.Close()
+	defer cleanupPartTest()
+	ctx := context.Background()
+
+	controller, _ := h.Queries.CreateController(ctx, db.CreateControllerParams{
+		Name: "Test Controller", IpAddress: "192.168.1.100",
+	})
+	containerID, _ := h.Queries.CreateContainer(ctx, db.CreateContainerParams{
+		Name: "Drawer", ControllerID: controller.ID, SegmentID: 2, LedStart: 10, LedCount: 5,
+	})
+	// Drawer-relative index 3 corresponds to segment-relative index 13.
+	binID, _ := h.Queries.CreateBin(ctx, db.CreateBinParams{
+		Name: "Bin 13", ContainerID: containerID, LedIndex: sql.NullInt64{Int64: 3, Valid: true},
+	})
+
+	if err := ledspace.Set(ctx, h.Queries, ledspace.Drawer); err != nil {
+		t.Fatalf("set drawer: %v", err)
+	}
+
+	// The CSV still provides the segment-relative index 13.
+	csvContent := "Name,Controller IP,Segment ID,LED Index,Quantity\n" +
+		"Drawer Part,192.168.1.100,2,13,7\n"
+
+	req := createMultipartRequest(t, "/parts/import", "POST", map[string]string{
+		"raw_text": csvContent,
+	}, map[string]string{})
+	req = req.WithContext(auth.WithUser(req.Context(), auth.User{Role: "admin"}))
+
+	rr := httptest.NewRecorder()
+	h.HandlePartsImport(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected 200 OK, got %d. Body: %s", rr.Code, rr.Body.String())
+	}
+
+	var partID int64
+	dbConn.QueryRow("SELECT id FROM parts WHERE name = ?", "Drawer Part").Scan(&partID)
+
+	var count int
+	dbConn.QueryRow("SELECT quantity FROM part_assignments WHERE part_id = ? AND bin_id = ?", partID, binID).Scan(&count)
+	if count != 7 {
+		t.Errorf("expected 7 quantity in bin %d, got %d", binID, count)
 	}
 }
 

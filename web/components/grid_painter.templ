@@ -8,13 +8,17 @@ import (
 )
 
 // GridPainter renders the interactive LED mapping tool with Linear, Grid, and Compound support.
-templ GridPainter(controller db.Controller, containers []db.Container, bins []db.Bin, canEdit bool) {
+// binIndexSpace is the active coordinate space of the stored bin LED indices. It is exposed to the
+// client for display, but the painter's editing behaviour remains segment-relative for now.
+templ GridPainter(controller db.Controller, containers []db.Container, bins []db.Bin, binIndexSpace string, canEdit bool) {
 	@templ.JSONScript("grid-bins-data", bins)
 	@templ.JSONScript("grid-containers-data", containers)
 	<div
-		x-data={ fmt.Sprintf(`gridPainter(%d, 'grid-bins-data', 'grid-containers-data', %t)`, 
-        controller.ID, 
+		x-data={ fmt.Sprintf(`gridPainter(%d, 'grid-bins-data', 'grid-containers-data', '%s', %t)`,
+        controller.ID,
+        binIndexSpace,
         canEdit) }
+		data-bin-index-space={ binIndexSpace }
 		class="w-full"
 	>
 		if canEdit {

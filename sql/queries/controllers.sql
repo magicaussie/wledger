@@ -13,6 +13,9 @@ SELECT * FROM controllers ORDER BY name;
 -- name: GetController :one
 SELECT * FROM controllers WHERE id = ?;
 
+-- name: GetControllerByIP :one
+SELECT * FROM controllers WHERE ip_address = ?;
+
 -- name: DeleteController :exec
 DELETE FROM controllers WHERE id = ?;
 

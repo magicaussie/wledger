@@ -5,11 +5,13 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/tuxedocurly/wledger/internal/audit"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/hardware/mapper"
+	"github.com/tuxedocurly/wledger/internal/ledspace"
 )
 
 // hardware config export/import
@@ -40,11 +42,12 @@ type binConfig struct {
 }
 
 type hardwareConfig struct {
-	Version    string            `json:"version"`
-	ExportedAt time.Time         `json:"exported_at"`
-	Controller controllerConfig  `json:"controller"`
-	Containers []containerConfig `json:"containers"`
-	Bins       []binConfig       `json:"bins"`
+	Version       string            `json:"version"`
+	ExportedAt    time.Time         `json:"exported_at"`
+	BinIndexSpace string            `json:"bin_index_space,omitempty"`
+	Controller    controllerConfig  `json:"controller"`
+	Containers    []containerConfig `json:"containers"`
+	Bins          []binConfig       `json:"bins"`
 }
 
 // ExportConfig serializes a controller and its full grid layout (containers +
@@ -60,10 +63,18 @@ func (s *service) ExportConfig(ctx context.Context, controllerID int64) ([]byte,
 		return nil, err
 	}
 
+	// Export the actual coordinate space of the stored bin LED indices so a
+	// re-import can interpret them without guessing.
+	space, err := ledspace.Current(ctx, s.store)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read LED coordinate space: %w", err)
+	}
+
 	cfg := hardwareConfig{
-		Version:    hwConfigVersion,
-		ExportedAt: time.Now(),
-		Controller: controllerConfig{Name: c.Name, IpAddress: c.IpAddress, Port: c.Port.Int64},
+		Version:       hwConfigVersion,
+		ExportedAt:    time.Now(),
+		BinIndexSpace: space,
+		Controller:    controllerConfig{Name: c.Name, IpAddress: c.IpAddress, Port: c.Port.Int64},
 	}
 
 	containerIDs := make([]int64, 0, len(containers))
@@ -123,6 +134,19 @@ func (s *service) ImportConfig(ctx context.Context, name, ip string, port int64,
 		return 0, fmt.Errorf("unsupported hardware config version %q", cfg.Version)
 	}
 
+	// Determine the coordinate space of the imported config. An unmarked config
+	// is segment-relative: that is the contract the existing hardware config
+	// format has always used.
+	cfgSpace := cfg.BinIndexSpace
+	if cfgSpace == "" {
+		cfgSpace = ledspace.Segment
+	}
+	switch cfgSpace {
+	case ledspace.Segment, ledspace.Drawer:
+	default:
+		return 0, fmt.Errorf("%w: unsupported bin_index_space %q", ErrInvalidAllocation, cfg.BinIndexSpace)
+	}
+
 	// Optional overrides from the import form.
 	if name != "" {
 		cfg.Controller.Name = name
@@ -161,23 +185,50 @@ func (s *service) ImportConfig(ctx context.Context, name, ip string, port int64,
 		return 0, fmt.Errorf("%w: %v", ErrInvalidAllocation, err)
 	}
 
-	// Validate every mapped imported bin against its drawer's allocation and
-	// reject invalid container references rather than silently skipping them.
-	binRows := make([]binMappingRow, len(cfg.Bins))
-	for i := range cfg.Bins {
-		binRows[i] = binMappingRow{
-			ContainerIndex: cfg.Bins[i].ContainerIndex,
-			Name:           cfg.Bins[i].Name,
-			LedIndex:       cfg.Bins[i].LedIndex,
-			Width:          cfg.Bins[i].Width,
-		}
-	}
-	if err := validateBinMappings(binRows, resolved); err != nil {
-		return 0, fmt.Errorf("%w: %v", ErrInvalidAllocation, err)
-	}
-
 	var newID int64
 	err := s.store.ExecTx(ctx, func(q db.Querier) error {
+		// Read the target coordinate space inside the transaction so the imported
+		// indices are normalised and validated against a single consistent state.
+		// Importing into an unresolved database is rejected: the imported indices
+		// cannot be placed in a known coordinate space.
+		dbSpace, err := ledspace.Current(ctx, q)
+		if err != nil {
+			return fmt.Errorf("failed to read LED coordinate space: %w", err)
+		}
+		if dbSpace == ledspace.Unresolved {
+			return fmt.Errorf("%w: database LED coordinate space is unresolved", ErrInvalidAllocation)
+		}
+
+		// Normalise every mapped imported bin into the database coordinate space
+		// using its drawer's segment-relative allocation, then validate it in that
+		// space. This keeps a cross-space import consistent: the imported indices
+		// are fully converted, never partially or mixed.
+		binRows := make([]binMappingRow, len(cfg.Bins))
+		for i := range cfg.Bins {
+			b := cfg.Bins[i]
+			if b.ContainerIndex < 0 || b.ContainerIndex >= len(resolved) {
+				return fmt.Errorf("%w: bin %q references invalid container index %d", ErrInvalidAllocation, b.Name, b.ContainerIndex)
+			}
+			idx := b.LedIndex
+			if idx != nil {
+				normalised, err := normaliseBinIndex(cfgSpace, dbSpace, int64(*idx), resolved[b.ContainerIndex])
+				if err != nil {
+					return fmt.Errorf("%w: bin %q: %v", ErrInvalidAllocation, b.Name, err)
+				}
+				v := int(normalised)
+				idx = &v
+			}
+			binRows[i] = binMappingRow{
+				ContainerIndex: b.ContainerIndex,
+				Name:           b.Name,
+				LedIndex:       idx,
+				Width:          b.Width,
+			}
+		}
+		if err := validateBinMappingsInSpace(dbSpace, binRows, resolved); err != nil {
+			return fmt.Errorf("%w: %v", ErrInvalidAllocation, err)
+		}
+
 		row, err := q.CreateController(ctx, db.CreateControllerParams{
 			Name:      cfg.Controller.Name,
 			IpAddress: cfg.Controller.IpAddress,
@@ -206,16 +257,17 @@ func (s *service) ImportConfig(ctx context.Context, name, ip string, port int64,
 			containerIDs[i] = id
 		}
 
-		for _, b := range cfg.Bins {
-			// Container references are validated before the transaction, so direct
-			// indexing is safe here.
+		for i, b := range binRows {
+			// Container references were validated above, so direct indexing is safe
+			// here. The LED index has already been normalised into the database
+			// coordinate space.
 			_, err := q.CreateBin(ctx, db.CreateBinParams{
 				Name:        b.Name,
 				ContainerID: containerIDs[b.ContainerIndex],
 				LedIndex:    nullIntFromPtr(b.LedIndex),
 				Width:       sql.NullInt64{Int64: int64(clampWidth(b.Width)), Valid: true},
-				GridX:       sql.NullInt64{Int64: int64(b.X), Valid: true},
-				GridY:       sql.NullInt64{Int64: int64(b.Y), Valid: true},
+				GridX:       sql.NullInt64{Int64: int64(cfg.Bins[i].X), Valid: true},
+				GridY:       sql.NullInt64{Int64: int64(cfg.Bins[i].Y), Valid: true},
 			})
 			if err != nil {
 				return err
@@ -231,4 +283,30 @@ func (s *service) ImportConfig(ctx context.Context, name, ip string, port int64,
 		nil, map[string]any{"name": cfg.Controller.Name, "ip_address": cfg.Controller.IpAddress})
 
 	return newID, nil
+}
+
+// normaliseBinIndex converts a bin LED index from the config's coordinate space
+// into the database's coordinate space using the drawer's segment-relative
+// allocation. Same-space conversions are the identity. The caller validates the
+// converted index against the drawer allocation in the target space.
+func normaliseBinIndex(fromSpace, toSpace string, index int64, c db.Container) (int64, error) {
+	if fromSpace == toSpace {
+		return index, nil
+	}
+	switch {
+	case fromSpace == ledspace.Segment && toSpace == ledspace.Drawer:
+		// segment-absolute -> drawer-relative
+		if index < c.LedStart {
+			return 0, fmt.Errorf("led_index %d is before drawer %q allocation start %d", index, c.Name, c.LedStart)
+		}
+		return index - c.LedStart, nil
+	case fromSpace == ledspace.Drawer && toSpace == ledspace.Segment:
+		// drawer-relative -> segment-absolute
+		if c.LedStart > math.MaxInt64-index {
+			return 0, fmt.Errorf("drawer %q LED index overflows: start %d index %d", c.Name, c.LedStart, index)
+		}
+		return c.LedStart + index, nil
+	default:
+		return 0, fmt.Errorf("cannot convert bin index from %q to %q", fromSpace, toSpace)
+	}
 }

@@ -1,6 +1,9 @@
 document.addEventListener('alpine:init', () => {
-    Alpine.data('gridPainter', (ctrlId, binsDataId, containersDataId, canEdit) => ({
+    Alpine.data('gridPainter', (ctrlId, binsDataId, containersDataId, binIndexSpace, canEdit) => ({
         canEdit: canEdit,
+        // Active coordinate space of the stored bin LED indices. Exposed for
+        // display only; editing behaviour remains segment-relative for now.
+        binIndexSpace: binIndexSpace,
         containers: [],
         selectedContainerIndex: 0,
         cells: {},

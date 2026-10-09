@@ -54,6 +54,9 @@ JOIN containers c ON b.container_id = c.id
 JOIN controllers ct ON c.controller_id = ct.id
 WHERE ct.ip_address = ? AND c.segment_id = ? AND b.led_index = ?;
 
+-- name: GetBinByContainerAndLed :one
+SELECT id FROM bins WHERE container_id = ? AND led_index = ?;
+
 -- name: GetBinContents :many
 SELECT p.id, p.name, p.part_number, p.image_path, pa.quantity
 FROM part_assignments pa

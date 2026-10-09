@@ -19,6 +19,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/hardware"
+	"github.com/tuxedocurly/wledger/internal/ledspace"
 	"github.com/tuxedocurly/wledger/internal/middleware"
 	"github.com/tuxedocurly/wledger/internal/settings"
 	"github.com/tuxedocurly/wledger/internal/uierror"
@@ -264,6 +265,40 @@ func TestHandleHardwareGridSave_InternalErrorReturns500(t *testing.T) {
 	rr := postGridSave(t, h, ctrl.ID, `not json`, `[]`)
 	if rr.Code != http.StatusInternalServerError {
 		t.Fatalf("expected 500 for malformed payload, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+// TestHandleHardwareGridSave_NonSegmentSpaceReturns400 verifies that a grid save
+// into a drawer-relative or unresolved database is reported as a client error
+// (400), not a 500, and leaves the database unchanged.
+func TestHandleHardwareGridSave_NonSegmentSpaceReturns400(t *testing.T) {
+	for _, space := range []string{ledspace.Drawer, ledspace.Unresolved} {
+		t.Run(space, func(t *testing.T) {
+			h, s, dbConn := setupHardwareHandler(t)
+			defer dbConn.Close()
+			ctx := context.Background()
+
+			ctrl, err := s.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
+			if err != nil {
+				t.Fatalf("create controller: %v", err)
+			}
+			if err := ledspace.Set(ctx, s, space); err != nil {
+				t.Fatalf("set space: %v", err)
+			}
+
+			configData := `[{"id":null,"name":"A","segment_id":0,"led_start":0,"led_count":10,"config":{"type":"linear","total":10}}]`
+			gridData := `[{"container_index":0,"x":0,"y":0,"led_index":0,"width":1,"name":"a1"}]`
+			rr := postGridSave(t, h, ctrl.ID, gridData, configData)
+			if rr.Code != http.StatusBadRequest {
+				t.Fatalf("expected 400 for %s space, got %d: %s", space, rr.Code, rr.Body.String())
+			}
+
+			// The rejection must leave the database unchanged.
+			containers, _ := s.GetContainersByController(ctx, ctrl.ID)
+			if len(containers) != 0 {
+				t.Fatalf("rejected save modified the database: %+v", containers)
+			}
+		})
 	}
 }
 

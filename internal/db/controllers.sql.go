@@ -72,6 +72,26 @@ func (q *Queries) GetController(ctx context.Context, id int64) (Controller, erro
 	return i, err
 }
 
+const getControllerByIP = `-- name: GetControllerByIP :one
+SELECT id, name, ip_address, port, mac_address, is_online, led_count, created_at FROM controllers WHERE ip_address = ?
+`
+
+func (q *Queries) GetControllerByIP(ctx context.Context, ipAddress string) (Controller, error) {
+	row := q.queryRow(ctx, q.getControllerByIPStmt, getControllerByIP, ipAddress)
+	var i Controller
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.IpAddress,
+		&i.Port,
+		&i.MacAddress,
+		&i.IsOnline,
+		&i.LedCount,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getControllers = `-- name: GetControllers :many
 SELECT id, name, ip_address, port, mac_address, is_online, led_count, created_at FROM controllers ORDER BY name
 `

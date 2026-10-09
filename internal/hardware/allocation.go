@@ -58,6 +58,33 @@ func ValidateBinMapping(ledIndex, width, start, count int64) error {
 	return nil
 }
 
+// ValidateBinMappingInSpace validates a mapped bin against its drawer's
+// allocation in the given coordinate space. In segment space the bin index is
+// segment-absolute and must lie within [start, start+count); in drawer space it
+// is drawer-relative and must lie within [0, count).
+func ValidateBinMappingInSpace(space string, ledIndex, width, start, count int64) error {
+	switch space {
+	case ledspace.Segment:
+		return ValidateBinMapping(ledIndex, width, start, count)
+	case ledspace.Drawer:
+		if ledIndex < 0 {
+			return fmt.Errorf("bin led_index must be non-negative, got %d", ledIndex)
+		}
+		if width < 1 {
+			width = 1
+		}
+		if ledIndex > math.MaxInt64-width {
+			return fmt.Errorf("bin LED range overflows: index %d width %d", ledIndex, width)
+		}
+		if ledIndex+width > count {
+			return fmt.Errorf("bin range [%d,%d) exceeds drawer allocation [0,%d)", ledIndex, ledIndex+width, count)
+		}
+		return nil
+	default:
+		return fmt.Errorf("unknown LED coordinate space %q", space)
+	}
+}
+
 // binMappingRow is the containment-relevant view of a submitted or imported
 // bin. A nil LedIndex denotes an unmapped bin, which is exempt from containment
 // validation and is preserved as-is.
@@ -68,11 +95,12 @@ type binMappingRow struct {
 	Width          int
 }
 
-// validateBinMappings validates every mapped submitted bin against its parent
-// drawer's proposed allocation. It rejects out-of-range container references
-// and any mapped bin that is not contained within its drawer's allocation.
-// Unmapped bins (nil LED index) are allowed and are not given a coordinate.
-func validateBinMappings(bins []binMappingRow, containers []db.Container) error {
+// validateBinMappingsInSpace validates every mapped submitted bin against its
+// parent drawer's proposed allocation in the given coordinate space. It rejects
+// out-of-range container references and any mapped bin that is not contained
+// within its drawer's allocation. Unmapped bins (nil LED index) are allowed and
+// are not given a coordinate.
+func validateBinMappingsInSpace(space string, bins []binMappingRow, containers []db.Container) error {
 	for _, b := range bins {
 		if b.ContainerIndex < 0 || b.ContainerIndex >= len(containers) {
 			return fmt.Errorf("bin %q references invalid container index %d", b.Name, b.ContainerIndex)
@@ -81,7 +109,7 @@ func validateBinMappings(bins []binMappingRow, containers []db.Container) error 
 			continue // unmapped bin
 		}
 		c := containers[b.ContainerIndex]
-		if err := ValidateBinMapping(int64(*b.LedIndex), int64(clampWidth(b.Width)), c.LedStart, c.LedCount); err != nil {
+		if err := ValidateBinMappingInSpace(space, int64(*b.LedIndex), int64(clampWidth(b.Width)), c.LedStart, c.LedCount); err != nil {
 			return fmt.Errorf("bin %q in drawer %q: %w", b.Name, c.Name, err)
 		}
 	}
@@ -147,6 +175,48 @@ func ValidateRestoredAllocations(containers []db.Container, bins []db.Bin) (bool
 		}
 	}
 	return true, nil
+}
+
+// ValidateRestoredDrawerAllocations checks a drawer-relative restore manifest:
+// every drawer allocation must be well-formed and non-overlapping, and every
+// mapped bin's drawer-relative index must lie within its drawer's allocation. A
+// mapped bin whose drawer has no allocation is rejected, because a
+// drawer-relative index has no meaning without an allocation to be relative to.
+func ValidateRestoredDrawerAllocations(containers []db.Container, bins []db.Bin) error {
+	allocated := make([]db.Container, 0, len(containers))
+	for _, c := range containers {
+		if c.LedCount > 0 {
+			allocated = append(allocated, c)
+		}
+	}
+	if err := ValidateAllocations(allocated); err != nil {
+		return err
+	}
+
+	byID := make(map[int64]db.Container, len(containers))
+	for _, c := range containers {
+		byID[c.ID] = c
+	}
+	for _, b := range bins {
+		if !b.LedIndex.Valid {
+			continue // unmapped bin
+		}
+		c, ok := byID[b.ContainerID]
+		if !ok {
+			return fmt.Errorf("bin %d references missing container %d", b.ID, b.ContainerID)
+		}
+		if c.LedCount <= 0 {
+			return fmt.Errorf("bin %d in drawer %q is drawer-relative but the drawer has no allocation", b.ID, c.Name)
+		}
+		width := b.Width.Int64
+		if !b.Width.Valid || width < 1 {
+			width = 1
+		}
+		if err := ValidateBinMappingInSpace(ledspace.Drawer, b.LedIndex.Int64, width, c.LedStart, c.LedCount); err != nil {
+			return fmt.Errorf("bin %d in drawer %q: %w", b.ID, c.Name, err)
+		}
+	}
+	return nil
 }
 
 // ValidateAllocations validates a set of drawer allocations, ensuring each is
@@ -341,13 +411,16 @@ func classifyBins(bins []db.Bin, start, count int64) (AllocationClass, string) {
 // mappings are inconsistent are left unallocated and reported; their stored bin
 // indices are never altered.
 func BackfillDrawerAllocations(ctx context.Context, store db.Store, logger *slog.Logger) error {
-	// Never derive allocations from bin indices whose coordinate system is
-	// unresolved: the derived range would be meaningless and could address the
-	// wrong physical LEDs.
-	if unresolved, err := ledspace.IsUnresolved(ctx, store); err != nil {
-		return fmt.Errorf("failed to check LED coordinate space: %w", err)
-	} else if unresolved {
-		logger.Warn("skipping drawer allocation backfill: restored LED coordinate space is unresolved")
+	// Allocations are derived from segment-relative bin indices using the UI
+	// ordering. Drawer-relative indices are already relative to an allocation, and
+	// unresolved indices have no known coordinate system, so neither can be used
+	// to derive a meaningful allocation range.
+	space, err := ledspace.Current(ctx, store)
+	if err != nil {
+		return fmt.Errorf("failed to read LED coordinate space: %w", err)
+	}
+	if space != ledspace.Segment {
+		logger.Warn("skipping drawer allocation backfill: bin LED indices are not segment-relative", "space", space)
 		return nil
 	}
 

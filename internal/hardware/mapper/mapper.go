@@ -2,10 +2,17 @@ package mapper
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"math"
 
 	"github.com/tuxedocurly/wledger/internal/db"
+	"github.com/tuxedocurly/wledger/internal/ledspace"
 )
+
+// ErrUnresolvedCoordinateSpace is returned when a bin's stored LED index cannot
+// be mapped because the coordinate system of stored indices is unresolved.
+var ErrUnresolvedCoordinateSpace = errors.New("LED coordinate space is unresolved")
 
 type ContainerConfig struct {
 	Type     string    `json:"type"`     // "linear", "grid", "compound"
@@ -43,9 +50,18 @@ func (c ContainerConfig) Length() int64 {
 	}
 }
 
-// CalculateGlobalIndex determines the WLED segment and absolute LED index for a bin.
+// CalculateGlobalIndex determines the WLED segment and absolute LED index for a
+// bin, interpreting the bin's stored led_index in the given coordinate space.
 // It assumes the `containers` slice is sorted in physical wiring order.
-func CalculateGlobalIndex(containers []db.Container, targetBin db.Bin) (int64, int64, error) {
+//
+//   - segment: the stored index is already segment-absolute and is returned as-is.
+//   - drawer: the stored index is relative to its drawer, so the drawer's
+//     segment-relative allocation start is added.
+//   - unresolved: rejected, because the stored index cannot be interpreted.
+//
+// It validates that the resulting index is a valid, non-negative WLED index and
+// that a drawer-relative index lies within its drawer's allocation.
+func CalculateGlobalIndex(space string, containers []db.Container, targetBin db.Bin) (int64, int64, error) {
 	// Find Target Container
 	var targetContainer db.Container
 	found := false
@@ -63,8 +79,30 @@ func CalculateGlobalIndex(containers []db.Container, targetBin db.Bin) (int64, i
 	if !targetBin.LedIndex.Valid {
 		return 0, 0, fmt.Errorf("target bin has no LED index")
 	}
+	idx := targetBin.LedIndex.Int64
+	if idx < 0 {
+		return 0, 0, fmt.Errorf("target bin has negative LED index %d", idx)
+	}
 
-	return targetContainer.SegmentID, targetBin.LedIndex.Int64, nil
+	switch space {
+	case ledspace.Segment:
+		return targetContainer.SegmentID, idx, nil
+	case ledspace.Drawer:
+		if targetContainer.LedCount <= 0 {
+			return 0, 0, fmt.Errorf("drawer %d has no LED allocation", targetContainer.ID)
+		}
+		if idx >= targetContainer.LedCount {
+			return 0, 0, fmt.Errorf("bin LED index %d is outside drawer allocation [0,%d)", idx, targetContainer.LedCount)
+		}
+		if targetContainer.LedStart > math.MaxInt64-idx {
+			return 0, 0, fmt.Errorf("drawer LED index overflows: start %d index %d", targetContainer.LedStart, idx)
+		}
+		return targetContainer.SegmentID, targetContainer.LedStart + idx, nil
+	case ledspace.Unresolved:
+		return 0, 0, ErrUnresolvedCoordinateSpace
+	default:
+		return 0, 0, fmt.Errorf("unknown LED coordinate space %q", space)
+	}
 }
 
 func GetContainerLength(c db.Container) (int64, error) {

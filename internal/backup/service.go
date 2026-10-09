@@ -111,10 +111,17 @@ func (s *service) Export(ctx context.Context, w io.Writer) error {
 	supplierCredentials, _ := s.store.GetAllSupplierCredentials(ctx)
 	priceHistory, _ := s.store.GetAllPriceHistory(ctx)
 
+	// Export the actual coordinate space of the stored bin LED indices so a
+	// restore can interpret them without guessing.
+	space, err := ledspace.Current(ctx, s.store)
+	if err != nil {
+		return fmt.Errorf("failed to read LED coordinate space: %w", err)
+	}
+
 	manifest := Manifest{
 		Version:             "1.0",
 		ExportedAt:          time.Now(),
-		BinIndexSpace:       ledspace.Segment,
+		BinIndexSpace:       space,
 		Settings:            settings,
 		Users:               users,
 		Controllers:         controllers,
@@ -292,17 +299,25 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 		return err
 	}
 
-	// Validate restored drawer allocations before touching any persisted data.
-	// When the coordinate space is known to be segment-relative, also validate
-	// that every mapped bin is contained in its drawer's allocation. Unresolved
-	// backups only have their allocation ranges checked, because bin containment
-	// cannot be assessed without a known bin coordinate space.
-	if space == ledspace.Segment {
+	// Validate restored drawer allocations before touching any persisted data,
+	// using the coordinate system the backup declares. Segment-relative and
+	// drawer-relative backups both validate bin containment against the drawer
+	// allocation, but in their own coordinate space. Unresolved backups only have
+	// their allocation ranges checked, because bin containment cannot be assessed
+	// without a known bin coordinate space.
+	switch space {
+	case ledspace.Segment:
 		if _, err := hardware.ValidateRestoredAllocations(manifest.Containers, manifest.Bins); err != nil {
 			return fmt.Errorf("invalid backup: %w", err)
 		}
-	} else if err := hardware.ValidateRestoredAllocationRanges(manifest.Containers); err != nil {
-		return fmt.Errorf("invalid backup: %w", err)
+	case ledspace.Drawer:
+		if err := hardware.ValidateRestoredDrawerAllocations(manifest.Containers, manifest.Bins); err != nil {
+			return fmt.Errorf("invalid backup: %w", err)
+		}
+	default: // unresolved
+		if err := hardware.ValidateRestoredAllocationRanges(manifest.Containers); err != nil {
+			return fmt.Errorf("invalid backup: %w", err)
+		}
 	}
 
 	// Extract uploads to temp directory
@@ -435,7 +450,9 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 			// The restored bins are already segment-absolute, so migration 005 must
 			// never run against them. Marking it applied here (atomically with the
 			// restore) prevents a second conversion at the next startup even when the
-			// flag was absent or false before the restore.
+			// flag was absent or false before the restore. Drawer-relative and
+			// unresolved restores are protected by the coordinate-space check inside
+			// migration 005 itself, which never converts a non-segment space.
 			if err := qtx.SetFlag(ctx, db.SetFlagParams{Key: hardware.Migration005FlagKey, Value: "true"}); err != nil {
 				return fmt.Errorf("failed to mark migration 005 applied: %w", err)
 			}
@@ -499,6 +516,12 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 		s.logger.Warn("restored backup has an unresolved LED coordinate space; drawer allocation backfill skipped")
 		return &RestoreCommittedError{Reason: "restored LED coordinate space is unresolved; drawer allocations were not derived"}
 	}
+	if space == ledspace.Drawer {
+		// Drawer-relative bins already carry their own allocations, and the
+		// segment-based backfill would derive meaningless ranges from them.
+		s.logger.Warn("restored backup is drawer-relative; segment-based drawer allocation backfill skipped")
+		return nil
+	}
 
 	// Establish a usable drawer allocation state before reporting success. This
 	// derives allocations for restored drawers that do not have one (for example
@@ -522,6 +545,10 @@ func resolveBinIndexSpace(m Manifest) (string, error) {
 	switch m.BinIndexSpace {
 	case ledspace.Segment:
 		return ledspace.Segment, nil
+	case ledspace.Drawer:
+		return ledspace.Drawer, nil
+	case ledspace.Unresolved:
+		return ledspace.Unresolved, nil
 	case "":
 		if len(m.Bins) == 0 {
 			return ledspace.Segment, nil

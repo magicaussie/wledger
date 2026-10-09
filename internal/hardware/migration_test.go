@@ -189,3 +189,62 @@ func TestMigrateLegacyLedIndicesSkipsUnresolved(t *testing.T) {
 		t.Errorf("migration modified unresolved bins: %+v", bins)
 	}
 }
+
+// TestMigrateLegacyLedIndicesSkipsDrawer verifies that the legacy LED index
+// migration never shifts drawer-relative bin indices.
+func TestMigrateLegacyLedIndicesSkipsDrawer(t *testing.T) {
+	dbConn, err := db.Open("file:migration_drawer?mode=memory&cache=shared")
+	if err != nil {
+		t.Fatalf("failed to open db: %v", err)
+	}
+	defer dbConn.Close()
+	if err := db.Migrate(dbConn); err != nil {
+		t.Fatalf("failed to migrate test db: %v", err)
+	}
+
+	store := db.NewStore(dbConn)
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	ctx := context.Background()
+
+	ctrl, err := store.CreateController(ctx, db.CreateControllerParams{Name: "Ctrl 1", IpAddress: "1.1.1.1"})
+	if err != nil {
+		t.Fatalf("failed to create controller: %v", err)
+	}
+	if _, err := store.CreateContainer(ctx, db.CreateContainerParams{
+		Name: "Cont 1", ControllerID: ctrl.ID, SegmentID: 0,
+		ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true},
+	}); err != nil {
+		t.Fatalf("failed to create container 1: %v", err)
+	}
+	cont2, err := store.CreateContainer(ctx, db.CreateContainerParams{
+		Name: "Cont 2", ControllerID: ctrl.ID, SegmentID: 0,
+		ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true},
+	})
+	if err != nil {
+		t.Fatalf("failed to create container 2: %v", err)
+	}
+
+	// Drawer-relative indices that migration 005 would shift by 10.
+	if _, err := store.CreateBin(ctx, db.CreateBinParams{Name: "C2B1", ContainerID: cont2, LedIndex: sql.NullInt64{Int64: 0, Valid: true}}); err != nil {
+		t.Fatalf("failed to create bin: %v", err)
+	}
+	if _, err := store.CreateBin(ctx, db.CreateBinParams{Name: "C2B2", ContainerID: cont2, LedIndex: sql.NullInt64{Int64: 1, Valid: true}}); err != nil {
+		t.Fatalf("failed to create bin: %v", err)
+	}
+
+	if err := ledspace.Set(ctx, store, ledspace.Drawer); err != nil {
+		t.Fatalf("set drawer: %v", err)
+	}
+
+	if err := MigrateLegacyLedIndices(ctx, store, logger); err != nil {
+		t.Fatalf("migration failed: %v", err)
+	}
+
+	bins, err := store.GetBinsByContainer(ctx, cont2)
+	if err != nil {
+		t.Fatalf("failed to get bins: %v", err)
+	}
+	if len(bins) != 2 || bins[0].LedIndex.Int64 != 0 || bins[1].LedIndex.Int64 != 1 {
+		t.Errorf("migration modified drawer-relative bins: %+v", bins)
+	}
+}

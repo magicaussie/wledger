@@ -15,6 +15,7 @@ import (
 	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/hardware"
+	"github.com/tuxedocurly/wledger/internal/ledspace"
 	"github.com/tuxedocurly/wledger/internal/qrcode"
 	"github.com/tuxedocurly/wledger/internal/wled"
 	"github.com/tuxedocurly/wledger/web/pages"
@@ -122,8 +123,17 @@ func (h *Handler) HandleHardwareGrid(w http.ResponseWriter, r *http.Request) {
 		containers = []db.Container{}
 	}
 
+	// Expose the active coordinate space to the painter. The painter's editing
+	// behaviour is unchanged for now; an unknown persisted state is surfaced
+	// rather than silently defaulted.
+	space, err := ledspace.Current(r.Context(), h.Queries)
+	if err != nil {
+		h.UIError.Respond(w, r, err, "Failed to read LED coordinate space", http.StatusInternalServerError)
+		return
+	}
+
 	// Pass User to Template
-	pages.HardwareGrid(user, c, containers, bins).Render(r.Context(), w)
+	pages.HardwareGrid(user, c, containers, bins, space).Render(r.Context(), w)
 }
 
 // POST /hardware/{id}/grid
