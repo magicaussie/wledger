@@ -95,7 +95,7 @@ of these", "what do I need to reorder?".
 
 ## Priority 2 — Valuable
 
-### [ ] Cabinet / Drawer QR codes + scan coverage
+### [~] Cabinet / Drawer QR codes + scan coverage
 
 **Why:** The storage hierarchy is Cabinet (controller) → Drawer (container) →
 Bin → Item, and every level should be scannable. Today only bins and parts have
@@ -104,12 +104,12 @@ QR codes; cabinets and drawers have none, and the scan router only understands
 full design notes and a code map of everywhere scanning must be considered.
 
 **Scope:**
-- [ ] QR endpoints + labels for cabinets (controllers) and drawers (containers).
-- [ ] Extend the scan code scheme (`wledger:cabinet:`, `wledger:drawer:`) in
+- [x] QR endpoints + labels for cabinets (controllers) and drawers (containers).
+- [x] Extend the scan code scheme (`wledger:cabinet:`, `wledger:drawer:`) in
       `HandleScan` and `web/static/js/scan_router.js`.
 - [ ] Make scanning context-aware for moves/CRUD (scan a drawer/cabinet as the
-      target context).
-- [ ] Decide terminology (rename UI labels vs DB tables) — see open questions.
+      target context) + drawer action sheet + error flashing.
+- [x] Decide terminology (rename UI labels vs DB tables) — see open questions.
 
 **Hook points:** `internal/handler/parts.go`, `internal/handler/hardware.go`,
 `web/static/js/scan_router.js`, `web/pages/bin_labels.templ`.

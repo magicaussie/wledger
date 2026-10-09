@@ -262,6 +262,46 @@ func (h *Handler) HandleBinQR(w http.ResponseWriter, r *http.Request) {
 	w.Write(png)
 }
 
+// GET /cabinet/{id}/qr — returns a QR PNG for a cabinet's scan code. A cabinet
+// is a controller.
+func (h *Handler) HandleCabinetQR(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil || id <= 0 {
+		http.Error(w, "Invalid cabinet id", http.StatusBadRequest)
+		return
+	}
+
+	png, err := qrcode.PNG(CabinetScanCode(id), qrScaleFromQuery(r))
+	if err != nil {
+		h.UIError.Respond(w, r, err, "Failed to generate QR", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Cache-Control", "public, max-age=3600")
+	w.Write(png)
+}
+
+// GET /drawer/{id}/qr — returns a QR PNG for a drawer's scan code. A drawer is a
+// container.
+func (h *Handler) HandleDrawerQR(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil || id <= 0 {
+		http.Error(w, "Invalid drawer id", http.StatusBadRequest)
+		return
+	}
+
+	png, err := qrcode.PNG(DrawerScanCode(id), qrScaleFromQuery(r))
+	if err != nil {
+		h.UIError.Respond(w, r, err, "Failed to generate QR", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Cache-Control", "public, max-age=3600")
+	w.Write(png)
+}
+
 // GET /hardware/labels — renders a printable sheet of QR labels for every bin
 // on all controllers, so physical labels can be printed and stuck on the bins.
 func (h *Handler) HandleBinLabels(w http.ResponseWriter, r *http.Request) {
@@ -279,7 +319,7 @@ func (h *Handler) HandleBinLabels(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			continue
 		}
-		lc := pages.BinLabelController{Name: c.Name}
+		lc := pages.BinLabelController{ID: c.ID, Name: c.Name}
 		for _, ct := range containers {
 			bins, err := h.Hardware.GetBinsByController(r.Context(), c.ID)
 			if err != nil {
@@ -293,7 +333,7 @@ func (h *Handler) HandleBinLabels(w http.ResponseWriter, r *http.Request) {
 			}
 			if len(lcBins) > 0 {
 				lc.Containers = append(lc.Containers, pages.BinLabelContainer{
-					Name: ct.Name, SegmentID: ct.SegmentID, Bins: lcBins,
+					ID: ct.ID, Name: ct.Name, SegmentID: ct.SegmentID, Bins: lcBins,
 				})
 			}
 		}

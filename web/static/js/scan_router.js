@@ -4,6 +4,8 @@
  *
  * Scanned values can be:
  *   - wledger:bin:<id>      -> open inventory filtered to that physical bin
+ *   - wledger:cabinet:<id>  -> open the cabinet (controller) layout
+ *   - wledger:drawer:<id>   -> open the drawer's cabinet layout
  *   - wledger:part:<code>   -> go to the part page (or search) for that code
  *   - a plain barcode       -> go to the part page if it matches exactly,
  *                              otherwise search the inventory for it
@@ -16,6 +18,8 @@
 (function () {
     const BIN_PREFIX = 'wledger:bin:';
     const PART_PREFIX = 'wledger:part:';
+    const CABINET_PREFIX = 'wledger:cabinet:';
+    const DRAWER_PREFIX = 'wledger:drawer:';
 
     // Focused bin-picker context: {findBin, select} registered by the bin
     // picker component when it is open.
@@ -63,7 +67,9 @@
 
     function navigateForScan(code) {
         if (!code) return;
-        if (code.startsWith(BIN_PREFIX)) {
+        // wledger:<type>:<id> codes (bin/cabinet/drawer) are resolved server-side
+        // by /scan, which redirects to the right page.
+        if (code.startsWith(BIN_PREFIX) || code.startsWith(CABINET_PREFIX) || code.startsWith(DRAWER_PREFIX)) {
             window.location.href = '/scan?q=' + encodeURIComponent(code);
             return;
         }

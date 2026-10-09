@@ -14,12 +14,14 @@ type BinLabel struct {
 }
 
 type BinLabelContainer struct {
+	ID        int64
 	Name      string
 	SegmentID int64
 	Bins      []BinLabel
 }
 
 type BinLabelController struct {
+	ID         int64
 	Name       string
 	Containers []BinLabelContainer
 }
@@ -39,10 +41,16 @@ templ BinLabels(user auth.User, controllers []BinLabelController) {
 			</div>
 			for _, c := range controllers {
 				<div class="mb-8">
-					<h2 class="font-bold uppercase tracking-wider text-sm mb-2 opacity-60 break-after-avoid">{ c.Name }</h2>
+					<div class="flex items-center gap-3 mb-2 break-after-avoid">
+						<img src={ templ.SafeURL(fmt.Sprintf("/cabinet/%d/qr", c.ID)) } alt={ fmt.Sprintf("QR for %s", c.Name) } class="w-16 h-16 object-contain bg-white p-1 rounded"/>
+						<h2 class="font-bold uppercase tracking-wider text-sm opacity-60">{ c.Name }</h2>
+					</div>
 					for _, container := range c.Containers {
 						<div class="mb-4">
-							<h3 class="text-xs opacity-50 uppercase tracking-widest mb-2">{ container.Name } • { i18n.T(ctx, "Segment") } { fmt.Sprintf("%d", container.SegmentID) }</h3>
+							<div class="flex items-center gap-3 mb-2">
+								<img src={ templ.SafeURL(fmt.Sprintf("/drawer/%d/qr", container.ID)) } alt={ fmt.Sprintf("QR for %s", container.Name) } class="w-14 h-14 object-contain bg-white p-1 rounded"/>
+								<h3 class="text-xs opacity-50 uppercase tracking-widest">{ container.Name } • { i18n.T(ctx, "Segment") } { fmt.Sprintf("%d", container.SegmentID) }</h3>
+							</div>
 							<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 print:grid-cols-5 print:gap-2">
 								for _, bin := range container.Bins {
 									<div class="border border-base-300 rounded-lg p-2 bg-white text-black flex flex-col items-center gap-1 break-inside-avoid">

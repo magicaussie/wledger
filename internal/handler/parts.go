@@ -60,13 +60,27 @@ func (h *Handler) HandlePartsList(w http.ResponseWriter, r *http.Request) {
 // binScanPrefix and partScanPrefix identify scannable codes produced by
 // WLEDger's printed QR labels so the scan router can route them precisely.
 const (
-	binScanPrefix  = "wledger:bin:"
-	partScanPrefix = "wledger:part:"
+	binScanPrefix     = "wledger:bin:"
+	partScanPrefix    = "wledger:part:"
+	cabinetScanPrefix = "wledger:cabinet:"
+	drawerScanPrefix  = "wledger:drawer:"
 )
 
 // BinScanCode returns the code encoded into a bin QR label.
 func BinScanCode(binID int64) string {
 	return fmt.Sprintf("%s%d", binScanPrefix, binID)
+}
+
+// CabinetScanCode returns the code encoded into a cabinet QR label. A cabinet is
+// a controller.
+func CabinetScanCode(controllerID int64) string {
+	return fmt.Sprintf("%s%d", cabinetScanPrefix, controllerID)
+}
+
+// DrawerScanCode returns the code encoded into a drawer QR label. A drawer is a
+// container.
+func DrawerScanCode(containerID int64) string {
+	return fmt.Sprintf("%s%d", drawerScanPrefix, containerID)
 }
 
 // PartScanCode returns the code encoded into a product QR label. When a
@@ -143,9 +157,11 @@ func (h *Handler) HandleProductLabels(w http.ResponseWriter, r *http.Request) {
 	pages.ProductLabels(user, parts).Render(r.Context(), w)
 }
 
-// GET /scan?q=<scanned> — resolves a scanned barcode/QR to a target page://   - wledger:bin:<id>    -> /parts?bin=<id>       (show bin contents)
-//   - wledger:part:<code> -> exact part or search
-//   - plain barcode       -> exact part or search
+// GET /scan?q=<scanned> — resolves a scanned barcode/QR to a target page://   - wledger:bin:<id>     -> /parts?bin=<id>       (show bin contents)
+//   - wledger:cabinet:<id> -> /hardware/<id>/grid     (open the cabinet layout)
+//   - wledger:drawer:<id>  -> /hardware/<ctrl>/grid   (open the drawer's cabinet)
+//   - wledger:part:<code>  -> exact part or search
+//   - plain barcode        -> exact part or search
 func (h *Handler) HandleScan(w http.ResponseWriter, r *http.Request) {
 	code := strings.TrimSpace(r.URL.Query().Get("q"))
 	if code == "" {
@@ -162,6 +178,29 @@ func (h *Handler) HandleScan(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		http.Redirect(w, r, fmt.Sprintf("/parts?bin=%d", id), http.StatusSeeOther)
+		return
+	case strings.HasPrefix(code, cabinetScanPrefix):
+		idStr := strings.TrimPrefix(code, cabinetScanPrefix)
+		id, err := strconv.ParseInt(idStr, 10, 64)
+		if err != nil {
+			http.Error(w, "Invalid cabinet code", http.StatusBadRequest)
+			return
+		}
+		http.Redirect(w, r, fmt.Sprintf("/hardware/%d/grid", id), http.StatusSeeOther)
+		return
+	case strings.HasPrefix(code, drawerScanPrefix):
+		idStr := strings.TrimPrefix(code, drawerScanPrefix)
+		id, err := strconv.ParseInt(idStr, 10, 64)
+		if err != nil {
+			http.Error(w, "Invalid drawer code", http.StatusBadRequest)
+			return
+		}
+		container, err := h.Queries.GetContainer(r.Context(), id)
+		if err != nil {
+			http.Error(w, "Drawer not found", http.StatusNotFound)
+			return
+		}
+		http.Redirect(w, r, fmt.Sprintf("/hardware/%d/grid", container.ControllerID), http.StatusSeeOther)
 		return
 	case strings.HasPrefix(code, partScanPrefix):
 		code = strings.TrimPrefix(code, partScanPrefix)

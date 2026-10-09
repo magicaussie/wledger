@@ -77,6 +77,8 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 		// Scanning (barcode / QR)
 		r.Get("/scan", h.HandleScan)
 		r.Get("/bin/{id}/qr", h.HandleBinQR)
+		r.Get("/cabinet/{id}/qr", h.HandleCabinetQR)
+		r.Get("/drawer/{id}/qr", h.HandleDrawerQR)
 
 		// Locate
 		r.Post("/hardware/{id}/locate", h.HandleHardwareLocate)
