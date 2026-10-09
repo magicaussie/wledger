@@ -39,6 +39,10 @@ services:
   # wledger /api/v1 API with the same token. Exposes streamable HTTP on :9100
   # (set MCP_TRANSPORT=stdio only when a client launches the process itself,
   # e.g. Claude Desktop runs it as a command).
+  #
+  # Authentication: every network MCP request must send
+  #   Authorization: Bearer ${WLEDGER_API_TOKEN}
+  # The server refuses to start a network transport without a token.
   mcp-server:
     build: .
     container_name: wledger-mcp
@@ -50,7 +54,17 @@ services:
       # streamable HTTP (default in this compose) keeps the process alive and
       # exposes MCP over http://<host>:9100/mcp for Home Assistant / agents.
       - MCP_TRANSPORT=${MCP_TRANSPORT:-http}
+      # Bind all interfaces *inside the container* so the published port can
+      # reach it. Host exposure is restricted below.
       - MCP_HTTP_ADDR=:9100
+      # Optional: comma-separated browser origins allowed to call MCP. Loopback
+      # origins are always trusted; requests without an Origin header (normal
+      # MCP clients) are allowed. Set this only if a browser-based client must
+      # reach the server from another origin.
+      - MCP_ALLOWED_ORIGINS=${MCP_ALLOWED_ORIGINS:-}
     ports:
-      - "9100:9100"
+      # Publish to host loopback only by default. To expose MCP to other hosts,
+      # put it behind an authenticated HTTPS reverse proxy (recommended) or, if
+      # you accept the risk on a trusted network, change this to "9100:9100".
+      - "127.0.0.1:9100:9100"
     restart: unless-stopped

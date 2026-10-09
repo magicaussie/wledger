@@ -23,6 +23,9 @@ echo "WLEDGER_API_TOKEN=$(openssl rand -hex 32)" >> .env
 
 - The `wledger` service mounts `/api/v1` only when `WLEDGER_API_TOKEN` is set.
 - The `mcp-server` service exposes MCP over streamable HTTP on `:9100`.
+- The **same** `WLEDGER_API_TOKEN` authenticates inbound MCP requests. The MCP
+  server refuses to start a network transport (`sse`/`http`) when the token is
+  unset or empty.
 
 ## HTTP API
 
@@ -59,12 +62,47 @@ The MCP server calls the API on the caller's behalf. It exposes these tools:
 - `global_off()` — turn everything off
 - `list_controllers()` — list LEDs controllers / online status
 
+### Authentication
+
+Every network MCP request (SSE, Streamable HTTP, message submission and session
+termination) must present the API token using exactly one Authorization header:
+
+```text
+Authorization: Bearer <WLEDGER_API_TOKEN>
+```
+
+(`Token <WLEDGER_API_TOKEN>` is also accepted.) The scheme is matched
+case-insensitively per RFC 7235, so `bearer`, `BEARER` and `Token` are all
+valid, but only those two schemes are. Parsing is otherwise strict:
+
+- Missing or invalid credentials return **HTTP 401**.
+- A raw token without a scheme, a nested prefix such as
+  `Bearer Token <token>`, an empty credential, extra whitespace, a scheme other
+  than `Bearer`/`Token`, or more than one Authorization header are all rejected.
+- A browser request whose `Origin` is not allowed returns **HTTP 403**.
+- The token is never echoed in responses or logs, and is never accepted from a
+  URL query parameter.
+- The `stdio` transport is a local process launched by the client and is not
+  authenticated inbound (it still needs `WLEDGER_API_TOKEN` to call the API).
+
+### Origin protection
+
+When a request carries an `Origin` header (i.e. it comes from a browser), it
+must be a well-formed absolute `http`/`https` origin with a valid hostname and
+optional valid port, and must be a loopback origin (`http://localhost`,
+`http://127.0.0.1`, `http://[::1]`, any port) or listed in
+`MCP_ALLOWED_ORIGINS` (comma-separated). Origins containing userinfo, a path,
+query or fragment, malformed ports, deceptive hostnames, an empty value, or
+more than one `Origin` header are rejected with **HTTP 403**. Requests without
+an `Origin` header — normal non-browser MCP clients — are allowed. This is not a
+CORS mechanism; CORS alone is not treated as authentication.
+
 ### Connect Home Assistant
 
 1. In HA **Settings → Devices & Services → Add Integration → Model Context Protocol server**.
 2. Add a **Streamable HTTP** server URL:
-   `http://<wledger-host>:9100/mcp` (and the private key/token if you put it
-   behind a proxy).
+   `http://<wledger-host>:9100/mcp` and set the `Authorization: Bearer
+   <WLEDGER_API_TOKEN>` header (HA's MCP integration supports custom headers).
 3. HA's conversation agent can now call the WLEDger tools, so you scripted
    things like "locate the part that starts with camera lens".
 
@@ -74,8 +112,9 @@ Point the client's MCP server list at:
 ```text
 http://<wledger-host>:9100/mcp
 ```
-The server speaks streamable HTTP (session-based `Mcp-Session-Id`), which
-open-webui / hermes / Claude Desktop support.
+and configure the `Authorization: Bearer <WLEDGER_API_TOKEN>` header. The server
+speaks streamable HTTP (session-based `Mcp-Session-Id`), which open-webui /
+hermes / Claude Desktop support.
 
 ### stdio mode (for clients that launch the process)
 
@@ -84,12 +123,28 @@ MCP_TRANSPORT=stdio ./mcp-server
 ```
 Used e.g. by Claude Desktop where the client runs the binary as a command.
 
+### Network exposure
+
+- Direct runs default to `MCP_HTTP_ADDR=127.0.0.1:9100` (loopback only).
+- Docker publishes the port to host loopback by default
+  (`127.0.0.1:9100:9100`); the container itself binds `:9100`.
+- To reach MCP from other hosts, put it behind an **authenticated HTTPS reverse
+  proxy** (recommended) rather than publishing `9100:9100`.
+
+> **Reverse-proxy note:** the MCP library keeps its built-in DNS-rebinding
+> protection, which rejects a request that arrives over a loopback connection
+> but carries a non-loopback `Host` header. A same-host proxy that forwards the
+> original `Host` to a loopback-bound MCP server will therefore receive a 403.
+> Configure the proxy to send a loopback `Host` for the MCP upstream (e.g.
+> `proxy_set_header Host 127.0.0.1:9100;`), or bind MCP to the specific
+> interface the proxy reaches. Do not disable the protection.
+
 ## Security notes
 
 - The API token is write-capable for `locate`/`global-off` and read-capable for
   parts/hardware. It does **not** grant full admin (no config, no part
   edit/delete, no user management).
-- Keep `WLEDGER_API_TOKEN` secret; do not expose `/api/v1` or `:9100` publicly
-  without a proxy + HTTPS.
+- The same token authenticates inbound MCP requests; keep it secret and do not
+  expose `/api/v1` or `:9100` publicly without a proxy + HTTPS.
 - `locate` flashes LEDs; if you drive it from automation, add your own cooldown
   so you don't hammer the controller.

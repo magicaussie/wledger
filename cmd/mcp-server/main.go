@@ -4,12 +4,21 @@
 //
 // It talks to the WLEDger HTTP API /api/v1 using the same bearer token.
 //
+// The network transports (sse/http) additionally require inbound bearer
+// authentication with the same WLEDGER_API_TOKEN, and reject browser requests
+// from origins that are not explicitly allowed. The stdio transport is a local
+// process launched by the client and is not authenticated inbound.
+//
 // Configuration via environment:
 //
-//	WLEDGER_API_URL     base URL, default http://localhost:8080
-//	WLEDGER_API_TOKEN   required bearer token for /api/v1 tools
-//	MCP_TRANSPORT       "stdio" (default), "sse", or "http"
-//	MCP_HTTP_ADDR       listen address for sse/http, default :9100
+//	WLEDGER_API_URL       base URL, default http://localhost:8080
+//	WLEDGER_API_TOKEN     required bearer token for /api/v1 tools and for
+//	                      inbound MCP authentication on network transports
+//	MCP_TRANSPORT         "stdio" (default), "sse", or "http"
+//	MCP_HTTP_ADDR         listen address for sse/http, default 127.0.0.1:9100
+//	MCP_ALLOWED_ORIGINS   comma-separated browser origins permitted to call
+//	                      the network transports (loopback origins are always
+//	                      trusted); requests without an Origin are allowed
 package main
 
 import (
@@ -31,6 +40,11 @@ type apiClient struct {
 	token string
 	http  *http.Client
 }
+
+// defaultHTTPAddr binds the network transports to loopback by default so MCP is
+// not exposed on every interface. Set MCP_HTTP_ADDR (e.g. ":9100") to
+// intentionally expose it, ideally behind an authenticated HTTPS reverse proxy.
+const defaultHTTPAddr = "127.0.0.1:9100"
 
 func newClient() *apiClient {
 	base := strings.TrimRight(os.Getenv("WLEDGER_API_URL"), "/")
@@ -91,6 +105,7 @@ func main() {
 	}
 
 	client := newClient()
+	allowedOrigins := parseAllowedOrigins(os.Getenv("MCP_ALLOWED_ORIGINS"))
 
 	srv := server.NewMCPServer(
 		"wledger",
@@ -112,19 +127,20 @@ func main() {
 	case "sse":
 		addr := os.Getenv("MCP_HTTP_ADDR")
 		if addr == "" {
-			addr = ":9100"
+			addr = defaultHTTPAddr
 		}
 		log.Printf("MCP SSE listening on %s", addr)
-		httpServer := &http.Server{Addr: addr, Handler: server.NewSSEServer(srv)}
+		handler := authMiddleware(token, allowedOrigins, server.NewSSEServer(srv))
+		httpServer := &http.Server{Addr: addr, Handler: handler}
 		log.Fatal(httpServer.ListenAndServe())
 	case "http":
 		addr := os.Getenv("MCP_HTTP_ADDR")
 		if addr == "" {
-			addr = ":9100"
+			addr = defaultHTTPAddr
 		}
 		log.Printf("MCP HTTP (streamable) listening on %s", addr)
 		mux := http.NewServeMux()
-		mux.Handle("/", server.NewStreamableHTTPServer(srv))
+		mux.Handle("/", authMiddleware(token, allowedOrigins, server.NewStreamableHTTPServer(srv)))
 		httpServer := &http.Server{Addr: addr, Handler: mux}
 		log.Fatal(httpServer.ListenAndServe())
 	default:
