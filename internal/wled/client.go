@@ -134,6 +134,67 @@ func (c *Client) Clear(ctx context.Context, ip string) error {
 	return c.SetState(ctx, ip, payload)
 }
 
+// LED modes for State.
+const (
+	ModeSolid = "solid"
+	ModeFlash = "flash"
+)
+
+// State describes how a range of LEDs should be lit.
+type State struct {
+	Color string // hex colour, e.g. "#0000FF"
+	Mode  string // ModeSolid (default) or ModeFlash
+}
+
+// flashTimes and flashInterval control the blink loop. They are variables so
+// tests can shorten them.
+var (
+	flashTimes    = 3
+	flashInterval = 250 * time.Millisecond
+)
+
+// Apply lights a range of LEDs according to the state. Solid states are applied
+// immediately; flash states run a bounded blink loop in the background so the
+// caller is not blocked.
+func (c *Client) Apply(ctx context.Context, ip string, segmentID, index, count int, state State) error {
+	if state.Mode == ModeFlash {
+		go c.flash(ip, segmentID, index, count, state.Color, flashTimes, flashInterval)
+		return nil
+	}
+	return c.LightUp(ctx, ip, segmentID, index, count, state.Color)
+}
+
+// flash blinks a range between the colour and off `times` times, then leaves it
+// off. Best-effort: it stops on the first error or when the deadline passes.
+func (c *Client) flash(ip string, segmentID, index, count int, hexColor string, times int, interval time.Duration) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(times)*2*interval+time.Second)
+	defer cancel()
+
+	for i := 0; i < times; i++ {
+		if err := c.LightUp(ctx, ip, segmentID, index, count, hexColor); err != nil {
+			return
+		}
+		if !sleepCtx(ctx, interval) {
+			return
+		}
+		if err := c.LightUp(ctx, ip, segmentID, index, count, "#000000"); err != nil {
+			return
+		}
+		if !sleepCtx(ctx, interval) {
+			return
+		}
+	}
+}
+
+func sleepCtx(ctx context.Context, d time.Duration) bool {
+	select {
+	case <-time.After(d):
+		return true
+	case <-ctx.Done():
+		return false
+	}
+}
+
 // HexToRGB converts a hex string to an RGB slice
 func HexToRGB(hex string) ([]int, error) {
 	hex = strings.TrimPrefix(hex, "#")

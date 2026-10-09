@@ -56,6 +56,7 @@ func (h *Handler) HandleSettingsUpdate(w http.ResponseWriter, r *http.Request) {
 	colorOk := r.FormValue("color_ok")
 	colorLow := r.FormValue("color_low")
 	colorCritical := r.FormValue("color_critical")
+	colorError := r.FormValue("color_error")
 
 	// Supplier settings
 	supplierCacheTTL := 96
@@ -77,6 +78,7 @@ func (h *Handler) HandleSettingsUpdate(w http.ResponseWriter, r *http.Request) {
 		ColorOk:             colorOk,
 		ColorLow:            colorLow,
 		ColorCritical:       colorCritical,
+		ColorError:          colorError,
 		SupplierCacheTTL:    supplierCacheTTL,
 		DefaultCurrency:     defaultCurrency,
 	})

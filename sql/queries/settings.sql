@@ -1,11 +1,11 @@
 -- name: RestoreSettings :exec
 INSERT OR REPLACE INTO settings (
-    id, require_auth_for_read, locate_timeout_seconds, enable_locate_timeout, 
-    color_locate, color_stock_ok, color_stock_low, color_stock_critical, 
+    id, require_auth_for_read, locate_timeout_seconds, enable_locate_timeout,
+    color_locate, color_stock_ok, color_stock_low, color_stock_critical, color_error,
     created_at, updated_at, enable_debug_logs, supplier_cache_ttl_hours, default_currency
 ) VALUES (
-    1, ?, ?, ?, 
-    ?, ?, ?, ?, 
+    1, ?, ?, ?,
+    ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?
 );
 
@@ -13,8 +13,8 @@ INSERT OR REPLACE INTO settings (
 SELECT * FROM settings WHERE id = 1;
 
 -- name: InitSettings :exec
-INSERT OR IGNORE INTO settings (id, require_auth_for_read, color_locate, color_stock_ok, color_stock_low, color_stock_critical, locate_timeout_seconds, enable_locate_timeout, enable_debug_logs, supplier_cache_ttl_hours, default_currency)
-VALUES (1, 1, '#0000FF', '#00FF00', '#FFFF00', '#FF0000', 10, 1, 0, 96, 'USD');
+INSERT OR IGNORE INTO settings (id, require_auth_for_read, color_locate, color_stock_ok, color_stock_low, color_stock_critical, color_error, locate_timeout_seconds, enable_locate_timeout, enable_debug_logs, supplier_cache_ttl_hours, default_currency)
+VALUES (1, 1, '#0000FF', '#00FF00', '#FFFF00', '#FF0000', '#FF0000', 10, 1, 0, 96, 'USD');
 
 -- name: UpdateGeneralSettings :exec
 UPDATE settings 
@@ -36,11 +36,12 @@ WHERE id = 1;
 
 -- name: UpdateColors :exec
 UPDATE settings
-SET 
-    color_locate = COALESCE(sqlc.narg('color_locate'), color_locate), 
-    color_stock_ok = COALESCE(sqlc.narg('color_stock_ok'), color_stock_ok), 
-    color_stock_low = COALESCE(sqlc.narg('color_stock_low'), color_stock_low), 
-    color_stock_critical = COALESCE(sqlc.narg('color_stock_critical'), color_stock_critical), 
+SET
+    color_locate = COALESCE(sqlc.narg('color_locate'), color_locate),
+    color_stock_ok = COALESCE(sqlc.narg('color_stock_ok'), color_stock_ok),
+    color_stock_low = COALESCE(sqlc.narg('color_stock_low'), color_stock_low),
+    color_stock_critical = COALESCE(sqlc.narg('color_stock_critical'), color_stock_critical),
+    color_error = COALESCE(sqlc.narg('color_error'), color_error),
     updated_at = CURRENT_TIMESTAMP
 WHERE id = 1;
 

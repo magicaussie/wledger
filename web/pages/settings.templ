@@ -180,6 +180,7 @@ templ Settings(user auth.User, s db.Setting, users []db.ListUsersRow) {
 										@components.ColorPicker(i18n.T(ctx, "StockLevelOK"), "color_ok", s.ColorStockOk.String)
 										@components.ColorPicker(i18n.T(ctx, "StockLevelLow"), "color_low", s.ColorStockLow.String)
 										@components.ColorPicker(i18n.T(ctx, "StockLevelCritical"), "color_critical", s.ColorStockCritical.String)
+										@components.ColorPicker(i18n.T(ctx, "ErrorColor"), "color_error", s.ColorError.String)
 									</div>
 								</div>
 								<div>

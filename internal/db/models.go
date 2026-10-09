@@ -182,6 +182,7 @@ type Setting struct {
 	InspirationSeedsApplied sql.NullBool   `json:"inspiration_seeds_applied"`
 	SupplierCacheTtlHours   sql.NullInt64  `json:"supplier_cache_ttl_hours"`
 	DefaultCurrency         sql.NullString `json:"default_currency"`
+	ColorError              sql.NullString `json:"color_error"`
 }
 
 type SupplierCache struct {

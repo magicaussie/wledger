@@ -52,6 +52,7 @@ type UpdateSettingsParams struct {
 	ColorOk             string
 	ColorLow            string
 	ColorCritical       string
+	ColorError          string
 	SupplierCacheTTL    int
 	DefaultCurrency     string
 }
@@ -86,6 +87,7 @@ func (s *service) UpdateSettings(ctx context.Context, params UpdateSettingsParam
 			ColorStockOk:       sql.NullString{String: params.ColorOk, Valid: params.ColorOk != ""},
 			ColorStockLow:      sql.NullString{String: params.ColorLow, Valid: params.ColorLow != ""},
 			ColorStockCritical: sql.NullString{String: params.ColorCritical, Valid: params.ColorCritical != ""},
+			ColorError:         sql.NullString{String: params.ColorError, Valid: params.ColorError != ""},
 		})
 		if err != nil {
 			return err
@@ -135,6 +137,10 @@ func (s *service) UpdateSettings(ctx context.Context, params UpdateSettingsParam
 		if params.ColorCritical != "" && current.ColorStockCritical.String != params.ColorCritical {
 			oldDiff["color_critical"] = current.ColorStockCritical.String
 			newDiff["color_critical"] = params.ColorCritical
+		}
+		if params.ColorError != "" && current.ColorError.String != params.ColorError {
+			oldDiff["color_error"] = current.ColorError.String
+			newDiff["color_error"] = params.ColorError
 		}
 
 		if len(oldDiff) > 0 {
@@ -202,4 +208,3 @@ func (s *service) ForceReset(ctx context.Context, id int64) error {
 
 	return nil
 }
-

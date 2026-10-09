@@ -203,6 +203,10 @@
   "StockLevelCritical": {
     "other": "Stock Level: Critical"
   },
+  "ErrorColor": {
+    "description": "Label for the error LED colour setting",
+    "other": "Error Color"
+  },
   "SaveAllSettings": {
     "other": "Save All Settings"
   },

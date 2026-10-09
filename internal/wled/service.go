@@ -13,6 +13,7 @@ import (
 type Service interface {
 	LocatePart(ctx context.Context, partID int64) error
 	LocateBin(ctx context.Context, controllerID, binID int64) error
+	FlashError(ctx context.Context, controllerID, binID int64) error
 	GlobalOff(ctx context.Context) error
 	Ping(ctx context.Context, ip string) (bool, error)
 }
@@ -138,13 +139,55 @@ func (s *service) LocateBin(ctx context.Context, controllerID, binID int64) erro
 	return s.triggerLocate(ctx, controller.IpAddress, int(segID), int(globalIdx), int(bin.Width.Int64), settings)
 }
 
+// FlashError flashes a bin's LEDs in the configured error colour (default red)
+// to signal a failed action. Best-effort.
+func (s *service) FlashError(ctx context.Context, controllerID, binID int64) error {
+	controller, err := s.store.GetController(ctx, controllerID)
+	if err != nil {
+		return fmt.Errorf("controller not found: %w", err)
+	}
+
+	bin, err := s.store.GetBin(ctx, binID)
+	if err != nil {
+		return fmt.Errorf("bin not found: %w", err)
+	}
+
+	if !bin.LedIndex.Valid {
+		return fmt.Errorf("bin %d has no LED to flash", binID)
+	}
+
+	containers, err := s.store.GetContainersByController(ctx, controllerID)
+	if err != nil {
+		return fmt.Errorf("failed to fetch containers: %w", err)
+	}
+
+	segID, globalIdx, err := mapper.CalculateGlobalIndex(containers, bin)
+	if err != nil {
+		return fmt.Errorf("mapping failed: %w", err)
+	}
+
+	width := int(bin.Width.Int64)
+	if width < 1 {
+		width = 1
+	}
+
+	settings, _ := s.store.GetSettings(ctx)
+	color := settings.ColorError.String
+	if color == "" {
+		color = "#FF0000"
+	}
+
+	return s.client.Apply(ctx, controller.IpAddress, int(segID), int(globalIdx), width, State{Color: color, Mode: ModeFlash})
+}
+
 func (s *service) triggerLocate(ctx context.Context, ip string, segmentID, index, width int, settings db.Setting) error {
 	if width < 1 {
 		width = 1
 	}
 
 	// Light Up
-	err := s.client.LightUp(ctx, ip, segmentID, index, width, settings.ColorLocate.String)
+	state := State{Color: settings.ColorLocate.String, Mode: ModeSolid}
+	err := s.client.Apply(ctx, ip, segmentID, index, width, state)
 	if err != nil {
 		return err
 	}
