@@ -7,7 +7,7 @@ sidebar_position: 1
 
 The Dashboard gives you a visual overview of your inventory and provides statistics such as WLED controller status, unique part count, total stock count, and total inventory value.
 
-You can leave your dashboard as is with the [default view](#default-dashboard), or organize your dashboard using [Walls](#walls).
+You can leave your dashboard as is with the [default view](#default-view), or organize your dashboard using [Walls](#walls).
 
 ## Default View
 <a href="/img/feature-guide/dashboard_default.png" target="_blank">
