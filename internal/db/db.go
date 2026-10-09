@@ -435,6 +435,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.listAuditLogsStmt, err = db.PrepareContext(ctx, listAuditLogs); err != nil {
 		return nil, fmt.Errorf("error preparing query ListAuditLogs: %w", err)
 	}
+	if q.listLowStockPartsStmt, err = db.PrepareContext(ctx, listLowStockParts); err != nil {
+		return nil, fmt.Errorf("error preparing query ListLowStockParts: %w", err)
+	}
 	if q.listPartsStmt, err = db.PrepareContext(ctx, listParts); err != nil {
 		return nil, fmt.Errorf("error preparing query ListParts: %w", err)
 	}
@@ -1266,6 +1269,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing listAuditLogsStmt: %w", cerr)
 		}
 	}
+	if q.listLowStockPartsStmt != nil {
+		if cerr := q.listLowStockPartsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listLowStockPartsStmt: %w", cerr)
+		}
+	}
 	if q.listPartsStmt != nil {
 		if cerr := q.listPartsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing listPartsStmt: %w", cerr)
@@ -1677,6 +1685,7 @@ type Queries struct {
 	initSettingsStmt                     *sql.Stmt
 	listAllTagsStmt                      *sql.Stmt
 	listAuditLogsStmt                    *sql.Stmt
+	listLowStockPartsStmt                *sql.Stmt
 	listPartsStmt                        *sql.Stmt
 	listUsersStmt                        *sql.Stmt
 	markInspirationSeedsAppliedStmt      *sql.Stmt
@@ -1867,6 +1876,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		initSettingsStmt:                     q.initSettingsStmt,
 		listAllTagsStmt:                      q.listAllTagsStmt,
 		listAuditLogsStmt:                    q.listAuditLogsStmt,
+		listLowStockPartsStmt:                q.listLowStockPartsStmt,
 		listPartsStmt:                        q.listPartsStmt,
 		listUsersStmt:                        q.listUsersStmt,
 		markInspirationSeedsAppliedStmt:      q.markInspirationSeedsAppliedStmt,

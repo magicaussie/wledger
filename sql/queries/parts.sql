@@ -53,6 +53,34 @@ GROUP BY p.id, fts.rank
 ORDER BY fts.rank
 LIMIT sqlc.arg('limit') OFFSET sqlc.arg('offset');
 
+-- name: ListLowStockParts :many
+-- Parts whose total stock is at or below a configured threshold. Parts with no
+-- threshold set (reorder_level/min_stock_threshold of 0 or NULL) are excluded so
+-- unconfigured parts are not flagged. Ordered by the largest shortfall first.
+SELECT p.*, 
+    CAST(COALESCE(SUM(pa.quantity), 0) AS INTEGER) as total_stock,
+    CAST(COALESCE(SUM(CASE WHEN pa.bin_id IS NOT NULL THEN pa.quantity ELSE 0 END), 0) AS INTEGER) as valid_stock,
+    CAST(COALESCE(SUM(CASE WHEN pa.bin_id IS NULL THEN pa.quantity ELSE 0 END), 0) AS INTEGER) as orphaned_stock,
+    (SELECT pa2.bin_id 
+     FROM part_assignments pa2 
+     WHERE pa2.part_id = p.id AND pa2.quantity > 0 
+     ORDER BY pa2.quantity DESC, pa2.id ASC 
+     LIMIT 1) as locate_bin_id,
+    COALESCE((SELECT c2.id 
+     FROM part_assignments pa2 
+     JOIN bins b2 ON pa2.bin_id = b2.id
+     JOIN containers cont2 ON b2.container_id = cont2.id
+     JOIN controllers c2 ON cont2.controller_id = c2.id
+     WHERE pa2.part_id = p.id AND pa2.quantity > 0 
+     ORDER BY pa2.quantity DESC, pa2.id ASC 
+     LIMIT 1), 0) as locate_controller_id
+FROM parts p
+LEFT JOIN part_assignments pa ON p.id = pa.part_id
+GROUP BY p.id
+HAVING (p.reorder_level > 0 AND CAST(COALESCE(SUM(pa.quantity), 0) AS INTEGER) <= p.reorder_level)
+    OR (p.min_stock_threshold > 0 AND CAST(COALESCE(SUM(pa.quantity), 0) AS INTEGER) <= p.min_stock_threshold)
+ORDER BY (p.reorder_level - CAST(COALESCE(SUM(pa.quantity), 0) AS INTEGER)) DESC, p.name;
+
 -- name: GetAllParts :many
 SELECT * FROM parts ORDER BY id;
 

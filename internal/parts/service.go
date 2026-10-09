@@ -27,6 +27,7 @@ type Service interface {
 	DeleteParts(ctx context.Context, ids []int64) error
 	GetPart(ctx context.Context, id int64) (db.Part, error)
 	ListParts(ctx context.Context, search string, page int, binID *int64) ([]pages.PartView, error)
+	ListLowStock(ctx context.Context) ([]pages.LowStockPartView, error)
 	GetPartDetail(ctx context.Context, id int64) (PartDetail, error)
 }
 
@@ -176,6 +177,43 @@ func (s *service) ListParts(ctx context.Context, search string, page int, binID 
 		}
 	}
 	return viewParts, nil
+}
+
+// ListLowStock returns every part at or below its configured reorder level,
+// ordered by the largest shortfall first, with a suggested order quantity.
+func (s *service) ListLowStock(ctx context.Context) ([]pages.LowStockPartView, error) {
+	rows, err := s.store.ListLowStockParts(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	views := make([]pages.LowStockPartView, 0, len(rows))
+	for _, row := range rows {
+		reorder := row.ReorderLevel.Int64
+		// Suggest topping back up to the reorder level, at least one unit.
+		suggested := reorder - row.TotalStock
+		if suggested < 1 {
+			suggested = 1
+		}
+		views = append(views, pages.LowStockPartView{
+			ID:                row.ID,
+			Name:              row.Name,
+			Description:       row.Description,
+			PartNumber:        row.PartNumber,
+			Manufacturer:      row.Manufacturer,
+			Supplier:          row.Supplier,
+			Footprint:         row.Footprint,
+			UnitCost:          row.UnitCost,
+			BarcodeData:       row.BarcodeData,
+			Tags:              row.Tags,
+			ImagePath:         row.ImagePath,
+			TotalStock:        row.TotalStock,
+			ReorderLevel:      reorder,
+			MinStockThreshold: row.MinStockThreshold.Int64,
+			SuggestedOrder:    suggested,
+		})
+	}
+	return views, nil
 }
 
 func (s *service) GetPartDetail(ctx context.Context, id int64) (PartDetail, error) {

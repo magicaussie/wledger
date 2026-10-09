@@ -13,7 +13,18 @@ import (
 	"github.com/tuxedocurly/wledger/web/layouts"
 )
 
-templ SupplierSearch(user auth.User, providers []suppliers.ProviderInfo, results []suppliers.SearchResultDTO, diagnostics []suppliers.ProviderDiagnostic, errorMsg string) {
+// supplierSearchTrigger auto-runs the supplier search on page load when a query
+// was supplied (e.g. deep-linked from the low stock page), otherwise it waits
+// for user input.
+func supplierSearchTrigger(query string) string {
+	base := "submit, keyup changed delay:400ms from:find input[name=q]"
+	if query != "" {
+		return "load, " + base
+	}
+	return base
+}
+
+templ SupplierSearch(user auth.User, providers []suppliers.ProviderInfo, results []suppliers.SearchResultDTO, diagnostics []suppliers.ProviderDiagnostic, errorMsg string, query string) {
 	@layouts.Base(i18n.T(ctx, "Suppliers"), user) {
 		@components.PageHeader(i18n.T(ctx, "SupplierSearch"), i18n.T(ctx, "SupplierSearchDescription"), nil)
 		<div class="flex gap-2 mb-4">
@@ -51,7 +62,7 @@ templ SupplierSearch(user auth.User, providers []suppliers.ProviderInfo, results
 					<form
 						hx-get="/suppliers/search"
 						hx-target="#supplier-results"
-						hx-trigger="submit, keyup changed delay:400ms from:find input[name=q]"
+						hx-trigger={ supplierSearchTrigger(query) }
 						hx-indicator="#supplier-results .htmx-indicator"
 						class="space-y-4"
 					>
@@ -60,6 +71,7 @@ templ SupplierSearch(user auth.User, providers []suppliers.ProviderInfo, results
 								type="text"
 								name="q"
 								id="supplier-search-q"
+								value={ query }
 								placeholder="Search by keyword, MPN, or part number (comma-separated for multi-search)..."
 								class="input input-bordered flex-1"
 								autofocus

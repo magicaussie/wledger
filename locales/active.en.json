@@ -428,6 +428,46 @@
   "LowStockWarning": {
     "other": "Low Stock Warning"
   },
+  "LowStock": {
+    "description": "Sidebar link and page title for the reorder list",
+    "other": "Low Stock"
+  },
+  "LowStockDescription": {
+    "description": "Sub-header on the low stock page",
+    "other": "Parts at or below their reorder level."
+  },
+  "NoLowStockParts": {
+    "description": "Empty state title when nothing needs reordering",
+    "other": "Nothing to reorder"
+  },
+  "NoLowStockPartsDescription": {
+    "description": "Empty state description when nothing needs reordering",
+    "other": "All parts are above their reorder levels."
+  },
+  "SuggestedOrder": {
+    "description": "Column header for the suggested reorder quantity",
+    "other": "Suggested Order"
+  },
+  "Critical": {
+    "description": "Stock status when at or below the minimum threshold",
+    "other": "Critical"
+  },
+  "Low": {
+    "description": "Stock status when at or below the reorder level",
+    "other": "Low"
+  },
+  "FindSupplier": {
+    "description": "Action to search suppliers for a part number",
+    "other": "Find Supplier"
+  },
+  "ExportCSV": {
+    "description": "Button to export a list as CSV",
+    "other": "Export CSV"
+  },
+  "PartNumber": {
+    "description": "Label for a part's manufacturer part number",
+    "other": "Part Number"
+  },
   "Locations": {
     "other": "Locations"
   },

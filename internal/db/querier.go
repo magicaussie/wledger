@@ -151,6 +151,10 @@ type Querier interface {
 	InitSettings(ctx context.Context) error
 	ListAllTags(ctx context.Context) ([]Tag, error)
 	ListAuditLogs(ctx context.Context, arg ListAuditLogsParams) ([]ListAuditLogsRow, error)
+	// Parts whose total stock is at or below a configured threshold. Parts with no
+	// threshold set (reorder_level/min_stock_threshold of 0 or NULL) are excluded so
+	// unconfigured parts are not flagged. Ordered by the largest shortfall first.
+	ListLowStockParts(ctx context.Context) ([]ListLowStockPartsRow, error)
 	ListParts(ctx context.Context, arg ListPartsParams) ([]ListPartsRow, error)
 	ListUsers(ctx context.Context) ([]ListUsersRow, error)
 	MarkInspirationSeedsApplied(ctx context.Context) error

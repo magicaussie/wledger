@@ -27,7 +27,10 @@ import (
 func (h *Handler) HandleSupplierSearch(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUserFromRequest(r)
 	providers := h.Suppliers.GetActiveProviders()
-	pages.SupplierSearch(user, providers, nil, nil, "").Render(r.Context(), w)
+	// A query may be supplied to deep-link straight into a search (e.g. from the
+	// low stock page's "Find Supplier" action).
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
+	pages.SupplierSearch(user, providers, nil, nil, "", query).Render(r.Context(), w)
 }
 
 // GET /suppliers/search?q=keyword&providers=mouser,digikey

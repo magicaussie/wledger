@@ -1,0 +1,86 @@
+package pages
+
+import (
+	"fmt"
+	"net/url"
+
+	"github.com/tuxedocurly/wledger/internal/auth"
+	"github.com/tuxedocurly/wledger/internal/i18n"
+	"github.com/tuxedocurly/wledger/web/components"
+	"github.com/tuxedocurly/wledger/web/icons"
+	"github.com/tuxedocurly/wledger/web/layouts"
+)
+
+// LowStock is the Reorder / Low Stock page. It lists every part at or below its
+// reorder level, with a suggested order quantity and a shortcut into supplier
+// search for the part number.
+templ LowStock(user auth.User, parts []LowStockPartView) {
+	@layouts.Base(i18n.T(ctx, "LowStock"), user) {
+		<div class="max-w-7xl mx-auto w-full px-4">
+			@components.PageHeader(i18n.T(ctx, "LowStock"), i18n.T(ctx, "LowStockDescription"), nil) {
+				<a href="/parts/low-stock/export" class="btn btn-outline btn-sm gap-2">
+					@icons.File(templ.Attributes{"class": "w-4 h-4"})
+					{ i18n.T(ctx, "ExportCSV") }
+				</a>
+			}
+			if len(parts) == 0 {
+				@components.EmptyState(i18n.T(ctx, "NoLowStockParts"), i18n.T(ctx, "NoLowStockPartsDescription"), "✅")
+			} else {
+				<div class="card bg-base-100 shadow-xl border border-base-300 overflow-hidden">
+					<div class="overflow-x-auto">
+						<table class="table table-zebra w-full">
+							<thead>
+								<tr class="bg-base-200">
+									<th>{ i18n.T(ctx, "Name") }</th>
+									<th>{ i18n.T(ctx, "PartNumber") }</th>
+									<th>{ i18n.T(ctx, "Supplier") }</th>
+									<th class="text-right">{ i18n.T(ctx, "Stock") }</th>
+									<th class="text-right">{ i18n.T(ctx, "ReorderLevelLabel") }</th>
+									<th class="text-right">{ i18n.T(ctx, "SuggestedOrder") }</th>
+									<th>{ i18n.T(ctx, "Status") }</th>
+									<th class="text-right">{ i18n.T(ctx, "Actions") }</th>
+								</tr>
+							</thead>
+							<tbody>
+								for _, p := range parts {
+									<tr class="hover">
+										<td>
+											<a href={ templ.SafeURL(fmt.Sprintf("/parts/%d", p.ID)) } class="font-medium link-hover">{ p.Name }</a>
+										</td>
+										<td class="font-mono text-xs">{ p.PartNumber.String }</td>
+										<td class="text-sm">{ p.Supplier.String }</td>
+										<td class="text-right font-mono">{ fmt.Sprintf("%d", p.TotalStock) }</td>
+										<td class="text-right font-mono">{ fmt.Sprintf("%d", p.ReorderLevel) }</td>
+										<td class="text-right font-mono font-bold">{ fmt.Sprintf("%d", p.SuggestedOrder) }</td>
+										<td>
+											if p.IsCritical() {
+												<span class="badge badge-error badge-sm">{ i18n.T(ctx, "Critical") }</span>
+											} else {
+												<span class="badge badge-warning badge-sm">{ i18n.T(ctx, "Low") }</span>
+											}
+										</td>
+										<td class="text-right">
+											<div class="flex justify-end gap-1">
+												if p.TotalStock > 0 {
+													@components.PartLocateButton(p.ID, "btn-xs")
+												}
+												<a
+													href={ templ.SafeURL("/suppliers?q=" + url.QueryEscape(p.SupplierQuery())) }
+													class="btn btn-ghost btn-xs gap-1"
+													title={ i18n.T(ctx, "FindSupplier") }
+												>
+													@icons.Truck(templ.Attributes{"class": "w-4 h-4"})
+													{ i18n.T(ctx, "FindSupplier") }
+												</a>
+											</div>
+										</td>
+									</tr>
+								}
+							</tbody>
+						</table>
+					</div>
+				</div>
+			}
+		</div>
+	}
+}
