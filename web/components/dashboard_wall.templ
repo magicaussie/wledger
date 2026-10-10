@@ -12,12 +12,12 @@ templ DashboardContainerCard(container DashboardContainer) {
 		@click={ fmt.Sprintf("document.getElementById('container_modal_%d').showModal()", container.ID) }
 	>
 		<div class="card-body p-5">
-			<div class="flex justify-between items-start mb-2">
-				<div class="flex flex-col">
-					<h2 class="font-bold text-sm uppercase tracking-wider opacity-50 group-hover:opacity-100 transition-opacity">{ container.Name }</h2>
-					<span class="text-[12px] opacity-40 uppercase tracking-widest">{ container.ControllerName } • { i18n.T(ctx, "Segment") } { fmt.Sprintf("%d", container.SegmentID) }</span>
+			<div class="flex min-w-0 justify-between items-start gap-2 mb-2">
+				<div class="flex min-w-0 flex-1 flex-col">
+					<h2 class="truncate font-bold text-sm uppercase tracking-wider opacity-50 group-hover:opacity-100 transition-opacity" title={ container.Name }>{ container.Name }</h2>
+					<span class="truncate text-[12px] opacity-40 uppercase tracking-widest" title={ container.ControllerName }>{ container.ControllerName } • { i18n.T(ctx, "Segment") } { fmt.Sprintf("%d", container.SegmentID) }</span>
 				</div>
-				<div class={ "badge badge-xs", templ.KV("badge-success", container.ControllerOnline), templ.KV("badge-error", !container.ControllerOnline) }></div>
+				<div class={ "badge badge-xs shrink-0", templ.KV("badge-success", container.ControllerOnline), templ.KV("badge-error", !container.ControllerOnline) }></div>
 			</div>
 			<div class="flex items-center gap-4 mt-4 bg-base-200 p-3 rounded-lg border border-base-300 shadow-inner">
 				<!-- Stock Health Indicator (Color Wheel Style) -->
@@ -31,10 +31,10 @@ templ DashboardContainerCard(container DashboardContainer) {
 		<!-- Grid Preview Modal -->
 		<dialog id={ fmt.Sprintf("container_modal_%d", container.ID) } class="modal modal-bottom sm:modal-middle">
 			<div class="modal-box max-w-4xl p-0 overflow-hidden border border-base-300 shadow-2xl bg-base-100">
-				<div class="bg-base-200 p-6 border-b border-base-300 flex justify-between items-center">
-					<div>
-						<h3 class="font-bold text-md uppercase tracking-wider">{ container.Name }</h3>
-						<div class="flex gap-4 text-sm opacity-80 uppercase tracking-widest mt-1">
+				<div class="bg-base-200 p-6 border-b border-base-300 flex flex-wrap gap-2 justify-between items-start">
+					<div class="min-w-0">
+						<h3 class="truncate font-bold text-md uppercase tracking-wider" title={ container.Name }>{ container.Name }</h3>
+						<div class="flex flex-wrap gap-x-4 gap-y-1 text-sm opacity-80 uppercase tracking-widest mt-1">
 							<span>{ i18n.T(ctx, "Controller") }: { container.ControllerName }</span>
 							<span>{ i18n.T(ctx, "Segment") }: { fmt.Sprintf("%d", container.SegmentID) }</span>
 							<span>
@@ -46,7 +46,7 @@ templ DashboardContainerCard(container DashboardContainer) {
 							</span>
 						</div>
 					</div>
-					<form method="dialog">
+					<form method="dialog" class="shrink-0">
 						<button class="btn btn-sm btn-circle btn-ghost">✕</button>
 					</form>
 				</div>
@@ -56,11 +56,12 @@ templ DashboardContainerCard(container DashboardContainer) {
 							for _, bin := range container.Bins {
 								<a
 									href={ templ.SafeURL(fmt.Sprintf("/parts?bin=%d", bin.ID)) }
-									class={ "w-12 h-12 rounded-md border border-base-300 flex items-center justify-center text-xs font-bold shadow-sm hover:scale-110 hover:shadow-md hover:z-10 hover:border-base-content/50 transition-all duration-200 cursor-pointer " + bin.GetClass() }
+									class={ "w-12 h-12 min-w-0 overflow-hidden rounded-md border border-base-300 flex items-center justify-center text-xs font-bold shadow-sm hover:scale-110 hover:shadow-md hover:z-10 hover:border-base-content/50 transition-all duration-200 cursor-pointer " + bin.GetClass() }
 									style={ bin.GetStyle() }
 									title={ bin.Name }
+									aria-label={ bin.Name }
 								>
-									<span class="drop-shadow-md filter invert-0 grayscale-0 brightness-100">{ bin.Name }</span>
+									<span class="block max-w-full px-1 truncate text-center leading-tight drop-shadow-md filter invert-0 grayscale-0 brightness-100">{ bin.Name }</span>
 								</a>
 							}
 						</div>
@@ -96,7 +97,7 @@ templ StockHealthIndicator(bins []DashboardBin) {
 		}
 		sort.Strings(keys)
 
-		classes := "w-14 h-14 rounded-full border border-500/10 border-base-300 shadow-inner flex items-center justify-center overflow-hidden"
+		classes := "w-14 h-14 rounded-full border border-base-300 shadow-inner flex items-center justify-center overflow-hidden"
 		style := ""
 
 		if len(keys) == 0 {

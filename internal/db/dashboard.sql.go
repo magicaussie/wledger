@@ -115,32 +115,35 @@ SELECT
     pa.quantity, 
     p.min_stock_threshold, 
     p.reorder_level
-FROM bins b
-JOIN containers cont ON b.container_id = cont.id
-JOIN controllers c ON cont.controller_id = c.id
+FROM controllers c
+LEFT JOIN containers cont ON cont.controller_id = c.id
+LEFT JOIN bins b ON b.container_id = cont.id AND b.grid_x IS NOT NULL AND b.grid_y IS NOT NULL
 LEFT JOIN part_assignments pa ON b.id = pa.bin_id
 LEFT JOIN parts p ON pa.part_id = p.id
-WHERE b.grid_x IS NOT NULL AND b.grid_y IS NOT NULL
 ORDER BY c.name ASC, cont.name ASC, b.grid_y ASC, b.grid_x ASC
 `
 
 type GetDashboardGridRow struct {
-	ControllerID      int64         `json:"controller_id"`
-	ControllerName    string        `json:"controller_name"`
-	IsOnline          sql.NullBool  `json:"is_online"`
-	ContainerID       int64         `json:"container_id"`
-	ContainerName     string        `json:"container_name"`
-	SegmentID         int64         `json:"segment_id"`
-	BinID             int64         `json:"bin_id"`
-	BinName           string        `json:"bin_name"`
-	GridX             sql.NullInt64 `json:"grid_x"`
-	GridY             sql.NullInt64 `json:"grid_y"`
-	PartID            sql.NullInt64 `json:"part_id"`
-	Quantity          sql.NullInt64 `json:"quantity"`
-	MinStockThreshold sql.NullInt64 `json:"min_stock_threshold"`
-	ReorderLevel      sql.NullInt64 `json:"reorder_level"`
+	ControllerID      int64          `json:"controller_id"`
+	ControllerName    string         `json:"controller_name"`
+	IsOnline          sql.NullBool   `json:"is_online"`
+	ContainerID       sql.NullInt64  `json:"container_id"`
+	ContainerName     sql.NullString `json:"container_name"`
+	SegmentID         sql.NullInt64  `json:"segment_id"`
+	BinID             sql.NullInt64  `json:"bin_id"`
+	BinName           sql.NullString `json:"bin_name"`
+	GridX             sql.NullInt64  `json:"grid_x"`
+	GridY             sql.NullInt64  `json:"grid_y"`
+	PartID            sql.NullInt64  `json:"part_id"`
+	Quantity          sql.NullInt64  `json:"quantity"`
+	MinStockThreshold sql.NullInt64  `json:"min_stock_threshold"`
+	ReorderLevel      sql.NullInt64  `json:"reorder_level"`
 }
 
+// Drive from controllers so a controller with no containers (or a container with
+// no grid-mapped bins) still appears on the dashboard. The grid filter lives in
+// the bins LEFT JOIN so unmapped bins are dropped without dropping their
+// controller/container row.
 func (q *Queries) GetDashboardGrid(ctx context.Context) ([]GetDashboardGridRow, error) {
 	rows, err := q.query(ctx, q.getDashboardGridStmt, getDashboardGrid)
 	if err != nil {
@@ -195,32 +198,35 @@ SELECT
     pa.quantity, 
     p.min_stock_threshold, 
     p.reorder_level
-FROM bins b
-JOIN containers cont ON b.container_id = cont.id
-JOIN controllers c ON cont.controller_id = c.id
+FROM controllers c
+LEFT JOIN containers cont ON cont.controller_id = c.id
+LEFT JOIN bins b ON b.container_id = cont.id AND b.grid_x IS NOT NULL AND b.grid_y IS NOT NULL
 LEFT JOIN part_assignments pa ON b.id = pa.bin_id
 LEFT JOIN parts p ON pa.part_id = p.id
-WHERE c.id = ? AND b.grid_x IS NOT NULL AND b.grid_y IS NOT NULL
+WHERE c.id = ?
 ORDER BY cont.name ASC, b.grid_y ASC, b.grid_x ASC
 `
 
 type GetDashboardGridByControllerRow struct {
-	ControllerID      int64         `json:"controller_id"`
-	ControllerName    string        `json:"controller_name"`
-	IsOnline          sql.NullBool  `json:"is_online"`
-	ContainerID       int64         `json:"container_id"`
-	ContainerName     string        `json:"container_name"`
-	SegmentID         int64         `json:"segment_id"`
-	BinID             int64         `json:"bin_id"`
-	BinName           string        `json:"bin_name"`
-	GridX             sql.NullInt64 `json:"grid_x"`
-	GridY             sql.NullInt64 `json:"grid_y"`
-	PartID            sql.NullInt64 `json:"part_id"`
-	Quantity          sql.NullInt64 `json:"quantity"`
-	MinStockThreshold sql.NullInt64 `json:"min_stock_threshold"`
-	ReorderLevel      sql.NullInt64 `json:"reorder_level"`
+	ControllerID      int64          `json:"controller_id"`
+	ControllerName    string         `json:"controller_name"`
+	IsOnline          sql.NullBool   `json:"is_online"`
+	ContainerID       sql.NullInt64  `json:"container_id"`
+	ContainerName     sql.NullString `json:"container_name"`
+	SegmentID         sql.NullInt64  `json:"segment_id"`
+	BinID             sql.NullInt64  `json:"bin_id"`
+	BinName           sql.NullString `json:"bin_name"`
+	GridX             sql.NullInt64  `json:"grid_x"`
+	GridY             sql.NullInt64  `json:"grid_y"`
+	PartID            sql.NullInt64  `json:"part_id"`
+	Quantity          sql.NullInt64  `json:"quantity"`
+	MinStockThreshold sql.NullInt64  `json:"min_stock_threshold"`
+	ReorderLevel      sql.NullInt64  `json:"reorder_level"`
 }
 
+// Same controller-driven shape as GetDashboardGrid, scoped to one controller.
+// A controller that exists but has no mapped bins returns a single row with NULL
+// container/bin; a nonexistent controller returns no rows.
 func (q *Queries) GetDashboardGridByController(ctx context.Context, id int64) ([]GetDashboardGridByControllerRow, error) {
 	rows, err := q.query(ctx, q.getDashboardGridByControllerStmt, getDashboardGridByController, id)
 	if err != nil {

@@ -118,9 +118,9 @@ func (b DashboardBin) GetStyle() string {
 templ DashboardGrid(ctrl DashboardController) {
 	if len(ctrl.Containers) == 0 {
 		<div class="mb-8">
-			<div class="flex items-center gap-2 mb-4">
-				<h2 class="font-bold text-sm uppercase tracking-wider opacity-50">{ ctrl.Name }</h2>
-				<div class="badge badge-sm badge-ghost">Empty</div>
+			<div class="flex min-w-0 items-center gap-2 mb-4">
+				<h2 class="min-w-0 flex-1 truncate font-bold text-sm uppercase tracking-wider opacity-50" title={ ctrl.Name }>{ ctrl.Name }</h2>
+				<div class="badge badge-sm badge-ghost shrink-0">Empty</div>
 			</div>
 			<div class="text-center py-8 opacity-50 border border-dashed border-base-300 rounded-lg">
 				<p class="text-sm">No containers configured.</p>
@@ -128,17 +128,17 @@ templ DashboardGrid(ctrl DashboardController) {
 		</div>
 	} else {
 		<div class="mb-8">
-			<div class="flex items-center gap-2 mb-4">
-				<h2 class="font-bold text-sm uppercase tracking-wider">{ ctrl.Name }</h2>
-				<div class="badge badge-sm badge-info rounded-full font-bold">{ fmt.Sprintf("%d Containers", len(ctrl.Containers)) }</div>
+			<div class="flex min-w-0 items-center gap-2 mb-4">
+				<h2 class="min-w-0 flex-1 truncate font-bold text-sm uppercase tracking-wider" title={ ctrl.Name }>{ ctrl.Name }</h2>
+				<div class="badge badge-sm badge-info rounded-full font-bold shrink-0">{ fmt.Sprintf("%d Containers", len(ctrl.Containers)) }</div>
 			</div>
 			<div class="card bg-base-200 shadow-xl border border-base-300 overflow-hidden">
 				<div class="card-body p-6 gap-6">
 					for _, container := range ctrl.Containers {
 						<div class="flex flex-col gap-2">
-							<div class="flex items-center justify-between px-1">
-								<h3 class="font-bold text-sm uppercase tracking-wider opacity-80">{ container.Name }</h3>
-								<div class="text-sm font-mono opacity-40">ID: { fmt.Sprintf("%d", container.ID) }</div>
+							<div class="flex min-w-0 items-center justify-between gap-2 px-1">
+								<h3 class="min-w-0 flex-1 truncate font-bold text-sm uppercase tracking-wider opacity-80" title={ container.Name }>{ container.Name }</h3>
+								<div class="shrink-0 text-sm font-mono opacity-40">ID: { fmt.Sprintf("%d", container.ID) }</div>
 							</div>
 							<div class="overflow-x-auto bg-base-100 rounded-lg border border-base-300 p-4 shadow-sm">
 								<div
@@ -148,11 +148,12 @@ templ DashboardGrid(ctrl DashboardController) {
 									for _, bin := range container.Bins {
 										<a
 											href={ templ.SafeURL(fmt.Sprintf("/parts?bin=%d", bin.ID)) }
-											class={ "w-12 h-12 rounded-md border border-base-300 flex items-center justify-center text-xs font-bold shadow-sm hover:scale-110 hover:shadow-md hover:z-10 hover:border-base-content/50 transition-all duration-200 cursor-pointer " + bin.GetClass() }
+											class={ "w-12 h-12 min-w-0 overflow-hidden rounded-md border border-base-300 flex items-center justify-center text-xs font-bold shadow-sm hover:scale-110 hover:shadow-md hover:z-10 hover:border-base-content/50 transition-all duration-200 cursor-pointer " + bin.GetClass() }
 											style={ bin.GetStyle() }
 											title={ bin.Name }
+											aria-label={ bin.Name }
 										>
-											<span class="drop-shadow-md filter invert-0 grayscale-0 brightness-100">{ bin.Name }</span>
+											<span class="block max-w-full px-1 truncate text-center leading-tight drop-shadow-md filter invert-0 grayscale-0 brightness-100">{ bin.Name }</span>
 										</a>
 									}
 								</div>

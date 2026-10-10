@@ -332,31 +332,43 @@ func (s *service) newDashboardViewModel(gridRows []db.GetDashboardGridRow) []com
 			ctrlContainerMap[row.ControllerID] = make(map[int64]*components.DashboardContainer)
 		}
 
+		// A controller with no containers yields a row with a NULL container.
+		// Keep the controller (so it is not omitted) but attach nothing.
+		if !row.ContainerID.Valid {
+			continue
+		}
+
 		// Get or create container within controller
 		cContainers := ctrlContainerMap[row.ControllerID]
-		if _, exists := cContainers[row.ContainerID]; !exists {
-			cContainers[row.ContainerID] = &components.DashboardContainer{
-				ID:               row.ContainerID,
-				Name:             row.ContainerName,
-				SegmentID:        row.SegmentID,
+		if _, exists := cContainers[row.ContainerID.Int64]; !exists {
+			cContainers[row.ContainerID.Int64] = &components.DashboardContainer{
+				ID:               row.ContainerID.Int64,
+				Name:             row.ContainerName.String,
+				SegmentID:        row.SegmentID.Int64,
 				ControllerName:   row.ControllerName,
 				ControllerOnline: row.IsOnline.Bool,
 			}
-			containerBinMap[row.ContainerID] = make(map[int64]*components.DashboardBin)
+			containerBinMap[row.ContainerID.Int64] = make(map[int64]*components.DashboardBin)
+		}
+
+		// A container with no grid-mapped bins yields a row with a NULL bin.
+		// Keep the container (so it is not omitted) but attach no bin.
+		if !row.BinID.Valid {
+			continue
 		}
 
 		// Get or create bin within container
-		cBins := containerBinMap[row.ContainerID]
-		if _, exists := cBins[row.BinID]; !exists {
-			cBins[row.BinID] = &components.DashboardBin{
-				ID:       row.BinID,
-				Name:     row.BinName,
+		cBins := containerBinMap[row.ContainerID.Int64]
+		if _, exists := cBins[row.BinID.Int64]; !exists {
+			cBins[row.BinID.Int64] = &components.DashboardBin{
+				ID:       row.BinID.Int64,
+				Name:     row.BinName.String,
 				GridX:    int(row.GridX.Int64),
 				GridY:    int(row.GridY.Int64),
 				Statuses: []string{},
 			}
 		}
-		bin := cBins[row.BinID]
+		bin := cBins[row.BinID.Int64]
 
 		// Calculate and append status (if part exists)
 		if row.PartID.Valid {
@@ -436,31 +448,43 @@ func (s *service) newDashboardViewModelFromRows(rows []db.GetDashboardGridByCont
 			ctrlContainerMap[row.ControllerID] = make(map[int64]*components.DashboardContainer)
 		}
 
+		// A controller with no containers yields a row with a NULL container.
+		// Keep the controller (so it is not omitted) but attach nothing.
+		if !row.ContainerID.Valid {
+			continue
+		}
+
 		// Get or create container within controller
 		cContainers := ctrlContainerMap[row.ControllerID]
-		if _, exists := cContainers[row.ContainerID]; !exists {
-			cContainers[row.ContainerID] = &components.DashboardContainer{
-				ID:               row.ContainerID,
-				Name:             row.ContainerName,
-				SegmentID:        row.SegmentID,
+		if _, exists := cContainers[row.ContainerID.Int64]; !exists {
+			cContainers[row.ContainerID.Int64] = &components.DashboardContainer{
+				ID:               row.ContainerID.Int64,
+				Name:             row.ContainerName.String,
+				SegmentID:        row.SegmentID.Int64,
 				ControllerName:   row.ControllerName,
 				ControllerOnline: row.IsOnline.Bool,
 			}
-			containerBinMap[row.ContainerID] = make(map[int64]*components.DashboardBin)
+			containerBinMap[row.ContainerID.Int64] = make(map[int64]*components.DashboardBin)
+		}
+
+		// A container with no grid-mapped bins yields a row with a NULL bin.
+		// Keep the container (so it is not omitted) but attach no bin.
+		if !row.BinID.Valid {
+			continue
 		}
 
 		// Get or create bin within container
-		cBins := containerBinMap[row.ContainerID]
-		if _, exists := cBins[row.BinID]; !exists {
-			cBins[row.BinID] = &components.DashboardBin{
-				ID:       row.BinID,
-				Name:     row.BinName,
+		cBins := containerBinMap[row.ContainerID.Int64]
+		if _, exists := cBins[row.BinID.Int64]; !exists {
+			cBins[row.BinID.Int64] = &components.DashboardBin{
+				ID:       row.BinID.Int64,
+				Name:     row.BinName.String,
 				GridX:    int(row.GridX.Int64),
 				GridY:    int(row.GridY.Int64),
 				Statuses: []string{},
 			}
 		}
-		bin := cBins[row.BinID]
+		bin := cBins[row.BinID.Int64]
 
 		// Calculate and append status (if part exists)
 		if row.PartID.Valid {

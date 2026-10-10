@@ -10,6 +10,10 @@ FROM parts p
 LEFT JOIN part_assignments pa ON p.id = pa.part_id;
 
 -- name: GetDashboardGrid :many
+-- Drive from controllers so a controller with no containers (or a container with
+-- no grid-mapped bins) still appears on the dashboard. The grid filter lives in
+-- the bins LEFT JOIN so unmapped bins are dropped without dropping their
+-- controller/container row.
 SELECT 
     c.id as controller_id,
     c.name as controller_name,
@@ -25,15 +29,17 @@ SELECT
     pa.quantity, 
     p.min_stock_threshold, 
     p.reorder_level
-FROM bins b
-JOIN containers cont ON b.container_id = cont.id
-JOIN controllers c ON cont.controller_id = c.id
+FROM controllers c
+LEFT JOIN containers cont ON cont.controller_id = c.id
+LEFT JOIN bins b ON b.container_id = cont.id AND b.grid_x IS NOT NULL AND b.grid_y IS NOT NULL
 LEFT JOIN part_assignments pa ON b.id = pa.bin_id
 LEFT JOIN parts p ON pa.part_id = p.id
-WHERE b.grid_x IS NOT NULL AND b.grid_y IS NOT NULL
 ORDER BY c.name ASC, cont.name ASC, b.grid_y ASC, b.grid_x ASC;
 
 -- name: GetDashboardGridByController :many
+-- Same controller-driven shape as GetDashboardGrid, scoped to one controller.
+-- A controller that exists but has no mapped bins returns a single row with NULL
+-- container/bin; a nonexistent controller returns no rows.
 SELECT 
     c.id as controller_id,
     c.name as controller_name,
@@ -49,12 +55,12 @@ SELECT
     pa.quantity, 
     p.min_stock_threshold, 
     p.reorder_level
-FROM bins b
-JOIN containers cont ON b.container_id = cont.id
-JOIN controllers c ON cont.controller_id = c.id
+FROM controllers c
+LEFT JOIN containers cont ON cont.controller_id = c.id
+LEFT JOIN bins b ON b.container_id = cont.id AND b.grid_x IS NOT NULL AND b.grid_y IS NOT NULL
 LEFT JOIN part_assignments pa ON b.id = pa.bin_id
 LEFT JOIN parts p ON pa.part_id = p.id
-WHERE c.id = ? AND b.grid_x IS NOT NULL AND b.grid_y IS NOT NULL
+WHERE c.id = ?
 ORDER BY cont.name ASC, b.grid_y ASC, b.grid_x ASC;
 
 -- name: GetWallContainerBins :many

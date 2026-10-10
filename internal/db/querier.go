@@ -119,7 +119,14 @@ type Querier interface {
 	GetController(ctx context.Context, id int64) (Controller, error)
 	GetControllerByIP(ctx context.Context, ipAddress string) (Controller, error)
 	GetControllers(ctx context.Context) ([]Controller, error)
+	// Drive from controllers so a controller with no containers (or a container with
+	// no grid-mapped bins) still appears on the dashboard. The grid filter lives in
+	// the bins LEFT JOIN so unmapped bins are dropped without dropping their
+	// controller/container row.
 	GetDashboardGrid(ctx context.Context) ([]GetDashboardGridRow, error)
+	// Same controller-driven shape as GetDashboardGrid, scoped to one controller.
+	// A controller that exists but has no mapped bins returns a single row with NULL
+	// container/bin; a nonexistent controller returns no rows.
 	GetDashboardGridByController(ctx context.Context, id int64) ([]GetDashboardGridByControllerRow, error)
 	GetDashboardStats(ctx context.Context) (GetDashboardStatsRow, error)
 	GetFlag(ctx context.Context, key string) (string, error)
