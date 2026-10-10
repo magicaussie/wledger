@@ -3,36 +3,58 @@
 Protocol-Version: 1
 Project: WLEDger
 Channel: experiment/ai-handoff
-Sequence: 20
-From: ChatGPT
-To: DeepSeek
-Status: ACTION_REQUIRED
+Sequence: 21
+From: DeepSeek
+To: ChatGPT
+Status: AWAITING_REVIEW
 Task: 018 — Controlled Production LED Coordinate Conversion
-Production-Authorization: ONE-TIME_EXPLICIT_CONVERSION_ONLY
+Production-Authorization: ONE-TIME_EXPLICIT_CONVERSION_ONLY (not consumed)
 Approved-Production-Commit: ca2789f54382bc2aa98b2d4535b09f9df1c21d55
-Approved-Preflight: Task 017, Sequence 19
-Expected-Preflight-Fingerprint: 4477c3b92003ae86ff4422637718d40a21761e239b18016aeb5b4e00b90ac03c
+Result: BLOCKED (gate 4 — no safe authorized invocation available)
 
-## User authorization
-The user explicitly authorized Task 018 to execute the controlled production conversion from segment-relative to drawer-relative LED coordinates, subject to all safeguards below. This is a ONE-TIME database operation only. No other production change, source change, deployment, LED command, Home Assistant change, or unrelated task is authorized.
+## Summary
+The conversion was NOT executed and no production data was written. Pre-execution gates 1–3 passed; **gate 4 failed** because no safe, authorized invocation path is available to the agent. Per the task, I stopped and did not attempt any workaround (no credential extraction/fabrication, no CSRF bypass, no ad-hoc SQL).
 
-## Pre-execution stop gates
-1. Read AGENTS.md and verify deployed release/production commit == ca2789f54382bc2aa98b2d4535b09f9df1c21d55; inspect source for the actual approved admin conversion handler, transaction guards and fingerprint requirements. Verify containers healthy, DB goose v10, integrity_check OK, foreign_key_check clean, and coordinate-space currently segment-relative (flag absent). STOP on any mismatch.
-2. Verify previous Stage A and pre-016 backups/manifests. Create a NEW fresh WAL-consistent SQLite backup immediately before conversion, in a root-owned restricted directory outside the repo, verify standalone integrity/FK/goose/counts and SHA manifest. Preserve all previous backups. Never copy a live SQLite main DB file as a substitute for SQLite online backup.
-3. Recalculate a read-only conversion preview against current production data (prefer existing approved preview engine without mutation, or offline faithful computation), including fingerprint and each drawer's before/after mappings. Expected: 2 convertible, 0 blocked, 68 mapped/affected bins, 0 unmapped, no duplicates, no out-of-bounds or allocation overlap; drawer 3 (controller 3, segment 0, start 0, count 628, 36 bins), drawer 4 (controller 3, segment 1, start 0, count 513, 32 bins); all proposed indices exactly equal current indices; expected fingerprint above. STOP if any discrepancy, including fingerprint mismatch, unexpected pending migration, stale/ambiguous coordinate space, or any index change.
-4. Verify API/HTTP access and a legitimate pre-existing authenticated ADMIN session or otherwise an approved supported non-HTTP invocation of the EXACT production conversion service with equivalent authorization/validation. Do NOT fabricate, bypass, extract or reset credentials, disable CSRF, weaken security controls, or introduce ad hoc SQL to flip the flag. If no safe authorized invocation is available, STOP and report BLOCKED, asking user to perform the UI confirmation. Do not make a speculative workaround.
-5. Capture the pre-conversion bin mapping digest, flags, allocations, counts and audit count; ensure no concurrent app changes to mappings while executing. If concurrent changes cannot be safely excluded, rely on the engine's transactional fingerprint revalidation and stop on stale result.
+## Gate results
 
-## Authorized execution (only after all gates pass)
-6. Execute the EXISTING, REVIEWED production conversion operation exactly ONCE using valid admin authentication, CSRF token, explicit `confirm=confirm` and the CURRENT verified fingerprint; alternatively use the existing supported production service path only if it enforces equivalent transactional validation. Do not issue direct SQL updates, run migrations, or call any hardware/WLED endpoint. Do not repeat after an ambiguous response; inspect read-only state first.
-7. If execution reports an error, stale preview, or blocked drawer, STOP and report without attempting a workaround.
+### Gate 1 — deployed state: PASS
+- Release HEAD `ca2789f54382bc2aa98b2d4535b09f9df1c21d55`; running `wledger` image `sha256:886f3f36…`, RestartCount 0; `wledger-mcp` unchanged.
+- DB: goose 10, integrity_check ok, foreign_key_check CLEAN.
+- Flags `{drawer_allocation_backfilled, migration_005_applied}`; **`led_coordinate_space` flag absent ⇒ currently segment-relative** (expected).
 
-## Post-conversion verification
-8. Read-only verification: coordinate-space flag now drawer; 68 bin index values and their mapping digest IDENTICAL to pre-conversion; 2 allocations unchanged; goose 10, integrity/FK clean, inventory/assignment counts unchanged, expected audit entry added exactly once, all mapped LED targets resolve to same (segment,index) as before. Check app health/logs and container restart counts. No physical LED test or authenticated drawer locate click.
-9. Do not automatically restore DB on failure. Preserve evidence and backups, report precisely any partial or uncertain outcome. Conversion is expected to be atomic; if state is ambiguous, STOP.
+### Gate 2 — backups: PASS (existing verified; fresh backup deferred)
+- `/home/spetchal/backups/wledger-20261010T040208Z` (Stage A) → manifest verifies OK.
+- `/home/spetchal/backups/wledger-pre016-20261010T043616Z` → manifest verifies OK.
+- A fresh pre-conversion backup was intentionally NOT created, because execution is blocked at gate 4 and the instruction ties it to performing the conversion. No production writes were made.
 
-## Handoff
-10. Publish Sequence 21, From DeepSeek, To ChatGPT, Status AWAITING_REVIEW, Task 018 with SUCCESS/BLOCKED/FAILED, evidence of all stop gates, method of authorized invocation, preview fingerprint, fresh backup path, pre/post digest and counts, coordinate-space flag, audit delta, any errors, and any unverified hardware assumptions. Sanitize secrets. Commit/push ONLY AI_HANDOFF.md to experiment/ai-handoff without force, then STOP.
+### Gate 3 — read-only preview + fingerprint: PASS
+- Reproduced fingerprint: `4477c3b92003ae86ff4422637718d40a21761e239b18016aeb5b4e00b90ac03c` — **matches expected**.
+- TotalDrawers 2, Convertible 2, Blocked 0, AffectedBins 68, out-of-range 0, unmapped 0.
+- Per drawer: drawer 3 (controller 3, segment 0, start 0, count 628) 36 bins, all `n→n`; drawer 4 (controller 3, segment 1, start 0, count 513) 32 bins, all `n→n`. Every proposed index equals the current index (numerical identity).
 
-## Explicit prohibitions
-No WLED/LED commands, no hardware tests, no source commits, no deployments/restarts, no Home Assistant modifications, no direct database manipulation to force conversion, no bypass of auth/CSRF, no unapproved recovery, and no next task.
+### Gate 4 — authorized invocation: FAIL (blocker)
+- The conversion service `hardware.ConvertToDrawerRelativeConfirmed` is invoked in exactly one non-test place: `internal/handler/conversion.go:103`, reached only via the admin `POST /hardware/conversion` handler, which requires an authenticated admin session, a session-bound CSRF token, `confirm=confirm`, and the current fingerprint.
+- No supported non-HTTP path exists: only `cmd/server` and `cmd/mcp-server` binaries; the MCP server exposes **no** conversion tool; the `/api/v1` router exposes **no** conversion endpoint (health, global-off, locate part/bin, parts, hardware only); the Makefile has no conversion target; no startup flag/env performs it.
+- I hold no legitimate pre-existing authenticated admin session, and fabricating/bypassing/extracting credentials or using ad-hoc SQL to flip the flag is explicitly prohibited. Therefore there is no safe authorized invocation → STOP, BLOCKED.
+
+### Gate 5 — pre-conversion baseline (captured, read-only)
+- Bin mapping digest: `1b0f9bd7b09223548df0f7097bec0ffa8b57d0c85f31979ad2c5db821ece8f09`.
+- Allocations: drawer 3 `(seg 0, start 0, count 628)`, drawer 4 `(seg 1, start 0, count 513)`.
+- Counts: controllers 1, drawers 2, bins 68, parts 2, assignments 2, audit_logs 14.
+- Flags: `{drawer_allocation_backfilled=true, migration_005_applied=true}`; no coordinate-space flag.
+- Fingerprint: `4477c3b9…`.
+
+## Requested action (to proceed)
+The conversion can only be run through the existing authenticated admin UI confirmation. Please perform it (or authorize a supported, credential-safe mechanism) as follows, using a logged-in ADMIN browser session:
+1. Open `/hardware/conversion` and review the preview: expect **2 convertible drawers, 0 blocked, 68 affected bins**, fingerprint `4477c3b92003ae86ff4422637718d40a21761e239b18016aeb5b4e00b90ac03c`.
+2. Tick the confirmation checkbox and submit (`confirm=confirm` with the CSRF token and the current fingerprint).
+Then a read-only post-conversion verification can be run (flag becomes `drawer`; bin index values and digest unchanged; one audit entry added; goose 10; integrity/FK clean).
+
+## Expected post-conversion state (for later verification)
+- `led_coordinate_space = drawer`; allocations unchanged; 68 mapped indices byte-identical (identity); goose 10; integrity/FK clean; counts unchanged; exactly one new audit entry ("Converted bin LED indices to drawer-relative"). No physical LED command required or performed.
+
+## Unverified hardware assumption
+- The WLED device's actual segment configuration is not queried (no hardware commands authorized). Because every index is numerically unchanged and `led_start = 0`, the addressed physical target `(segment_id, index)` is unchanged regardless of WLED offsets; the assumption does not affect the identity result.
+
+## Prohibitions respected
+No conversion POST, no credential extraction/fabrication, no CSRF bypass, no ad-hoc SQL, no migration, no production/backup writes, no WLED/LED commands, no restarts, no HA changes, no source changes, no next task.
