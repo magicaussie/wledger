@@ -83,6 +83,10 @@ type Querier interface {
 	DeleteWall(ctx context.Context, id int64) error
 	DeleteWallCardsByWallID(ctx context.Context, wallID int64) error
 	FindExistingPartByProviderRef(ctx context.Context, arg FindExistingPartByProviderRefParams) (Part, error)
+	// Returns old_value/new_value plus explicit NULL flags so a backup can preserve
+	// SQL NULL distinctly from a JSON null or an empty object. The value columns are
+	// coalesced to '{}' only so they are always scannable; the flags carry the true
+	// NULL state. The audit UI uses ListAuditLogs, which coalesces NULL for display.
 	GetAllAuditLogs(ctx context.Context) ([]GetAllAuditLogsRow, error)
 	GetAllBins(ctx context.Context) ([]Bin, error)
 	GetAllContainers(ctx context.Context) ([]Container, error)

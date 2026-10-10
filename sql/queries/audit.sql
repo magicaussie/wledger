@@ -1,4 +1,8 @@
 -- name: GetAllAuditLogs :many
+-- Returns old_value/new_value plus explicit NULL flags so a backup can preserve
+-- SQL NULL distinctly from a JSON null or an empty object. The value columns are
+-- coalesced to '{}' only so they are always scannable; the flags carry the true
+-- NULL state. The audit UI uses ListAuditLogs, which coalesces NULL for display.
 SELECT 
     id, 
     user_id, 
@@ -8,6 +12,8 @@ SELECT
     details, 
     CAST(COALESCE(old_value, '{}') AS BLOB) as old_value, 
     CAST(COALESCE(new_value, '{}') AS BLOB) as new_value, 
+    old_value IS NULL as old_value_null,
+    new_value IS NULL as new_value_null,
     created_at 
 FROM audit_logs 
 ORDER BY id;

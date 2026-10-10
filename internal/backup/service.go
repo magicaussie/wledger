@@ -26,6 +26,10 @@ type Service interface {
 	Restore(ctx context.Context, zipReader io.ReaderAt, size int64) error
 }
 
+// renameEntry is os.Rename, indirected so tests can inject filesystem failures
+// into the uploads swap.
+var renameEntry = os.Rename
+
 // RestoreCommittedError reports that a restore committed its data and files but
 // a post-restore step did not complete cleanly: drawer allocation processing
 // failed, or the restored LED coordinate space remains unresolved. It is a
@@ -75,17 +79,17 @@ func (s *service) Export(ctx context.Context, w io.Writer) error {
 	docs, _ := s.store.GetAllPartDocs(ctx)
 	prompts, _ := s.store.GetAllPartAiPrompts(ctx)
 	logs, _ := s.store.GetAllAuditLogs(ctx)
-	var auditLogs []db.AuditLog
+	var auditLogs []AuditLogEntry
 	for _, l := range logs {
-		auditLogs = append(auditLogs, db.AuditLog{
+		auditLogs = append(auditLogs, AuditLogEntry{
 			ID:         l.ID,
 			UserID:     l.UserID,
 			ActionType: l.ActionType,
 			EntityType: l.EntityType,
 			EntityID:   l.EntityID,
 			Details:    l.Details,
-			OldValue:   json.RawMessage(l.OldValue),
-			NewValue:   json.RawMessage(l.NewValue),
+			OldValue:   auditRawValue(l.OldValue, l.OldValueNull),
+			NewValue:   auditRawValue(l.NewValue, l.NewValueNull),
 			CreatedAt:  l.CreatedAt,
 		})
 	}
@@ -467,15 +471,17 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 		return err
 	}
 
-	// Atomic swap of assets
+	// Swap the staged uploads into place. The database has already been committed,
+	// so a failure here is reported as a committed-with-warning error rather than a
+	// failed restore. The previous uploads are moved aside (never overwritten in
+	// place) and are deleted only after the swap has fully succeeded, so a failed
+	// swap never destroys the only copy of the previous files.
 	s.logger.Debug("swapping upload contents", "dir", s.uploadsDir)
 
-	// Create backup folder inside uploadsDir
 	backupDir := filepath.Join(s.uploadsDir, fmt.Sprintf(".uploads_bak_%d", timestamp))
 	if err := os.MkdirAll(backupDir, 0755); err != nil {
-		return fmt.Errorf("failed to create backup dir: %w", err)
+		return &RestoreCommittedError{Reason: "failed to create uploads backup directory: " + err.Error()}
 	}
-	defer os.RemoveAll(backupDir)
 
 	// Helper to move contents
 	moveContents := func(src, dst string) error {
@@ -490,26 +496,42 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 			}
 			srcPath := filepath.Join(src, entry.Name())
 			dstPath := filepath.Join(dst, entry.Name())
-			if err := os.Rename(srcPath, dstPath); err != nil {
+			if err := renameEntry(srcPath, dstPath); err != nil {
 				return err
 			}
 		}
 		return nil
 	}
 
-	// Move current contents to backup
+	// 1. Move the current uploads aside. Nothing new has been placed yet, so a
+	// failure here leaves the previous uploads recoverable.
 	if err := moveContents(s.uploadsDir, backupDir); err != nil {
-		return fmt.Errorf("failed to move current uploads to backup: %w", err)
+		if rbErr := moveContents(backupDir, s.uploadsDir); rbErr != nil {
+			s.logger.Error("FATAL: failed to restore uploads after staging failure", "err", rbErr, "backup_dir", backupDir)
+			return &RestoreCommittedError{Reason: "uploads staging failed and rollback failed; previous uploads preserved at " + backupDir}
+		}
+		return &RestoreCommittedError{Reason: "failed to stage current uploads: " + err.Error()}
 	}
 
-	// Move new contents from temp to live
+	// 2. Move the new uploads into place. On failure, unstage any new files that
+	// were already placed and restore the previous uploads, so the live directory
+	// is never left as a mix of old and new files.
 	if err := moveContents(tempDir, s.uploadsDir); err != nil {
-		s.logger.Error("failed to move new uploads to live, attempting rollback", "err", err)
-		// Rollback
-		if rbErr := moveContents(backupDir, s.uploadsDir); rbErr != nil {
-			s.logger.Error("FATAL: rollback failed", "err", rbErr)
+		s.logger.Error("failed to move new uploads into place, rolling back", "err", err)
+		if mvErr := moveContents(s.uploadsDir, tempDir); mvErr != nil {
+			s.logger.Error("FATAL: failed to unstage new uploads", "err", mvErr, "backup_dir", backupDir)
+			return &RestoreCommittedError{Reason: "uploads swap failed and rollback failed; previous uploads preserved at " + backupDir}
 		}
-		return fmt.Errorf("failed to swap new uploads: %w", err)
+		if rbErr := moveContents(backupDir, s.uploadsDir); rbErr != nil {
+			s.logger.Error("FATAL: failed to restore previous uploads", "err", rbErr, "backup_dir", backupDir)
+			return &RestoreCommittedError{Reason: "uploads swap failed and rollback failed; previous uploads preserved at " + backupDir}
+		}
+		return &RestoreCommittedError{Reason: "failed to swap new uploads: " + err.Error()}
+	}
+
+	// 3. The swap succeeded; the previous uploads are no longer needed.
+	if err := os.RemoveAll(backupDir); err != nil {
+		s.logger.Warn("failed to remove uploads backup directory", "err", err, "dir", backupDir)
 	}
 
 	// The data and files are committed from here on. Any remaining problem is a
@@ -537,6 +559,28 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 	}
 
 	return nil
+}
+
+// auditRawValue returns the raw JSON for a stored audit value, or nil (which is
+// omitted from the manifest) when the column is SQL NULL. This preserves SQL NULL
+// distinctly from a JSON null ("null") or an empty object ("{}").
+func auditRawValue(v []byte, isNull bool) json.RawMessage {
+	if isNull {
+		return nil
+	}
+	return json.RawMessage(v)
+}
+
+// auditJSONValue converts a raw JSON audit value into a value SQLite can store.
+// An absent value (SQL NULL on export) becomes SQL NULL; any present value is
+// stored as its raw JSON text, so SQL NULL, JSON null, empty objects, arrays,
+// strings, numbers and booleans all round-trip with their original meaning. The
+// read queries coalesce a SQL NULL value to '{}' for display.
+func auditJSONValue(raw json.RawMessage) interface{} {
+	if len(raw) == 0 {
+		return nil
+	}
+	return []byte(raw)
 }
 
 // resolveBinIndexSpace determines the coordinate system of a backup's bin LED
@@ -689,7 +733,17 @@ func (s *service) restoreData(ctx context.Context, qtx db.Querier, manifest Mani
 		}
 	}
 	for _, l := range manifest.AuditLogs {
-		if err := qtx.RestoreAuditLog(ctx, db.RestoreAuditLogParams(l)); err != nil {
+		if err := qtx.RestoreAuditLog(ctx, db.RestoreAuditLogParams{
+			ID:         l.ID,
+			UserID:     l.UserID,
+			ActionType: l.ActionType,
+			EntityType: l.EntityType,
+			EntityID:   l.EntityID,
+			Details:    l.Details,
+			OldValue:   auditJSONValue(l.OldValue),
+			NewValue:   auditJSONValue(l.NewValue),
+			CreatedAt:  l.CreatedAt,
+		}); err != nil {
 			return fmt.Errorf("audit log restore: %w", err)
 		}
 	}

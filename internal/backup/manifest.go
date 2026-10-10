@@ -1,10 +1,30 @@
 package backup
 
 import (
+	"database/sql"
+	"encoding/json"
 	"time"
 
 	"github.com/tuxedocurly/wledger/internal/db"
 )
+
+// AuditLogEntry is the backup representation of an audit log. old_value and
+// new_value are kept as raw JSON (rather than a decoded interface{}) so the exact
+// stored JSON is preserved across a backup/restore round trip, every JSON value
+// type is supported, and malformed JSON is rejected when the manifest is decoded.
+// The JSON field names match the historical manifest, so existing archives remain
+// compatible.
+type AuditLogEntry struct {
+	ID         int64           `json:"id"`
+	UserID     sql.NullInt64   `json:"user_id"`
+	ActionType string          `json:"action_type"`
+	EntityType string          `json:"entity_type"`
+	EntityID   int64           `json:"entity_id"`
+	Details    sql.NullString  `json:"details"`
+	OldValue   json.RawMessage `json:"old_value,omitempty"`
+	NewValue   json.RawMessage `json:"new_value,omitempty"`
+	CreatedAt  sql.NullTime    `json:"created_at"`
+}
 
 type Manifest struct {
 	Version    string    `json:"version"`
@@ -28,7 +48,7 @@ type Manifest struct {
 	PartAiPrompts       []db.PartAiPrompt       `json:"part_ai_prompts"`
 	Tags                []db.Tag                `json:"tags"`
 	PartTags            []db.PartTag            `json:"part_tags"`
-	AuditLogs           []db.AuditLog           `json:"audit_logs"`
+	AuditLogs           []AuditLogEntry         `json:"audit_logs"`
 	SupplierRefs        []db.SupplierReference  `json:"supplier_references,omitempty"`
 	PartParameters      []db.PartParameter      `json:"part_parameters,omitempty"`
 	PartPricing         []db.PartPricing        `json:"part_pricing,omitempty"`

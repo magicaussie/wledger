@@ -86,23 +86,31 @@ SELECT
     details, 
     CAST(COALESCE(old_value, '{}') AS BLOB) as old_value, 
     CAST(COALESCE(new_value, '{}') AS BLOB) as new_value, 
+    old_value IS NULL as old_value_null,
+    new_value IS NULL as new_value_null,
     created_at 
 FROM audit_logs 
 ORDER BY id
 `
 
 type GetAllAuditLogsRow struct {
-	ID         int64          `json:"id"`
-	UserID     sql.NullInt64  `json:"user_id"`
-	ActionType string         `json:"action_type"`
-	EntityType string         `json:"entity_type"`
-	EntityID   int64          `json:"entity_id"`
-	Details    sql.NullString `json:"details"`
-	OldValue   []byte         `json:"old_value"`
-	NewValue   []byte         `json:"new_value"`
-	CreatedAt  sql.NullTime   `json:"created_at"`
+	ID           int64          `json:"id"`
+	UserID       sql.NullInt64  `json:"user_id"`
+	ActionType   string         `json:"action_type"`
+	EntityType   string         `json:"entity_type"`
+	EntityID     int64          `json:"entity_id"`
+	Details      sql.NullString `json:"details"`
+	OldValue     []byte         `json:"old_value"`
+	NewValue     []byte         `json:"new_value"`
+	OldValueNull bool           `json:"old_value_null"`
+	NewValueNull bool           `json:"new_value_null"`
+	CreatedAt    sql.NullTime   `json:"created_at"`
 }
 
+// Returns old_value/new_value plus explicit NULL flags so a backup can preserve
+// SQL NULL distinctly from a JSON null or an empty object. The value columns are
+// coalesced to '{}' only so they are always scannable; the flags carry the true
+// NULL state. The audit UI uses ListAuditLogs, which coalesces NULL for display.
 func (q *Queries) GetAllAuditLogs(ctx context.Context) ([]GetAllAuditLogsRow, error) {
 	rows, err := q.query(ctx, q.getAllAuditLogsStmt, getAllAuditLogs)
 	if err != nil {
@@ -121,6 +129,8 @@ func (q *Queries) GetAllAuditLogs(ctx context.Context) ([]GetAllAuditLogsRow, er
 			&i.Details,
 			&i.OldValue,
 			&i.NewValue,
+			&i.OldValueNull,
+			&i.NewValueNull,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
