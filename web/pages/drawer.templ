@@ -22,7 +22,9 @@ type DrawerBin struct {
 }
 
 // DrawerDetail is the drawer (container) view. Scanning a drawer QR lands here;
-// the page highlights the drawer's LEDs on load and lists its bins and contents.
+// the page lists its bins and contents. Highlighting the drawer's LEDs is
+// manual only: it happens when the operator activates the explicit Locate
+// control, never automatically on page load.
 templ DrawerDetail(user auth.User, drawer db.Container, cabinet db.Controller, bins []DrawerBin) {
 	@layouts.Base(drawer.Name, user) {
 		<div class="max-w-5xl mx-auto w-full">
@@ -50,8 +52,6 @@ templ DrawerDetail(user auth.User, drawer db.Container, cabinet db.Controller, b
 					</a>
 				}
 			}
-			<!-- Highlight the drawer's LEDs on load (e.g. after scanning its QR). -->
-			<div hx-post={ fmt.Sprintf("/drawers/%d/locate", drawer.ID) } hx-trigger="load" hx-swap="none"></div>
 
 			if len(bins) == 0 {
 				@components.EmptyState(i18n.T(ctx, "NoBins"), i18n.T(ctx, "NoBinsInDrawer"), "📦")
