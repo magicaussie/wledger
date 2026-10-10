@@ -34,6 +34,22 @@ The harness is disposable and non-production:
   address is used and no WLED/LED call is made.
 - The temp staging directory is removed on exit.
 
+## Static CSS
+
+The harness serves `web/static` exactly as committed, including
+`web/static/css/output.css`. That file is a generated Tailwind build artifact
+and may lag behind the templates. If the Wall modal metadata looks unstyled
+(for example `Controller: …` and `Segment: …` running together), regenerate it
+before running:
+
+```sh
+npm run build:css
+```
+
+The production Docker image always regenerates `output.css` in its
+`css-builder` stage, so this stale-artifact caveat only affects local and
+harness runs, not deployed builds.
+
 ## Running
 
 From the repository root:
