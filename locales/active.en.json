@@ -51,6 +51,10 @@
     "description": "Empty state title for a wall without containers",
     "other": "No containers on this wall"
   },
+  "NoBinsMapped": {
+    "description": "Empty state shown when a container has no grid-mapped bins",
+    "other": "No bins mapped to this container."
+  },
   "AddContainerToWallPrompt": {
     "description": "Instruction to add a container to a wall",
     "other": "Click the Edit Wall button above to add a container."

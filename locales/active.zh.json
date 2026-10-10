@@ -38,6 +38,9 @@
   "NoContainersOnWall": {
     "other": "此墙面上没有容器"
   },
+  "NoBinsMapped": {
+    "other": "此容器未映射任何料箱。"
+  },
   "AddContainerToWallPrompt": {
     "other": "点击上方的编辑墙面按钮以添加容器。"
   },

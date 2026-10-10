@@ -38,6 +38,9 @@
   "NoContainersOnWall": {
     "other": "Keine Container an dieser Wand"
   },
+  "NoBinsMapped": {
+    "other": "Diesem Container sind keine Fächer zugeordnet."
+  },
   "AddContainerToWallPrompt": {
     "other": "Klicken Sie oben auf die Schaltfläche Wand bearbeiten, um einen Container hinzuzufügen."
   },

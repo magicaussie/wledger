@@ -38,6 +38,9 @@
   "NoContainersOnWall": {
     "other": "Nenhum contêiner nesta parede"
   },
+  "NoBinsMapped": {
+    "other": "Nenhuma caixa atribuída a este contêiner."
+  },
   "AddContainerToWallPrompt": {
     "other": "Clique no botão Editar Parede acima para adicionar um contêiner."
   },

@@ -38,6 +38,9 @@
   "NoContainersOnWall": {
     "other": "Aucun conteneur sur ce mur"
   },
+  "NoBinsMapped": {
+    "other": "Aucun bac associé à ce conteneur."
+  },
   "AddContainerToWallPrompt": {
     "other": "Cliquez sur le bouton Modifier le mur ci-dessus pour ajouter un conteneur."
   },

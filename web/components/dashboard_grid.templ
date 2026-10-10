@@ -3,6 +3,8 @@ package components
 import (
 	"fmt"
 	"sort"
+
+	"github.com/tuxedocurly/wledger/internal/i18n"
 )
 
 // DashboardBin represents a single cell on the dashboard
@@ -141,22 +143,26 @@ templ DashboardGrid(ctrl DashboardController) {
 								<div class="shrink-0 text-sm font-mono opacity-40">ID: { fmt.Sprintf("%d", container.ID) }</div>
 							</div>
 							<div class="overflow-x-auto bg-base-100 rounded-lg border border-base-300 p-4 shadow-sm">
-								<div
-									class="grid gap-1.5"
-									style="width: fit-content; min-width: 100%;"
-								>
-									for _, bin := range container.Bins {
-										<a
-											href={ templ.SafeURL(fmt.Sprintf("/parts?bin=%d", bin.ID)) }
-											class={ "w-12 h-12 min-w-0 overflow-hidden rounded-md border border-base-300 flex items-center justify-center text-xs font-bold shadow-sm hover:scale-110 hover:shadow-md hover:z-10 hover:border-base-content/50 transition-all duration-200 cursor-pointer " + bin.GetClass() }
-											style={ bin.GetStyle() }
-											title={ bin.Name }
-											aria-label={ bin.Name }
-										>
-											<span class="block max-w-full px-1 truncate text-center leading-tight drop-shadow-md filter invert-0 grayscale-0 brightness-100">{ bin.Name }</span>
-										</a>
-									}
-								</div>
+								if len(container.Bins) == 0 {
+									<p class="py-6 text-center text-sm opacity-70">{ i18n.T(ctx, "NoBinsMapped") }</p>
+								} else {
+									<div
+										class="grid gap-1.5"
+										style="width: fit-content; min-width: 100%;"
+									>
+										for _, bin := range container.Bins {
+											<a
+												href={ templ.SafeURL(fmt.Sprintf("/parts?bin=%d", bin.ID)) }
+												class={ "w-12 h-12 min-w-0 overflow-hidden rounded-md border border-base-300 flex items-center justify-center text-xs font-bold shadow-sm hover:scale-110 hover:shadow-md hover:z-10 hover:border-base-content/50 transition-all duration-200 cursor-pointer " + bin.GetClass() }
+												style={ bin.GetStyle() }
+												title={ bin.Name }
+												aria-label={ bin.Name }
+											>
+												<span class="block max-w-full px-1 truncate text-center leading-tight drop-shadow-md filter invert-0 grayscale-0 brightness-100">{ bin.Name }</span>
+											</a>
+										}
+									</div>
+								}
 							</div>
 						</div>
 					}

@@ -38,6 +38,9 @@
   "NoContainersOnWall": {
     "other": "Nessun contenitore su questa parete"
   },
+  "NoBinsMapped": {
+    "other": "Questo contenitore non ha bin associati."
+  },
   "AddContainerToWallPrompt": {
     "other": "Clicca sul pulsante Modifica Parete sopra per aggiungere un contenitore."
   },
