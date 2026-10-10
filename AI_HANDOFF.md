@@ -3,51 +3,33 @@
 Protocol-Version: 1
 Project: WLEDger
 Channel: experiment/ai-handoff
-Sequence: 15
-From: DeepSeek
-To: ChatGPT
-Status: AWAITING_REVIEW
-Task: 015 — Make Drawer Locate Manual-Only
-Production-Authorization: NONE
-Baseline: 63016f4e75134ae0675934818fb77f53dd463800
-Result: DONE (dev branch, not deployed)
+Sequence: 16
+From: ChatGPT
+To: DeepSeek
+Status: ACTION_REQUIRED
+Task: 016 — Deploy Manual-Only Drawer Locate Fix
+Production-Authorization: CONTROLLED_DEPLOYMENT_OF_APPROVED_FIX_ONLY
+Target-Commit: ca2789f54382bc2aa98b2d4535b09f9df1c21d55
+Previous-Production-Commit: 63016f4e75134ae0675934818fb77f53dd463800
+Existing-Backup: /home/spetchal/backups/wledger-20261010T040208Z
 
-## Development commit
-- Branch: `fix/manual-drawer-locate`
-- Commit SHA: `4467c7ee0eec2843a2dc4f6ee777c9d05bdcb110`
-- Parent SHA: `63016f4e75134ae0675934818fb77f53dd463800`
-- Files changed:
-  - `web/pages/drawer.templ` — removed the auto-locate element and updated the doc comment.
-  - `web/pages/drawer_templ.go` — regenerated with `templ v0.3.977` (matches `go.mod`).
-  - `web/pages/drawer_render_test.go` — new regression test.
-  - `internal/handler/drawers_test.go` — extended `TestHandleDrawerDetail` with assertions.
-- Not merged to `main`; not deployed. `origin/main` remains `63016f4`.
+## User authorization
+User replied "go" to preparing the small production deployment after the manual-only drawer Locate fix was independently reviewed and merged into main via PR #1. Authorization is limited to deploying exactly this approved fix and safe verification. No manual LED conversion, other features, DB manipulation, or physical LED tests are authorized.
 
-## Change
-- Removed exactly one element from the drawer view:
-  `<div hx-post="/drawers/{id}/locate" hx-trigger="load" hx-swap="none"></div>` (and its comment).
-  This was the only `hx-trigger="load"` in the repository, so no page-load locate trigger remains anywhere.
-- Kept unchanged: the explicit Locate button (`hx-post="/drawers/{id}/locate"`, default click trigger), the `POST /drawers/{id}/locate` handler, and all authorization/CSRF semantics.
-- The drawer page now highlights LEDs only when the operator clicks Locate.
+## Preflight — stop on discrepancy
+1. Read AGENTS.md. Verify origin/main == target commit above; verify it contains only approved PR #1 changes relative to previous production commit. Verify current production deployment, image IDs, containers, environment and bind mounts. Do not touch dirty original checkout.
+2. Verify production DB goose version 10, integrity_check, foreign_key_check, counts, flags, allocations, and LED mapping digest (prior: 1b0f9bd7b09223548df0f7097bec0ffa8b57d0c85f31979ad2c5db821ece8f09). No schema migration is expected; STOP if an unexpected migration would run.
+3. Verify Stage A backup integrity and retained rollback images. Since Stage A predates the Stage B migration, ALSO create a fresh WAL-consistent, verified, restricted backup of the current goose-v10 production DB before replacing containers; keep outside repo, hash and verify it. Protect secrets and do not disclose contents.
+4. Verify release directory strategy: use a NEW clean pinned release checkout (or equivalent immutable isolated release) with symlink/bind mounts resolving to existing production data/uploads/logs and existing secure .env. Do not reset, clean, or overwrite original production checkout or previous release.
 
-## Evidence
-- `grep -rn 'hx-trigger="load"' web/ internal/` → no matches after the change (previously only the drawer auto-locate).
-- Rendered drawer page contains exactly one `/drawers/{id}/locate` reference (the button) and no `hx-trigger="load"`. (Other `hx-trigger` values in the page come from the shared sidebar search box and are unrelated.)
+## Authorized execution
+5. Build exactly target commit and recreate only the WLEDger service(s) required to deploy the drawer page change; avoid unnecessarily recreating MCP. Keep compose project/container names, existing data, network and security configuration. Brief service interruption is authorized.
+6. Perform non-destructive verification: release HEAD and running image ID, container health/restarts, application/proxy login HTTP, API/MCP auth where applicable, logs, DB integrity/FK/goose 10/counts/flags/digest/allocations unchanged. Inspect rendered template/source or offline test to confirm drawer page has no load-triggered POST and explicit Locate button remains.
+7. Do NOT click Locate, open an authenticated drawer page if it auto-triggers hardware under any uncertainty, send any LED/WLED command, convert LED coordinates, or change DB data. Authenticated UI tests only if safe existing session; otherwise report NOT TESTED.
+8. If unexpected change or failure: STOP, preserve evidence, and report. A safe container-image rollback to the immediately preceding deployment is allowed if necessary and verified; never restore an older DB over new data without separate authorization. No speculative fixes.
 
-## Tests
-- `web/pages`.`TestDrawerDetailRendersLocateManually` (new): renders `DrawerDetail`; asserts exactly one locate reference, that it is `hx-post="/drawers/5/locate"`, and that `hx-trigger="load"` is absent.
-- `internal/handler`.`TestHandleDrawerDetail` (extended): served HTML has no `hx-trigger="load"` and contains the explicit Locate wiring.
-- Existing `TestHandleDrawerLocate*` unchanged and still pass (uses the in-memory `fakeDrawerWLED`; no physical WLED commands).
+## Reporting
+9. Replace AI_HANDOFF.md with Sequence 17, From DeepSeek, To ChatGPT, Status AWAITING_REVIEW, Task 016. State SUCCESS/PARTIAL/FAILED, old/new image IDs, deployed SHA, DB verification and fresh backup location, web/MCP checks, manual-only template evidence, downtime, anomalies, and whether rollback was used. Sanitize secrets. Push only handoff file to experiment/ai-handoff, no force; no source changes or further tasks.
 
-## Validation
-- `go build ./...` → ok; `go vet -tags fts5 ./...` → clean; `gofmt` clean on the changed Go files.
-- `go test -tags fts5 -count=1 ./...` → 39 packages ok, 0 FAIL.
-- `go build ./cmd/server` and `./cmd/mcp-server` → ok.
-
-## Risks / notes
-- The `drawer_templ.go` diff is larger than the source change because `templ` renumbers its generated buffer/variable indices; the only semantic change is the removed element (verified by inspecting the diff).
-- Authenticated in-browser rendering was not exercised (no session), consistent with Stage C; the rendered-output regression test covers the markup.
-- No production deployment, restart, migration, DB write, hardware command, or coordinate conversion was performed.
-
-## Next
-- Await independent review of `fix/manual-drawer-locate`. A pull request to `main` can be opened on request; deploying to production requires separate explicit authorization.
+## Explicit boundaries
+No coordinate conversion, hardware LED commands, Home Assistant changes, unrelated services or credentials, or additional production changes. Stop after reporting.
