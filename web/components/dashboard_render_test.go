@@ -3,6 +3,9 @@ package components
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -230,5 +233,114 @@ func TestDashboardGridEmptyContainer(t *testing.T) {
 
 	if !strings.Contains(out, "No bins mapped to this container.") {
 		t.Errorf("expected the empty-bin message in the legacy grid")
+	}
+}
+
+// TestDashboardContainerCardButtonIsPhrasingContent verifies the trigger button
+// contains only phrasing content (spans), never block-level containers, and that
+// the stock health indicator still renders inside it.
+func TestDashboardContainerCardButtonIsPhrasingContent(t *testing.T) {
+	container := DashboardContainer{
+		ID: 22, Name: "Drawer", ControllerName: "Ctrl", ControllerOnline: true,
+		Bins: []DashboardBin{{ID: 23, Name: "B1", GridX: 0, GridY: 0, Statuses: []string{"ok"}}},
+	}
+
+	var buf bytes.Buffer
+	if err := DashboardContainerCard(container).Render(context.Background(), &buf); err != nil {
+		t.Fatalf("render failed: %v", err)
+	}
+	out := buf.String()
+
+	start := strings.Index(out, "<button")
+	end := strings.Index(out, "</button>")
+	if start == -1 || end == -1 || end < start {
+		t.Fatalf("could not locate the trigger button in the output")
+	}
+	btn := out[start : end+len("</button>")]
+
+	blockTags := []string{
+		"<div", "<h1", "<h2", "<h3", "<h4", "<h5", "<h6", "<p",
+		"<ul", "<ol", "<li", "<section", "<article", "<header", "<footer",
+		"<nav", "<table", "<form",
+	}
+	for _, tag := range blockTags {
+		if strings.Contains(btn, tag) {
+			t.Errorf("button must contain only phrasing content, found %q", tag)
+		}
+	}
+	if !strings.Contains(btn, "<span") {
+		t.Errorf("expected the button interior to use span elements")
+	}
+	if !strings.Contains(btn, "w-14 h-14 rounded-full") {
+		t.Errorf("expected the stock health indicator to render inside the button")
+	}
+}
+
+// TestDashboardContainerCardLocalizedLabel verifies the trigger aria-label is
+// localized (English) and includes the container name.
+func TestDashboardContainerCardLocalizedLabel(t *testing.T) {
+	container := DashboardContainer{ID: 21, Name: "Drawer", ControllerName: "Ctrl", ControllerOnline: true}
+
+	var buf bytes.Buffer
+	if err := DashboardContainerCard(container).Render(context.Background(), &buf); err != nil {
+		t.Fatalf("render failed: %v", err)
+	}
+	out := buf.String()
+
+	if !strings.Contains(out, `aria-label="Open container: Drawer"`) {
+		t.Errorf("expected the localized aria-label, got: %s", out)
+	}
+}
+
+// TestDashboardContainerCardLabelEscapesName verifies a container name with
+// HTML-significant characters is escaped in the rendered label.
+func TestDashboardContainerCardLabelEscapesName(t *testing.T) {
+	container := DashboardContainer{
+		ID: 20, Name: `Drawer <script> & "quotes"`, ControllerName: "Ctrl", ControllerOnline: true,
+	}
+
+	var buf bytes.Buffer
+	if err := DashboardContainerCard(container).Render(context.Background(), &buf); err != nil {
+		t.Fatalf("render failed: %v", err)
+	}
+	out := buf.String()
+
+	if strings.Contains(out, "<script>") {
+		t.Errorf("container name must be HTML-escaped in the label")
+	}
+	if !strings.Contains(out, "&lt;script&gt;") {
+		t.Errorf("expected the escaped container name in the output")
+	}
+}
+
+// TestOpenContainerKeyInAllLocales verifies every locale dictionary defines the
+// OpenContainer key with the {{.Name}} placeholder used by i18n.TD.
+func TestOpenContainerKeyInAllLocales(t *testing.T) {
+	files, err := filepath.Glob("../../locales/active.*.json")
+	if err != nil {
+		t.Fatalf("glob locales: %v", err)
+	}
+	if len(files) != 8 {
+		t.Errorf("expected 8 locale files, got %d", len(files))
+	}
+	for _, f := range files {
+		data, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatalf("read %s: %v", f, err)
+		}
+		var msgs map[string]struct {
+			Other string `json:"other"`
+		}
+		if err := json.Unmarshal(data, &msgs); err != nil {
+			t.Fatalf("parse %s: %v", f, err)
+		}
+		msg, ok := msgs["OpenContainer"]
+		if !ok {
+			t.Errorf("%s: missing OpenContainer key", f)
+			continue
+		}
+		if !strings.Contains(msg.Other, "{{.Name}}") {
+			t.Errorf("%s: OpenContainer must contain the {{.Name}} placeholder, got %q", f, msg.Other)
+		}
 	}
 }

@@ -41,6 +41,9 @@
   "NoBinsMapped": {
     "other": "Diesem Container sind keine Fächer zugeordnet."
   },
+  "OpenContainer": {
+    "other": "Container öffnen: {{.Name}}"
+  },
   "AddContainerToWallPrompt": {
     "other": "Klicken Sie oben auf die Schaltfläche Wand bearbeiten, um einen Container hinzuzufügen."
   },

@@ -41,6 +41,9 @@
   "NoBinsMapped": {
     "other": "此容器未映射任何料箱。"
   },
+  "OpenContainer": {
+    "other": "打开容器：{{.Name}}"
+  },
   "AddContainerToWallPrompt": {
     "other": "点击上方的编辑墙面按钮以添加容器。"
   },

@@ -55,6 +55,10 @@
     "description": "Empty state shown when a container has no grid-mapped bins",
     "other": "No bins mapped to this container."
   },
+  "OpenContainer": {
+    "description": "Accessible label for the button that opens a container's bin grid",
+    "other": "Open container: {{.Name}}"
+  },
   "AddContainerToWallPrompt": {
     "description": "Instruction to add a container to a wall",
     "other": "Click the Edit Wall button above to add a container."

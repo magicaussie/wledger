@@ -54,6 +54,9 @@
   "NoBinsMapped": {
     "other": "Este contenedor no tiene bins asignados."
   },
+  "OpenContainer": {
+    "other": "Abrir contenedor: {{.Name}}"
+  },
   "AddContainerToWallPrompt": {
     "description": "Instruction to add a container to a wall",
     "other": "Haga clic en el botón Editar Muro arriba para agregar un contenedor."

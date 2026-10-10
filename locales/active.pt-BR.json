@@ -41,6 +41,9 @@
   "NoBinsMapped": {
     "other": "Nenhuma caixa atribuída a este contêiner."
   },
+  "OpenContainer": {
+    "other": "Abrir contêiner: {{.Name}}"
+  },
   "AddContainerToWallPrompt": {
     "other": "Clique no botão Editar Parede acima para adicionar um contêiner."
   },

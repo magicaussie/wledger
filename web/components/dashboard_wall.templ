@@ -13,25 +13,25 @@ templ DashboardContainerCard(container DashboardContainer) {
 			class="card h-full w-full text-left bg-base-100 shadow-xl border border-base-300 hover:shadow-2xl transition-all duration-300 cursor-pointer group overflow-hidden"
 			@click="open()"
 			aria-haspopup="dialog"
-			aria-label={ fmt.Sprintf("Open %s", container.Name) }
+			aria-label={ i18n.TD(ctx, "OpenContainer", map[string]interface{}{"Name": container.Name}) }
 		>
-			<div class="card-body p-5">
-				<div class="flex min-w-0 justify-between items-start gap-2 mb-2">
-					<div class="flex min-w-0 flex-1 flex-col">
-						<h2 class="truncate font-bold text-sm uppercase tracking-wider opacity-50 group-hover:opacity-100 transition-opacity" title={ container.Name }>{ container.Name }</h2>
-						<span class="truncate text-[12px] opacity-40 uppercase tracking-widest" title={ container.ControllerName }>{ container.ControllerName } • { i18n.T(ctx, "Segment") } { fmt.Sprintf("%d", container.SegmentID) }</span>
-					</div>
-					<div class={ "badge badge-xs shrink-0", templ.KV("badge-success", container.ControllerOnline), templ.KV("badge-error", !container.ControllerOnline) }></div>
-				</div>
-				<div class="flex items-center gap-4 mt-4 bg-base-200 p-3 rounded-lg border border-base-300 shadow-inner">
+			<span class="card-body p-5">
+				<span class="flex min-w-0 justify-between items-start gap-2 mb-2">
+					<span class="flex min-w-0 flex-1 flex-col">
+						<span class="block truncate font-bold text-sm uppercase tracking-wider opacity-50 group-hover:opacity-100 transition-opacity" title={ container.Name }>{ container.Name }</span>
+						<span class="block truncate text-[12px] opacity-40 uppercase tracking-widest" title={ container.ControllerName }>{ container.ControllerName } • { i18n.T(ctx, "Segment") } { fmt.Sprintf("%d", container.SegmentID) }</span>
+					</span>
+					<span class={ "badge badge-xs shrink-0", templ.KV("badge-success", container.ControllerOnline), templ.KV("badge-error", !container.ControllerOnline) }></span>
+				</span>
+				<span class="flex items-center gap-4 mt-4 bg-base-200 p-3 rounded-lg border border-base-300 shadow-inner">
 					<!-- Stock Health Indicator (Color Wheel Style) -->
 					@StockHealthIndicator(container.Bins)
-					<div class="flex flex-col">
+					<span class="flex flex-col">
 						<span class="text-2xl font-black leading-none">{ fmt.Sprintf("%d", len(container.Bins)) }</span>
 						<span class="text-xs opacity-50 uppercase font-bold tracking-tighter">{ i18n.T(ctx, "TotalBins") }</span>
-					</div>
-				</div>
-			</div>
+					</span>
+				</span>
+			</span>
 		</button>
 		<!-- Grid Preview Modal -->
 		<dialog x-ref="modal" class="modal modal-bottom sm:modal-middle" @click.stop>
@@ -139,5 +139,5 @@ templ StockHealthIndicator(bins []DashboardBin) {
 			}
 		}
 	}}
-	<div class={ classes } style={ style }></div>
+	<span class={ classes } style={ style }></span>
 }
