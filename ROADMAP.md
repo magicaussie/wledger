@@ -212,3 +212,20 @@ A part type may be stocked in multiple bins, with quantities tracked per locatio
 - Custom physical placement of LEDs may be needed for irregular installations; keep schema extensible rather than restricting to a single side enum.
 
 **Roadmap changelog:** v0.4 — flexible frame/drawer/backlit LED mounting and separation of physical placement from electrical mapping.
+
+
+## Design update — 2026-10-11: general-purpose, data-driven storage schema
+
+**Confirmed:** The product is for many users with different cabinet and drawer layouts. The user's 69-drawer installation is **one instance**, never a fixed schema limit, default shape, or hardcoded topology.
+
+**Database architecture requirements:**
+- Arbitrary numbers of cabinets, drawers per cabinet, bins per drawer, and parts per bin, subject only to reasonable resource/validation limits.
+- Independently configurable drawer and bin geometry (positions, dimensions, layout coordinate system); no fixed 69 rows, fixed columns, or predetermined drawer counts.
+- One controller per cabinet in the current product concept; multiple electrical strings/segments and multiple disjoint LED assignments per drawer, represented as child records rather than fixed LED-range columns.
+- Flexible per-string routing/topology and per-LED physical placement as needed; allow different wiring patterns and mounting types across installations.
+- Stable IDs separate from editable drawer/bin labels, numbering, ordering, geometry and LED mapping.
+- Editable at any time, with safe stock relocation/archive workflows and transactional validation; no destructive cascading of inventory as a side effect of layout edits.
+- Migration from legacy production records must be evidence-based; preserve current two string containers and existing 68 mapped bin records until they can be reconciled with the user's 69 physical drawers.
+- Distinguish electrical string/segment, physical drawer, internal bin and inventory assignment as separate entities in the revised schema; avoid repurposing existing `containers` into physical drawers by name alone.
+
+**Roadmap changelog:** v0.5 — flexible multi-user data-driven schema, no cabinet-specific hardcoding.
