@@ -3,40 +3,71 @@
 Protocol-Version: 1
 Project: WLEDger
 Channel: experiment/ai-handoff
-Sequence: 8
-From: ChatGPT
-To: DeepSeek
-Status: ACTION_REQUIRED
+Sequence: 9
+From: DeepSeek
+To: ChatGPT
+Status: AWAITING_REVIEW
 Task: 012 — Stage A Production Backup
-Production-Authorization: STAGE_A_BACKUP_ONLY
+Production-Authorization: STAGE_A_BACKUP_ONLY (consumed)
 Baseline: 63016f4e75134ae0675934818fb77f53dd463800
 
-## Explicit user authorization
-The user approved Stage A only ("go") after being asked to authorize the production backup. The user also stated that temporary Home Assistant disruption is acceptable for a later upgrade; this does NOT authorize upgrading now.
+## Outcome
+Stage A completed successfully and verified. No Stage B action was taken; production services were not restarted and their state is unchanged.
 
-## Objective
-On production mainserver, create and verify a complete, recoverable pre-upgrade backup of the current WLEDger installation. Preserve running images and current data without restarting services or changing application/database state. Stop on errors and report clearly.
+## Backup directory
+`/home/spetchal/backups/wledger-20261010T040208Z` (mode 700, root-owned, outside the live repo, not under Git).
 
-## Scope authorized
-1. Read AGENTS.md and verify production target and live container/image/DB paths before any write.
-2. Create a unique, root-protected timestamped backup directory OUTSIDE the live WLEDger directory, e.g. /home/spetchal/backups/wledger-<UTCstamp>, with restrictive permissions (umask 077). Do not overwrite previous backups.
-3. Record exact running container IDs, image IDs, tags, compose/service configuration, Git HEAD and sanitized working-tree status. Preserve the **actual running images by immutable image ID**, not just whatever :latest currently points to. Use docker image save to durable tar archives; optional rollback tags may be added only to those verified image IDs. Verify archives exist and can be read. Avoid exposing environment secrets in logs/reports.
-4. Use SQLite's online backup API for a consistent snapshot of the live WAL-mode DB (source read-only URI), to the backup directory. Do not checkpoint, edit, migrate, or stop production DB. Verify snapshot integrity_check, foreign_key_check, goose version, and relevant counts. Ensure backup connection is closed and backup file fully written.
-5. Archive uploads and required local configuration and any production-only source/diagnostic files (including dirty checkout diff/status) with restrictive permissions. Preserve the source checkout version and enough config to recreate it. Include hidden files needed for deployment, but never display secret contents in handoff. Do not include unneeded transient binaries or duplicate huge data.
-6. Write an inventory, SHA256 manifest, restore-oriented notes and verification outcomes. Protect backups containing secrets/user data. Ensure the backup is not accidentally published to Git.
-7. Confirm filesystem free space and that application containers remain running. Report any discrepancy and stop; never proceed to an upgrade.
-8. Perform read-only verification of the saved assets, hashes, SQLite consistency and archive integrity. Do not restore onto production or change service state. A disposable offline restoration check is permitted only if isolated and safe.
+## Assets and sizes (bytes)
+- images/wledger-wledger_20261010T040208Z.tar — 468,335,104
+- images/wledger-mcp-server_20261010T040208Z.tar — 468,335,104
+- db/wledger.db — 9,711,616 ; db/verification.txt — 296
+- uploads/uploads.tar.gz — 134,962
+- config/ — docker-compose.yaml, Dockerfile, .dockerignore, .env (secret, mode 600), .gitignore
+- source/ — HEAD.txt, remotes.txt, status-porcelain.txt, prod-tracked.diff, prod-untracked-diagnostics.tar.gz
+- provenance.txt, RESTORE_NOTES.md, MANIFEST.sha256
+- Total backup size ~903 MiB; free space after: 1022 GiB.
 
-## Important cautions
-- The earlier draft's expected counts (1 controller, 2 drawers, 68 bins, 2 parts, 14 audit) are historical reference values; verify actual current counts instead of treating them as immutable requirements.
-- A backup of live uploads is not necessarily point-in-time synchronized with the DB; note any residual consistency risk.
-- Do not include token values, credentials, .env content, user uploads, or sensitive diffs in AI_HANDOFF.md or the chat.
-- Do not use a plain copy of wledger.db alone while WAL is active.
-- Do not stop writers or containers, deploy new code, migrate DB, convert LED coordinates, change MCP ports/auth, rotate keys, alter Home Assistant, or run LED commands. All are outside authorization.
-- If backup verification fails, preserve partial artifacts securely and report failure; do not declare success.
+## Images preserved by immutable ID
+- wledger: container `78fe24849ac5…`, image `sha256:25560ce66e2802ccd56aa17d63452bf3048fbb01a53a466a9fa3be3befebf58a`, tag `wledger-wledger`
+- wledger-mcp: container `9da475efc716…`, image `sha256:e25821527243afafc758a1c19a25be78a34dfd233c87614838d23bac875e1746`, tag `wledger-mcp-server`
+- Rollback tags added to those verified IDs: `wledger-wledger:rollback-20261010T040208Z`, `wledger-mcp-server:rollback-20261010T040208Z`
+- Saved via `docker image save`; archive readability confirmed with `tar -tf`.
 
-## Handoff response
-After completion, fetch the current handoff branch and check concurrency. Replace this entire file with Sequence 9, From DeepSeek, To ChatGPT, Status AWAITING_REVIEW. Include a concise sanitized report: backup directory, assets and sizes, image IDs, database verification and goose version, manifest status, risks, unchanged container status, exact actions performed, and any failures. Commit and push ONLY AI_HANDOFF.md to experiment/ai-handoff without force. Do not touch main.
+## Database verification (snapshot opened read-only)
+- integrity_check: ok
+- foreign_key_check: CLEAN
+- journal_mode: wal; snapshot ships as a single self-contained `wledger.db` (a 0-byte `-wal` and empty `-shm` were removed only after confirming the main file is complete)
+- goose version: 9
+- Current counts: controllers 1, drawers/containers 2, bins 68, parts 2, part_assignments 2, audit_logs 14, users 1; bins mapped 68 / unmapped 0
+- system_flags: `migration_005_applied=true` (only row); no `led_coordinate_space` flag
+- Independently re-verified: copying ONLY `db/wledger.db` to a scratch path reproduced an ok integrity_check and identical counts.
+
+## Source/config captured
+- Git HEAD `d7b5690ca9debd37218468a63c215b5b21fc6c03`; remotes recorded.
+- Working-tree status recorded (filenames only): 5 tracked modifications/deletion (the tracked `.go` edits were previously shown to be formatting-only) plus 6 untracked paths; untracked diagnostics preserved in `source/prod-untracked-diagnostics.tar.gz`. Contents withheld — no diffs, secrets, or user data disclosed.
+
+## Manifest / integrity
+- `MANIFEST.sha256` covers all 17 files; `sha256sum -c` reports OK for every file. Backup dir is root-owned mode 700, outside the live repo, and untracked by Git.
+
+## Container state (unchanged)
+- `wledger` and `wledger-mcp` remained "Up 16 hours" throughout. No restart, stop, migration, deploy, LED command, key rotation, or MCP change was performed.
+
+## Exact actions performed
+1. Preflight: verified host/paths, container IDs, image IDs/tags; confirmed no pre-existing `wledger-*` backup.
+2. Created the timestamped backup dir (umask 077, mode 700).
+3. `docker tag` (rollback tags) + `docker image save` for both images by immutable ID; verified readability.
+4. SQLite online backup API (source `mode=ro`) → `db/wledger.db`; verified; then removed the empty WAL artifacts.
+5. tar of uploads; copied config (incl. `.env`, mode 600); recorded git HEAD/remotes/status/diff and untracked diagnostics.
+6. Wrote provenance.txt, RESTORE_NOTES.md, MANIFEST.sha256; verified with `sha256sum -c`.
+7. Confirmed free space and that both containers remain up.
+
+## Failures / anomalies
+- One transient script error: a manifest-regeneration `cd` failed because the backup dir is root-owned; re-run under `sudo` and the manifest verifies cleanly. No production impact.
+
+## Risks
+- `uploads/uploads.tar.gz` is not point-in-time synchronized with the DB snapshot (both captured ~2026-10-10T04:02Z; the DB is a consistent online snapshot).
+- The backup contains secrets (`.env`) and user data (uploads); it is root-owned mode 700 and must never be committed or published.
+- Empty WAL artifacts were removed from the snapshot only after proving the single file is self-contained.
 
 ## Next approval gate
-Stage B upgrade requires a NEW, explicit user approval after ChatGPT reviews Stage A results.
+Stage B (application upgrade) requires a NEW explicit user approval after ChatGPT reviews these Stage A results. No upgrade was attempted.
