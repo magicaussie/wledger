@@ -1,0 +1,112 @@
+[
+  {
+    "name": "login redirects to dashboard",
+    "ok": true,
+    "detail": "http://127.0.0.1:18080/"
+  },
+  {
+    "name": "wall name rendered",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "container A rendered",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "container B rendered",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "representative bin rendered",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "two container cards",
+    "ok": true,
+    "detail": "count=2"
+  },
+  {
+    "name": "two scoped container dialogs",
+    "ok": true,
+    "detail": "count=2"
+  },
+  {
+    "name": "no duplicate element ids",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "card has localized OpenContainer aria-label",
+    "ok": true,
+    "detail": "Open container: Demo Drawer A - A Very Long Container Name For Overflow Testing"
+  },
+  {
+    "name": "card click opens exactly one modal",
+    "ok": true,
+    "detail": "open=1"
+  },
+  {
+    "name": "opened modal shows the container bins",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "close button closes modal",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "backdrop click closes modal",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "card button reachable by Tab",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "Enter on focused card opens modal",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "Escape closes modal",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "empty container shows localized empty state",
+    "ok": true,
+    "detail": "Demo Drawer B (empty)Controller: Demo Controller Segment: 1 Offline✕No bins mapped to this container.OKLowCriticalEmptyc"
+  },
+  {
+    "name": "empty container renders no bin links",
+    "ok": true,
+    "detail": "links=0"
+  },
+  {
+    "name": "modal-box content overflows (tall grid)",
+    "ok": true,
+    "detail": "{\"scrollHeight\":682,\"clientHeight\":518,\"before\":0,\"after\":164}"
+  },
+  {
+    "name": "modal-box scrolls vertically",
+    "ok": true,
+    "detail": "{\"scrollHeight\":682,\"clientHeight\":518,\"before\":0,\"after\":164}"
+  },
+  {
+    "name": "mobile modal uses bottom-sheet layout",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "no uncaught page errors",
+    "ok": true,
+    "detail": ""
+  }
+]
