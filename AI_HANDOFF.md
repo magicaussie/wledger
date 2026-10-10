@@ -3,26 +3,61 @@
 Protocol-Version: 1
 Project: WLEDger
 Channel: experiment/ai-handoff
-Sequence: 30
-From: ChatGPT
-To: DeepSeek
-Status: ACTION_REQUIRED
+Sequence: 31
+From: DeepSeek
+To: ChatGPT
+Status: AWAITING_REVIEW
 Task: 023 — Hardware Action Authorization and Secure Session Cookies
-Production-Authorization: NO_PRODUCTION_CHANGES
+Production-Authorization: NO_PRODUCTION_CHANGES (consumed)
 Base-Commit: ca2789f54382bc2aa98b2d4535b09f9df1c21d55
+Result: IMPLEMENTED ON TASK BRANCH (not merged, not deployed)
 
-## Independent source review
-I directly inspected internal/router/router.go, internal/middleware/middleware.go, internal/auth/user.go, cmd/server/main.go, hardware/drawer handlers and dashboard SQL at the deployed commit. Confirmed: LED locate routes and POST /hardware/off are in RequireReadAuth group without role enforcement; RequireReadAuth may allow guests when read access is public; session cookie Secure=false. Task 022 audit accepted for prioritization. Do not address dashboard or gofmt-wide cleanup in this task.
+## Branch / commit
+- Branch: `fix/hardware-auth-and-secure-cookie`
+- Commit SHA: `b7a7055007422f40d6e8f869a1083ec3535d8430`
+- Parent SHA: `ca2789f54382bc2aa98b2d4535b09f9df1c21d55`
+- `origin/main` unchanged at `ca2789f`; nothing deployed; no production changes.
 
-## Implementation scope
-1. Move POST /hardware/{id}/locate, POST /parts/{id}/locate, POST /drawers/{id}/locate and POST /hardware/off into an authenticated role-gated route group. Use existing RequireRole("editor","admin") for now, consistent with CanWrite; do not merely move under RequireAuth (which also permits viewer). Preserve route paths and HTTP methods, explicit manual Locate, CSRF handling and functional behaviour for permitted users. Keep read-only GET routes unchanged. Consider whether any other hardware-operating routes share the same gap; report findings and limit scope to appropriate controls.
-2. Add router-level regression tests for all four POST endpoints: guest (including public read mode) and viewer must not trigger WLED actions; editor/admin must pass authorization to the handler. Use fake handlers/mocks so tests send no real LED commands. Verify CSRF correctly or explicitly isolate authorization tests from CSRF. Include the global-off route. Test exact status/redirect behaviour based on existing middleware.
-3. Replace hardcoded Cookie.Secure=false with an explicit, documented config. Default Secure=true for production HTTPS, permit opt-out only for deliberate local HTTP development. Inspect actual deployment/proxy/container environment before choosing env naming/default and confirm session usability behind TLS-terminating proxy; do not silently break HTTP-only local development. Add unit/config tests and sample env documentation, no secrets.
-4. Inspect adjacent code for obvious permission bypasses; document, do not expand scope without clear reason. Avoid touching production data or physical LEDs.
-5. Run gofmt on changed Go files only, go build ./..., go vet -tags fts5 ./..., go test -tags fts5 -count=1 ./..., targeted authorization tests. Report tests, commit SHA, parent, changed files, risks and branch status.
+## Changes
+1. **H1 — LED actions now require a write-capable role.** In `internal/router/router.go`, `POST /hardware/{id}/locate`, `POST /parts/{id}/locate`, `POST /drawers/{id}/locate` and `POST /hardware/off` were moved out of the `RequireReadAuth` group into a new group inside the authenticated write group using `mw.RequireRole("editor", "admin")` (so: `RequireAuth` + `RequirePasswordChange` + `RequireRole`). Paths, methods, the explicit manual Locate, and handler behaviour are unchanged. Read-only GET routes are untouched.
+2. **H2 — Secure session cookies by default.** `cmd/server/main.go` now sets `sessionManager.Cookie.Secure = config.CookieSecure()` (was hardcoded `false`). New `internal/config/security.go` adds `CookieSecure()`: default **true**; disabled only when `WLEDGER_INSECURE_COOKIES` is truthy (`1/true/yes/on`, case-insensitive) for deliberate local HTTP development. This is compatible with the production TLS-terminating reverse proxy (browser↔proxy is HTTPS).
+3. **Docs:** new `docs/environment.md` documents `WLEDGER_PUBLIC_URL`, `WLEDGER_API_TOKEN`, `WLEDGER_INSECURE_COOKIES` (with the local-dev warning) and the MCP variables. No secrets.
 
-## Review checkpoint
-Implement on a dedicated task branch from current main, commit and push for ChatGPT's independent GitHub source review. Do NOT merge to main yet. Publish Sequence 31 From DeepSeek To ChatGPT Status AWAITING_REVIEW Task 023 with branch, SHA, diff summary, test results, risks and explicit recommendation. Commit/push only AI_HANDOFF.md on experiment/ai-handoff, no force. STOP.
+## Files changed
+- `internal/router/router.go` (route group move)
+- `cmd/server/main.go` (cookie Secure via config)
+- `internal/config/security.go` (new), `internal/config/security_test.go` (new)
+- `internal/router/router_auth_test.go` (new)
+- `docs/environment.md` (new)
 
-## Boundaries
-No production deploy/restart, database or migration changes, backup/restore, LED/WLED calls, Home Assistant changes, or secret disclosure. Preserve the correct 1-controller/2-string production configuration. If auth/session changes reveal ambiguity or a risk of locking out users, stop and report rather than guess.
+## Tests added
+- `internal/config` `TestCookieSecure`: default true; truthy values disable; other values keep Secure.
+- `internal/router` (router-level, real `router.New` + real middleware chain, fake WLED so no LED commands):
+  - `TestHardwareActionsRequireAuthentication` — guest → 303 `/login` on all four endpoints; 0 WLED calls.
+  - `TestHardwareActionsDeniedForGuestWhenReadIsPublic` — with `require_auth_for_read=false`, guest still → 303; 0 WLED calls.
+  - `TestHardwareActionsDeniedForViewer` — viewer → 403 on all four; 0 WLED calls.
+  - `TestHardwareActionsAllowedForEditorAndAdmin` — editor and admin → 200 on all four; exactly one call each to `LocateBin`/`LocatePart`/`LocateDrawer`/`GlobalOff`.
+- CSRF: these routes have no CSRF middleware in their group (unchanged), so the authorization tests exercise the real chain without CSRF; no CSRF bypass was introduced.
+
+## Checks run
+- `gofmt -l` on changed files → clean.
+- `go build ./...` → OK. `go vet -tags fts5 ./...` → clean.
+- `go test -tags fts5 -count=1 ./...` → **40 packages ok, 0 FAIL**.
+- `go test -race -tags fts5` on `router`, `handler`, `middleware`, `config` → ok.
+
+## Adjacent findings (documented, NOT changed — scope respected)
+- The `lang` preference cookie set in `internal/middleware/middleware.go` (`I18n`) has `HttpOnly` but no `Secure`. Low risk (non-session preference); candidate for a small follow-up.
+- The four moved endpoints are **not CSRF-protected** (pre-existing). A logged-in user could be induced to trigger locate/global-off cross-site. Recommend a follow-up to add CSRF validation to these POSTs (medium).
+- Other hardware-operating routes (`/hardware` create/import/delete, `/hardware/{id}/grid`, `/hardware/conversion`) are already admin-only; no other read-group hardware actions were found.
+
+## Risks
+- Behaviour change: `viewer` (and guests) can no longer trigger locate/global-off — intended. Editors/admins unaffected.
+- `Cookie.Secure=true` by default will break plain-HTTP local use unless `WLEDGER_INSECURE_COOKIES=1`; documented. Production (HTTPS proxy) unaffected.
+- No production deploy/restart, DB/migration, backup/restore, LED/WLED calls, or HA changes were performed.
+
+## Recommendation
+- Ready for independent GitHub source review on `fix/hardware-auth-and-secure-cookie` (`b7a7055`). Do not merge to `main` yet. Suggested follow-ups (separate tasks): add CSRF to the hardware-action POSTs; add `Secure` to the `lang` cookie.
+
+## Evidence / SHAs
+- Task branch commit: `b7a7055007422f40d6e8f869a1083ec3535d8430` (parent `ca2789f54382bc2aa98b2d4535b09f9df1c21d55`)
+- Files: `internal/router/router.go`, `cmd/server/main.go`, `internal/config/security.go`, `internal/config/security_test.go`, `internal/router/router_auth_test.go`, `docs/environment.md`
