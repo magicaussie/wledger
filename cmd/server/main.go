@@ -94,7 +94,10 @@ func main() {
 	sessionManager.Lifetime = 24 * time.Hour
 	sessionManager.Cookie.Persist = true
 	sessionManager.Cookie.SameSite = http.SameSiteLaxMode
-	sessionManager.Cookie.Secure = false // TODO: Set to true in prod
+	// Session cookies are Secure by default, which is correct for production
+	// HTTPS (including behind a TLS-terminating reverse proxy). Set
+	// WLEDGER_INSECURE_COOKIES=1 only for deliberate local HTTP development.
+	sessionManager.Cookie.Secure = config.CookieSecure()
 
 	// WLED client & service
 	wledClient := wled.NewClient()

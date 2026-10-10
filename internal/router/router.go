@@ -83,17 +83,11 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 		// Drawers (containers)
 		r.Get("/drawers/{id}", h.HandleDrawerDetail)
 
-		// Locate
-		r.Post("/hardware/{id}/locate", h.HandleHardwareLocate)
-		r.Post("/parts/{id}/locate", h.HandlePartLocate)
-		r.Post("/drawers/{id}/locate", h.HandleDrawerLocate)
-
 		// Hardware (Read)
 		r.Get("/hardware", h.HandleHardwareList)
 		r.Get("/hardware/labels", h.HandleBinLabels)
 		r.Get("/hardware/{id}/status", h.HandleHardwareStatus)
 		r.Get("/hardware/{id}/grid", h.HandleHardwareGrid)
-		r.Post("/hardware/off", h.HandleGlobalOff)
 
 		// Inspiration
 		r.Get("/inspiration", h.HandleInspiration)
@@ -121,6 +115,21 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 
 		// Self-Service Password Change
 		r.Post("/settings/password", h.HandleSettingsPassword)
+
+		// -----------------------------------------------------------
+		// HARDWARE ACTIONS (Editors & Admins)
+		// These operate physical LEDs (locate / global off), so they are
+		// write-capable actions and must not be reachable by read-only users
+		// or guests. Kept separate from the read-only group on purpose.
+		// -----------------------------------------------------------
+		r.Group(func(r chi.Router) {
+			r.Use(mw.RequireRole("editor", "admin"))
+
+			r.Post("/hardware/{id}/locate", h.HandleHardwareLocate)
+			r.Post("/parts/{id}/locate", h.HandlePartLocate)
+			r.Post("/drawers/{id}/locate", h.HandleDrawerLocate)
+			r.Post("/hardware/off", h.HandleGlobalOff)
+		})
 
 		// -----------------------------------------------------------
 		// INVENTORY MANAGEMENT ROUTES (Editors & Admins)
