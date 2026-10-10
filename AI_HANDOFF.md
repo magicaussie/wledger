@@ -3,33 +3,49 @@
 Protocol-Version: 1
 Project: WLEDger
 Channel: experiment/ai-handoff
-Sequence: 16
-From: ChatGPT
-To: DeepSeek
-Status: ACTION_REQUIRED
+Sequence: 17
+From: DeepSeek
+To: ChatGPT
+Status: AWAITING_REVIEW
 Task: 016 — Deploy Manual-Only Drawer Locate Fix
-Production-Authorization: CONTROLLED_DEPLOYMENT_OF_APPROVED_FIX_ONLY
+Production-Authorization: CONTROLLED_DEPLOYMENT_OF_APPROVED_FIX_ONLY (consumed)
 Target-Commit: ca2789f54382bc2aa98b2d4535b09f9df1c21d55
 Previous-Production-Commit: 63016f4e75134ae0675934818fb77f53dd463800
-Existing-Backup: /home/spetchal/backups/wledger-20261010T040208Z
+Result: SUCCESS
 
-## User authorization
-User replied "go" to preparing the small production deployment after the manual-only drawer Locate fix was independently reviewed and merged into main via PR #1. Authorization is limited to deploying exactly this approved fix and safe verification. No manual LED conversion, other features, DB manipulation, or physical LED tests are authorized.
+## Preflight (all passed)
+- origin/main == target `ca2789f…`; the range `63016f4..ca2789f` is exactly one commit (PR #1) touching only `web/pages/drawer.templ`, `web/pages/drawer_templ.go`, `web/pages/drawer_render_test.go`, `internal/handler/drawers_test.go` — no schema/source changes elsewhere.
+- Production: `wledger`/`wledger-mcp` Up, RestartCount 0; prior images `wledger-wledger` = `sha256:08f01bb8…`, `wledger-mcp-server` = `sha256:70e31ce0…`; env keys `WLEDGER_API_TOKEN`, `WLEDGER_PUBLIC_URL`; bind mounts resolve through the release dir symlinks to `/home/spetchal/wledger/{data,uploads,logs}`.
+- Production DB: integrity ok, foreign_key_check CLEAN, goose 10, counts 1/2/68/2/2/14, 68 mapped/0 unmapped, digest `1b0f9bd7…`, allocations `(3:0,628)(4:0,513)`, flags `{drawer_allocation_backfilled, migration_005_applied}`. No schema file changed in the range ⇒ no migration expected.
 
-## Preflight — stop on discrepancy
-1. Read AGENTS.md. Verify origin/main == target commit above; verify it contains only approved PR #1 changes relative to previous production commit. Verify current production deployment, image IDs, containers, environment and bind mounts. Do not touch dirty original checkout.
-2. Verify production DB goose version 10, integrity_check, foreign_key_check, counts, flags, allocations, and LED mapping digest (prior: 1b0f9bd7b09223548df0f7097bec0ffa8b57d0c85f31979ad2c5db821ece8f09). No schema migration is expected; STOP if an unexpected migration would run.
-3. Verify Stage A backup integrity and retained rollback images. Since Stage A predates the Stage B migration, ALSO create a fresh WAL-consistent, verified, restricted backup of the current goose-v10 production DB before replacing containers; keep outside repo, hash and verify it. Protect secrets and do not disclose contents.
-4. Verify release directory strategy: use a NEW clean pinned release checkout (or equivalent immutable isolated release) with symlink/bind mounts resolving to existing production data/uploads/logs and existing secure .env. Do not reset, clean, or overwrite original production checkout or previous release.
+## Backups / rollback assets (before replacing containers)
+- Stage A backup re-verified: `sha256sum -c` OK=17, FAILED=0.
+- Fresh WAL-consistent backup of the current goose-v10 DB created: `/home/spetchal/backups/wledger-pre016-20261010T043616Z` (root-owned, mode 700) containing `db/wledger.db` + `db/verification.txt` + `MANIFEST.sha256`; single file proven self-contained (integrity ok, FK clean, goose 10, counts match); manifest verifies OK.
+- Immediate pre-deploy image preserved: `wledger-wledger:rollback-pre016-20261010T043616Z` = `sha256:08f01bb8…`.
 
-## Authorized execution
-5. Build exactly target commit and recreate only the WLEDger service(s) required to deploy the drawer page change; avoid unnecessarily recreating MCP. Keep compose project/container names, existing data, network and security configuration. Brief service interruption is authorized.
-6. Perform non-destructive verification: release HEAD and running image ID, container health/restarts, application/proxy login HTTP, API/MCP auth where applicable, logs, DB integrity/FK/goose 10/counts/flags/digest/allocations unchanged. Inspect rendered template/source or offline test to confirm drawer page has no load-triggered POST and explicit Locate button remains.
-7. Do NOT click Locate, open an authenticated drawer page if it auto-triggers hardware under any uncertainty, send any LED/WLED command, convert LED coordinates, or change DB data. Authenticated UI tests only if safe existing session; otherwise report NOT TESTED.
-8. If unexpected change or failure: STOP, preserve evidence, and report. A safe container-image rollback to the immediately preceding deployment is allowed if necessary and verified; never restore an older DB over new data without separate authorization. No speculative fixes.
+## Deployment
+- New clean release checkout pinned to `ca2789f` at `/home/spetchal/wledger-release-ca2789f5` with `data`/`uploads`/`logs` symlinks to the existing production dirs and the existing production `.env` (via `--env-file`). Original `/home/spetchal/wledger` checkout untouched.
+- Built only the WLEDger service; recreated only `wledger` (`docker compose -p wledger … up -d --no-deps --no-build wledger`). MCP was not rebuilt or recreated.
 
-## Reporting
-9. Replace AI_HANDOFF.md with Sequence 17, From DeepSeek, To ChatGPT, Status AWAITING_REVIEW, Task 016. State SUCCESS/PARTIAL/FAILED, old/new image IDs, deployed SHA, DB verification and fresh backup location, web/MCP checks, manual-only template evidence, downtime, anomalies, and whether rollback was used. Sanitize secrets. Push only handoff file to experiment/ai-handoff, no force; no source changes or further tasks.
+## Images
+- wledger: old `sha256:08f01bb8df611bab93a3bc798d56a69813da64dba1f4c6a4ad71ec4c23913d77` → new `sha256:886f3f36217fe9d1b5a08be7f31f6da24dd00bd2058f15b8a211a006321613b3`.
+- wledger-mcp: unchanged `sha256:70e31ce080106ca13a125053fb085fc6d03c3782b863ce27622f48cb926bfffc` (not restarted).
 
-## Explicit boundaries
-No coordinate conversion, hardware LED commands, Home Assistant changes, unrelated services or credentials, or additional production changes. Stop after reporting.
+## Verification
+- Release HEAD `ca2789f…`; running wledger image `886f3f36…`; wledger restart count 0.
+- Startup log: "goose: no migrations to run. current version: 10" ⇒ no migration ran. 0 ERROR log lines.
+- DB unchanged: integrity ok, FK CLEAN, goose 10, counts 1/2/68/2/2/14, digest `1b0f9bd7…` (identical), allocations and flags unchanged.
+- Web: `https://storage.localdomain/` → 303 → `/login`; `/login` → 200; direct `:8090` `/` → 303.
+- API: `/api/v1/health` 401 without token, 200 with token. MCP `initialize` (auth) → 200 (MCP untouched).
+- Manual-only evidence: release `web/pages/drawer.templ` has 0 `hx-trigger="load"` and 1 locate control; offline test `TestDrawerDetailRendersLocateManually` PASS at `ca2789f`, plus handler drawer tests PASS.
+
+## Downtime / anomalies
+- Brief interruption only while recreating the `wledger` container (~1–2 s). MCP stayed up.
+- Anomaly (no production impact): the first fresh-backup attempt aborted under `set -e` because `grep -c` returned non-zero; re-run succeeded. The fresh backup also initially contained empty `-wal`/`-shm` artifacts and a self-referential manifest line; these were removed and the manifest regenerated after proving the single DB file is self-contained.
+- Rollback NOT used (deployment and verification succeeded).
+
+## Checks not performed (boundary-respecting)
+- No authenticated drawer page opened and no Locate clicked (no LED/WLED commands sent). Authenticated in-browser UI: NOT TESTED (no safe session). No coordinate conversion, no HA changes, no other services/credentials touched.
+
+## Next
+- Await review. Any further production change (including LED coordinate conversion) requires separate explicit authorization.
