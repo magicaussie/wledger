@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -83,6 +84,15 @@ func TestHandleDrawerDetail(t *testing.T) {
 		if !strings.Contains(body, want) {
 			t.Errorf("expected body to contain %q", want)
 		}
+	}
+
+	// Manual-only locate: the served drawer page must not auto-trigger a locate on
+	// load, and the explicit Locate control must remain wired to the endpoint.
+	if strings.Contains(body, `hx-trigger="load"`) {
+		t.Error("drawer page must not auto-trigger LED locate on load")
+	}
+	if !strings.Contains(body, fmt.Sprintf(`hx-post="/drawers/%d/locate"`, cont)) {
+		t.Errorf("explicit Locate control not wired to /drawers/%d/locate", cont)
 	}
 }
 
