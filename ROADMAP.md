@@ -197,3 +197,18 @@ A part type may be stocked in multiple bins, with quantities tracked per locatio
 - Check WLED segment/physical-string semantics and segment-relative vs controller-global coordinates before choosing persisted path schema. Irregular wiring may require per-LED physical coordinates, not just a snake preset.
 
 **Roadmap changelog:** v0.3 — auto-suggested, adjustable LED assignments and flexible string wiring topology.
+
+
+## Design update — 2026-10-11: LED mounting independent of drawer geometry
+
+**Confirmed:** In the user's installation, LEDs are mounted to the **fixed cabinet frame**, immediately beside or above each drawer. WLEDger must also support other installations with LEDs attached to drawers or mounted behind clear/translucent drawers.
+
+**Required capabilities:**
+- LED mounting is **not** assumed to be above the drawer or fixed to the frame.
+- Model physical drawer geometry, LED physical placement/mounting, and electrical LED assignments as **separate concepts**.
+- Support common placements: above, below, left, right, behind/backlit, on/inside the moving drawer, perimeter, and custom; allow multiple placements per drawer where necessary.
+- Store whether a mounting point belongs to the fixed cabinet frame or the moving drawer; mounting choice must not silently change drawer identity, inventory, or assigned LED indices.
+- The visual editor should show mounting position and illuminated drawer association without assuming that physical LED traversal order equals drawer display order.
+- Custom physical placement of LEDs may be needed for irregular installations; keep schema extensible rather than restricting to a single side enum.
+
+**Roadmap changelog:** v0.4 — flexible frame/drawer/backlit LED mounting and separation of physical placement from electrical mapping.
