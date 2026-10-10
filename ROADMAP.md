@@ -153,3 +153,25 @@ A part type may be stocked in multiple bins, with quantities tracked per locatio
 - Move work through Planned → In progress → Done only with evidence of implementation and tests.
 - Record major design changes and migrations in the change log.
 - Keep this document on a review branch until explicitly merged; do not deploy from it.
+
+
+## Design update — 2026-10-11: cabinet editor owns drawer and LED configuration
+
+**Confirmed by user:**
+- Physical cabinet contains **exactly 69 drawers**. Existing production database reports **68 mapped bin records**; discrepancy remains to be audited. Do not treat the 68 records as definitive physical drawer count or silently invent the 69th mapping.
+- The **cabinet drawer-layout editor is the primary interface** for adding drawers and assigning each drawer's LED range(s).
+- At **any time after initial setup**, the user must be able to add/remove/reposition/resize/renumber drawers and modify their LED assignments or assigned LED counts.
+- Each drawer may have multiple ranges across strings/segments, as previously agreed.
+- Moving or renumbering a drawer must preserve its stable identity, bins, parts and quantities; changing LED assignments must not mutate stock.
+
+**Design safeguards proposed for review:**
+- Separate immutable drawer IDs from user-facing drawer numbers/order.
+- Validate LED range bounds and overlaps before committing changes; provide clear conflict feedback.
+- Removing drawers with bins/stock must require an explicit safe workflow (move inventory, archive, or cancel); never silently cascade-delete stock.
+- Keep layout geometry and electrical mappings as distinct persisted fields, even when edited in the same screen.
+- Support reconfiguration after initial setup; no one-time-only import/setup workflow.
+- Preserve existing legacy mapping records until an audited migration plan is approved.
+
+**Next audit/design action:** revise the Task 044 schema proposal: the existing `containers` represent the two strings/segments, not the 69 physical drawers. Introduce stable drawer entities and drawer-to-LED-range mapping without renaming the two existing strings into drawers. Define migration from legacy bin-to-LED assignments to physical drawers only after confirming which records correspond to each of the 69 drawers.
+
+**Roadmap changelog:** v0.2 — confirmed 69 physical drawers and ongoing editable drawer+LED configuration.
