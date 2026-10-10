@@ -27,7 +27,7 @@ jobs:
       # Node is required to regenerate the committed Tailwind CSS artifact and
       # prove it is deterministic. Node 22 matches the toolchain used locally.
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: "22"
           cache: npm
