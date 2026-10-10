@@ -184,6 +184,10 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 			r.Post("/hardware/{id}/delete", h.HandleHardwareDelete)
 			r.Post("/hardware/{id}/grid", h.HandleHardwareGridSave)
 
+			// LED Coordinate Space Conversion (drawer-relative opt-in)
+			r.Get("/hardware/conversion", h.HandleConversionPreview)
+			r.Post("/hardware/conversion", h.HandleConversionConfirm)
+
 			// System Settings Update
 			r.Post("/settings", h.HandleSettingsUpdate)
 			r.Get("/settings/backup/download", h.HandleBackupDownload)

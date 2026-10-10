@@ -694,3 +694,457 @@ func TestConvertToDrawerRelative_LocatePartAndFlashEquivalence(t *testing.T) {
 		}
 	}
 }
+
+// TestConversionFingerprint_Deterministic verifies that the fingerprint of an
+// unchanged database state is stable across preflight runs.
+func TestConversionFingerprint_Deterministic(t *testing.T) {
+	_, store, dbConn := setupAllocTest(t, "fingerprint_deterministic")
+	defer dbConn.Close()
+	ctx := context.Background()
+
+	ctrl, _ := store.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
+	a := mkContainer(t, store, ctx, ctrl.ID, "A", 0, `{"type":"linear","total":10}`, 0, 10)
+	b := mkContainer(t, store, ctx, ctrl.ID, "B", 0, `{"type":"linear","total":10}`, 10, 10)
+	mkBin(t, store, ctx, a, "a1", 3, 1)
+	mkBin(t, store, ctx, b, "b1", 12, 2)
+
+	r1, err := PreflightConversion(ctx, store)
+	if err != nil {
+		t.Fatalf("preflight 1: %v", err)
+	}
+	r2, err := PreflightConversion(ctx, store)
+	if err != nil {
+		t.Fatalf("preflight 2: %v", err)
+	}
+	if r1.Fingerprint() != r2.Fingerprint() {
+		t.Fatalf("fingerprint not deterministic: %s != %s", r1.Fingerprint(), r2.Fingerprint())
+	}
+	if r1.TotalDrawers != 2 {
+		t.Errorf("total drawers = %d, want 2", r1.TotalDrawers)
+	}
+}
+
+// TestConversionFingerprint_ChangesWithState verifies that any relevant database
+// change alters the fingerprint, so a stale preview can be detected.
+func TestConversionFingerprint_ChangesWithState(t *testing.T) {
+	_, store, dbConn := setupAllocTest(t, "fingerprint_changes")
+	defer dbConn.Close()
+	ctx := context.Background()
+
+	ctrl, _ := store.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
+	a := mkContainer(t, store, ctx, ctrl.ID, "A", 0, `{"type":"linear","total":10}`, 0, 10)
+	binID := mkBinID(t, store, ctx, a, "a1", 3, 1)
+
+	before, err := PreflightConversion(ctx, store)
+	if err != nil {
+		t.Fatalf("preflight: %v", err)
+	}
+
+	if err := store.UpdateBinLedIndex(ctx, db.UpdateBinLedIndexParams{
+		LedIndex: sql.NullInt64{Int64: 4, Valid: true}, ID: binID,
+	}); err != nil {
+		t.Fatalf("mutate bin: %v", err)
+	}
+
+	after, err := PreflightConversion(ctx, store)
+	if err != nil {
+		t.Fatalf("preflight after: %v", err)
+	}
+	if before.Fingerprint() == after.Fingerprint() {
+		t.Fatal("fingerprint unchanged after a relevant state change")
+	}
+}
+
+// TestConvertToDrawerRelativeConfirmed_Success verifies that a confirmation whose
+// fingerprint matches the reviewed preflight converts and commits.
+func TestConvertToDrawerRelativeConfirmed_Success(t *testing.T) {
+	_, store, dbConn := setupAllocTest(t, "confirmed_success")
+	defer dbConn.Close()
+	ctx := context.Background()
+
+	ctrl, _ := store.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
+	a := mkContainer(t, store, ctx, ctrl.ID, "A", 0, `{"type":"linear","total":10}`, 0, 10)
+	b := mkContainer(t, store, ctx, ctrl.ID, "B", 0, `{"type":"linear","total":10}`, 10, 10)
+	mkBin(t, store, ctx, a, "a1", 3, 1)
+	mkBin(t, store, ctx, b, "b1", 12, 1)
+
+	fp, err := PreflightConversion(ctx, store)
+	if err != nil {
+		t.Fatalf("preflight: %v", err)
+	}
+
+	res, err := ConvertToDrawerRelativeConfirmed(ctx, store, fp.Fingerprint(), convLogger())
+	if err != nil {
+		t.Fatalf("confirmed convert: %v", err)
+	}
+	if res.Outcome != ConversionConverted {
+		t.Fatalf("outcome = %q, want converted", res.Outcome)
+	}
+	if space, _ := ledspace.Current(ctx, store); space != ledspace.Drawer {
+		t.Fatalf("space = %q, want drawer", space)
+	}
+	checkBin(t, store, ctx, a, "a1", 3)
+	checkBin(t, store, ctx, b, "b1", 2)
+	assertConsistentState(t, store)
+}
+
+// TestConvertToDrawerRelativeConfirmed_StaleRejected verifies that a confirmation
+// against a changed database is rejected without modifying anything.
+func TestConvertToDrawerRelativeConfirmed_StaleRejected(t *testing.T) {
+	_, store, dbConn := setupAllocTest(t, "confirmed_stale")
+	defer dbConn.Close()
+	ctx := context.Background()
+
+	ctrl, _ := store.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
+	a := mkContainer(t, store, ctx, ctrl.ID, "A", 0, `{"type":"linear","total":10}`, 0, 10)
+	binID := mkBinID(t, store, ctx, a, "a1", 3, 1)
+
+	fp, err := PreflightConversion(ctx, store)
+	if err != nil {
+		t.Fatalf("preflight: %v", err)
+	}
+
+	if err := store.UpdateBinLedIndex(ctx, db.UpdateBinLedIndexParams{
+		LedIndex: sql.NullInt64{Int64: 4, Valid: true}, ID: binID,
+	}); err != nil {
+		t.Fatalf("mutate bin: %v", err)
+	}
+
+	res, err := ConvertToDrawerRelativeConfirmed(ctx, store, fp.Fingerprint(), convLogger())
+	if err != nil {
+		t.Fatalf("confirmed convert: %v", err)
+	}
+	if res.Outcome != ConversionStale {
+		t.Fatalf("outcome = %q, want stale", res.Outcome)
+	}
+	if space, _ := ledspace.Current(ctx, store); space != ledspace.Segment {
+		t.Fatalf("stale conversion changed space to %q", space)
+	}
+	checkBin(t, store, ctx, a, "a1", 4)
+}
+
+// TestConvertToDrawerRelativeConfirmed_RefusedWhenBlocked verifies that a matching
+// fingerprint over a blocked preflight is still refused and changes nothing.
+func TestConvertToDrawerRelativeConfirmed_RefusedWhenBlocked(t *testing.T) {
+	_, store, dbConn := setupAllocTest(t, "confirmed_blocked")
+	defer dbConn.Close()
+	ctx := context.Background()
+
+	ctrl, _ := store.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
+	a := mkContainer(t, store, ctx, ctrl.ID, "A", 0, `{"type":"linear","total":10}`, 0, 10)
+	mkBin(t, store, ctx, a, "bad", 15, 1)
+
+	fp, err := PreflightConversion(ctx, store)
+	if err != nil {
+		t.Fatalf("preflight: %v", err)
+	}
+	if fp.Blocked != 1 {
+		t.Fatalf("blocked = %d, want 1", fp.Blocked)
+	}
+
+	res, err := ConvertToDrawerRelativeConfirmed(ctx, store, fp.Fingerprint(), convLogger())
+	if err != nil {
+		t.Fatalf("confirmed convert: %v", err)
+	}
+	if res.Outcome != ConversionRefused {
+		t.Fatalf("outcome = %q, want refused", res.Outcome)
+	}
+	if space, _ := ledspace.Current(ctx, store); space != ledspace.Segment {
+		t.Fatalf("refused conversion changed space to %q", space)
+	}
+}
+
+// TestConvertToDrawerRelativeConfirmed_AlreadyDrawer verifies the already-converted
+// state is reported without change.
+func TestConvertToDrawerRelativeConfirmed_AlreadyDrawer(t *testing.T) {
+	_, store, dbConn := setupAllocTest(t, "confirmed_already")
+	defer dbConn.Close()
+	ctx := context.Background()
+	if err := ledspace.Set(ctx, store, ledspace.Drawer); err != nil {
+		t.Fatalf("set drawer: %v", err)
+	}
+
+	fp, err := PreflightConversion(ctx, store)
+	if err != nil {
+		t.Fatalf("preflight: %v", err)
+	}
+	res, err := ConvertToDrawerRelativeConfirmed(ctx, store, fp.Fingerprint(), convLogger())
+	if err != nil {
+		t.Fatalf("confirmed convert: %v", err)
+	}
+	if res.Outcome != ConversionAlreadyDrawer {
+		t.Fatalf("outcome = %q, want already_drawer", res.Outcome)
+	}
+}
+
+// TestConvertToDrawerRelativeConfirmed_Unresolved verifies an unresolved space is
+// rejected with a distinct error.
+func TestConvertToDrawerRelativeConfirmed_Unresolved(t *testing.T) {
+	_, store, dbConn := setupAllocTest(t, "confirmed_unresolved")
+	defer dbConn.Close()
+	ctx := context.Background()
+	if err := ledspace.Set(ctx, store, ledspace.Unresolved); err != nil {
+		t.Fatalf("set unresolved: %v", err)
+	}
+
+	_, err := ConvertToDrawerRelativeConfirmed(ctx, store, "any", convLogger())
+	if !errors.Is(err, ErrConversionUnresolved) {
+		t.Fatalf("err = %v, want ErrConversionUnresolved", err)
+	}
+	if space, _ := ledspace.Current(ctx, store); space != ledspace.Unresolved {
+		t.Fatalf("space = %q, want unresolved", space)
+	}
+}
+
+// TestConvertToDrawerRelativeConfirmed_ConcurrentSaveGrid verifies that a
+// confirmation racing an ordinary grid save never leaves a mixed coordinate state
+// and never partially converts.
+func TestConvertToDrawerRelativeConfirmed_ConcurrentSaveGrid(t *testing.T) {
+	svc, store, dbConn := setupFileAllocTest(t)
+	defer dbConn.Close()
+	ctx := context.Background()
+
+	ctrl, _ := store.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
+	mkContainer(t, store, ctx, ctrl.ID, "A", 0, `{"type":"linear","total":10}`, 0, 10)
+
+	fp, err := PreflightConversion(ctx, store)
+	if err != nil {
+		t.Fatalf("preflight: %v", err)
+	}
+
+	configData := `[{"id":null,"name":"A","segment_id":0,"led_start":0,"led_count":10,"config":{"type":"linear","total":10}}]`
+	gridData := `[{"container_index":0,"x":0,"y":0,"led_index":3,"width":1,"name":"a1"}]`
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	var outcome ConversionOutcome
+	go func() {
+		defer wg.Done()
+		res, _ := ConvertToDrawerRelativeConfirmed(ctx, store, fp.Fingerprint(), convLogger())
+		outcome = res.Outcome
+	}()
+	go func() {
+		defer wg.Done()
+		_, _ = svc.SaveGrid(ctx, ctrl.ID, gridData, configData)
+	}()
+	wg.Wait()
+
+	if outcome != ConversionConverted && outcome != ConversionStale && outcome != ConversionRefused {
+		t.Fatalf("unexpected outcome %q", outcome)
+	}
+	assertConsistentState(t, store)
+}
+
+// failingAuditStore injects a failure into the conversion's audit write so the
+// atomicity of conversion + audit can be exercised.
+type failingAuditStore struct {
+	db.Store
+}
+
+func (f *failingAuditStore) ExecImmediateTx(ctx context.Context, fn func(db.Querier) error) error {
+	return f.Store.ExecImmediateTx(ctx, func(q db.Querier) error {
+		return fn(&failingAuditQuerier{Querier: q})
+	})
+}
+
+type failingAuditQuerier struct {
+	db.Querier
+}
+
+func (f *failingAuditQuerier) CreateAuditLog(ctx context.Context, arg db.CreateAuditLogParams) error {
+	return errors.New("injected audit failure")
+}
+
+// TestConvertToDrawerRelative_AuditFailureRollsBack verifies that the conversion
+// and its audit entry are atomic: if the audit write fails, the whole conversion
+// is rolled back and is never reported as a success.
+func TestConvertToDrawerRelative_AuditFailureRollsBack(t *testing.T) {
+	_, store, dbConn := setupAllocTest(t, "convert_audit_fail")
+	defer dbConn.Close()
+	ctx := context.Background()
+
+	ctrl, _ := store.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
+	a := mkContainer(t, store, ctx, ctrl.ID, "A", 0, `{"type":"linear","total":10}`, 0, 10)
+	mkBin(t, store, ctx, a, "a1", 3, 1)
+
+	fs := &failingAuditStore{Store: store}
+	if _, err := ConvertToDrawerRelative(ctx, fs, convLogger()); err == nil {
+		t.Fatal("expected the injected audit failure to abort the conversion")
+	}
+
+	if space, _ := ledspace.Current(ctx, store); space != ledspace.Segment {
+		t.Errorf("space = %q after audit failure, want segment", space)
+	}
+	checkBin(t, store, ctx, a, "a1", 3)
+}
+
+// TestConversionFingerprint_SensitiveToRelevantChanges verifies that each piece of
+// conversion-relevant state is covered by the fingerprint.
+func TestConversionFingerprint_SensitiveToRelevantChanges(t *testing.T) {
+	t.Run("bin width", func(t *testing.T) {
+		_, store, dbConn := setupAllocTest(t, "fp_width")
+		defer dbConn.Close()
+		ctx := context.Background()
+		ctrl, _ := store.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
+		a := mkContainer(t, store, ctx, ctrl.ID, "A", 0, `{"type":"linear","total":10}`, 0, 10)
+		binID := mkBinID(t, store, ctx, a, "a1", 2, 1)
+		before, _ := PreflightConversion(ctx, store)
+		if err := store.UpdateBin(ctx, db.UpdateBinParams{
+			ID: binID, Name: "a1", LedIndex: sql.NullInt64{Int64: 2, Valid: true},
+			Width: sql.NullInt64{Int64: 3, Valid: true},
+		}); err != nil {
+			t.Fatalf("update width: %v", err)
+		}
+		after, _ := PreflightConversion(ctx, store)
+		if before.Fingerprint() == after.Fingerprint() {
+			t.Fatal("a bin-width change did not change the fingerprint")
+		}
+	})
+
+	t.Run("drawer allocation", func(t *testing.T) {
+		_, store, dbConn := setupAllocTest(t, "fp_alloc")
+		defer dbConn.Close()
+		ctx := context.Background()
+		ctrl, _ := store.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
+		a := mkContainer(t, store, ctx, ctrl.ID, "A", 0, `{"type":"linear","total":10}`, 0, 10)
+		mkBin(t, store, ctx, a, "a1", 2, 1)
+		before, _ := PreflightConversion(ctx, store)
+		if err := store.UpdateContainerConfig(ctx, db.UpdateContainerConfigParams{
+			ID: a, Name: "A", SegmentID: 0, PositionIndex: 0, LedStart: 0, LedCount: 20,
+			ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true},
+		}); err != nil {
+			t.Fatalf("update allocation: %v", err)
+		}
+		after, _ := PreflightConversion(ctx, store)
+		if before.Fingerprint() == after.Fingerprint() {
+			t.Fatal("an allocation change did not change the fingerprint")
+		}
+	})
+
+	t.Run("blocked condition", func(t *testing.T) {
+		_, store, dbConn := setupAllocTest(t, "fp_blocked")
+		defer dbConn.Close()
+		ctx := context.Background()
+		ctrl, _ := store.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
+		a := mkContainer(t, store, ctx, ctrl.ID, "A", 0, `{"type":"linear","total":10}`, 0, 10)
+		binID := mkBinID(t, store, ctx, a, "a1", 2, 1)
+		before, _ := PreflightConversion(ctx, store)
+		if err := store.UpdateBinLedIndex(ctx, db.UpdateBinLedIndexParams{
+			LedIndex: sql.NullInt64{Int64: 25, Valid: true}, ID: binID,
+		}); err != nil {
+			t.Fatalf("update index: %v", err)
+		}
+		after, _ := PreflightConversion(ctx, store)
+		if after.Blocked != 1 {
+			t.Fatalf("expected the drawer to become blocked, got %d", after.Blocked)
+		}
+		if before.Fingerprint() == after.Fingerprint() {
+			t.Fatal("a blocking condition did not change the fingerprint")
+		}
+	})
+
+	t.Run("coordinate state", func(t *testing.T) {
+		_, store, dbConn := setupAllocTest(t, "fp_space")
+		defer dbConn.Close()
+		ctx := context.Background()
+		ctrl, _ := store.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
+		a := mkContainer(t, store, ctx, ctrl.ID, "A", 0, `{"type":"linear","total":10}`, 0, 10)
+		mkBin(t, store, ctx, a, "a1", 2, 1)
+		before, _ := PreflightConversion(ctx, store)
+		if err := ledspace.Set(ctx, store, ledspace.Drawer); err != nil {
+			t.Fatalf("set drawer: %v", err)
+		}
+		after, _ := PreflightConversion(ctx, store)
+		if before.Fingerprint() == after.Fingerprint() {
+			t.Fatal("a coordinate-state change did not change the fingerprint")
+		}
+	})
+}
+
+// TestConversionFingerprint_BinOwnership verifies that the drawer a bin belongs
+// to is reflected in the fingerprint.
+func TestConversionFingerprint_BinOwnership(t *testing.T) {
+	ctx := context.Background()
+
+	_, storeA, dbA := setupAllocTest(t, "fp_owner_a")
+	defer dbA.Close()
+	ctrl, _ := storeA.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
+	ca := mkContainer(t, storeA, ctx, ctrl.ID, "A", 0, `{"type":"linear","total":10}`, 0, 10)
+	cb := mkContainer(t, storeA, ctx, ctrl.ID, "B", 0, `{"type":"linear","total":10}`, 10, 10)
+	mkBin(t, storeA, ctx, ca, "x", 2, 1)
+	mkBin(t, storeA, ctx, cb, "y", 12, 1)
+
+	_, storeB, dbB := setupAllocTest(t, "fp_owner_b")
+	defer dbB.Close()
+	ctrlB, _ := storeB.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
+	caB := mkContainer(t, storeB, ctx, ctrlB.ID, "A", 0, `{"type":"linear","total":10}`, 0, 10)
+	cbB := mkContainer(t, storeB, ctx, ctrlB.ID, "B", 0, `{"type":"linear","total":10}`, 10, 10)
+	// Same index (2, drawer-relative to its own drawer) but owned by a different drawer.
+	mkBin(t, storeB, ctx, caB, "x", 2, 1)
+	mkBin(t, storeB, ctx, cbB, "y", 2, 1)
+
+	rA, _ := PreflightConversion(ctx, storeA)
+	rB, _ := PreflightConversion(ctx, storeB)
+	if rA.Fingerprint() == rB.Fingerprint() {
+		t.Fatal("differing bin ownership produced the same fingerprint")
+	}
+}
+
+// TestConvertToDrawerRelativeConfirmed_WidthChangeStale verifies that a width-only
+// change between preview and confirmation is rejected as stale.
+func TestConvertToDrawerRelativeConfirmed_WidthChangeStale(t *testing.T) {
+	_, store, dbConn := setupAllocTest(t, "confirmed_width_stale")
+	defer dbConn.Close()
+	ctx := context.Background()
+
+	ctrl, _ := store.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
+	a := mkContainer(t, store, ctx, ctrl.ID, "A", 0, `{"type":"linear","total":10}`, 0, 10)
+	binID := mkBinID(t, store, ctx, a, "a1", 2, 1)
+
+	fp, _ := PreflightConversion(ctx, store)
+	if err := store.UpdateBin(ctx, db.UpdateBinParams{
+		ID: binID, Name: "a1", LedIndex: sql.NullInt64{Int64: 2, Valid: true},
+		Width: sql.NullInt64{Int64: 4, Valid: true},
+	}); err != nil {
+		t.Fatalf("update width: %v", err)
+	}
+
+	res, err := ConvertToDrawerRelativeConfirmed(ctx, store, fp.Fingerprint(), convLogger())
+	if err != nil {
+		t.Fatalf("confirmed convert: %v", err)
+	}
+	if res.Outcome != ConversionStale {
+		t.Fatalf("outcome = %q, want stale", res.Outcome)
+	}
+	if space, _ := ledspace.Current(ctx, store); space != ledspace.Segment {
+		t.Fatalf("stale width change converted the database to %q", space)
+	}
+}
+
+// TestConvertToDrawerRelativeConfirmed_AllocationChangeStale verifies that an
+// allocation change between preview and confirmation is rejected as stale.
+func TestConvertToDrawerRelativeConfirmed_AllocationChangeStale(t *testing.T) {
+	_, store, dbConn := setupAllocTest(t, "confirmed_alloc_stale")
+	defer dbConn.Close()
+	ctx := context.Background()
+
+	ctrl, _ := store.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
+	a := mkContainer(t, store, ctx, ctrl.ID, "A", 0, `{"type":"linear","total":10}`, 0, 10)
+	mkBin(t, store, ctx, a, "a1", 2, 1)
+
+	fp, _ := PreflightConversion(ctx, store)
+	if err := store.UpdateContainerConfig(ctx, db.UpdateContainerConfigParams{
+		ID: a, Name: "A", SegmentID: 0, PositionIndex: 0, LedStart: 0, LedCount: 20,
+		ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true},
+	}); err != nil {
+		t.Fatalf("update allocation: %v", err)
+	}
+
+	res, err := ConvertToDrawerRelativeConfirmed(ctx, store, fp.Fingerprint(), convLogger())
+	if err != nil {
+		t.Fatalf("confirmed convert: %v", err)
+	}
+	if res.Outcome != ConversionStale {
+		t.Fatalf("outcome = %q, want stale", res.Outcome)
+	}
+}

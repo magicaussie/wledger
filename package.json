@@ -7,7 +7,8 @@
     "doc": "docs"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node web/tests/grid_painter.test.js",
+    "test:js": "node web/tests/grid_painter.test.js",
     "build:css": "npx @tailwindcss/cli -i ./web/static/css/input.css -o ./web/static/css/output.css"
   },
   "repository": {

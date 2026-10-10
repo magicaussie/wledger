@@ -176,12 +176,22 @@ func setupHardwareHandler(t *testing.T) (*Handler, db.Store, *sql.DB) {
 // postGridSave submits a grid save request and returns the response recorder.
 func postGridSave(t *testing.T, h *Handler, controllerID int64, gridData, configData string) *httptest.ResponseRecorder {
 	t.Helper()
+	return postGridSaveWithSpace(t, h, controllerID, gridData, configData, "")
+}
+
+// postGridSaveWithSpace submits a grid save tagged with the coordinate space the
+// payload was authored in (empty omits the field).
+func postGridSaveWithSpace(t *testing.T, h *Handler, controllerID int64, gridData, configData, space string) *httptest.ResponseRecorder {
+	t.Helper()
 	r := chi.NewRouter()
 	r.Post("/hardware/{id}/grid", h.HandleHardwareGridSave)
 
 	form := url.Values{}
 	form.Add("grid_data", gridData)
 	form.Add("config_data", configData)
+	if space != "" {
+		form.Add("bin_index_space", space)
+	}
 
 	req := httptest.NewRequest(http.MethodPost, "/hardware/"+strconv.Itoa(int(controllerID))+"/grid", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -268,37 +278,56 @@ func TestHandleHardwareGridSave_InternalErrorReturns500(t *testing.T) {
 	}
 }
 
-// TestHandleHardwareGridSave_NonSegmentSpaceReturns400 verifies that a grid save
-// into a drawer-relative or unresolved database is reported as a client error
-// (400), not a 500, and leaves the database unchanged.
-func TestHandleHardwareGridSave_NonSegmentSpaceReturns400(t *testing.T) {
-	for _, space := range []string{ledspace.Drawer, ledspace.Unresolved} {
-		t.Run(space, func(t *testing.T) {
-			h, s, dbConn := setupHardwareHandler(t)
-			defer dbConn.Close()
-			ctx := context.Background()
+// TestHandleHardwareGridSave_DrawerSpaceSucceeds verifies that a drawer-relative
+// database accepts a drawer-relative grid save (redirecting on success).
+func TestHandleHardwareGridSave_DrawerSpaceSucceeds(t *testing.T) {
+	h, s, dbConn := setupHardwareHandler(t)
+	defer dbConn.Close()
+	ctx := context.Background()
 
-			ctrl, err := s.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
-			if err != nil {
-				t.Fatalf("create controller: %v", err)
-			}
-			if err := ledspace.Set(ctx, s, space); err != nil {
-				t.Fatalf("set space: %v", err)
-			}
+	ctrl, err := s.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
+	if err != nil {
+		t.Fatalf("create controller: %v", err)
+	}
+	if err := ledspace.Set(ctx, s, ledspace.Drawer); err != nil {
+		t.Fatalf("set space: %v", err)
+	}
 
-			configData := `[{"id":null,"name":"A","segment_id":0,"led_start":0,"led_count":10,"config":{"type":"linear","total":10}}]`
-			gridData := `[{"container_index":0,"x":0,"y":0,"led_index":0,"width":1,"name":"a1"}]`
-			rr := postGridSave(t, h, ctrl.ID, gridData, configData)
-			if rr.Code != http.StatusBadRequest {
-				t.Fatalf("expected 400 for %s space, got %d: %s", space, rr.Code, rr.Body.String())
-			}
+	configData := `[{"id":null,"name":"A","segment_id":0,"led_start":0,"led_count":10,"config":{"type":"linear","total":10}}]`
+	gridData := `[{"container_index":0,"x":0,"y":0,"led_index":3,"width":1,"name":"a1"}]`
+	rr := postGridSave(t, h, ctrl.ID, gridData, configData)
+	if rr.Code != http.StatusSeeOther {
+		t.Fatalf("expected 303 for drawer-space save, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
 
-			// The rejection must leave the database unchanged.
-			containers, _ := s.GetContainersByController(ctx, ctrl.ID)
-			if len(containers) != 0 {
-				t.Fatalf("rejected save modified the database: %+v", containers)
-			}
-		})
+// TestHandleHardwareGridSave_UnresolvedSpaceReturns400 verifies that a grid save
+// into an unresolved database is reported as a client error (400), not a 500,
+// and leaves the database unchanged.
+func TestHandleHardwareGridSave_UnresolvedSpaceReturns400(t *testing.T) {
+	h, s, dbConn := setupHardwareHandler(t)
+	defer dbConn.Close()
+	ctx := context.Background()
+
+	ctrl, err := s.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
+	if err != nil {
+		t.Fatalf("create controller: %v", err)
+	}
+	if err := ledspace.Set(ctx, s, ledspace.Unresolved); err != nil {
+		t.Fatalf("set space: %v", err)
+	}
+
+	configData := `[{"id":null,"name":"A","segment_id":0,"led_start":0,"led_count":10,"config":{"type":"linear","total":10}}]`
+	gridData := `[{"container_index":0,"x":0,"y":0,"led_index":0,"width":1,"name":"a1"}]`
+	rr := postGridSave(t, h, ctrl.ID, gridData, configData)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for unresolved space, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	// The rejection must leave the database unchanged.
+	containers, _ := s.GetContainersByController(ctx, ctrl.ID)
+	if len(containers) != 0 {
+		t.Fatalf("rejected save modified the database: %+v", containers)
 	}
 }
 
@@ -413,5 +442,68 @@ func TestHardwareAuditLogging(t *testing.T) {
 	json.Unmarshal(deleteLog.OldValue, &deleteOld)
 	if deleteOld["name"] != "Audit Ctrl" {
 		t.Errorf("expected summary in delete log, got %s", string(deleteLog.OldValue))
+	}
+}
+
+// TestHandleHardwareGridSave_StaleSpaceAfterConversionReturns400 reproduces the
+// cross-coordinate-space race: a grid page loaded in segment mode is replayed
+// after an administrator conversion. The stale, segment-tagged payload must be
+// refused rather than interpreted as drawer-relative.
+func TestHandleHardwareGridSave_StaleSpaceAfterConversionReturns400(t *testing.T) {
+	h, s, dbConn := setupHardwareHandler(t)
+	defer dbConn.Close()
+	ctx := context.Background()
+
+	ctrl, err := s.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
+	if err != nil {
+		t.Fatalf("create controller: %v", err)
+	}
+	configData := `[{"id":null,"name":"A","segment_id":0,"led_start":0,"led_count":10,"config":{"type":"linear","total":10}}]`
+	gridData := `[{"container_index":0,"x":0,"y":0,"led_index":3,"width":1,"name":"a1"}]`
+
+	// The page was loaded (and saved) in segment mode.
+	if rr := postGridSaveWithSpace(t, h, ctrl.ID, gridData, configData, ledspace.Segment); rr.Code != http.StatusSeeOther {
+		t.Fatalf("segment save = %d, want 303: %s", rr.Code, rr.Body.String())
+	}
+
+	// An administrator converts the database to drawer-relative.
+	if _, err := hardware.ConvertToDrawerRelative(ctx, s, nil); err != nil {
+		t.Fatalf("convert: %v", err)
+	}
+	if space, _ := ledspace.Current(ctx, s); space != ledspace.Drawer {
+		t.Fatalf("space = %q, want drawer", space)
+	}
+
+	// Replaying the stale segment-tagged payload is refused, and the stored state is
+	// unchanged (still the drawer-relative index from the conversion).
+	rr := postGridSaveWithSpace(t, h, ctrl.ID, gridData, configData, ledspace.Segment)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("stale segment payload = %d, want 400: %s", rr.Code, rr.Body.String())
+	}
+	containers, _ := s.GetContainersByController(ctx, ctrl.ID)
+	if len(containers) != 1 {
+		t.Fatalf("expected 1 container, got %d", len(containers))
+	}
+	bins, _ := s.GetBinsByContainer(ctx, containers[0].ID)
+	if len(bins) != 1 || !bins[0].LedIndex.Valid || bins[0].LedIndex.Int64 != 3 {
+		t.Fatalf("stale save changed bins: %+v", bins)
+	}
+}
+
+// TestHandleHardwareGridSave_MatchingSpaceTagSucceeds verifies the guard does not
+// block a correctly-tagged save.
+func TestHandleHardwareGridSave_MatchingSpaceTagSucceeds(t *testing.T) {
+	h, s, dbConn := setupHardwareHandler(t)
+	defer dbConn.Close()
+	ctx := context.Background()
+
+	ctrl, err := s.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
+	if err != nil {
+		t.Fatalf("create controller: %v", err)
+	}
+	configData := `[{"id":null,"name":"A","segment_id":0,"led_start":0,"led_count":10,"config":{"type":"linear","total":10}}]`
+	gridData := `[{"container_index":0,"x":0,"y":0,"led_index":3,"width":1,"name":"a1"}]`
+	if rr := postGridSaveWithSpace(t, h, ctrl.ID, gridData, configData, ledspace.Segment); rr.Code != http.StatusSeeOther {
+		t.Fatalf("matching segment tag = %d, want 303: %s", rr.Code, rr.Body.String())
 	}
 }

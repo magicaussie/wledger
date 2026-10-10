@@ -23,6 +23,12 @@ type Service interface {
 	GetBinsByController(ctx context.Context, id int64) ([]db.Bin, error)
 	GetContainers(ctx context.Context, controllerID int64) ([]db.Container, error)
 	SaveGrid(ctx context.Context, controllerID int64, gridDataJSON string, configJSON string) (int64, error)
+	// SaveGridInSpace is SaveGrid with a coordinate-space guard: expectedSpace is
+	// the coordinate space the submitted payload was authored in. If it does not
+	// match the active space at write time (for example the grid page was loaded
+	// before an administrator converted the database), the save is refused rather
+	// than interpreting the indices in the wrong space.
+	SaveGridInSpace(ctx context.Context, controllerID int64, gridDataJSON string, configJSON string, expectedSpace string) (int64, error)
 	ExportConfig(ctx context.Context, controllerID int64) ([]byte, error)
 	ImportConfig(ctx context.Context, name, ip string, port int64, data []byte) (int64, error)
 }
@@ -197,6 +203,10 @@ func nullIntFromPtr(v *int) sql.NullInt64 {
 }
 
 func (s *service) SaveGrid(ctx context.Context, controllerID int64, gridDataJSON string, configJSON string) (int64, error) {
+	return s.SaveGridInSpace(ctx, controllerID, gridDataJSON, configJSON, "")
+}
+
+func (s *service) SaveGridInSpace(ctx context.Context, controllerID int64, gridDataJSON string, configJSON string, expectedSpace string) (int64, error) {
 	var inputBins []binInJSON
 	if err := json.Unmarshal([]byte(gridDataJSON), &inputBins); err != nil {
 		return 0, fmt.Errorf("invalid grid json: %w", err)
@@ -215,11 +225,12 @@ func (s *service) SaveGrid(ctx context.Context, controllerID int64, gridDataJSON
 		return 0, fmt.Errorf("%w: %v", ErrInvalidAllocation, err)
 	}
 
-	// The grid painter still edits segment-relative LED indices (the frontend has
-	// not been switched to drawer-relative editing yet), so the submitted bin
-	// indices are interpreted as segment-relative. The active coordinate space is
-	// read and the mappings are validated inside the transaction below, so the
-	// write can never mix coordinate spaces.
+	// The submitted bin indices are interpreted in the active coordinate space,
+	// which is read and validated inside the transaction below, so the write can
+	// never mix coordinate spaces. In segment mode the indices are segment-
+	// absolute; in drawer mode they are relative to the owning drawer's allocation
+	// (led_start/led_count). Unresolved indices have no known coordinate system, so
+	// editing is refused rather than written to with assumed coordinates.
 	binRows := make([]binMappingRow, len(inputBins))
 	for i := range inputBins {
 		binRows[i] = binMappingRow{
@@ -234,20 +245,31 @@ func (s *service) SaveGrid(ctx context.Context, controllerID int64, gridDataJSON
 		// Read the active coordinate space from the same transaction that performs
 		// the write. The write reservation is taken up front (BEGIN IMMEDIATE), so a
 		// concurrent coordinate conversion cannot commit between this read and the
-		// write. Only segment-relative editing is supported at this stage, so a
-		// drawer-relative or unresolved database is rejected rather than written to
-		// with segment-relative indices (which would be a mixed-space write).
+		// write. Segment-relative and drawer-relative databases are both editable,
+		// each in its own coordinate space; an unresolved database is rejected
+		// rather than written to with indices whose meaning is unknown.
 		space, err := ledspace.Current(ctx, q)
 		if err != nil {
 			return fmt.Errorf("failed to read LED coordinate space: %w", err)
 		}
-		if space != ledspace.Segment {
-			return fmt.Errorf("%w: grid editing is only supported for segment-relative LED indices (active space %q)", ErrInvalidAllocation, space)
+		if space == ledspace.Unresolved {
+			return fmt.Errorf("%w: grid editing is disabled while the LED coordinate space is unresolved", ErrInvalidAllocation)
+		}
+
+		// Refuse a save whose payload was authored in a different coordinate space
+		// than the one in force now. This prevents a grid page loaded before an
+		// administrator conversion from silently writing segment-relative indices
+		// into a drawer-relative database (or vice versa).
+		if expectedSpace != "" && expectedSpace != space {
+			return fmt.Errorf("%w: the LED coordinate space changed from %q to %q; reload the grid before saving", ErrInvalidAllocation, expectedSpace, space)
 		}
 
 		// Validate every mapped bin against its drawer's allocation in the active
-		// (segment) space before any persistent change. Unmapped bins (nil
-		// led_index) are allowed.
+		// coordinate space before any persistent change. Unmapped bins (nil
+		// led_index) are allowed. In drawer space this enforces the [0,count)
+		// containment that keeps bins inside their owning drawer; because drawer
+		// allocations are themselves validated non-overlapping, drawers sharing one
+		// segment cannot hold overlapping LED ranges.
 		if err := validateBinMappingsInSpace(space, binRows, resolved); err != nil {
 			return fmt.Errorf("%w: %v", ErrInvalidAllocation, err)
 		}
@@ -378,7 +400,14 @@ func (s *service) SaveGrid(ctx context.Context, controllerID int64, gridDataJSON
 				}
 
 				if b.LedIndex != nil {
-					if end := int64(*b.LedIndex) + int64(clampWidth(b.Width)); end > totalLedCount {
+					// Report the physical (segment-relative) LED end for the audit trail.
+					// In drawer space the stored index is relative to the drawer, so the
+					// drawer's allocation start is added back.
+					base := int64(0)
+					if space == ledspace.Drawer && b.ContainerIndex >= 0 && b.ContainerIndex < len(resolved) {
+						base = resolved[b.ContainerIndex].LedStart
+					}
+					if end := base + int64(*b.LedIndex) + int64(clampWidth(b.Width)); end > totalLedCount {
 						totalLedCount = end
 					}
 				}

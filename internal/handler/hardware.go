@@ -145,11 +145,11 @@ func (h *Handler) HandleHardwareGridSave(w http.ResponseWriter, r *http.Request)
 	gridDataJSON := r.FormValue("grid_data")
 	configJSON := r.FormValue("config_data")
 
-	_, err := h.Hardware.SaveGrid(ctx, int64(controllerID), gridDataJSON, configJSON)
+	_, err := h.Hardware.SaveGridInSpace(ctx, int64(controllerID), gridDataJSON, configJSON, r.FormValue("bin_index_space"))
 	if err != nil {
 		// Invalid drawer allocations or bin mappings are client errors.
 		if errors.Is(err, hardware.ErrInvalidAllocation) {
-			h.UIError.Respond(w, r, err, "Invalid grid layout: check drawer LED allocations and bin mappings", http.StatusBadRequest)
+			h.UIError.Respond(w, r, err, "Invalid grid layout: check drawer LED allocations and bin mappings, then reload the grid", http.StatusBadRequest)
 			return
 		}
 		// Anything else is a genuine internal failure.

@@ -113,6 +113,34 @@ func validateBinMappingsInSpace(space string, bins []binMappingRow, containers [
 			return fmt.Errorf("bin %q in drawer %q: %w", b.Name, c.Name, err)
 		}
 	}
+
+	// Reject physically overlapping LED ranges within the same drawer. The
+	// UNIQUE(container_id, led_index) constraint only rejects identical indices,
+	// not partial overlaps of variable-width bins, so it is checked explicitly.
+	// Because drawer allocations are validated non-overlapping separately, this
+	// also guarantees two drawers sharing a segment cannot overlap physically.
+	type span struct {
+		name       string
+		start, end int64
+	}
+	byContainer := map[int][]span{}
+	for _, b := range bins {
+		if b.LedIndex == nil || b.ContainerIndex < 0 || b.ContainerIndex >= len(containers) {
+			continue
+		}
+		width := int64(clampWidth(b.Width))
+		start := int64(*b.LedIndex)
+		byContainer[b.ContainerIndex] = append(byContainer[b.ContainerIndex], span{name: b.Name, start: start, end: start + width})
+	}
+	for ci, spans := range byContainer {
+		sort.Slice(spans, func(i, j int) bool { return spans[i].start < spans[j].start })
+		for i := 1; i < len(spans); i++ {
+			if spans[i].start < spans[i-1].end {
+				return fmt.Errorf("bins %q and %q in drawer %q have overlapping LED ranges [%d,%d) and [%d,%d)",
+					spans[i-1].name, spans[i].name, containers[ci].Name, spans[i-1].start, spans[i-1].end, spans[i].start, spans[i].end)
+			}
+		}
+	}
 	return nil
 }
 

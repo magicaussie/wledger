@@ -18,9 +18,29 @@ templ HardwareGrid(user auth.User, c db.Controller, containers []db.Container, b
 			<h1 class="text-3xl font-bold mt-2">{ i18n.TD(ctx, "ConfigureController", map[string]interface{}{"Name": c.Name}) }</h1>
 			<p class="opacity-70">{ i18n.T(ctx, "MapLEDsToBins") }</p>
 		</div>
+
+		if binIndexSpace == "unresolved" {
+			<div class="alert alert-warning shadow-sm mb-6 flex-col items-start gap-2">
+				<span class="font-bold">{ i18n.T(ctx, "ConversionUnresolvedGridWarning") }</span>
+				<span class="text-sm">{ i18n.T(ctx, "ConversionUnresolvedGridGuidance") }</span>
+			</div>
+		} else if binIndexSpace == "drawer" {
+			<div class="alert alert-info shadow-sm mb-6 text-sm">
+				<span>{ i18n.T(ctx, "DrawerRelativeEditingNotice") }</span>
+			</div>
+		}
+
+		if user.IsAdmin() && binIndexSpace == "segment" {
+			<div class="mb-6 flex justify-end">
+				<a href="/hardware/conversion" class="btn btn-sm btn-outline btn-primary gap-2">
+					{ i18n.T(ctx, "LedCoordinateConversion") }
+				</a>
+			</div>
+		}
+
 		<div class="card bg-base-100 shadow-xl border border-base-300">
 			<div class="card-body">
-				@components.GridPainter(c, containers, bins, binIndexSpace, user.CanConfigure())
+				@components.GridPainter(c, containers, bins, binIndexSpace, user.CanConfigure() && binIndexSpace != "unresolved")
 			</div>
 		</div>
 	}

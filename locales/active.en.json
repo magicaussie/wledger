@@ -1107,5 +1107,107 @@
   },
   "View": {
     "other": "View"
+  },
+  "LedCoordinateConversion": {
+    "other": "LED Coordinate Conversion"
+  },
+  "LedCoordinateConversionDescription": {
+    "other": "Review how bin LED indices would change from segment-relative to drawer-relative."
+  },
+  "ConversionWhatChanges": {
+    "other": "What changes"
+  },
+  "PhysicalUnchangedNotice": {
+    "other": "Only the stored index values change. Every bin will still light up the same physical LEDs on the strip before and after the conversion."
+  },
+  "CurrentCoordinateSpace": {
+    "other": "Current coordinate space"
+  },
+  "CoordinateSpaceSegment": {
+    "other": "Segment-relative (S)"
+  },
+  "CoordinateSpaceDrawer": {
+    "other": "Drawer-relative (D)"
+  },
+  "CoordinateSpaceUnresolved": {
+    "other": "Unresolved"
+  },
+  "TotalDrawers": {
+    "other": "Drawers"
+  },
+  "AffectedBins": {
+    "other": "Bins affected"
+  },
+  "ConvertibleDrawers": {
+    "other": "Convertible"
+  },
+  "BlockedDrawers": {
+    "other": "Blocked"
+  },
+  "NoConversionNeeded": {
+    "other": "Nothing to convert. Bin LED indices are not stored as segment-relative indices."
+  },
+  "ConversionFindings": {
+    "other": "Conversion details"
+  },
+  "ConversionNothingToDo": {
+    "other": "No drawers to convert."
+  },
+  "ConversionConvertible": {
+    "other": "Convertible"
+  },
+  "ConversionBlocked": {
+    "other": "Blocked"
+  },
+  "BlockedReason": {
+    "other": "Reason"
+  },
+  "SegmentRelativeShort": {
+    "other": "S"
+  },
+  "DrawerRelativeShort": {
+    "other": "D"
+  },
+  "DrawerRelative": {
+    "other": "drawer-relative"
+  },
+  "SegmentRelative": {
+    "other": "segment-relative"
+  },
+  "ConfirmConversion": {
+    "other": "Confirm conversion"
+  },
+  "ConfirmConversionCheckbox": {
+    "other": "I understand this converts every bin index to drawer-relative. Physical LED positions will not change."
+  },
+  "RunConversion": {
+    "other": "Convert to drawer-relative"
+  },
+  "ConversionSuccess": {
+    "other": "Conversion complete. All bin indices are now drawer-relative."
+  },
+  "ConversionAlreadyDrawer": {
+    "other": "The database is already drawer-relative. Nothing was changed."
+  },
+  "ConversionRefusedNotice": {
+    "other": "Conversion was refused because one or more drawers are blocked. Nothing was changed."
+  },
+  "ConversionStaleNotice": {
+    "other": "The configuration changed since you reviewed the preview. Nothing was changed. Review the updated preview below and confirm again if it looks correct."
+  },
+  "ConversionUnresolvedNotice": {
+    "other": "The LED coordinate space is unresolved, so a conversion cannot be performed. Resolve the coordinate space first, for example by restoring a backup that carries an explicit coordinate-space marker."
+  },
+  "ConversionCannotProceed": {
+    "other": "Conversion cannot proceed while any drawer is blocked. Resolve the reasons above, then review a fresh preview."
+  },
+  "ConversionUnresolvedGridWarning": {
+    "other": "LED grid editing is disabled because the coordinate space of the stored bin indices is unresolved."
+  },
+  "ConversionUnresolvedGridGuidance": {
+    "other": "Restore a backup that carries an explicit coordinate-space marker, or have an administrator resolve the coordinate space, before editing the grid."
+  },
+  "DrawerRelativeEditingNotice": {
+    "other": "Bin indices are drawer-relative. Each bin is addressed from the start of its own drawer's LED allocation. The segment-relative (S) physical position is shown for reference."
   }
 }

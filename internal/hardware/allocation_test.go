@@ -14,6 +14,7 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/tuxedocurly/wledger/internal/db"
+	"github.com/tuxedocurly/wledger/internal/hardware/mapper"
 	"github.com/tuxedocurly/wledger/internal/ledspace"
 	"github.com/tuxedocurly/wledger/internal/wled"
 )
@@ -609,10 +610,11 @@ func TestImportConfigAllowsPartiallyMappedDrawer(t *testing.T) {
 	}
 }
 
-// TestSaveGridRejectsDrawerSpace verifies that the grid writer refuses to write
-// segment-relative indices into a drawer-relative database, so no mixed-space
-// write can occur while the frontend still edits in segment space.
-func TestSaveGridRejectsDrawerSpace(t *testing.T) {
+// TestSaveGridDrawerSpace verifies that in drawer space the grid writer stores
+// drawer-relative indices (relative to the owning drawer's allocation) rather
+// than segment-absolute ones, and that the physical LED target is preserved as
+// drawer.led_start + index.
+func TestSaveGridDrawerSpace(t *testing.T) {
 	svc, store, dbConn := setupAllocTest(t, "savegrid_drawer_space")
 	defer dbConn.Close()
 	ctx := context.Background()
@@ -622,15 +624,291 @@ func TestSaveGridRejectsDrawerSpace(t *testing.T) {
 	}
 
 	ctrl, _ := store.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
+	// Drawer B is allocated [10,20) in the segment; a drawer-relative index of 3
+	// denotes physical segment LED 13.
+	configData := `[{"id":null,"name":"A","segment_id":0,"led_start":0,"led_count":10,"config":{"type":"linear","total":10}},{"id":null,"name":"B","segment_id":0,"led_start":10,"led_count":10,"config":{"type":"linear","total":10}}]`
+	gridData := `[{"container_index":1,"x":0,"y":0,"led_index":3,"width":2,"name":"b1"}]`
+	if _, err := svc.SaveGrid(ctx, ctrl.ID, gridData, configData); err != nil {
+		t.Fatalf("SaveGrid in drawer space failed: %v", err)
+	}
+
+	containers, err := store.GetContainersByController(ctx, ctrl.ID)
+	if err != nil {
+		t.Fatalf("get containers: %v", err)
+	}
+	var bID int64
+	for _, c := range containers {
+		if c.Name == "B" {
+			bID = c.ID
+		}
+	}
+	if bID == 0 {
+		t.Fatal("drawer B not found")
+	}
+	bins, err := store.GetBinsByContainer(ctx, bID)
+	if err != nil {
+		t.Fatalf("get bins: %v", err)
+	}
+	if len(bins) != 1 {
+		t.Fatalf("expected 1 bin, got %d", len(bins))
+	}
+	if !bins[0].LedIndex.Valid || bins[0].LedIndex.Int64 != 3 {
+		t.Errorf("stored index = %v, want drawer-relative 3", bins[0].LedIndex)
+	}
+	if !bins[0].Width.Valid || bins[0].Width.Int64 != 2 {
+		t.Errorf("width = %v, want 2", bins[0].Width)
+	}
+
+	// The stored drawer-relative index must still resolve to the same physical LED.
+	seg, idx, err := mapper.CalculateGlobalIndex(ledspace.Drawer, containers, bins[0])
+	if err != nil {
+		t.Fatalf("map: %v", err)
+	}
+	if seg != 0 || idx != 13 {
+		t.Errorf("physical target = (%d,%d), want (0,13)", seg, idx)
+	}
+}
+
+// TestSaveGridDrawerSpaceOutOfRange verifies that a drawer-relative index outside
+// the drawer's allocation is rejected and no write occurs.
+func TestSaveGridDrawerSpaceOutOfRange(t *testing.T) {
+	svc, store, dbConn := setupAllocTest(t, "savegrid_drawer_oob")
+	defer dbConn.Close()
+	ctx := context.Background()
+
+	if err := ledspace.Set(ctx, store, ledspace.Drawer); err != nil {
+		t.Fatalf("set drawer: %v", err)
+	}
+
+	ctrl, _ := store.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
 	configData := `[{"id":null,"name":"A","segment_id":0,"led_start":0,"led_count":10,"config":{"type":"linear","total":10}}]`
-	gridData := `[{"container_index":0,"x":0,"y":0,"led_index":0,"width":1,"name":"a1"}]`
-	if _, err := svc.SaveGrid(ctx, ctrl.ID, gridData, configData); err == nil {
-		t.Fatal("expected SaveGrid to reject a drawer-relative database")
+	// Index 9 with width 2 exceeds the [0,10) allocation.
+	gridData := `[{"container_index":0,"x":0,"y":0,"led_index":9,"width":2,"name":"a1"}]`
+	if _, err := svc.SaveGrid(ctx, ctrl.ID, gridData, configData); !errors.Is(err, ErrInvalidAllocation) {
+		t.Fatalf("expected ErrInvalidAllocation, got %v", err)
 	}
 
 	containers, _ := store.GetContainersByController(ctx, ctrl.ID)
 	if len(containers) != 0 {
-		t.Fatalf("drawer-space SaveGrid modified the database: %+v", containers)
+		t.Fatalf("rejected drawer-space save modified the database: %+v", containers)
+	}
+}
+
+// TestSaveGridDrawerSpaceRoundTrip verifies that a drawer-space save can be
+// reloaded and re-saved without changing the stored drawer-relative indices.
+func TestSaveGridDrawerSpaceRoundTrip(t *testing.T) {
+	svc, store, dbConn := setupAllocTest(t, "savegrid_drawer_roundtrip")
+	defer dbConn.Close()
+	ctx := context.Background()
+
+	if err := ledspace.Set(ctx, store, ledspace.Drawer); err != nil {
+		t.Fatalf("set drawer: %v", err)
+	}
+
+	ctrl, _ := store.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
+	configData := `[{"id":null,"name":"A","segment_id":0,"led_start":5,"led_count":10,"config":{"type":"linear","total":10}}]`
+	gridData := `[{"container_index":0,"x":0,"y":0,"led_index":2,"width":3,"name":"a1"}]`
+
+	if _, err := svc.SaveGrid(ctx, ctrl.ID, gridData, configData); err != nil {
+		t.Fatalf("first save: %v", err)
+	}
+	bins, err := svc.GetBinsByController(ctx, ctrl.ID)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if len(bins) != 1 || !bins[0].LedIndex.Valid || bins[0].LedIndex.Int64 != 2 {
+		t.Fatalf("after first save bins = %+v, want one bin with index 2", bins)
+	}
+
+	// Re-save using the reloaded container id (as the painter does), simulating a
+	// reload-then-save round trip.
+	containers, err := store.GetContainersByController(ctx, ctrl.ID)
+	if err != nil || len(containers) != 1 {
+		t.Fatalf("reload containers: %v (%d)", err, len(containers))
+	}
+	configData2 := fmt.Sprintf(`[{"id":%d,"name":"A","segment_id":0,"led_start":5,"led_count":10,"config":{"type":"linear","total":10}}]`, containers[0].ID)
+	if _, err := svc.SaveGrid(ctx, ctrl.ID, gridData, configData2); err != nil {
+		t.Fatalf("second save: %v", err)
+	}
+	bins, err = store.GetBinsByContainer(ctx, containers[0].ID)
+	if err != nil {
+		t.Fatalf("reload 2: %v", err)
+	}
+	if len(bins) != 1 || bins[0].LedIndex.Int64 != 2 || bins[0].Width.Int64 != 3 {
+		t.Fatalf("after round trip bins = %+v, want index 2 width 3", bins)
+	}
+}
+
+// TestSaveGridSharedSegmentNoOverlap verifies that two drawers sharing one
+// segment cannot be saved with overlapping drawer allocations, which is what
+// guarantees their bins cannot overlap physically.
+func TestSaveGridSharedSegmentNoOverlap(t *testing.T) {
+	svc, store, dbConn := setupAllocTest(t, "savegrid_shared_segment")
+	defer dbConn.Close()
+	ctx := context.Background()
+
+	if err := ledspace.Set(ctx, store, ledspace.Drawer); err != nil {
+		t.Fatalf("set drawer: %v", err)
+	}
+
+	ctrl, _ := store.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
+	// A [0,10) and B [5,15) overlap within segment 0.
+	configData := `[{"id":null,"name":"A","segment_id":0,"led_start":0,"led_count":10,"config":{"type":"linear","total":10}},{"id":null,"name":"B","segment_id":0,"led_start":5,"led_count":10,"config":{"type":"linear","total":10}}]`
+	gridData := `[{"container_index":0,"x":0,"y":0,"led_index":0,"width":1,"name":"a1"}]`
+	if _, err := svc.SaveGrid(ctx, ctrl.ID, gridData, configData); !errors.Is(err, ErrInvalidAllocation) {
+		t.Fatalf("expected ErrInvalidAllocation for overlapping allocations, got %v", err)
+	}
+}
+
+// TestSaveGridRejectsOverlappingBinsSameDrawer verifies that two variable-width
+// bins whose LED ranges overlap within one drawer (same segment space) are
+// rejected as a client error rather than reaching the UNIQUE constraint.
+func TestSaveGridRejectsOverlappingBinsSameDrawer(t *testing.T) {
+	svc, store, dbConn := setupAllocTest(t, "savegrid_overlap_bins_segment")
+	defer dbConn.Close()
+	ctx := context.Background()
+
+	ctrl, _ := store.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
+	configData := `[{"id":null,"name":"A","segment_id":0,"led_start":0,"led_count":10,"config":{"type":"linear","total":10}}]`
+	// [0,4) and [2,3) overlap.
+	gridData := `[{"container_index":0,"x":0,"y":0,"led_index":0,"width":4,"name":"a1"},{"container_index":0,"x":1,"y":0,"led_index":2,"width":1,"name":"a2"}]`
+	if _, err := svc.SaveGrid(ctx, ctrl.ID, gridData, configData); !errors.Is(err, ErrInvalidAllocation) {
+		t.Fatalf("expected ErrInvalidAllocation for overlapping bins, got %v", err)
+	}
+	containers, _ := store.GetContainersByController(ctx, ctrl.ID)
+	if len(containers) != 0 {
+		t.Fatalf("rejected overlapping save modified the database: %+v", containers)
+	}
+}
+
+// TestSaveGridDrawerRejectsOverlappingBins verifies the same overlap rejection in
+// drawer-relative space, where the UNIQUE constraint cannot catch partial overlaps.
+func TestSaveGridDrawerRejectsOverlappingBins(t *testing.T) {
+	svc, store, dbConn := setupAllocTest(t, "savegrid_overlap_bins_drawer")
+	defer dbConn.Close()
+	ctx := context.Background()
+
+	if err := ledspace.Set(ctx, store, ledspace.Drawer); err != nil {
+		t.Fatalf("set drawer: %v", err)
+	}
+	ctrl, _ := store.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
+	configData := `[{"id":null,"name":"A","segment_id":0,"led_start":0,"led_count":10,"config":{"type":"linear","total":10}}]`
+	// Drawer-relative [0,3) and [2,3) overlap.
+	gridData := `[{"container_index":0,"x":0,"y":0,"led_index":0,"width":3,"name":"a1"},{"container_index":0,"x":1,"y":0,"led_index":2,"width":1,"name":"a2"}]`
+	if _, err := svc.SaveGrid(ctx, ctrl.ID, gridData, configData); !errors.Is(err, ErrInvalidAllocation) {
+		t.Fatalf("expected ErrInvalidAllocation for overlapping drawer bins, got %v", err)
+	}
+	containers, _ := store.GetContainersByController(ctx, ctrl.ID)
+	if len(containers) != 0 {
+		t.Fatalf("rejected overlapping save modified the database: %+v", containers)
+	}
+}
+
+// TestSaveGridDrawerBoundaryIndices verifies index 0 and the last valid index of a
+// drawer allocation are accepted in drawer space, while index==count is rejected.
+func TestSaveGridDrawerBoundaryIndices(t *testing.T) {
+	svc, store, dbConn := setupAllocTest(t, "savegrid_drawer_boundary")
+	defer dbConn.Close()
+	ctx := context.Background()
+
+	if err := ledspace.Set(ctx, store, ledspace.Drawer); err != nil {
+		t.Fatalf("set drawer: %v", err)
+	}
+	ctrl, _ := store.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
+	configData := `[{"id":null,"name":"A","segment_id":0,"led_start":0,"led_count":5,"config":{"type":"linear","total":5}}]`
+
+	// First and last valid drawer-relative indices (0 and 4).
+	gridData := `[{"container_index":0,"x":0,"y":0,"led_index":0,"width":1,"name":"a0"},{"container_index":0,"x":4,"y":0,"led_index":4,"width":1,"name":"a4"}]`
+	if _, err := svc.SaveGrid(ctx, ctrl.ID, gridData, configData); err != nil {
+		t.Fatalf("boundary indices should be accepted: %v", err)
+	}
+
+	// index == count (5) is out of range.
+	bad := `[{"container_index":0,"x":0,"y":0,"led_index":5,"width":1,"name":"bad"}]`
+	if _, err := svc.SaveGrid(ctx, ctrl.ID, bad, configData); !errors.Is(err, ErrInvalidAllocation) {
+		t.Fatalf("expected out-of-range index to be rejected, got %v", err)
+	}
+}
+
+// TestSaveGridPreservesNullAndZeroRoundTrip verifies that an unmapped bin (NULL
+// led_index) and a bin mapped to index 0 both survive a save/reload/save cycle
+// without the NULL becoming index 0, in both coordinate spaces.
+func TestSaveGridPreservesNullAndZeroRoundTrip(t *testing.T) {
+	for _, space := range []string{ledspace.Segment, ledspace.Drawer} {
+		t.Run(space, func(t *testing.T) {
+			svc, store, dbConn := setupAllocTest(t, "savegrid_null_zero_"+space)
+			defer dbConn.Close()
+			ctx := context.Background()
+			if err := ledspace.Set(ctx, store, space); err != nil {
+				t.Fatalf("set space: %v", err)
+			}
+			ctrl, _ := store.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
+
+			configData := `[{"id":null,"name":"A","segment_id":0,"led_start":0,"led_count":10,"config":{"type":"linear","total":10}}]`
+			gridData := `[{"container_index":0,"x":0,"y":0,"led_index":0,"width":2,"name":"zero"},{"container_index":0,"x":2,"y":0,"led_index":null,"width":1,"name":"unmapped"}]`
+			if _, err := svc.SaveGridInSpace(ctx, ctrl.ID, gridData, configData, space); err != nil {
+				t.Fatalf("first save: %v", err)
+			}
+
+			containers, err := store.GetContainersByController(ctx, ctrl.ID)
+			if err != nil || len(containers) != 1 {
+				t.Fatalf("containers = %d (err %v), want 1", len(containers), err)
+			}
+			assertBins := func(stage string) {
+				t.Helper()
+				bins, _ := store.GetBinsByContainer(ctx, containers[0].ID)
+				var zero, unmapped *db.Bin
+				for i := range bins {
+					switch bins[i].Name {
+					case "zero":
+						zero = &bins[i]
+					case "unmapped":
+						unmapped = &bins[i]
+					}
+				}
+				if zero == nil || !zero.LedIndex.Valid || zero.LedIndex.Int64 != 0 || zero.Width.Int64 != 2 {
+					t.Fatalf("%s: zero bin = %+v, want valid index 0 width 2", stage, zero)
+				}
+				if unmapped == nil || unmapped.LedIndex.Valid {
+					t.Fatalf("%s: unmapped bin = %+v, want NULL led_index", stage, unmapped)
+				}
+			}
+			assertBins("after first save")
+
+			// Re-save the reloaded state (same payload, real container id).
+			configData2 := fmt.Sprintf(`[{"id":%d,"name":"A","segment_id":0,"led_start":0,"led_count":10,"config":{"type":"linear","total":10}}]`, containers[0].ID)
+			if _, err := svc.SaveGridInSpace(ctx, ctrl.ID, gridData, configData2, space); err != nil {
+				t.Fatalf("second save: %v", err)
+			}
+			assertBins("after round trip")
+		})
+	}
+}
+
+// TestSaveGridInSpaceRejectsMismatch verifies that a payload authored in a
+// different coordinate space than the one in force is refused as a client error
+// and leaves the database unchanged.
+func TestSaveGridInSpaceRejectsMismatch(t *testing.T) {
+	svc, store, dbConn := setupAllocTest(t, "savegrid_space_guard")
+	defer dbConn.Close()
+	ctx := context.Background()
+
+	ctrl, _ := store.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
+	configData := `[{"id":null,"name":"A","segment_id":0,"led_start":0,"led_count":10,"config":{"type":"linear","total":10}}]`
+	gridData := `[{"container_index":0,"x":0,"y":0,"led_index":0,"width":1,"name":"a1"}]`
+
+	// Active space is segment; a payload tagged drawer must be refused.
+	if _, err := svc.SaveGridInSpace(ctx, ctrl.ID, gridData, configData, ledspace.Drawer); !errors.Is(err, ErrInvalidAllocation) {
+		t.Fatalf("expected ErrInvalidAllocation for space mismatch, got %v", err)
+	}
+	containers, _ := store.GetContainersByController(ctx, ctrl.ID)
+	if len(containers) != 0 {
+		t.Fatalf("a mismatched save modified the database: %+v", containers)
+	}
+
+	// A matching tag succeeds.
+	if _, err := svc.SaveGridInSpace(ctx, ctrl.ID, gridData, configData, ledspace.Segment); err != nil {
+		t.Fatalf("matching space should succeed: %v", err)
 	}
 }
 

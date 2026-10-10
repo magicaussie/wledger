@@ -2,12 +2,15 @@ package hardware
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
 	"sort"
 
+	"github.com/tuxedocurly/wledger/internal/audit"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/ledspace"
 )
@@ -28,6 +31,10 @@ const (
 	ConversionAlreadyDrawer ConversionOutcome = "already_drawer"
 	// ConversionRefused: validation failed; no changes were made.
 	ConversionRefused ConversionOutcome = "refused"
+	// ConversionStale: the database state no longer matches the reviewed
+	// preflight, so the confirmation is rejected and no changes are made. The
+	// administrator must review a fresh preview.
+	ConversionStale ConversionOutcome = "stale"
 )
 
 // ConversionClass classifies one drawer's convertibility.
@@ -47,6 +54,7 @@ type ConversionBinChange struct {
 	ContainerID int64
 	FromIndex   int64 // segment-relative
 	ToIndex     int64 // drawer-relative
+	Width       int64 // LED span, preserved across conversion
 }
 
 // ConversionFinding is one drawer's preflight result.
@@ -64,7 +72,10 @@ type ConversionFinding struct {
 // ConversionReport summarises a preflight run.
 type ConversionReport struct {
 	// Space is the coordinate space the report was produced against.
-	Space        string
+	Space string
+	// TotalDrawers is the number of drawers considered (including empty and
+	// blocked drawers).
+	TotalDrawers int
 	Findings     []ConversionFinding
 	Convertible  int
 	Blocked      int
@@ -73,6 +84,7 @@ type ConversionReport struct {
 
 func (r *ConversionReport) add(f ConversionFinding) {
 	r.Findings = append(r.Findings, f)
+	r.TotalDrawers++
 	switch f.Class {
 	case ConversionConvertible:
 		r.Convertible++
@@ -80,6 +92,32 @@ func (r *ConversionReport) add(f ConversionFinding) {
 		r.Blocked++
 	}
 	r.AffectedBins += len(f.Bins)
+}
+
+// Fingerprint returns a deterministic digest of the report's conversion-relevant
+// state. It is stable across runs for the same database state (findings and bins
+// are canonicalised by id before hashing) and changes whenever any drawer
+// allocation, bin mapping, contradiction or blocking reason changes. It is used
+// to bind a confirmation to the exact preflight the administrator reviewed.
+func (r ConversionReport) Fingerprint() string {
+	h := sha256.New()
+	fmt.Fprintf(h, "space=%s\n", r.Space)
+
+	findings := make([]ConversionFinding, len(r.Findings))
+	copy(findings, r.Findings)
+	sort.Slice(findings, func(i, j int) bool { return findings[i].ContainerID < findings[j].ContainerID })
+
+	for _, f := range findings {
+		fmt.Fprintf(h, "drawer=%d;segment=%d;start=%d;count=%d;class=%s;reason=%s\n",
+			f.ContainerID, f.SegmentID, f.LedStart, f.LedCount, f.Class, f.Reason)
+		bins := make([]ConversionBinChange, len(f.Bins))
+		copy(bins, f.Bins)
+		sort.Slice(bins, func(i, j int) bool { return bins[i].BinID < bins[j].BinID })
+		for _, b := range bins {
+			fmt.Fprintf(h, "bin=%d;container=%d;from=%d;to=%d;width=%d\n", b.BinID, b.ContainerID, b.FromIndex, b.ToIndex, b.Width)
+		}
+	}
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // ConversionResult is the outcome of a conversion attempt.
@@ -131,6 +169,21 @@ func PreflightConversion(ctx context.Context, store db.Store) (ConversionReport,
 // the conversion snapshot, so the snapshot cannot be invalidated by a concurrent
 // writer and no other writer can commit until the conversion finishes.
 func ConvertToDrawerRelative(ctx context.Context, store db.Store, logger *slog.Logger) (ConversionResult, error) {
+	return convertToDrawerRelative(ctx, store, "", logger)
+}
+
+// ConvertToDrawerRelativeConfirmed is ConvertToDrawerRelative with a stale-state
+// guard: expectedFingerprint is the fingerprint of the preflight the
+// administrator reviewed. The entire preflight is recalculated inside the same
+// write transaction that would perform the conversion; if the freshly computed
+// fingerprint differs, the confirmation is rejected with ConversionStale and no
+// data is modified. An empty expectedFingerprint disables the check (used by the
+// unconfirmed entry point and by tests).
+func ConvertToDrawerRelativeConfirmed(ctx context.Context, store db.Store, expectedFingerprint string, logger *slog.Logger) (ConversionResult, error) {
+	return convertToDrawerRelative(ctx, store, expectedFingerprint, logger)
+}
+
+func convertToDrawerRelative(ctx context.Context, store db.Store, expectedFingerprint string, logger *slog.Logger) (ConversionResult, error) {
 	var result ConversionResult
 	err := store.ExecImmediateTx(ctx, func(q db.Querier) error {
 		space, err := ledspace.Current(ctx, q)
@@ -154,6 +207,15 @@ func ConvertToDrawerRelative(ctx context.Context, store db.Store, logger *slog.L
 			return err
 		}
 		result.Report = report
+
+		// Bind the conversion to the reviewed preflight. Revalidated against the
+		// freshly built report inside the write transaction, so a database change
+		// committed since the preview cannot be converted against a stale snapshot.
+		if expectedFingerprint != "" && report.Fingerprint() != expectedFingerprint {
+			result.Outcome = ConversionStale
+			return nil
+		}
+
 		if report.Blocked > 0 {
 			result.Outcome = ConversionRefused
 			return nil
@@ -182,6 +244,16 @@ func ConvertToDrawerRelative(ctx context.Context, store db.Store, logger *slog.L
 		if err := ledspace.Set(ctx, q, ledspace.Drawer); err != nil {
 			return fmt.Errorf("failed to set LED coordinate space: %w", err)
 		}
+		// The audit entry is written in the same transaction as the conversion, and a
+		// failure to write it aborts the whole conversion, so the operation and its
+		// audit trail can never diverge (no false success, no partial conversion).
+		if err := audit.LogTx(ctx, q, "UPDATE", "HARDWARE", 0, "Converted bin LED indices to drawer-relative", nil, map[string]any{
+			"drawers": report.Convertible,
+			"bins":    report.AffectedBins,
+			"space":   ledspace.Drawer,
+		}); err != nil {
+			return fmt.Errorf("failed to write conversion audit entry: %w", err)
+		}
 		result.Outcome = ConversionConverted
 		result.ConvertedBins = report.AffectedBins
 		return nil
@@ -199,6 +271,8 @@ func ConvertToDrawerRelative(ctx context.Context, store db.Store, logger *slog.L
 			logger.Info("bin LED indices already drawer-relative; conversion skipped")
 		case ConversionRefused:
 			logger.Warn("bin LED index conversion refused", "blocked_drawers", result.Report.Blocked)
+		case ConversionStale:
+			logger.Warn("bin LED index conversion rejected: reviewed preview is stale")
 		}
 	}
 	return result, nil
@@ -302,6 +376,7 @@ func buildConversionReport(ctx context.Context, q db.Querier) (ConversionReport,
 				ContainerID: d.container.ID,
 				FromIndex:   b.LedIndex.Int64,
 				ToIndex:     b.LedIndex.Int64 - d.container.LedStart,
+				Width:       width,
 			})
 		}
 		if blocked {

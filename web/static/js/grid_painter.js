@@ -1,8 +1,9 @@
 document.addEventListener('alpine:init', () => {
     Alpine.data('gridPainter', (ctrlId, binsDataId, containersDataId, binIndexSpace, canEdit) => ({
         canEdit: canEdit,
-        // Active coordinate space of the stored bin LED indices. Exposed for
-        // display only; editing behaviour remains segment-relative for now.
+        // Active coordinate space of the stored bin LED indices. In segment mode
+        // a cell's led_index is segment-absolute; in drawer mode it is relative to
+        // its owning drawer's allocation (physical LED = drawer.led_start + index).
         binIndexSpace: binIndexSpace,
         containers: [],
         selectedContainerIndex: 0,
@@ -41,7 +42,11 @@ document.addEventListener('alpine:init', () => {
 
             // Load Existing Bins
             existingBins.forEach(b => {
-                const led = b.led_index?.Int64 || 0;
+                // Preserve the NULL / index-0 distinction: a bin with no LED
+                // assignment (led_index NULL) must stay unmapped rather than
+                // silently becoming index 0.
+                const mapped = !!(b.led_index && b.led_index.Valid);
+                const led = mapped ? Number(b.led_index.Int64) : null;
                 const cID = b.container_id;
 
                 // Find container index by ID
@@ -52,7 +57,7 @@ document.addEventListener('alpine:init', () => {
                         const key = `${cIdx},${localIdx}`;
                         const width = (b.width?.Int64 >= 1) ? Number(b.width.Int64) : 1;
                         this.cells[key] = {
-                            led_index: Number(led),
+                            led_index: led,
                             width: width,
                             name: b.name
                         };
@@ -201,7 +206,22 @@ document.addEventListener('alpine:init', () => {
 
         getCellClass(cIdx, cellIdx) {
             const key = `${cIdx},${cellIdx}`;
-            return this.cells[key] ? 'bg-primary text-primary-content border-primary' : 'bg-base-100 text-base-content/20';
+            const cell = this.cells[key];
+            if (!cell) return 'bg-base-100 text-base-content/20';
+            if (cell.led_index === null || cell.led_index === undefined) return ''; // unmapped: styled by the template
+            return 'bg-primary text-primary-content border-primary';
+        },
+
+        /** True when a cell exists and carries an explicit LED assignment (0 included). */
+        isMappedCell(cIdx, cellIdx) {
+            const cell = this.cells[`${cIdx},${cellIdx}`];
+            return !!cell && cell.led_index !== null && cell.led_index !== undefined;
+        },
+
+        /** True when a cell exists but has no LED assignment (NULL). */
+        isUnmappedCell(cIdx, cellIdx) {
+            const cell = this.cells[`${cIdx},${cellIdx}`];
+            return !!cell && (cell.led_index === null || cell.led_index === undefined);
         },
 
         getGlobalLedIndex(cIdx, cellIdx) {
@@ -213,8 +233,9 @@ document.addEventListener('alpine:init', () => {
         /** 1-based start LED for a mapped bin (physical LED numbering). */
         getStartLed(cIdx, cellIdx) {
             const key = `${cIdx},${cellIdx}`;
-            if (!this.cells[key]) return '';
-            return (this.cells[key].led_index || 0) + 1;
+            const cell = this.cells[key];
+            if (!cell || cell.led_index === null || cell.led_index === undefined) return '';
+            return cell.led_index + 1;
         },
 
         /** number of LEDs a mapped bin spans (defaults to 1). */
@@ -226,9 +247,9 @@ document.addEventListener('alpine:init', () => {
 
         /** 1-based end LED for a mapped bin. */
         getEndLed(cIdx, cellIdx) {
-            const key = `${cIdx},${cellIdx}`;
-            if (!this.cells[key]) return '';
-            return this.getStartLed(cIdx, cellIdx) + this.getWidth(cIdx, cellIdx) - 1;
+            const start = this.getStartLed(cIdx, cellIdx);
+            if (start === '') return '';
+            return start + this.getWidth(cIdx, cellIdx) - 1;
         },
 
         toggleCell(cIdx, cellIdx) {
@@ -277,32 +298,45 @@ document.addEventListener('alpine:init', () => {
 
         get selectedStartLed() {
             const cell = this.selectedCell;
-            return cell ? (cell.led_index || 0) + 1 : 1;
+            const idx = (cell && cell.led_index !== null && cell.led_index !== undefined) ? cell.led_index : 0;
+            return idx + 1;
         },
         set selectedStartLed(v) {
-            this.cells[this.selectedCellRef.key].led_index = Math.max(1, Number(v)) - 1;
+            const cell = this.cells[this.selectedCellRef.key];
+            cell.led_index = this.clampStoredIndex(this.selectedCellRef.cIdx, Math.max(1, Number(v)) - 1);
         },
 
         get selectedEndLed() {
             const cell = this.selectedCell;
-            return cell ? (cell.led_index || 0) + Math.max(1, cell.width || 1) : 1;
+            const mapped = cell && cell.led_index !== null && cell.led_index !== undefined;
+            const idx = mapped ? cell.led_index : 0;
+            const width = mapped ? Math.max(1, cell.width || 1) : 1;
+            return cell ? idx + width : 1;
         },
         set selectedEndLed(v) {
             const cell = this.cells[this.selectedCellRef.key];
             const start = Math.max(1, Number(this.selectedStartLed));
-            const end = Math.max(start, Number(v));
+            let end = Math.max(start, Number(v));
+            if (this.isDrawerSpace) {
+                const { count } = this.getContainerAllocation(this.selectedCellRef.cIdx);
+                end = Math.min(end, Math.max(start, count));
+            }
             cell.led_index = start - 1;
             cell.width = end - start + 1;
         },
 
-        /** Apply the edited LED range to the selected bin. */
+        /** Apply the edited LED range to the selected bin, clamped to the active space. */
         applyCellRange() {
             if (!this.selectedCellRef) return;
             const key = this.selectedCellRef.key;
             const cell = this.cells[key];
             if (!cell) return;
             const start = Math.max(1, Number(this.selectedStartLed) || 1);
-            const end = Math.max(start, Number(this.selectedEndLed) || start);
+            let end = Math.max(start, Number(this.selectedEndLed) || start);
+            if (this.isDrawerSpace) {
+                const { count } = this.getContainerAllocation(this.selectedCellRef.cIdx);
+                end = Math.min(end, Math.max(start, count));
+            }
             cell.led_index = start - 1;
             cell.width = end - start + 1;
         },
@@ -319,33 +353,105 @@ document.addEventListener('alpine:init', () => {
             this.selectedCellRef = null;
         },
 
-        /** Display label for a cell: shows the LED range (1-based). */
+        /** Display label for a cell: shows the LED range (1-based) in the active space. */
         getCellLedLabel(cIdx, cellIdx) {
             const key = `${cIdx},${cellIdx}`;
-            if (!this.cells[key]) return '';
-            const start = (this.cells[key].led_index || 0) + 1;
-            const width = Math.max(1, this.cells[key].width || 1);
+            const cell = this.cells[key];
+            if (!cell || cell.led_index === null || cell.led_index === undefined) return '';
+            const start = cell.led_index + 1;
+            const width = Math.max(1, cell.width || 1);
             return (width > 1) ? `${start}-${start + width - 1}` : `${start}`;
         },
 
+        /** Segment-relative (physical) 1-based LED range for a mapped cell. */
+        getCellSegmentLabel(cIdx, cellIdx) {
+            const key = `${cIdx},${cellIdx}`;
+            const cell = this.cells[key];
+            if (!cell || cell.led_index === null || cell.led_index === undefined) return '';
+            const base = this.isDrawerSpace ? this.getContainerAllocation(cIdx).start : 0;
+            const start = cell.led_index + base + 1;
+            const width = Math.max(1, cell.width || 1);
+            return (width > 1) ? `${start}-${start + width - 1}` : `${start}`;
+        },
+
+        /** True when stored bin indices are relative to their owning drawer. */
+        get isDrawerSpace() {
+            return this.binIndexSpace === 'drawer';
+        },
+
+        /** Label describing which index space the LED range editor edits. */
+        get spaceLabel() {
+            return this.isDrawerSpace ? 'Drawer-relative (D)' : 'Segment-relative (S)';
+        },
+
+        /** Summary of the selected bin's range in the active space and, when
+         *  drawer-relative, its physical (segment-relative) range. */
+        get rangeSummary() {
+            const cell = this.selectedCell;
+            if (!cell || !this.selectedCellRef) return '';
+            if (cell.led_index === null || cell.led_index === undefined) return 'Unassigned';
+            const width = Math.max(1, cell.width || 1);
+            const aStart = cell.led_index + 1;
+            const aEnd = aStart + width - 1;
+            if (this.isDrawerSpace) {
+                const base = this.getContainerAllocation(this.selectedCellRef.cIdx).start;
+                return `D ${aStart}\u2013${aEnd} \u00b7 S ${aStart + base}\u2013${aEnd + base}`;
+            }
+            return `S ${aStart}\u2013${aEnd}`;
+        },
+
+        /** Drawer allocation (segment-relative start and count) for a drawer. */
+        getContainerAllocation(cIdx) {
+            const c = this.containers[cIdx] || {};
+            return {
+                start: Number(c.led_start) || 0,
+                count: Number(c.led_count) || 0,
+            };
+        },
+
+        /** Clamp a stored LED index to the active space's allowed range. */
+        clampStoredIndex(cIdx, idx) {
+            let v = Math.max(0, Number(idx) || 0);
+            if (this.isDrawerSpace) {
+                const { count } = this.getContainerAllocation(cIdx);
+                const max = Math.max(0, count - 1);
+                if (v > max) v = max;
+            }
+            return v;
+        },
+
+        /**
+         * Next free LED index for a new bin in the active coordinate space.
+         * Segment space dedupes across the whole WLED segment; drawer space
+         * dedupes only within the drawer and never leaves its allocation.
+         */
         getNextAvailableLedIndex(cIdx) {
-            const targetSegment = this.containers[cIdx].segment_id;
+            const isDrawer = this.isDrawerSpace;
+            const target = this.containers[cIdx];
             const used = new Set();
 
             Object.keys(this.cells).forEach(key => {
-                const [ci, _] = key.split(',').map(Number);
-                if (this.containers[ci].segment_id === targetSegment) {
-                    const cell = this.cells[key];
-                    const start = cell.led_index || 0;
-                    const count = Math.max(1, cell.width || 1);
-                    for (let j = 0; j < count; j++) {
-                        used.add(start + j);
-                    }
+                const [ci] = key.split(',').map(Number);
+                const c = this.containers[ci];
+                if (!c) return;
+                if (isDrawer) {
+                    if (ci !== cIdx) return; // drawer-local scope
+                } else if (c.segment_id !== target.segment_id) {
+                    return; // segment scope
+                }
+                const cell = this.cells[key];
+                if (cell.led_index === null || cell.led_index === undefined) return; // unmapped: not an occupied index
+                const start = cell.led_index;
+                const count = Math.max(1, cell.width || 1);
+                for (let j = 0; j < count; j++) {
+                    used.add(start + j);
                 }
             });
 
+            const { count } = this.getContainerAllocation(cIdx);
+            const limit = isDrawer ? Math.max(0, count) : Infinity;
             let i = 0;
-            while (used.has(i)) i++;
+            while (i < limit && used.has(i)) i++;
             return i;
         },
 
@@ -391,7 +497,7 @@ document.addEventListener('alpine:init', () => {
                 this.selectedCellRef = null;
             }
 
-            let ledCounter = Number(this.containers[cIdx].led_start) || 0;
+            let ledCounter = this.isDrawerSpace ? 0 : (Number(this.containers[cIdx].led_start) || 0);
             const startPos = cfg.start_corner || 'tl';
             const sections = this.getRenderSections(cIdx);
             let currentYOffset = 0;

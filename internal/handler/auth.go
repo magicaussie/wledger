@@ -6,6 +6,7 @@ import (
 	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/internal/db"
+	"github.com/tuxedocurly/wledger/internal/middleware"
 	"github.com/tuxedocurly/wledger/web/pages"
 )
 
@@ -58,6 +59,10 @@ func (h *Handler) HandleLoginPost(w http.ResponseWriter, r *http.Request) {
 		h.UIError.Respond(w, r, err, "Session renewal failed", http.StatusInternalServerError)
 		return
 	}
+
+	// Rotate any pre-authentication CSRF token so it cannot be reused now that the
+	// session has gained authenticated privileges.
+	middleware.RotateCSRF(r.Context(), h.Session)
 
 	// Store session data
 	h.Session.Put(r.Context(), config.SessionKeyUserID, int64(user.ID))
@@ -134,6 +139,7 @@ func (h *Handler) HandleSetupPost(w http.ResponseWriter, r *http.Request) {
 
 	// Auto-login the user
 	if err := h.Session.RenewToken(r.Context()); err == nil {
+		middleware.RotateCSRF(r.Context(), h.Session)
 		h.Session.Put(r.Context(), config.SessionKeyUserID, int64(user.ID))
 		h.Session.Put(r.Context(), config.SessionKeyRole, user.Role)
 		h.Logger.Info("auto-logged in new admin user", "user_id", user.ID)

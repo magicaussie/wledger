@@ -16,8 +16,9 @@ import (
 )
 
 // GridPainter renders the interactive LED mapping tool with Linear, Grid, and Compound support.
-// binIndexSpace is the active coordinate space of the stored bin LED indices. It is exposed to the
-// client for display, but the painter's editing behaviour remains segment-relative for now.
+// binIndexSpace is the active coordinate space of the stored bin LED indices. In
+// segment mode a cell's led_index is segment-absolute; in drawer mode it is relative to
+// its owning drawer's allocation (the physical LED is drawer.led_start + led_index).
 func GridPainter(controller db.Controller, containers []db.Container, bins []db.Bin, binIndexSpace string, canEdit bool) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -57,7 +58,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			binIndexSpace,
 			canEdit))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 20, Col: 16}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 21, Col: 16}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -70,7 +71,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(binIndexSpace)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 21, Col: 38}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 22, Col: 38}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -88,7 +89,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Containers"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 29, Col: 99}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 30, Col: 99}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -105,7 +106,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "AddContainer"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 32, Col: 36}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 33, Col: 36}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -118,7 +119,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("'%s ' + container.segment_id + ' • ' + container.config.type", i18n.T(ctx, "Segment")))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 46, Col: 188}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 47, Col: 188}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -139,7 +140,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "EditContainer"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 61, Col: 104}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 62, Col: 104}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -152,7 +153,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "BasicInformation"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 67, Col: 129}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 68, Col: 129}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
@@ -165,7 +166,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Name"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 70, Col: 106}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 71, Col: 106}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
@@ -178,7 +179,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var10 string
 			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "WledSegmentId"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 74, Col: 115}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 75, Col: 115}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 			if templ_7745c5c3_Err != nil {
@@ -191,7 +192,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "LedAllocation"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 81, Col: 126}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 82, Col: 126}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
@@ -204,7 +205,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "LedStart"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 84, Col: 110}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 85, Col: 110}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
@@ -217,7 +218,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var13 string
 			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "LedCount"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 88, Col: 110}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 89, Col: 110}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 			if templ_7745c5c3_Err != nil {
@@ -230,7 +231,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var14 string
 			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "LedAllocationHelp"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 92, Col: 78}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 93, Col: 78}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 			if templ_7745c5c3_Err != nil {
@@ -243,7 +244,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var15 string
 			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "GridConfiguration"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 96, Col: 130}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 97, Col: 130}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 			if templ_7745c5c3_Err != nil {
@@ -256,7 +257,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var16 string
 			templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "LayoutType"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 99, Col: 112}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 100, Col: 112}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 			if templ_7745c5c3_Err != nil {
@@ -269,7 +270,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var17 string
 			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "LinearStrip"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 101, Col: 63}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 102, Col: 63}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 			if templ_7745c5c3_Err != nil {
@@ -282,7 +283,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var18 string
 			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Matrix"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 102, Col: 56}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 103, Col: 56}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 			if templ_7745c5c3_Err != nil {
@@ -295,7 +296,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var19 string
 			templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Compound"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 103, Col: 62}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 104, Col: 62}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 			if templ_7745c5c3_Err != nil {
@@ -308,7 +309,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var20 string
 			templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "DataStartPosition"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 107, Col: 119}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 108, Col: 119}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 			if templ_7745c5c3_Err != nil {
@@ -321,7 +322,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var21 string
 			templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "TopLeft"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 109, Col: 55}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 110, Col: 55}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 			if templ_7745c5c3_Err != nil {
@@ -334,7 +335,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var22 string
 			templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "TopRight"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 110, Col: 56}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 111, Col: 56}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 			if templ_7745c5c3_Err != nil {
@@ -347,7 +348,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var23 string
 			templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "BottomLeft"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 111, Col: 58}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 112, Col: 58}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 			if templ_7745c5c3_Err != nil {
@@ -360,7 +361,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var24 string
 			templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "BottomRight"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 112, Col: 59}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 113, Col: 59}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 			if templ_7745c5c3_Err != nil {
@@ -373,7 +374,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var25 string
 			templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "TotalLeds"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 121, Col: 112}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 122, Col: 112}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 			if templ_7745c5c3_Err != nil {
@@ -386,7 +387,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var26 string
 			templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Rows"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 128, Col: 107}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 129, Col: 107}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 			if templ_7745c5c3_Err != nil {
@@ -399,7 +400,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var27 string
 			templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Cols"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 132, Col: 107}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 133, Col: 107}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 			if templ_7745c5c3_Err != nil {
@@ -412,7 +413,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var28 string
 			templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Sections"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 139, Col: 106}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 140, Col: 106}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 			if templ_7745c5c3_Err != nil {
@@ -425,7 +426,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var29 string
 			templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "AddSection"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 140, Col: 166}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 141, Col: 166}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 			if templ_7745c5c3_Err != nil {
@@ -442,7 +443,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var30 string
 			templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "AddSection"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 143, Col: 41}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 144, Col: 41}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 			if templ_7745c5c3_Err != nil {
@@ -455,7 +456,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var31 string
 			templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Rows"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 153, Col: 167}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 154, Col: 167}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
 			if templ_7745c5c3_Err != nil {
@@ -468,7 +469,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var32 string
 			templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Rows"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 154, Col: 163}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 155, Col: 163}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
 			if templ_7745c5c3_Err != nil {
@@ -481,7 +482,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var33 string
 			templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Cols"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 157, Col: 167}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 158, Col: 167}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
 			if templ_7745c5c3_Err != nil {
@@ -494,7 +495,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var34 string
 			templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Cols"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 158, Col: 163}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 159, Col: 163}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 			if templ_7745c5c3_Err != nil {
@@ -515,20 +516,20 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var35 string
 			templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "LedRange"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 175, Col: 101}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 176, Col: 101}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "</h4><span class=\"badge badge-secondary badge-sm font-mono\" x-text=\"selectedCellName\"></span></div><p class=\"text-xs opacity-50 mb-4\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "</h4><div class=\"flex items-center gap-2\"><span class=\"badge badge-outline badge-sm font-mono\" x-text=\"spaceLabel\"></span> <span class=\"badge badge-secondary badge-sm font-mono\" x-text=\"selectedCellName\"></span></div></div><p class=\"text-xs opacity-50 mb-4\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var36 string
 			templ_7745c5c3_Var36, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "LedRangeHelp"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 178, Col: 73}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 182, Col: 73}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var36))
 			if templ_7745c5c3_Err != nil {
@@ -541,7 +542,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var37 string
 			templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "StartLed"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 181, Col: 110}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 185, Col: 110}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var37))
 			if templ_7745c5c3_Err != nil {
@@ -554,20 +555,20 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var38 string
 			templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "EndLed"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 185, Col: 108}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 189, Col: 108}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var38))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "</span></label> <input type=\"number\" x-model.number=\"selectedEndLed\" min=\"1\" class=\"input input-bordered w-full input-md\"></div></div><div class=\"flex items-center justify-between mt-4\"><span class=\"text-xs opacity-50 font-mono\" x-text=\"'LED ' + (selectedStartLed - 1) + '  width ' + (selectedEndLed - selectedStartLed + 1)\"></span><div class=\"flex gap-2\"><button type=\"button\" @click=\"closeCellEditor()\" class=\"btn btn-sm btn-ghost\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "</span></label> <input type=\"number\" x-model.number=\"selectedEndLed\" min=\"1\" class=\"input input-bordered w-full input-md\"></div></div><div class=\"flex items-center justify-between mt-4\"><span class=\"text-xs opacity-50 font-mono\" x-text=\"rangeSummary\"></span><div class=\"flex gap-2\"><button type=\"button\" @click=\"closeCellEditor()\" class=\"btn btn-sm btn-ghost\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var39 string
 			templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Cancel"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 192, Col: 112}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 196, Col: 112}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var39))
 			if templ_7745c5c3_Err != nil {
@@ -580,7 +581,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var40 string
 			templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Remove"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 193, Col: 118}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 197, Col: 118}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var40))
 			if templ_7745c5c3_Err != nil {
@@ -593,7 +594,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var41 string
 			templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Apply"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 194, Col: 112}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 198, Col: 112}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var41))
 			if templ_7745c5c3_Err != nil {
@@ -606,7 +607,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var42 string
 			templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "AutoMapLinear"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 201, Col: 205}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 205, Col: 205}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var42))
 			if templ_7745c5c3_Err != nil {
@@ -619,7 +620,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var43 string
 			templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "AutoMapLinear"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 203, Col: 42}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 207, Col: 42}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var43))
 			if templ_7745c5c3_Err != nil {
@@ -632,7 +633,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var44 string
 			templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "AutoMapSnake"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 206, Col: 204}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 210, Col: 204}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var44))
 			if templ_7745c5c3_Err != nil {
@@ -645,7 +646,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var45 string
 			templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "AutoMapSnake"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 208, Col: 41}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 212, Col: 41}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var45))
 			if templ_7745c5c3_Err != nil {
@@ -658,7 +659,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var46 string
 			templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "ClearMapping"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 211, Col: 204}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 215, Col: 204}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var46))
 			if templ_7745c5c3_Err != nil {
@@ -671,7 +672,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var47 string
 			templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "ClearMapping"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 213, Col: 41}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 217, Col: 41}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var47))
 			if templ_7745c5c3_Err != nil {
@@ -689,7 +690,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var48 string
 			templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "ReadOnlyMode"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 225, Col: 39}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 229, Col: 39}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var48))
 			if templ_7745c5c3_Err != nil {
@@ -707,7 +708,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 		var templ_7745c5c3_Var49 string
 		templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("'%s ' + container.segment_id", i18n.T(ctx, "Segment")))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 234, Col: 162}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 238, Col: 162}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var49))
 		if templ_7745c5c3_Err != nil {
@@ -720,7 +721,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 		var templ_7745c5c3_Var50 string
 		templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("getContainerTotalLeds(cIdx) + ' %s'", i18n.T(ctx, "LedsTotal")))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 236, Col: 159}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 240, Col: 159}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var50))
 		if templ_7745c5c3_Err != nil {
@@ -733,13 +734,13 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 		var templ_7745c5c3_Var51 string
 		templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("'%s ' + (secIdx + 1)", i18n.T(ctx, "Sections")))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 242, Col: 174}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 246, Col: 174}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var51))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 56, "\"></span> <span class=\"text-sm font-bold opacity-40 uppercase tracking-tighter\" x-text=\"section.rows + '×' + section.cols\"></span></div><div class=\"overflow-x-auto bg-base-100 rounded-xl border border-base-300 p-6 shadow-inner\"><div class=\"grid gap-1.5 select-none mx-auto\" :style=\"`grid-template-columns: repeat(${section.cols}, 2.5rem); width: fit-content;`\"><template x-for=\"i in (section.rows * section.cols)\"><div class=\"aspect-square border border-base-300 rounded-md flex flex-col items-center justify-center text-xs transition-all duration-200 relative overflow-hidden shadow-sm\" :class=\"[\n\t\t\t\t\t\t\t\t\t\t\t\t\tgetCellClass(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1), \n\t\t\t\t\t\t\t\t\t\t\t\t\tisSelectedCell(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1) ? 'ring-2 ring-secondary' : '',\n\t\t\t\t\t\t\t\t\t\t\t\t\tcanEdit ? 'cursor-pointer hover:scale-110 hover:z-10 hover:shadow-md hover:border-base-content/50' : 'cursor-default'\n\t\t\t\t\t\t\t\t\t\t\t\t]\" @click=\"onCellClick(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1)\"><span x-text=\"getCellLedLabel(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1)\" class=\"font-black text-[9px] leading-tight\"></span> <span x-show=\"getBinName(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1)\" x-text=\"getBinName(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1)\" class=\"text-[7px] font-bold opacity-70 truncate w-full text-center px-0.5 leading-tight\"></span> <span x-show=\"getWidth(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1) > 1\" class=\"text-[7px] font-bold opacity-80 truncate w-full text-center px-0.5 leading-tight\" x-text=\"'W' + getWidth(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1)\"></span></div></template></div></div></div></template></div></div></template></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 56, "\"></span> <span class=\"text-sm font-bold opacity-40 uppercase tracking-tighter\" x-text=\"section.rows + '×' + section.cols\"></span></div><div class=\"overflow-x-auto bg-base-100 rounded-xl border border-base-300 p-6 shadow-inner\"><div class=\"grid gap-1.5 select-none mx-auto\" :style=\"`grid-template-columns: repeat(${section.cols}, 2.5rem); width: fit-content;`\"><template x-for=\"i in (section.rows * section.cols)\"><div class=\"aspect-square border border-base-300 rounded-md flex flex-col items-center justify-center text-xs transition-all duration-200 relative overflow-hidden shadow-sm\" :class=\"[\n\t\t\t\t\t\t\t\t\t\t\t\t\tgetCellClass(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1), \n\t\t\t\t\t\t\t\t\t\t\t\t\tisUnmappedCell(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1) ? 'bg-base-200 border-dashed border-base-content/40 text-base-content/50' : '',\n\t\t\t\t\t\t\t\t\t\t\t\t\tisSelectedCell(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1) ? 'ring-2 ring-secondary' : '',\n\t\t\t\t\t\t\t\t\t\t\t\t\tcanEdit ? 'cursor-pointer hover:scale-110 hover:z-10 hover:shadow-md hover:border-base-content/50' : 'cursor-default'\n\t\t\t\t\t\t\t\t\t\t\t\t]\" @click=\"onCellClick(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1)\"><span x-text=\"getCellLedLabel(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1)\" class=\"font-black text-[9px] leading-tight\"></span> <span x-show=\"isDrawerSpace && isMappedCell(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1)\" x-text=\"'S' + getCellSegmentLabel(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1)\" class=\"text-[7px] font-bold opacity-70 leading-tight\"></span> <span x-show=\"getBinName(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1)\" x-text=\"getBinName(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1)\" class=\"text-[7px] font-bold opacity-70 truncate w-full text-center px-0.5 leading-tight\"></span> <span x-show=\"isMappedCell(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1) && getWidth(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1) > 1\" class=\"text-[7px] font-bold opacity-80 truncate w-full text-center px-0.5 leading-tight\" x-text=\"'W' + getWidth(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1)\"></span></div></template></div></div></div></template></div></div></template></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -751,7 +752,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var52 templ.SafeURL
 			templ_7745c5c3_Var52, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/hardware/%d/grid", controller.ID)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 274, Col: 111}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 280, Col: 111}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var52))
 			if templ_7745c5c3_Err != nil {
@@ -764,7 +765,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var53 string
 			templ_7745c5c3_Var53, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "SaveConfiguration"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 276, Col: 105}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 282, Col: 105}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var53))
 			if templ_7745c5c3_Err != nil {
@@ -777,7 +778,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var54 string
 			templ_7745c5c3_Var54, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "SaveConfigurationDesc"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 277, Col: 78}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 283, Col: 78}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var54))
 			if templ_7745c5c3_Err != nil {
@@ -790,7 +791,7 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var55 string
 			templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Cancel"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 280, Col: 103}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 286, Col: 103}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var55))
 			if templ_7745c5c3_Err != nil {
@@ -803,17 +804,30 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 			var templ_7745c5c3_Var56 string
 			templ_7745c5c3_Var56, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "SaveChanges"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 281, Col: 164}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 287, Col: 164}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var56))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 62, "</button></div><input type=\"hidden\" name=\"grid_data\" :value=\"JSON.stringify(exportBinData())\"> <input type=\"hidden\" name=\"config_data\" :value=\"JSON.stringify(exportContainerData())\"></form>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 62, "</button></div><input type=\"hidden\" name=\"grid_data\" :value=\"JSON.stringify(exportBinData())\"> <input type=\"hidden\" name=\"config_data\" :value=\"JSON.stringify(exportContainerData())\"> <input type=\"hidden\" name=\"bin_index_space\" value=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Var57 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+			var templ_7745c5c3_Var57 string
+			templ_7745c5c3_Var57, templ_7745c5c3_Err = templ.JoinStringErrs(binIndexSpace)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 291, Col: 69}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var57))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 63, "\"></form>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Var58 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 				templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 				templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
 				if !templ_7745c5c3_IsBuffer {
@@ -825,44 +839,44 @@ func GridPainter(controller db.Controller, containers []db.Container, bins []db.
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 63, "<p x-text=\"confirmMessage\" class=\"py-4 text-base-content/80\"></p><div class=\"modal-action\"><form method=\"dialog\"><button class=\"btn\">")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var58 string
-				templ_7745c5c3_Var58, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Cancel"))
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 290, Col: 49}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var58))
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 64, "</button></form><button type=\"button\" class=\"btn btn-error\" @click=\"confirmAction()\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 64, "<p x-text=\"confirmMessage\" class=\"py-4 text-base-content/80\"></p><div class=\"modal-action\"><form method=\"dialog\"><button class=\"btn\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var59 string
-				templ_7745c5c3_Var59, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Confirm"))
+				templ_7745c5c3_Var59, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Cancel"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 293, Col: 30}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 297, Col: 49}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var59))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 65, "</button></div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 65, "</button></form><button type=\"button\" class=\"btn btn-error\" @click=\"confirmAction()\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var60 string
+				templ_7745c5c3_Var60, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Confirm"))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/grid_painter.templ`, Line: 300, Col: 30}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var60))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 66, "</button></div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = Modal(ModalProps{ID: "grid_painter_confirm_modal", Title: i18n.T(ctx, "AreYouSure")}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var57), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = Modal(ModalProps{ID: "grid_painter_confirm_modal", Title: i18n.T(ctx, "AreYouSure")}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var58), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 66, "</div><script src=\"/static/js/grid_painter.js\"></script>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 67, "</div><script src=\"/static/js/grid_painter.js\"></script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

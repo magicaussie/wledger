@@ -8,8 +8,9 @@ import (
 )
 
 // GridPainter renders the interactive LED mapping tool with Linear, Grid, and Compound support.
-// binIndexSpace is the active coordinate space of the stored bin LED indices. It is exposed to the
-// client for display, but the painter's editing behaviour remains segment-relative for now.
+// binIndexSpace is the active coordinate space of the stored bin LED indices. In
+// segment mode a cell's led_index is segment-absolute; in drawer mode it is relative to
+// its owning drawer's allocation (the physical LED is drawer.led_start + led_index).
 templ GridPainter(controller db.Controller, containers []db.Container, bins []db.Bin, binIndexSpace string, canEdit bool) {
 	@templ.JSONScript("grid-bins-data", bins)
 	@templ.JSONScript("grid-containers-data", containers)
@@ -173,7 +174,10 @@ templ GridPainter(controller db.Controller, containers []db.Container, bins []db
 								<div x-show="selectedCell !== null" class="bg-base-100 p-6 rounded-xl border border-secondary shadow-md" x-cloak>
 									<div class="flex items-center justify-between mb-4">
 										<h4 class="font-bold text-sm uppercase tracking-wider opacity-50">{ i18n.T(ctx, "LedRange") }</h4>
-										<span class="badge badge-secondary badge-sm font-mono" x-text="selectedCellName"></span>
+										<div class="flex items-center gap-2">
+											<span class="badge badge-outline badge-sm font-mono" x-text="spaceLabel"></span>
+											<span class="badge badge-secondary badge-sm font-mono" x-text="selectedCellName"></span>
+										</div>
 									</div>
 									<p class="text-xs opacity-50 mb-4">{ i18n.T(ctx, "LedRangeHelp") }</p>
 									<div class="grid grid-cols-2 gap-4">
@@ -187,7 +191,7 @@ templ GridPainter(controller db.Controller, containers []db.Container, bins []db
 										</div>
 									</div>
 									<div class="flex items-center justify-between mt-4">
-										<span class="text-xs opacity-50 font-mono" x-text="'LED ' + (selectedStartLed - 1) + '  width ' + (selectedEndLed - selectedStartLed + 1)"></span>
+										<span class="text-xs opacity-50 font-mono" x-text="rangeSummary"></span>
 										<div class="flex gap-2">
 											<button type="button" @click="closeCellEditor()" class="btn btn-sm btn-ghost">{ i18n.T(ctx, "Cancel") }</button>
 											<button type="button" @click="unmapCell()" class="btn btn-sm btn-outline btn-error">{ i18n.T(ctx, "Remove") }</button>
@@ -252,14 +256,16 @@ templ GridPainter(controller db.Controller, containers []db.Container, bins []db
 												class="aspect-square border border-base-300 rounded-md flex flex-col items-center justify-center text-xs transition-all duration-200 relative overflow-hidden shadow-sm"
 												:class="[
 													getCellClass(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1), 
+													isUnmappedCell(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1) ? 'bg-base-200 border-dashed border-base-content/40 text-base-content/50' : '',
 													isSelectedCell(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1) ? 'ring-2 ring-secondary' : '',
 													canEdit ? 'cursor-pointer hover:scale-110 hover:z-10 hover:shadow-md hover:border-base-content/50' : 'cursor-default'
 												]"
 												@click="onCellClick(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1)"
 											>
 												<span x-text="getCellLedLabel(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1)" class="font-black text-[9px] leading-tight"></span>
+												<span x-show="isDrawerSpace && isMappedCell(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1)" x-text="'S' + getCellSegmentLabel(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1)" class="text-[7px] font-bold opacity-70 leading-tight"></span>
 												<span x-show="getBinName(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1)" x-text="getBinName(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1)" class="text-[7px] font-bold opacity-70 truncate w-full text-center px-0.5 leading-tight"></span>
-												<span x-show="getWidth(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1) > 1" class="text-[7px] font-bold opacity-80 truncate w-full text-center px-0.5 leading-tight" x-text="'W' + getWidth(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1)"></span>
+												<span x-show="isMappedCell(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1) && getWidth(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1) > 1" class="text-[7px] font-bold opacity-80 truncate w-full text-center px-0.5 leading-tight" x-text="'W' + getWidth(cIdx, getSectionBaseIndex(cIdx, secIdx) + i - 1)"></span>
 											</div>
 										</template>
 									</div>
@@ -282,6 +288,7 @@ templ GridPainter(controller db.Controller, containers []db.Container, bins []db
 				</div>
 				<input type="hidden" name="grid_data" :value="JSON.stringify(exportBinData())"/>
 				<input type="hidden" name="config_data" :value="JSON.stringify(exportContainerData())"/>
+				<input type="hidden" name="bin_index_space" value={ binIndexSpace }/>
 			</form>
 			@Modal(ModalProps{ID: "grid_painter_confirm_modal", Title: i18n.T(ctx, "AreYouSure")}) {
 				<p x-text="confirmMessage" class="py-4 text-base-content/80"></p>
