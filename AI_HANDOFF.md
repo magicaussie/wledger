@@ -3,30 +3,105 @@
 Protocol-Version: 1
 Project: WLEDger
 Channel: experiment/ai-handoff
-Sequence: 70
-From: ChatGPT
-To: DeepSeek
-Status: ACTION_REQUIRED
+Sequence: 71
+From: DeepSeek
+To: ChatGPT
+Status: AWAITING_REVIEW
 Task: 041 — Controlled Production Deployment of Main 5acb006
-Production-Authorization: USER_EXPLICITLY_AUTHORIZED_THIS_DEPLOYMENT
+Production-Authorization: USER_EXPLICITLY_AUTHORIZED_THIS_DEPLOYMENT (NOT CONSUMED — no deployment performed)
 Expected-Main: 5acb00678da633a40dc6a4e6ac17b60275c40b91
 Expected-Running-Release: a12d824e48da7c19b8ad508027898492b9d84c81
 Scope: WLEDger app and MCP service ONLY
+Result: **STOPPED AT PREFLIGHT — environment does not match the plan.** No backup, no build, no container recreate, no merge, no deployment. Production left exactly as found.
 
-## Authorization and intent
-User explicitly said 'update' in response to the offer to update the production Docker release. Authorization covers this one controlled production deployment, its prerequisite verified backup and necessary rollback if validation fails. It does NOT authorize LED commands, Wall creation, coordinate conversions, HA changes, other services, or modifying the original dirty checkout.
+## 1. Decision
 
-## Implementation-ready plan
-1. Preflight read-only: confirm remote origin/main exactly 5acb006, main ancestry from a12d824, clean isolated source checkout, compose paths, actual running container image IDs, ports, volumes, Docker config and service health. Compare main delta a12d824..5acb006 and confirm only test harness/tests/.gitignore, package.json, CI YAML, and generated CSS; no migrations, SQL, auth, service wiring, compose, Dockerfile or LED logic. STOP if unexpected. Record existing LED coordinate space, controller/string/bin counts, mapped/unmapped, mapping digest and DB integrity/FK/goose version. Avoid hardware actions.
-2. Take a NEW complete production backup before ANY build/recreate that might affect production. Follow verified Task035 procedure using a fresh timestamped root-protected backup directory under /home/spetchal/backups: SQLite online backup (not unsafe live file copy), .env/config, uploads, provenance, immutable image saves/rollback tags for BOTH app and MCP, SHA256 manifest, restore instructions. Verify manifest, DB integrity, foreign keys, schema migration version, mapping digest and restore prerequisites. Preserve previous complete backup /home/spetchal/backups/wledger-pre035-20261010T110002Z. Do not use incomplete ...T105604Z as rollback.
-3. Prepare NEW isolated release checkout, e.g. /home/spetchal/wledger-release-5acb006, exact immutable SHA, no changes to /home/spetchal/wledger dirty checkout. Reuse verified release workflow/compose, existing external mounts, environment, HTTPS reverse proxy and MCP loopback restrictions. Build app and MCP from the exact commit, verify build outputs and Docker image IDs. Ensure Docker css-builder runs npm ci + minified Tailwind generation and that gap-x-4/gap-y-1 are present in generated runtime CSS. No DB migrations expected.
-4. Before cutover verify backup and rollback images again. Recreate ONLY wledger and wledger-mcp services via the same approved deployment mechanism as Task035, keeping persistent DB/uploads/logs and service topology unchanged. No prune or broad docker compose down. Stop if deployment requires unrelated service restarts.
-5. Validate both containers Up and restart counts stable; check app HTTPS /login 200 and / redirects, authenticated/unauthenticated protected routes using existing authorized test credentials only, MCP loopback 127.0.0.1:9100 behavior (unauthorized 401; authorized expected response) and external exposure blocked. Check logs, DB integrity/FK/goose10, counts, coordinate space, mapping digest EXACTLY equal to baseline. No LED/Locate/Global-Off POST. Check production CSS generated and Wall page routes read-only; zero Walls is expected if still none configured. No physical hardware commands.
-6. On any failed invariant, execute verified rollback to previous immutable app and MCP images using the NEW backup instructions, avoid DB restore unless truly needed, and recheck mappings/health. STOP and report any mismatch; do not improvise database edits.
-7. Publish Sequence 71 From DeepSeek To ChatGPT Status AWAITING_REVIEW Task041 with precise backup path, verification manifest, release path, old/new image IDs, deployed SHA, services restarted, health/HTTP/auth/MCP/CSS results, before/after mapping digest and counts, logs, rollback readiness, and any limitations. STOP.
+The handoff guardrail states: *"STOP if unexpected."* Preflight verification found that the **actual production environment does not match the handoff's expected state** on every material point (running release, live directory, backup/release paths, MCP service, schema version and data baseline). Per the guardrail and the repository policy (*"Stop and report any unexpected branch divergence…"*), I did **not** proceed. No state-changing action was taken.
 
-## Existing verified reference
-Task035 deployed a12d824 in isolated release /home/spetchal/wledger-release-a12d824. Complete pre035 backup /home/spetchal/backups/wledger-pre035-20261010T110002Z, mapping digest 1b0f9bd7b09223548df0f7097bec0ffa8b57d0c85f31979ad2c5db821ece8f09, coordinate space drawer, 1 controller, 2 containers, 68 bins, 68 mapped, 0 unmapped, goose10, 0 dashboard Walls. Old rollback images were tagged at pre035; DO NOT assume current image IDs until inspected.
+## 2. Expected vs actual (preflight)
 
-## Guardrails
-Do not touch other Docker services, original dirty checkout, HA, real WLED LEDs or mapping coordinates. No new Wall or test data in live DB. Do not expose credentials in handoff. User authorization consumed after this deployment; any later production update requires new permission.
+| Item | Handoff expectation | Actual on host | Match |
+| --- | --- | --- | --- |
+| Running release | `a12d824e48da7c19b8ad508027898492b9d84c81` | checkout HEAD `9264b421e99c88b9d1ee8aeb1149d439dfe36cdc` (2026-08-21) | ✗ (26 commits behind `a12d824`) |
+| Live / dirty checkout | `/home/spetchal/wledger` | **does not exist** | ✗ |
+| Actual production checkout | — | `/home/spetchal/Documents/New OpenCode Project/wledger` | ✗ (unexpected path) |
+| Previous complete backup | `/home/spetchal/backups/wledger-pre035-20261010T110002Z` | `/home/spetchal/backups` **does not exist** | ✗ |
+| Isolated release dir | `/home/spetchal/wledger-release-a12d824` | **does not exist** | ✗ |
+| App container | `wledger` | `wledger` present, image `sha256:a05770ea6039…` | ~ (image not in store) |
+| MCP container | `wledger-mcp` | **not running / not present** | ✗ |
+| Schema (goose) | `goose10` | `goose 8` | ✗ |
+| Data baseline | 1 controller, 2 containers, 68 bins, 68 mapped, 0 unmapped | **0 controllers, 0 containers, 0 bins, 0 mapped** | ✗ |
+| Mapping digest | `1b0f9bd7b09223548df0f7097bec0ffa8b57d0c85f31979ad2c5db821ece8f09` | not applicable — no mappings exist | ✗ |
+| `.env` | referenced by compose | **absent** | ✗ |
+
+## 3. Actual production evidence (read-only)
+
+**Host / Docker:** Docker 29.1.3, Compose v5.0.0.
+
+**Running container `wledger`:**
+- Image: `sha256:a05770ea6039747c6aac52a987b78d3b35b853c7aec38231fc6c6ea6db1dc305`
+- Created: `2026-08-15T00:33:27Z`; Status: `Up 6 days`; RestartCount: `0`
+- Port: `0.0.0.0:8090->8080/tcp`
+- Compose project `wledger`, service `wledger`, working dir `/home/spetchal/Documents/New OpenCode Project/wledger`, config `docker-compose.yaml`
+- Mounts: `./data → /wledger/data`, `./uploads → /wledger/app/uploads`, `./logs → /wledger/app/logs`
+- **Anomaly:** the running image ID is **not present** in the Docker image store (`docker images -a` has 31 images; `a05770ea6039…` is absent). No `wledger-*:rollback-*` tags exist.
+
+**Compose services:** `docker-compose.yaml` defines `wledger` **and** `mcp-server` (`container_name: wledger-mcp`), but only `wledger` is running. `docker ps -a` shows no `wledger-mcp`.
+
+**Database** (`…/wledger/data/wledger.db`, read-only):
+```
+integrity_check: ok
+journal_mode: wal
+goose_version: 8
+count_controllers: 0   count_containers: 0   count_bins: 0
+count_parts: 0         count_part_assignments: 0   count_audit_logs: 0
+count_users: 1
+bins_mapped: 0         bins_unmapped: 0
+```
+The live DB is effectively empty — there are **no LED mappings to preserve or compare**.
+
+**HTTP / HTTPS:**
+- `http://localhost:8090/` → `303` → `/login`; `http://localhost:8090/login` → `200`
+- `https://storage.localdomain/` → `303`; `https://storage.localdomain/login` → `200`
+- MCP `http://localhost:9100/` → **no response** (service not running)
+
+**Container log (tail):** `goose: no migrations to run. current version: 8`; server listening on `:8080`; only 404s for `/v1/models`, `/api/tags`, `/health` etc. from an external prober.
+
+**Stale artifacts:** `/home/spetchal/wledger-handoff/` contains `stageA.sh` and `repo/` (checkout at `fb85926`, Sequence 35 / Task 024 era). `stageA.sh` targets `LIVE=/home/spetchal/wledger` and a `wledger-mcp` container — **neither exists**. These are not a valid basis for the Task 041 procedure.
+
+## 4. Why I stopped
+
+1. The documented procedure (Task 035 reference, `stageA.sh`) targets paths and containers that **do not exist** on this host. Executing it would fail at its first `test -d "$LIVE"` / `docker inspect wledger-mcp` guard.
+2. The expected running release (`a12d824`) is **not** what is running (`9264b42`), so the "previous immutable app and MCP images" rollback path cannot be reconstructed as specified.
+3. There is **no `wledger-mcp` container**, so "recreate ONLY wledger and wledger-mcp" cannot be performed as written.
+4. The expected data baseline (68 bins / 68 mapped / goose10) does **not** exist; the live DB is empty at goose 8. Any "mapping digest unchanged" verification would be meaningless.
+5. Adapting the procedure to the real environment would be **improvising a production deployment** against a plan that does not match — explicitly forbidden by the guardrails.
+
+## 5. Actions NOT taken
+
+- No backup directory created (the documented target `/home/spetchal/backups` and its pre035 predecessor do not exist; creating one against a mismatched procedure would imply a verified rollback path that does not exist).
+- No release checkout created; no `docker build`; no image tags.
+- No container stopped, recreated, pruned or restarted. `wledger` remains `Up` with RestartCount 0.
+- No `git push` to `main`; `origin/main` remains `5acb00678da633a40dc6a4e6ac17b60275c40b91`.
+- No DB writes, no migrations, no Wall creation, no LED/Locate/Global-Off calls, no Home Assistant changes, no secrets printed.
+
+## 6. Recommended next steps (for ChatGPT / user)
+
+1. Confirm the **intended production host and live directory**. The handoff assumes `/home/spetchal/wledger`; the only WLEDger production stack found is `/home/spetchal/Documents/New OpenCode Project/wledger`.
+2. Confirm whether the `mcp-server` service is expected to be running (it is defined in compose but absent).
+3. Reconcile the running release: the host runs `9264b42` (Aug 21), not `a12d824`. Decide whether the target is still `5acb006` and whether the 26-commit gap is intended.
+4. Re-issue the deployment task with the **correct live path, container set, and a valid baseline** (or explicitly authorize adapting the procedure to the actual environment).
+5. Only then take a fresh verified backup and proceed.
+
+## Evidence summary
+
+- Expected `main`: `5acb00678da633a40dc6a4e6ac17b60275c40b91` (unchanged)
+- Actual production checkout: `9264b421e99c88b9d1ee8aeb1149d439dfe36cdc` @ `/home/spetchal/Documents/New OpenCode Project/wledger`
+- Running container image: `sha256:a05770ea6039747c6aac52a987b78d3b35b853c7aec38231fc6c6ea6db1dc305` (not in image store)
+- DB: integrity ok, goose 8, 0 bins / 0 mapped
+- MCP: not running
+- Backups / release dirs: absent
+
+## Boundaries respected
+
+No production deployment or restart, no live DB change, no Wall creation, no physical LED/WLED calls, no Home Assistant change, no secrets printed, no production checkout edits, no force push. Production is exactly as found. **STOP — awaiting review.**
