@@ -3,7 +3,9 @@ package handler
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/tuxedocurly/wledger/internal/auth"
@@ -21,16 +23,43 @@ func (h *Handler) HandleBackupDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Prepare Response Headers
+	// Build the archive into a temporary file first. Only once the export has
+	// completed successfully do we send the download headers, so a failed export
+	// is reported as an error instead of streaming a truncated or corrupt ZIP to
+	// the administrator as if it were a valid backup.
+	tmp, err := os.CreateTemp("", "wledger_backup_*.zip")
+	if err != nil {
+		h.UIError.Respond(w, r, err, "Failed to generate backup", http.StatusInternalServerError)
+		return
+	}
+	tmpPath := tmp.Name()
+	defer os.Remove(tmpPath)
+
+	if err := h.Backup.Export(r.Context(), tmp); err != nil {
+		tmp.Close()
+		h.UIError.Respond(w, r, err, "Failed to generate backup", http.StatusInternalServerError)
+		return
+	}
+	if err := tmp.Close(); err != nil {
+		h.UIError.Respond(w, r, err, "Failed to generate backup", http.StatusInternalServerError)
+		return
+	}
+
+	archive, err := os.Open(tmpPath)
+	if err != nil {
+		h.UIError.Respond(w, r, err, "Failed to generate backup", http.StatusInternalServerError)
+		return
+	}
+	defer archive.Close()
+
 	filename := fmt.Sprintf("wledger_backup_%s.zip", time.Now().Format("20060102_150405"))
 	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
 
-	// Stream Backup to Response
-	if err := h.Backup.Export(r.Context(), w); err != nil {
-		h.Logger.Error("failed to generate backup", "err", err)
-		// The zip might be corrupted on the client side if this fails mid-stream.
-		return
+	if _, err := io.Copy(w, archive); err != nil {
+		// Headers are already sent; this is a client-side disconnect or write
+		// failure, so there is nothing more we can do but record it.
+		h.Logger.Error("failed to stream backup to client", "err", err)
 	}
 }
 

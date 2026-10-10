@@ -18,13 +18,25 @@ import (
 	"github.com/tuxedocurly/wledger/internal/uierror"
 )
 
-// fakeBackupService returns a fixed result from Restore so the handler's
+// fakeBackupService returns a fixed result from Export/Restore so the handler's
 // outcome rendering can be exercised without a real backup.
 type fakeBackupService struct {
-	err error
+	err  error
+	data []byte
 }
 
-func (f *fakeBackupService) Export(ctx context.Context, w io.Writer) error { return f.err }
+func (f *fakeBackupService) Export(ctx context.Context, w io.Writer) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if f.err != nil {
+		return f.err
+	}
+	if f.data != nil {
+		_, _ = w.Write(f.data)
+	}
+	return nil
+}
 
 func (f *fakeBackupService) Restore(ctx context.Context, r io.ReaderAt, size int64) error {
 	return f.err
@@ -97,4 +109,104 @@ func TestHandleBackupRestore_Success(t *testing.T) {
 	if !strings.Contains(body, "System restored successfully") {
 		t.Errorf("expected success message, got: %s", body)
 	}
+}
+
+// getBackupDownload submits an admin backup download request and returns the
+// response.
+func getBackupDownload(t *testing.T, svc backup.Service) *httptest.ResponseRecorder {
+	return getBackupDownloadCtx(t, context.Background(), svc)
+}
+
+// getBackupDownloadCtx is getBackupDownload with an explicit request context.
+func getBackupDownloadCtx(t *testing.T, ctx context.Context, svc backup.Service) *httptest.ResponseRecorder {
+	t.Helper()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	h := &Handler{
+		Logger:  logger,
+		UIError: uierror.New(logger),
+		Backup:  svc,
+	}
+	reqCtx := auth.WithUser(ctx, auth.User{ID: 1, Role: "admin"})
+	req := httptest.NewRequest(http.MethodGet, "/settings/backup/download", nil).WithContext(reqCtx)
+	rr := httptest.NewRecorder()
+	h.HandleBackupDownload(rr, req)
+	return rr
+}
+
+// TestHandleBackupDownload_Success verifies a completed export is served with the
+// download headers and the archive body.
+func TestHandleBackupDownload_Success(t *testing.T) {
+	payload := []byte("PK\x03\x04fake-archive")
+	rr := getBackupDownload(t, &fakeBackupService{data: payload})
+	if rr.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", rr.Code, http.StatusOK)
+	}
+	if ct := rr.Header().Get("Content-Type"); ct != "application/zip" {
+		t.Errorf("Content-Type = %q, want application/zip", ct)
+	}
+	if !strings.Contains(rr.Header().Get("Content-Disposition"), "attachment") {
+		t.Errorf("Content-Disposition = %q, want an attachment", rr.Header().Get("Content-Disposition"))
+	}
+	if !bytes.Equal(rr.Body.Bytes(), payload) {
+		t.Errorf("body = %q, want the archive bytes", rr.Body.Bytes())
+	}
+}
+
+// TestHandleBackupDownload_FailureDoesNotServeArchive verifies that a failed
+// export is reported as an error and never offered to the administrator as an
+// apparently valid archive.
+func TestHandleBackupDownload_FailureDoesNotServeArchive(t *testing.T) {
+	rr := getBackupDownload(t, &fakeBackupService{err: errors.New("boom")})
+	if rr.Code == http.StatusOK {
+		t.Errorf("a failed export must not return 200, got %d", rr.Code)
+	}
+	if ct := rr.Header().Get("Content-Type"); ct == "application/zip" {
+		t.Error("a failed export must not advertise an archive")
+	}
+	if !strings.Contains(rr.Body.String(), "Failed to generate backup") {
+		t.Errorf("expected an error response, got: %s", rr.Body.String())
+	}
+}
+
+// TestHandleBackupDownload_TempFileCleanedUp verifies the temporary ZIP used to
+// stage the download is removed on success, on export failure and when the
+// request is cancelled.
+func TestHandleBackupDownload_TempFileCleanedUp(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("TMPDIR", dir)
+
+	assertNoTempFiles := func(t *testing.T, stage string) {
+		t.Helper()
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			t.Fatalf("read temp dir: %v", err)
+		}
+		if len(entries) != 0 {
+			names := make([]string, 0, len(entries))
+			for _, e := range entries {
+				names = append(names, e.Name())
+			}
+			t.Errorf("%s: temporary backup files were not cleaned up: %v", stage, names)
+		}
+	}
+
+	t.Run("success", func(t *testing.T) {
+		rr := getBackupDownload(t, &fakeBackupService{data: []byte("PK\x03\x04archive")})
+		if rr.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200", rr.Code)
+		}
+		assertNoTempFiles(t, "success")
+	})
+
+	t.Run("export failure", func(t *testing.T) {
+		_ = getBackupDownload(t, &fakeBackupService{err: errors.New("boom")})
+		assertNoTempFiles(t, "export failure")
+	})
+
+	t.Run("cancelled request", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		_ = getBackupDownloadCtx(t, ctx, &fakeBackupService{data: []byte("PK\x03\x04archive")})
+		assertNoTempFiles(t, "cancelled request")
+	})
 }
