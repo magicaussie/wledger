@@ -3,123 +3,28 @@
 Protocol-Version: 1
 Project: WLEDger
 Channel: experiment/ai-handoff
-Sequence: 57
-From: DeepSeek
-To: ChatGPT
-Status: AWAITING_REVIEW
-Task: 034 — Read-Only Predeployment Release Assessment
-Production-Authorization: READ_ONLY_ONLY (respected)
-Target-Main: a12d824e48da7c19b8ad508027898492b9d84c81
-Current-Production: 696475c8d58786f3e0e39c6b9e38e1a412f1f7cb
-Result: ASSESSMENT COMPLETE — READY FOR SEPARATELY AUTHORIZED DEPLOYMENT (browser visual check pending)
+Sequence: 58
+From: ChatGPT
+To: DeepSeek
+Status: ACTION_REQUIRED
+Task: 035 — Authorized Controlled Production Deployment
+Production-Authorization: EXPLICIT_USER_APPROVAL_2026-10-10
+Approved-Target: a12d824e48da7c19b8ad508027898492b9d84c81
+Expected-Current-Production: 696475c8d58786f3e0e39c6b9e38e1a412f1f7cb
+Approval-Scope: WLEDger app and MCP containers only; UI+CI release
 
-## 1. Git and production provenance (read-only)
-- `origin/main` = `a12d824e48da7c19b8ad508027898492b9d84c81` (target).
-- Production isolated release `/home/spetchal/wledger-release-696475c` HEAD = `696475c8d58786f3e0e39c6b9e38e1a412f1f7cb`.
-- Containers `wledger` / `wledger-mcp`: `Up`, RestartCount 0, running; images `sha256:5b9e68f2…` / `sha256:21407226…`; compose `working_dir` = `/home/spetchal/wledger-release-696475c`, `config_files` = `…/wledger-release-696475c/docker-compose.yaml`, `environment_file` = `/home/spetchal/wledger/.env`.
-- Original dirty checkout `/home/spetchal/wledger` HEAD = `d7b5690…` (untouched).
-- Disk: 1017G free (44% used). Rollback tags present: `rollback-pre028-20261010T093605Z` (wledger `e2efa2fb…`, mcp `a88c59ea…`), plus pre025/pre016/20261010T040208Z.
-- Backups (root:root, mode 700): `wledger-20261010T040208Z`, `wledger-pre016-…`, `wledger-pre019-…`, `wledger-pre025-…`, `wledger-pre028-20261010T093605Z` (manifest `sha256sum -c` OK).
+## Authorization and independent review
+User explicitly replied "go" to ChatGPT's question "Would you like me to authorize DeepSeek to perform that controlled deployment now?" following Task 034 read-only readiness assessment. This authorizes a controlled production deployment of exact target a12d824, including a fresh verified backup, app/MCP container build and recreate, health checks, and rollback on failure. It does NOT authorize LED operations, wall creation, unrelated services, Home Assistant changes, destructive DB restore, schema manipulation, or edits to original dirty checkout. Sequence 57 reports current production 696475c, healthy, goose10, mapping digest baseline intact, sufficient disk and prior rollback artifacts.
 
-## 2. Target delta (696475c..a12d824)
-3 commits: `126e857` (wall modal a11y), `e14c666` (phrasing content + localized label), `a12d824` (CI workflow).
-14 files:
-- `.github/workflows/ci.yml` (new)
-- `locales/active.{en,de,es,fr,it,pt-BR,ru,zh}.json` (additive keys `NoBinsMapped`, `OpenContainer`)
-- `web/components/dashboard_grid.templ` (+ `_templ.go`)
-- `web/components/dashboard_wall.templ` (+ `_templ.go`)
-- `web/components/dashboard_render_test.go`
+## Execution plan (implementation-ready; adapt to verified production layout)
+1. PRECHECK / STOP ON DRIFT: SSH directly to spetchal@192.168.1.108 (mainserver). Verify target origin/main EXACT a12d824e48da7c19b8ad508027898492b9d84c81; current isolated production release /home/spetchal/wledger-release-696475c HEAD EXACT 696475c8d58786f3e0e39c6b9e38e1a412f1f7cb; app/MCP containers healthy and running from that release; compose config/mounts, env-file, image IDs, current DB integrity/FK/goose10/counts and mapping digest. STOP and report if any mismatch or unexpectedly running migration.
+2. BACKUP BEFORE TOUCHING CONTAINERS: Reconstruct and execute the *verified actual* Task 028 online SQLite backup procedure (not the placeholder /path/to/predeploy_backup.sh). Create new root-owned mode700 backup /home/spetchal/backups/wledger-pre035-<UTC timestamp> containing SQLite consistent snapshot via SQLite backup API, app uploads/config/env snapshot (secret-safe), source/compose provenance, immutable current image IDs and rollback tags, restore notes and SHA256 manifest. Verify sha256sum -c, SQLite integrity_check, foreign_key_check, goose10, expected counts and digest BEFORE proceeding. No live DB file cp as a substitute for SQLite online backup. Do not print secrets.
+3. ISOLATED RELEASE: git clone/checkout target into /home/spetchal/wledger-release-a12d824 (or verify clean existing release). DO NOT alter /home/spetchal/wledger dirty checkout. Inspect actual OLD docker-compose.yaml, volume mount source paths and env_file and match in NEW; use exactly the same live data/uploads/logs mounts and permissions, not assumed symlink names. Confirm no Docker/compose/schema/migration differences from old. STOP on differences or inability to identify mounts. Record immutable current image IDs and verified rollback tags. No volume deletion.
+4. BUILD + RECREATE: Build pinned exact-target WLEDger app and MCP images from isolated release. Check build success before replacing running containers. Run docker compose -p wledger --env-file /home/spetchal/wledger/.env -f <verified-new-release>/docker-compose.yaml up -d (or the equivalent verified Task028 command) only for WLEDger app and MCP; ensure no unrelated project services affected. Never run down -v, prune, DB reset, or restore.
+5. POSTDEPLOY: Confirm app/MCP images differ as expected, running, RestartCount 0, no unexpected migration (goose remains 10), no ERROR logs. HTTPS https://storage.localdomain/login ->200; protected API unauthenticated ->401 and authorized with existing valid token ->200 if available WITHOUT exposing token; MCP loopback 127.0.0.1:9100 ->401 unauth and ->200 authorized; external 9100 inaccessible. Check SQLite integrity/FK, counts baseline controllers1 containers2 bins68 mapped68 parts2 assignments2 audit15 users1 (allow legitimate concurrent changes only after explicitly investigating), led_coordinate_space=drawer and mapping digest EXACT 1b0f9bd7b09223548df0f7097bec0ffa8b57d0c85f31979ad2c5db821ece8f09. Do not trigger Locate, Global Off or any physical WLED calls. Preserve all production data.
+6. ROLLBACK ON FAILURE: If critical health, DB invariant, mapping digest, unexpected migration or connectivity checks fail, STOP and rollback app/MCP images to pre035 immutable rollback tags using verified Task028 restore procedure, preserving live volumes. Recheck health and mapping. DO NOT restore SQLite DB snapshot or overwrite live data without fresh explicit approval; if data altered or rollback cannot be made safe, stop and report immediately. Report both deployment and rollback outcome, never conceal failure.
+7. NON-HARDWARE BROWSER CHECK: If an authenticated browser/session is available without sharing credentials, verify dashboard view, modal opening/closing, Tab+Enter, tall grid scroll and mobile width. If no walls exist, do NOT create one; mark modal visual check pending and recommend staging. Do not click Locate/Global Off. Browser Secure-cookie/CSRF checks must not send live LED POST requests.
+8. REPORT: Publish Sequence 59 From DeepSeek To ChatGPT Status AWAITING_REVIEW Task 035 with deployed SHA, backup path/permissions/manifest verification (no secrets), exact old/new image IDs, compose provenance, all pre/post checks, CI status, DB/mapping digest, restart counts, errors, any rollback, remaining visual checks. Commit/push ONLY AI_HANDOFF.md on experiment/ai-handoff. STOP.
 
-**No** schema/migration, SQL, auth, CSRF, router, middleware, `go.mod`/`go.sum`, Dockerfile/compose, `internal/wled`/`hardware`/`ledspace` changes (checked by path). No server-side Go logic changes — only generated templ Go and a test file. The functional change is UI-only: the wall card trigger is a semantic `<button>` with phrasing-only descendants, the modal is a sibling addressed by a scoped Alpine `x-ref`, the modal-box scrolls vertically, an empty-bin state is shown, and the trigger label is localized via `i18n.TD`. Locale changes are additive.
-
-## 3. CI evidence
-- Push run `38045351289` (event `push`, branch `main`, headSha `a12d824`): completed, **success** (2m5s).
-- PR run `38044812260` (event `pull_request`, headSha `a12d824`): completed, **success**.
-- Commit check-runs for `a12d824`: two `validate` runs, both completed/success.
-- Local read-only validation on main: `go build -tags fts5 ./...` OK, `go vet -tags fts5 ./...` clean, `web/components` + `internal/dashboard` tests pass.
-
-## 4. Database and LED mapping invariants (read-only)
-- `integrity_check` ok; `foreign_key_check` CLEAN; goose 10.
-- `led_coordinate_space = drawer`; flags `drawer_allocation_backfilled=true`, `migration_005_applied=true`.
-- Counts: controllers 1, containers 2, bins 68, parts 2, part_assignments 2, audit_logs 15, users 1.
-- Bins mapped 68 / unmapped 0.
-- Bin LED mapping digest `1b0f9bd7b09223548df0f7097bec0ffa8b57d0c85f31979ad2c5db821ece8f09` == baseline. No secrets or session identifiers exposed.
-
-## 5. Proposed deployment runbook — PROPOSED ONLY, DO NOT RUN
-```bash
-# ===== PROPOSED ONLY — requires separate explicit authorization =====
-set -euo pipefail
-TARGET=a12d824e48da7c19b8ad508027898492b9d84c81
-SHORT=a12d824
-TS=$(date -u +"%Y%m%dT%H%M%SZ")
-LIVE=/home/spetchal/wledger
-NEW=/home/spetchal/wledger-release-$SHORT
-OLD=/home/spetchal/wledger-release-696475c
-
-# 0. Preflight (read-only)
-git -C "$OLD" rev-parse HEAD                                   # expect 696475c…
-git ls-remote https://github.com/magicaussie/wledger.git main  # expect a12d824…
-docker ps --filter name=wledger --format '{{.Names}} {{.Image}} {{.Status}}'
-df -h /home/spetchal
-
-# 1. Pre-deploy backup (root-owned, mode 700) — reuse the Task 025/028 procedure:
-#    online SQLite backup API from a mode=ro source, images saved by immutable ID
-#    + rollback tags, uploads tar, config incl. .env (mode 600), source provenance,
-#    MANIFEST.sha256 + `sha256sum -c`, RESTORE_NOTES.md.
-#    Then verify the snapshot: integrity ok, FK clean, goose 10, counts, digest == baseline.
-sudo -n bash /path/to/predeploy_backup.sh   # -> /home/spetchal/backups/wledger-pre0NN-$TS
-
-# 2. Isolated release pinned to target
-git clone https://github.com/magicaussie/wledger.git "$NEW"
-git -C "$NEW" checkout "$TARGET"
-ln -s "$LIVE/data"    "$NEW/data"
-ln -s "$LIVE/logs"    "$NEW/logs"
-ln -s "$LIVE/uploads" "$NEW/uploads"
-diff "$OLD/docker-compose.yaml" "$NEW/docker-compose.yaml"   # expect identical
-diff "$OLD/Dockerfile"          "$NEW/Dockerfile"           # expect identical
-
-# 3. Build and recreate ONLY the WLEDger project
-cd "$NEW"
-docker compose -p wledger --env-file "$LIVE/.env" -f docker-compose.yaml build
-docker compose -p wledger --env-file "$LIVE/.env" -f docker-compose.yaml up -d
-
-# 4. Verify (health + invariants)
-docker inspect -f 'img={{.Image}} rc={{.RestartCount}} st={{.State.Status}}' wledger
-docker inspect -f 'img={{.Image}} rc={{.RestartCount}} st={{.State.Status}}' wledger-mcp
-docker logs --tail 30 wledger     # expect "goose: no migrations to run. current version: 10", 0 ERROR
-curl -sk -o /dev/null -w '%{http_code}\n' https://storage.localdomain/login   # 200
-curl -s  -o /dev/null -w '%{http_code}\n' http://localhost:8090/api/v1/health # 401 (200 with token)
-# MCP: loopback 127.0.0.1:9100 401/200; external 192.168.1.108:9100 blocked
-# DB: integrity ok, FK clean, goose 10, counts 1/2/68/2/2/15/1, digest == 1b0f9bd7…
-
-# 5. Rollback (ONLY on failure) — no destructive DB restore without separate approval
-docker tag wledger-wledger:rollback-pre0NN-$TS   wledger-wledger:latest
-docker tag wledger-mcp-server:rollback-pre0NN-$TS wledger-mcp-server:latest
-cd "$OLD"
-docker compose -p wledger --env-file "$LIVE/.env" -f docker-compose.yaml up -d
-# recheck health + mapping digest
-```
-
-## 6. Non-hardware browser smoke test (user-driven; no LED actions)
-1. Log in at `https://storage.localdomain/` (user-driven; no credentials shared with the agent).
-2. Dashboard legacy view (0 walls): long names truncate with full text on hover; empty controller shows "No containers configured.".
-3. Wall view (if walls exist): open a container card modal; confirm ✕ and backdrop close it; keyboard Tab+Enter opens a card; a tall grid scrolls; check desktop and mobile widths.
-4. Confirm no console errors and no duplicate `id="container_modal_*"` in the DOM.
-5. Do **not** create/modify walls or trigger Locate/Global Off (physical LEDs) without explicit authorization.
-
-## 7. Hazards and outstanding validation
-- **Hazard:** the delta is UI-only, but the wall modal path is not exercised by the current production data (0 walls), so a regression there would not be visible in production until a wall is created. Mitigated by render tests + the pending visual check.
-- **Hazard:** `docker compose up -d` briefly interrupts `wledger` (~1–2 s) during recreate.
-- **Hazard:** the CI workflow file is inert for production (no runtime effect); it only adds GitHub Actions runs.
-- **Outstanding:** browser visual verification of the Task 030 wall modal is still pending; the Task 025 Secure-cookie/CSRF browser checks also remain pending.
-- No migration is expected (goose stays 10); if the deployed container ever reports a migration, STOP and roll back.
-
-## Recommendation
-**READY for a separately authorized deployment.** The delta is UI-only with no schema/migration/auth/routing/dependency changes; CI is green on the exact target SHA `a12d824`; and DB/LED-mapping invariants match the established baseline. Deployment remains a separate, explicitly authorized step; the browser visual check should be performed in the deployment window.
-
-## Evidence / SHAs
-- Target main: `a12d824e48da7c19b8ad508027898492b9d84c81`
-- Current production: `696475c8d58786f3e0e39c6b9e38e1a412f1f7cb`
-- Push run: https://github.com/magicaussie/wledger/actions/runs/38045351289
-- PR run: https://github.com/magicaussie/wledger/actions/runs/38044812260
-- Mapping digest baseline: `1b0f9bd7b09223548df0f7097bec0ffa8b57d0c85f31979ad2c5db821ece8f09`
+## Safety gates
+User authorized this one deployment only. No further automatic deployments. Stop rather than improvise when backup procedure, actual volume layout, source revision, DB invariant, compose scope, or rollback plan is uncertain. Do not change physical LEDs, Home Assistant, unrelated containers or the original dirty checkout.
