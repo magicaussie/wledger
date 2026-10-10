@@ -175,3 +175,25 @@ A part type may be stocked in multiple bins, with quantities tracked per locatio
 **Next audit/design action:** revise the Task 044 schema proposal: the existing `containers` represent the two strings/segments, not the 69 physical drawers. Introduce stable drawer entities and drawer-to-LED-range mapping without renaming the two existing strings into drawers. Define migration from legacy bin-to-LED assignments to physical drawers only after confirming which records correspond to each of the 69 drawers.
 
 **Roadmap changelog:** v0.2 — confirmed 69 physical drawers and ongoing editable drawer+LED configuration.
+
+
+## Design update — 2026-10-11: LED assignment assistance and flexible wiring paths
+
+**Confirmed:**
+- Adding a drawer should offer an **automatic suggestion for the next available LEDs**, while allowing full manual adjustment.
+- The user can shift the suggested LED range forward/backward along the string, adjust the LED count, choose another string/segment, enter a start index, or add further ranges.
+- The cabinet editor must let users describe **how the physical LED string runs**; no hardcoded left-to-right assumption.
+- Supported routing must include horizontal and vertical traversal; either starting direction; alternating snake/serpentine rows or columns; same-direction passes (left→right repeatedly, right→left repeatedly, top→bottom repeatedly, bottom→top repeatedly); and arbitrary custom paths.
+- The wiring configuration and drawer assignments remain editable after initial setup.
+
+**Design proposal / acceptance criteria:**
+- Per string/segment: select start corner, horizontal/vertical primary axis, first-pass direction, snake vs same-direction, and orientation; show physical LED numbering preview.
+- Offer a custom ordered path for nonstandard routing, discontinuities, skipped LEDs and mixed orientations; do not require one universal pattern per cabinet.
+- Render actual LED numbers and direction indicators on the layout, and show unassigned LEDs, overlaps and out-of-bounds ranges before save.
+- Suggest free ranges based on wiring order and current assignments, without modifying existing allocations automatically.
+- Range controls: shift start by ±1/±N, adjust count, enter exact start/end, add/remove multiple ranges, and undo/cancel before commit.
+- Keep electrical coordinates (controller, segment, start, count) separate from physical path/geometry; changing wiring visualization must not silently remap existing drawer LED assignments.
+- Provide an explicitly initiated **Test Wiring** mode to illuminate individual LEDs/ranges sequentially, with Stop, timeout, permission checks and offline/error handling. Never activate LEDs merely by opening an editor.
+- Check WLED segment/physical-string semantics and segment-relative vs controller-global coordinates before choosing persisted path schema. Irregular wiring may require per-LED physical coordinates, not just a snake preset.
+
+**Roadmap changelog:** v0.3 — auto-suggested, adjustable LED assignments and flexible string wiring topology.
