@@ -33,3 +33,6 @@ conductor/
 # Generated
 .tables
 logs/
+
+# Optional wall browser regression output
+scripts/wall-browser/screenshots/
