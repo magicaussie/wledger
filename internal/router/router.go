@@ -24,6 +24,7 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 	r.Use(sessionManager.LoadAndSave)
 	r.Use(mw.I18n)
 	r.Use(mw.Authenticate)
+	r.Use(mw.CSRFContext)
 	r.Use(mw.FirstRunCheck)
 
 	// Static Files
@@ -124,6 +125,7 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 		// -----------------------------------------------------------
 		r.Group(func(r chi.Router) {
 			r.Use(mw.RequireRole("editor", "admin"))
+			r.Use(mw.RequireCSRF)
 
 			r.Post("/hardware/{id}/locate", h.HandleHardwareLocate)
 			r.Post("/parts/{id}/locate", h.HandlePartLocate)

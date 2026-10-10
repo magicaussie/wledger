@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/alexedwards/scs/v2"
+	"github.com/go-chi/chi/v5"
 	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/handler"
@@ -57,7 +58,7 @@ var hardwareActionPaths = []string{
 }
 
 type authTestEnv struct {
-	router http.Handler
+	router *chi.Mux
 	store  db.Store
 	wled   *fakeWLED
 	conn   *sql.DB
@@ -96,7 +97,18 @@ func newAuthTestEnv(t *testing.T) *authTestEnv {
 		UIError:  uiErr,
 	}
 	mw := middleware.New(store, sm, logger, uiErr)
-	return &authTestEnv{router: New(mw, sm, h), store: store, wled: fw, conn: conn}
+	r := New(mw, sm, h)
+	// Test-only probe that returns the session's CSRF token so tests can send a
+	// valid token without rendering a full page.
+	r.Get("/csrf-probe", func(w http.ResponseWriter, req *http.Request) {
+		tok, err := middleware.CSRFToken(req.Context(), sm)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		_, _ = w.Write([]byte(tok))
+	})
+	return &authTestEnv{router: r, store: store, wled: fw, conn: conn}
 }
 
 func (e *authTestEnv) createUser(t *testing.T, email, role string) {
@@ -129,13 +141,36 @@ func (e *authTestEnv) login(t *testing.T, email string) []*http.Cookie {
 }
 
 func (e *authTestEnv) post(path string, cookies []*http.Cookie) *httptest.ResponseRecorder {
+	return e.postWithCSRF(path, cookies, "")
+}
+
+func (e *authTestEnv) postWithCSRF(path string, cookies []*http.Cookie, token string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(http.MethodPost, path, nil)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+	if token != "" {
+		req.Header.Set("X-CSRF-Token", token)
+	}
+	rr := httptest.NewRecorder()
+	e.router.ServeHTTP(rr, req)
+	return rr
+}
+
+// csrfToken fetches a valid CSRF token bound to the session identified by the
+// given cookies, via the test-only /csrf-probe route.
+func (e *authTestEnv) csrfToken(t *testing.T, cookies []*http.Cookie) string {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, "/csrf-probe", nil)
 	for _, c := range cookies {
 		req.AddCookie(c)
 	}
 	rr := httptest.NewRecorder()
 	e.router.ServeHTTP(rr, req)
-	return rr
+	if rr.Code != http.StatusOK || rr.Body.Len() == 0 {
+		t.Fatalf("csrf probe = %d body=%q", rr.Code, rr.Body.String())
+	}
+	return rr.Body.String()
 }
 
 // TestHardwareActionsRequireAuthentication verifies that an unauthenticated
@@ -224,6 +259,7 @@ func TestHardwareActionsAllowedForEditorAndAdmin(t *testing.T) {
 			}
 
 			cookies := env.login(t, role+"@test.com")
+			token := env.csrfToken(t, cookies)
 			paths := []string{
 				fmt.Sprintf("/hardware/%d/locate", ctrl.ID),
 				"/parts/1/locate",
@@ -231,7 +267,7 @@ func TestHardwareActionsAllowedForEditorAndAdmin(t *testing.T) {
 				"/hardware/off",
 			}
 			for _, p := range paths {
-				rr := env.post(p, cookies)
+				rr := env.postWithCSRF(p, cookies, token)
 				if rr.Code != http.StatusOK {
 					t.Errorf("%s POST %s = %d, want 200: %s", role, p, rr.Code, rr.Body.String())
 				}
@@ -241,5 +277,29 @@ func TestHardwareActionsAllowedForEditorAndAdmin(t *testing.T) {
 					role, env.wled.locateBin, env.wled.locatePart, env.wled.locateDrawer, env.wled.globalOff)
 			}
 		})
+	}
+}
+
+// TestHardwareActionsRejectMissingOrInvalidCSRF verifies that a write-capable
+// user must present a valid CSRF token: missing or invalid tokens are rejected
+// with 403 and no WLED action is triggered.
+func TestHardwareActionsRejectMissingOrInvalidCSRF(t *testing.T) {
+	env := newAuthTestEnv(t)
+	defer env.conn.Close()
+	env.createUser(t, "editor@test.com", "editor")
+	cookies := env.login(t, "editor@test.com")
+
+	for _, p := range hardwareActionPaths {
+		// Missing token.
+		if rr := env.postWithCSRF(p, cookies, ""); rr.Code != http.StatusForbidden {
+			t.Errorf("missing CSRF POST %s = %d, want 403", p, rr.Code)
+		}
+		// Invalid token.
+		if rr := env.postWithCSRF(p, cookies, "not-a-valid-token"); rr.Code != http.StatusForbidden {
+			t.Errorf("invalid CSRF POST %s = %d, want 403", p, rr.Code)
+		}
+	}
+	if env.wled.total() != 0 {
+		t.Errorf("missing/invalid CSRF triggered %d WLED action(s), want 0", env.wled.total())
 	}
 }

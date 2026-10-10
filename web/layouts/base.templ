@@ -2,6 +2,7 @@ package layouts
 
 import (
 	"github.com/tuxedocurly/wledger/internal/auth"
+	"github.com/tuxedocurly/wledger/internal/csrf"
 	"github.com/tuxedocurly/wledger/internal/i18n"
 	"github.com/tuxedocurly/wledger/web/components"
 	"github.com/tuxedocurly/wledger/web/icons"
@@ -13,10 +14,14 @@ templ Base(title string, user auth.User) {
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			if user.IsAuthenticated() {
+				<meta name="csrf-token" content={ csrf.TokenFromContext(ctx) }/>
+			}
 			<title>{ title } | WLEDger</title>
 			<link rel="icon" href="/static/img/favicon.ico"/>
 			<link href="/static/css/output.css" rel="stylesheet"/>
 			<script src={ "https://unpkg.com/htmx.org@2.0.4" }></script>
+			<script src="/static/js/csrf.js"></script>
 			<script src={ "https://unpkg.com/alpinejs@3.14.8/dist/cdn.min.js" } defer></script>
 			<script src={ "https://unpkg.com/sortablejs@1.15.2/Sortable.min.js" }></script>
 			<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>

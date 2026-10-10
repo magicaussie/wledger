@@ -6,8 +6,11 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"errors"
+	"net/http"
 
 	"github.com/alexedwards/scs/v2"
+	"github.com/tuxedocurly/wledger/internal/config"
+	"github.com/tuxedocurly/wledger/internal/csrf"
 )
 
 // csrfSessionKey is the session key under which a per-session CSRF token is
@@ -62,4 +65,38 @@ func RotateCSRF(ctx context.Context, sm *scs.SessionManager) {
 		return
 	}
 	sm.Remove(ctx, csrfSessionKey)
+}
+
+// CSRFContext ensures an authenticated session has a CSRF token and exposes it
+// to templates via the request context (see internal/csrf). Guests are left
+// untouched, so no session is created for anonymous visitors.
+func (m *Manager) CSRFContext(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if m.Session != nil && m.Session.GetInt64(r.Context(), config.SessionKeyUserID) != 0 {
+			if tok, err := CSRFToken(r.Context(), m.Session); err == nil {
+				r = r.WithContext(csrf.WithToken(r.Context(), tok))
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// RequireCSRF rejects a request whose CSRF token does not match the session's
+// token. The token is read from the X-CSRF-Token header (used by HTMX requests)
+// or, as a fallback, the csrf_token form field. Absent or invalid tokens are
+// rejected with 403. This is the explicit CSRF defense for state-changing
+// browser requests; it does not rely on SameSite alone.
+func (m *Manager) RequireCSRF(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		submitted := r.Header.Get("X-CSRF-Token")
+		if submitted == "" {
+			_ = r.ParseForm()
+			submitted = r.FormValue("csrf_token")
+		}
+		if !ValidateCSRF(r.Context(), m.Session, submitted) {
+			m.UIError.Respond(w, r, nil, "Invalid or missing CSRF token", http.StatusForbidden)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
