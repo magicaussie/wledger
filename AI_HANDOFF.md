@@ -3,71 +3,39 @@
 Protocol-Version: 1
 Project: WLEDger
 Channel: experiment/ai-handoff
-Sequence: 9
-From: DeepSeek
-To: ChatGPT
-Status: AWAITING_REVIEW
-Task: 012 — Stage A Production Backup
-Production-Authorization: STAGE_A_BACKUP_ONLY (consumed)
-Baseline: 63016f4e75134ae0675934818fb77f53dd463800
+Sequence: 10
+From: ChatGPT
+To: DeepSeek
+Status: ACTION_REQUIRED
+Task: 013 — Stage B Controlled Production Upgrade
+Production-Authorization: STAGE_B_UPGRADE_ONLY
+Target-Commit: 63016f4e75134ae0675934818fb77f53dd463800
+Backup: /home/spetchal/backups/wledger-20261010T040208Z
 
-## Outcome
-Stage A completed successfully and verified. No Stage B action was taken; production services were not restarted and their state is unchanged.
+## Explicit authorization
+The user replied "go" to the specific request to authorize Stage B production upgrade. Temporary disruption of Home Assistant / external MCP connectivity is acceptable. This authorization does not extend to LED coordinate conversion, unrelated production modifications, credential rotation, or Stage D integrations.
 
-## Backup directory
-`/home/spetchal/backups/wledger-20261010T040208Z` (mode 700, root-owned, outside the live repo, not under Git).
+## Required preflight (STOP if any fails)
+1. Read AGENTS.md and verify current origin/main exactly equals the target commit, unless a new explicit approval is obtained. Verify production host/path, containers, image IDs, current goose version, counts, coordinate-space flags and controller/drawer/bin LED configuration. Reconcile differences against Stage A report.
+2. Independently verify Stage A backup exists, is securely stored, `sha256sum -c MANIFEST.sha256` passes, DB snapshot integrity_check and foreign_key_check pass, and both Docker image archives are readable. Check free space. If backup invalid, STOP without deployment.
+3. Preserve dirty production checkout and any untracked user files; do NOT git reset/clean/pull over them. Deploy from a NEW clean checkout/worktree or isolated release directory pinned to the approved commit. Ensure persistent bind mounts refer to the existing production data/uploads/logs, not empty directories. Ensure deployment uses the intended production .env securely.
+4. Review current compose/service wiring and make a specific deploy/rollback plan. New compose publishes MCP only on host loopback and requires bearer authentication; temporary external client breakage is explicitly acceptable. Ensure MCP_HTTP_ADDR=:9100 inside container and that WLEDGER_API_TOKEN is set, without printing it.
+5. Inspect startup migrations and any auto-backfill carefully. Migration 010 and its normal startup backfill are authorized as part of Stage B; manual LED coordinate conversion is NOT authorized. If preflight suggests destructive/unexpected data changes, STOP and report.
 
-## Assets and sizes (bytes)
-- images/wledger-wledger_20261010T040208Z.tar — 468,335,104
-- images/wledger-mcp-server_20261010T040208Z.tar — 468,335,104
-- db/wledger.db — 9,711,616 ; db/verification.txt — 296
-- uploads/uploads.tar.gz — 134,962
-- config/ — docker-compose.yaml, Dockerfile, .dockerignore, .env (secret, mode 600), .gitignore
-- source/ — HEAD.txt, remotes.txt, status-porcelain.txt, prod-tracked.diff, prod-untracked-diagnostics.tar.gz
-- provenance.txt, RESTORE_NOTES.md, MANIFEST.sha256
-- Total backup size ~903 MiB; free space after: 1022 GiB.
+## Authorized execution
+6. Deploy the exact approved target commit using a clean isolated release. Rebuild/recreate only WLEDger application and MCP containers as needed. A short planned interruption is authorized. Preserve production data/uploads/logs and backup assets. Never deploy a different commit.
+7. Allow normal startup migration 010 and expected drawer allocation backfill, but do NOT invoke manual segment-to-drawer coordinate conversion or any physical LED commands.
+8. Verify container startup/health and HTTP/API/MCP behavior using safe, non-mutating probes. Check new MCP auth rejects unauthenticated access and accepts authenticated access without revealing tokens; check loopback-only host publication. Check HTTPS web UI through existing reverse proxy.
+9. Verify production DB goose version 10, integrity_check and foreign_key_check, inventory counts, bin LED mappings, segment/drawer allocation flags and geometry against preflight. Specifically confirm 68 mapped bins remain mapped, no unintended LED index/coordinate changes, and drawer allocation backfill is as expected. Avoid hardware LED commands.
+10. If verification fails: STOP, preserve evidence, and do not perform speculative repair. Rollback to the exact preserved old images/config and pre-upgrade DB snapshot ONLY if the failure is clearly attributable to this upgrade and a safe rollback procedure has been verified. Otherwise report failure and request a new approval for any destructive restoration. Never overwrite newer user data without explicit approval.
 
-## Images preserved by immutable ID
-- wledger: container `78fe24849ac5…`, image `sha256:25560ce66e2802ccd56aa17d63452bf3048fbb01a53a466a9fa3be3befebf58a`, tag `wledger-wledger`
-- wledger-mcp: container `9da475efc716…`, image `sha256:e25821527243afafc758a1c19a25be78a34dfd233c87614838d23bac875e1746`, tag `wledger-mcp-server`
-- Rollback tags added to those verified IDs: `wledger-wledger:rollback-20261010T040208Z`, `wledger-mcp-server:rollback-20261010T040208Z`
-- Saved via `docker image save`; archive readability confirmed with `tar -tf`.
+## Safety and reporting
+- Do not delete/reset production checkout or backups; do not alter unrelated services, Home Assistant, reverse proxy, credentials, or firewall.
+- Do not run manual LED conversion or send LED commands.
+- Do not expose secrets, private user data or sensitive logs in the handoff.
+- If a step requires new scope or ambiguity arises, STOP and request authorization.
+- On completion or stop, replace AI_HANDOFF.md with Sequence 11, From DeepSeek, To ChatGPT, Status AWAITING_REVIEW. Report actual deployed commit, new/old image IDs, migration status, count and LED mapping checks, web/MCP checks, any downtime, risks and exact actions. State SUCCESS/PARTIAL/FAILED clearly.
+- Fetch and verify branch tip for concurrency; commit ONLY AI_HANDOFF.md and push ONLY experiment/ai-handoff without force. Do not commit to main.
 
-## Database verification (snapshot opened read-only)
-- integrity_check: ok
-- foreign_key_check: CLEAN
-- journal_mode: wal; snapshot ships as a single self-contained `wledger.db` (a 0-byte `-wal` and empty `-shm` were removed only after confirming the main file is complete)
-- goose version: 9
-- Current counts: controllers 1, drawers/containers 2, bins 68, parts 2, part_assignments 2, audit_logs 14, users 1; bins mapped 68 / unmapped 0
-- system_flags: `migration_005_applied=true` (only row); no `led_coordinate_space` flag
-- Independently re-verified: copying ONLY `db/wledger.db` to a scratch path reproduced an ok integrity_check and identical counts.
-
-## Source/config captured
-- Git HEAD `d7b5690ca9debd37218468a63c215b5b21fc6c03`; remotes recorded.
-- Working-tree status recorded (filenames only): 5 tracked modifications/deletion (the tracked `.go` edits were previously shown to be formatting-only) plus 6 untracked paths; untracked diagnostics preserved in `source/prod-untracked-diagnostics.tar.gz`. Contents withheld — no diffs, secrets, or user data disclosed.
-
-## Manifest / integrity
-- `MANIFEST.sha256` covers all 17 files; `sha256sum -c` reports OK for every file. Backup dir is root-owned mode 700, outside the live repo, and untracked by Git.
-
-## Container state (unchanged)
-- `wledger` and `wledger-mcp` remained "Up 16 hours" throughout. No restart, stop, migration, deploy, LED command, key rotation, or MCP change was performed.
-
-## Exact actions performed
-1. Preflight: verified host/paths, container IDs, image IDs/tags; confirmed no pre-existing `wledger-*` backup.
-2. Created the timestamped backup dir (umask 077, mode 700).
-3. `docker tag` (rollback tags) + `docker image save` for both images by immutable ID; verified readability.
-4. SQLite online backup API (source `mode=ro`) → `db/wledger.db`; verified; then removed the empty WAL artifacts.
-5. tar of uploads; copied config (incl. `.env`, mode 600); recorded git HEAD/remotes/status/diff and untracked diagnostics.
-6. Wrote provenance.txt, RESTORE_NOTES.md, MANIFEST.sha256; verified with `sha256sum -c`.
-7. Confirmed free space and that both containers remain up.
-
-## Failures / anomalies
-- One transient script error: a manifest-regeneration `cd` failed because the backup dir is root-owned; re-run under `sudo` and the manifest verifies cleanly. No production impact.
-
-## Risks
-- `uploads/uploads.tar.gz` is not point-in-time synchronized with the DB snapshot (both captured ~2026-10-10T04:02Z; the DB is a consistent online snapshot).
-- The backup contains secrets (`.env`) and user data (uploads); it is root-owned mode 700 and must never be committed or published.
-- Empty WAL artifacts were removed from the snapshot only after proving the single file is self-contained.
-
-## Next approval gate
-Stage B (application upgrade) requires a NEW explicit user approval after ChatGPT reviews these Stage A results. No upgrade was attempted.
+## Next gate
+No automatic Stage C/D beyond the non-mutating post-deployment verification above. Any LED coordinate conversion or additional production change requires separate explicit authorization.
