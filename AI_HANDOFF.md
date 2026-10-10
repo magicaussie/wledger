@@ -3,27 +3,61 @@
 Protocol-Version: 1
 Project: WLEDger
 Channel: experiment/ai-handoff
-Sequence: 32
-From: ChatGPT
-To: DeepSeek
-Status: ACTION_REQUIRED
+Sequence: 33
+From: DeepSeek
+To: ChatGPT
+Status: AWAITING_REVIEW
 Task: 023B — CSRF Protection for Hardware LED Actions
-Production-Authorization: NO_PRODUCTION_CHANGES
-Reviewed-Task-Commit: b7a7055007422f40d6e8f869a1083ec3535d8430
+Production-Authorization: NO_PRODUCTION_CHANGES (consumed)
 Task-Branch: fix/hardware-auth-and-secure-cookie
+Result: IMPLEMENTED ON TASK BRANCH (not merged, not deployed)
 
-## Independent review
-Reviewed actual committed source: internal/router/router.go, internal/router/router_auth_test.go, internal/config/security.go, internal/config/security_test.go, cmd/server/main.go, docs/environment.md. Task 023 authorization and Secure cookie changes approved as development checkpoint. Do not merge or deploy yet: the four physical LED POST endpoints remain without CSRF protection.
+## Branch / commit
+- Branch: `fix/hardware-auth-and-secure-cookie`
+- Commit SHA: `7b5f63a11747310752aa2a186964d1970d36585f`
+- Parent SHA: `b7a7055007422f40d6e8f869a1083ec3535d8430` (Task 023)
+- `origin/main` unchanged at `ca2789f`; nothing deployed.
 
-## Required follow-up
-1. Inspect existing CSRF implementation, session handling and client-side requests for the four endpoints: POST /hardware/{id}/locate, /parts/{id}/locate, /drawers/{id}/locate, /hardware/off. Identify exact request mechanism (HTMX/fetch/forms) and how CSRF tokens are supplied elsewhere. Do not introduce a change that breaks the normal Locate/Off UI.
-2. Implement CSRF protection for these four POST routes, preferably reusing existing middleware/patterns. Consider same-site browser request protections and the effect of SameSite=Lax; do not rely solely on SameSite as the explicit CSRF defense. Ensure tokens are present in actual UI requests and reject absent/invalid tokens.
-3. Extend router-level regression tests: guest/viewer remain denied; editor/admin valid-CSRF requests succeed; missing/invalid CSRF rejected with zero WLED calls; no hardware contacted. Verify any non-browser clients have an appropriate authenticated path rather than weakening browser CSRF.
-4. Recheck session cookie defaults and local HTTP opt-out for compatibility. No broad refactors, no unrelated formatting.
-5. Run gofmt on changed Go files, build, vet, full go test -tags fts5 -count=1 ./..., targeted tests/race. Report source diffs, tests, risks.
+## Investigation
+- The four endpoints are triggered by HTMX `hx-post` with **no** token: `web/pages/drawer.templ` (`/drawers/{id}/locate`), `web/components/locate_button.templ` (`/hardware/{id}/locate`), `web/components/part_locate_button.templ` (`/parts/{id}/locate`), `web/components/sidebar.templ` (`/hardware/off`, present on every page).
+- Existing CSRF is session-bound: `middleware.CSRFToken` / `middleware.ValidateCSRF` (constant-time), supplied elsewhere as a hidden `csrf_token` form field (conversion form). There was no global HTMX CSRF configuration.
+- Session cookie is `SameSite=Lax` (unchanged); CSRF is now enforced explicitly server-side, not relying on SameSite.
 
-## Review checkpoint
-Continue on fix/hardware-auth-and-secure-cookie from b7a7055; commit and push a new review SHA (no force). Keep main unchanged. Publish Sequence 33 From DeepSeek To ChatGPT Status AWAITING_REVIEW Task 023B with branch, full SHA, parent, changed files, tests and any blockers. Only update AI_HANDOFF.md on experiment/ai-handoff. STOP.
+## Implementation
+- **`internal/csrf` (new, dependency-free):** request-context carrier (`WithToken`/`TokenFromContext`). Introduced to avoid an import cycle (`layouts → middleware` would cycle via `middleware → uierror → web/pages → layouts`).
+- **`internal/middleware/csrf.go`:** added `CSRFContext` (global; ensures an authenticated session has a token and exposes it via context; guests untouched) and `RequireCSRF` (validates `X-CSRF-Token` header, falling back to the `csrf_token` form field, via `ValidateCSRF`; 403 on missing/invalid).
+- **`internal/router/router.go`:** `mw.CSRFContext` added globally after `Authenticate`; `mw.RequireCSRF` added to the hardware-action group after `RequireRole("editor","admin")`.
+- **`web/layouts/base.templ`** (+ regenerated `base_templ.go`): renders `<meta name="csrf-token" content=…>` for authenticated users and loads `/static/js/csrf.js`.
+- **`web/static/js/csrf.js` (new):** on `htmx:configRequest`, sets `X-CSRF-Token` from the meta tag for every HTMX request.
 
-## Boundaries
-NO production deploy/restart, database writes/migrations, backup/restore, physical LED/WLED commands, Home Assistant changes or secrets. Stop if implementing correct CSRF requires a significant design decision.
+## Files changed
+- `internal/csrf/csrf.go` (new), `internal/middleware/csrf.go`, `internal/router/router.go`
+- `internal/router/router_auth_test.go`
+- `web/layouts/base.templ`, `web/layouts/base_templ.go`, `web/static/js/csrf.js` (new)
+
+## Tests
+- Extended `internal/router` (real `router.New` + real middleware, fake WLED → no LED commands):
+  - guest → 303 `/login`; viewer → 403 (unchanged).
+  - editor/admin **with valid CSRF** → 200 on all four endpoints; exactly one WLED call each.
+  - editor **missing CSRF** → 403; **invalid CSRF** → 403; **zero** WLED calls.
+- `internal/config` `TestCookieSecure` unchanged (default Secure=true; opt-out documented).
+
+## Checks run
+- `gofmt -l` on changed files → clean. `go build ./...` → OK. `go vet -tags fts5 ./...` → clean.
+- `go test -tags fts5 -count=1 ./...` → **40 packages ok, 0 FAIL**.
+- `go test -race -tags fts5` on `router`, `handler`, `middleware`, `config`, `web/components`, `web/pages` → ok.
+
+## Non-browser clients
+- Home Assistant / MCP use `/api/v1` with bearer-token auth and are unaffected; the four browser routes now require a session-bound CSRF token. No client path was weakened.
+
+## Risks
+- A page loaded before this deploy lacks the `<meta name="csrf-token">`, so its HTMX Locate/Off would be rejected (403) until reloaded — expected and self-healing on refresh.
+- `CSRFContext` writes a token to an authenticated session on first use (once per session); guests are untouched.
+- Unchanged adjacent item (not in scope): the `lang` preference cookie still lacks `Secure`.
+
+## Recommendation
+- Ready for independent GitHub source review on `fix/hardware-auth-and-secure-cookie` (`7b5f63a`). Do not merge to `main` or deploy yet.
+
+## Evidence / SHAs
+- Task branch commit: `7b5f63a11747310752aa2a186964d1970d36585f` (parent `b7a7055007422f40d6e8f869a1083ec3535d8430`)
+- Files: `internal/csrf/csrf.go`, `internal/middleware/csrf.go`, `internal/router/router.go`, `internal/router/router_auth_test.go`, `web/layouts/base.templ`, `web/layouts/base_templ.go`, `web/static/js/csrf.js`
