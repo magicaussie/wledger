@@ -171,14 +171,73 @@ const waitClosed = (page) =>
   const mobileCard = page.getByRole('button', { name: /Demo Drawer A/ });
   await mobileCard.click();
   await page.waitForSelector('dialog[open]', { timeout: 5000 });
-  const isBottomSheet = await page.evaluate(() => {
+  await page.waitForTimeout(500); // let the DaisyUI open transition settle
+
+  // Assert real geometry, not just the class: a bottom sheet must have its
+  // modal-box bottom edge flush with the viewport bottom, and the dialog must
+  // cover the viewport. A centred (modal-middle) box would leave a gap below.
+  const mobileGeom = await page.evaluate(() => {
     const d = document.querySelector('dialog[open]');
-    return !!(d && d.classList.contains('modal-bottom'));
+    const box = d && d.querySelector('.modal-box');
+    if (!d || !box) return null;
+    const dr = d.getBoundingClientRect();
+    const br = box.getBoundingClientRect();
+    return {
+      hasClass: d.classList.contains('modal-bottom'),
+      vw: window.innerWidth,
+      vh: window.innerHeight,
+      dialogTop: dr.top,
+      dialogBottom: dr.bottom,
+      dialogWidth: dr.width,
+      boxTop: br.top,
+      boxBottom: br.bottom,
+      boxWidth: br.width,
+      boxHeight: br.height,
+    };
   });
-  check('mobile modal uses bottom-sheet layout', isBottomSheet);
-  await page.waitForTimeout(500);
+  check('mobile modal has modal-bottom class', mobileGeom && mobileGeom.hasClass, JSON.stringify(mobileGeom));
+  check(
+    'mobile modal-box is bottom-anchored (geometry)',
+    mobileGeom && mobileGeom.boxHeight > 0 && mobileGeom.vh - mobileGeom.boxBottom <= 8,
+    mobileGeom ? `vh=${mobileGeom.vh} boxBottom=${mobileGeom.boxBottom} gap=${mobileGeom.vh - mobileGeom.boxBottom}` : 'no geometry'
+  );
+  check(
+    'mobile modal-box top gap exceeds bottom gap (bottom sheet)',
+    mobileGeom && (mobileGeom.boxTop - mobileGeom.dialogTop) > (mobileGeom.dialogBottom - mobileGeom.boxBottom) + 20,
+    mobileGeom ? `topGap=${(mobileGeom.boxTop - mobileGeom.dialogTop).toFixed(1)} bottomGap=${(mobileGeom.dialogBottom - mobileGeom.boxBottom).toFixed(1)}` : 'no geometry'
+  );
+  check(
+    'mobile dialog covers the viewport',
+    mobileGeom && mobileGeom.dialogTop <= 1 && mobileGeom.dialogBottom >= mobileGeom.vh - 1 && mobileGeom.dialogWidth >= mobileGeom.vw - 1,
+    mobileGeom ? `dialog=${mobileGeom.dialogTop}..${mobileGeom.dialogBottom} w=${mobileGeom.dialogWidth} vw=${mobileGeom.vw}` : 'no geometry'
+  );
   await page.screenshot({ path: path.join(OUT, '06-mobile-modal.png') });
   await page.keyboard.press('Escape');
+  await waitClosed(page);
+
+  // Contrast: at desktop width the same modal is centred (modal-middle), so its
+  // box bottom must NOT be flush with the viewport bottom.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => window.Alpine !== undefined, null, { timeout: 20000 });
+  await page.waitForSelector('text=Demo Wall', { timeout: 20000 });
+  await page.getByRole('button', { name: /Demo Drawer A/ }).click();
+  await page.waitForSelector('dialog[open]', { timeout: 5000 });
+  await page.waitForTimeout(500);
+  const desktopGeom = await page.evaluate(() => {
+    const d = document.querySelector('dialog[open]');
+    const box = d && d.querySelector('.modal-box');
+    if (!d || !box) return null;
+    const br = box.getBoundingClientRect();
+    return { vh: window.innerHeight, boxTop: br.top, boxBottom: br.bottom };
+  });
+  check(
+    'desktop modal-box is centred, not bottom-anchored',
+    desktopGeom && desktopGeom.vh - desktopGeom.boxBottom > 20 && desktopGeom.boxTop > 20,
+    desktopGeom ? `vh=${desktopGeom.vh} boxTop=${desktopGeom.boxTop} boxBottom=${desktopGeom.boxBottom}` : 'no geometry'
+  );
+  await page.keyboard.press('Escape');
+  await waitClosed(page);
 
   check('no uncaught page errors', pageErrors.length === 0, pageErrors.join(' | ').slice(0, 300));
 
