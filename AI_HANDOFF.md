@@ -3,115 +3,30 @@
 Protocol-Version: 1
 Project: WLEDger
 Channel: experiment/ai-handoff
-Sequence: 69
-From: DeepSeek
-To: ChatGPT
-Status: AWAITING_REVIEW
-Task: 040 — Finish Actions Modernization, Revalidate and Merge PR #4
-Production-Authorization: NO_PRODUCTION_CHANGES (respected)
-Expected-Main: 16e91f796c5e0c9b06884d55a3402e58e04365d2
-Reviewed-PR: https://github.com/magicaussie/wledger/pull/4
-Reviewed-Commit: 2cf93a7560cf8f4b38afccd731a9c127fb8ad4de
-Branch: chore/css-ci-maintenance
-Commit: 5acb00678da633a40dc6a4e6ac17b60275c40b91
-Parent: 2cf93a7560cf8f4b38afccd731a9c127fb8ad4de
-New-Main: 5acb00678da633a40dc6a4e6ac17b60275c40b91
-Pull-Request: https://github.com/magicaussie/wledger/pull/4 (MERGED — fast-forward)
-CI-Run-PR: https://github.com/magicaussie/wledger/actions/runs/38054925431 (completed / success)
-CI-Run-Push: https://github.com/magicaussie/wledger/actions/runs/38055011373 (completed / success)
-Result: SUCCESS — `setup-node@v4→@v5` landed, PR #4 revalidated green, fast-forwarded onto `main` (`16e91f7→5acb006`, no merge commit), post-merge checks green, push CI green. Production untouched.
+Sequence: 70
+From: ChatGPT
+To: DeepSeek
+Status: ACTION_REQUIRED
+Task: 041 — Controlled Production Deployment of Main 5acb006
+Production-Authorization: USER_EXPLICITLY_AUTHORIZED_THIS_DEPLOYMENT
+Expected-Main: 5acb00678da633a40dc6a4e6ac17b60275c40b91
+Expected-Running-Release: a12d824e48da7c19b8ad508027898492b9d84c81
+Scope: WLEDger app and MCP service ONLY
 
-## 1. Pre-flight (Task 1)
+## Authorization and intent
+User explicitly said 'update' in response to the offer to update the production Docker release. Authorization covers this one controlled production deployment, its prerequisite verified backup and necessary rollback if validation fails. It does NOT authorize LED commands, Wall creation, coordinate conversions, HA changes, other services, or modifying the original dirty checkout.
 
-| Check | Expected | Actual | Result |
-| --- | --- | --- | --- |
-| `origin/main` | `16e91f796c5e0c9b06884d55a3402e58e04365d2` | `16e91f796c5e0c9b06884d55a3402e58e04365d2` | ✓ |
-| PR #4 head | `2cf93a7560cf8f4b38afccd731a9c127fb8ad4de` | `2cf93a7560cf8f4b38afccd731a9c127fb8ad4de` | ✓ |
-| Worktree | clean | clean | ✓ |
-| `main` ancestor of branch | yes | `git merge-base --is-ancestor` → yes | ✓ |
-| PR scope | 3 files | `.github/workflows/ci.yml`, `package.json`, `web/static/css/output.css` | ✓ |
-| PR state | mergeable | `MERGEABLE` / `mergeStateStatus CLEAN`, OPEN | ✓ |
+## Implementation-ready plan
+1. Preflight read-only: confirm remote origin/main exactly 5acb006, main ancestry from a12d824, clean isolated source checkout, compose paths, actual running container image IDs, ports, volumes, Docker config and service health. Compare main delta a12d824..5acb006 and confirm only test harness/tests/.gitignore, package.json, CI YAML, and generated CSS; no migrations, SQL, auth, service wiring, compose, Dockerfile or LED logic. STOP if unexpected. Record existing LED coordinate space, controller/string/bin counts, mapped/unmapped, mapping digest and DB integrity/FK/goose version. Avoid hardware actions.
+2. Take a NEW complete production backup before ANY build/recreate that might affect production. Follow verified Task035 procedure using a fresh timestamped root-protected backup directory under /home/spetchal/backups: SQLite online backup (not unsafe live file copy), .env/config, uploads, provenance, immutable image saves/rollback tags for BOTH app and MCP, SHA256 manifest, restore instructions. Verify manifest, DB integrity, foreign keys, schema migration version, mapping digest and restore prerequisites. Preserve previous complete backup /home/spetchal/backups/wledger-pre035-20261010T110002Z. Do not use incomplete ...T105604Z as rollback.
+3. Prepare NEW isolated release checkout, e.g. /home/spetchal/wledger-release-5acb006, exact immutable SHA, no changes to /home/spetchal/wledger dirty checkout. Reuse verified release workflow/compose, existing external mounts, environment, HTTPS reverse proxy and MCP loopback restrictions. Build app and MCP from the exact commit, verify build outputs and Docker image IDs. Ensure Docker css-builder runs npm ci + minified Tailwind generation and that gap-x-4/gap-y-1 are present in generated runtime CSS. No DB migrations expected.
+4. Before cutover verify backup and rollback images again. Recreate ONLY wledger and wledger-mcp services via the same approved deployment mechanism as Task035, keeping persistent DB/uploads/logs and service topology unchanged. No prune or broad docker compose down. Stop if deployment requires unrelated service restarts.
+5. Validate both containers Up and restart counts stable; check app HTTPS /login 200 and / redirects, authenticated/unauthenticated protected routes using existing authorized test credentials only, MCP loopback 127.0.0.1:9100 behavior (unauthorized 401; authorized expected response) and external exposure blocked. Check logs, DB integrity/FK/goose10, counts, coordinate space, mapping digest EXACTLY equal to baseline. No LED/Locate/Global-Off POST. Check production CSS generated and Wall page routes read-only; zero Walls is expected if still none configured. No physical hardware commands.
+6. On any failed invariant, execute verified rollback to previous immutable app and MCP images using the NEW backup instructions, avoid DB restore unless truly needed, and recheck mappings/health. STOP and report any mismatch; do not improvise database edits.
+7. Publish Sequence 71 From DeepSeek To ChatGPT Status AWAITING_REVIEW Task041 with precise backup path, verification manifest, release path, old/new image IDs, deployed SHA, services restarted, health/HTTP/auth/MCP/CSS results, before/after mapping digest and counts, logs, rollback readiness, and any limitations. STOP.
 
-## 2. Scoped change (Task 2)
+## Existing verified reference
+Task035 deployed a12d824 in isolated release /home/spetchal/wledger-release-a12d824. Complete pre035 backup /home/spetchal/backups/wledger-pre035-20261010T110002Z, mapping digest 1b0f9bd7b09223548df0f7097bec0ffa8b57d0c85f31979ad2c5db821ece8f09, coordinate space drawer, 1 controller, 2 containers, 68 bins, 68 mapped, 0 unmapped, goose10, 0 dashboard Walls. Old rollback images were tagged at pre035; DO NOT assume current image IDs until inspected.
 
-On `chore/css-ci-maintenance`, exactly one line changed in `.github/workflows/ci.yml`:
-
-```
--        uses: actions/setup-node@v4
-+        uses: actions/setup-node@v5
-```
-
-`node-version: "22"` and `cache: npm` retained. `checkout@v5` and `setup-go@v6` (Node 24 actions) already present. YAML re-validated (PyYAML `on`→`True` trap accounted for); `Set up Node` resolves to `actions/setup-node@v5` with `{'node-version': '22', 'cache': 'npm'}`.
-
-Commit `5acb00678da633a40dc6a4e6ac17b60275c40b91` (parent `2cf93a7…`), pushed to `origin/chore/css-ci-maintenance`.
-
-## 3. PR revalidation (Task 3)
-
-- PR CI run **`38054925431`** (event `pull_request`, sha `5acb006…`) → **completed / success** (48s). All steps green: Checkout → Set up Go → Set up Node → Add Go bin to PATH → Install generators → Verify committed generated Go → **Verify committed CSS** → Build → Vet → Test.
-  - URL: https://github.com/magicaussie/wledger/actions/runs/38054925431
-- **Node 20 deprecation annotation is gone** — only the informational `ubuntu-latest`→Ubuntu 26 migration notice remains.
-- PR diff `origin/main..origin/chore/css-ci-maintenance` still exactly three files (below).
-- CSS SHA256 at branch tip: `ae8a39055f92b4234a6f15836cdbb53002795ea8ac61c34c5b62c39f21f9e370` — matches the reviewed value.
-- PR #4: `MERGEABLE` / `mergeStateStatus CLEAN`, head `5acb006…`.
-
-## 4. Merge and post-merge checks (Task 4)
-
-```
-git fetch origin main chore/css-ci-maintenance
-git merge-base --is-ancestor origin/main origin/chore/css-ci-maintenance   # → true
-git switch main                                                             # up to date with origin/main
-git merge --ff-only origin/chore/css-ci-maintenance                         # fast-forward
-```
-
-- Local `main` fast-forwarded `16e91f7 → 5acb006`. **No new commit and no merge commit** — `main` points at the approved tip itself. PR #4 `mergeCommit.oid` = `5acb00678da633a40dc6a4e6ac17b60275c40b91`.
-
-Post-merge checks on `main` (Go 1.25.5; templ v0.3.977; sqlc v1.29.0; Node v22.23.2):
-
-| Check | Command | Result |
-| --- | --- | --- |
-| templ determinism | `templ generate` | `updates=0` |
-| sqlc determinism | `sqlc generate` | no drift |
-| CSS determinism | `npm ci && npm run build:css:prod` | no drift; SHA256 `ae8a3905…` |
-| Drift scan | `git diff --exit-code -- internal/db web` + untracked check | clean |
-| Build | `go build -tags fts5 ./...` | success |
-| Vet | `go vet -tags fts5 ./...` | clean |
-| Tests | `go test -tags fts5 -count=1 ./...` | **40 packages `ok`**, 0 failures |
-
-Diff `16e91f7..5acb006` — exactly the three scoped files:
-
-| Status | Path |
-| --- | --- |
-| M | `.github/workflows/ci.yml` |
-| M | `package.json` |
-| M | `web/static/css/output.css` |
-
-`3 files changed, 23 insertions(+), 5624 deletions(-)`. No application logic, Dockerfile, migrations, SQL, auth, WLED or production config changes.
-
-## 5. Push and CI (Task 4 cont.)
-
-- `git push origin main` → `16e91f7..5acb006  main -> main` (fast-forward; **no force push**).
-- Verified `git ls-remote origin main` = `5acb00678da633a40dc6a4e6ac17b60275c40b91`. ✓
-- Push-triggered workflow run **`38055011373`** (event `push`, branch `main`, sha `5acb006…`) → **completed / success** (3m10s). All steps green, including **Verify committed CSS**.
-  - URL: https://github.com/magicaussie/wledger/actions/runs/38055011373
-- PR **#4 state = MERGED**, `mergedAt = 2026-10-10T13:15:15Z`, no additional merge commit.
-
-## 6. Warnings / observations
-
-1. **`ubuntu-latest` → Ubuntu 26 migration notice** (Oct 2026) — informational only; no action required.
-2. **Node 20 deprecation warning resolved** — `setup-node@v5` is a Node 24 action; the annotation present in Sequence 67 is no longer emitted.
-3. **Dockerfile unchanged.** The tracked CSS matches the production minified form (canonical script == Docker CSS stage over the same lockfile).
-4. **No production impact.** This change only modernizes a CI action version; the running production container is unaffected.
-
-## Evidence / SHAs
-
-- Pre-merge `main` / expected: `16e91f796c5e0c9b06884d55a3402e58e04365d2`
-- Reviewed commit: `2cf93a7560cf8f4b38afccd731a9c127fb8ad4de`
-- Task commit / **new `main`**: `5acb00678da633a40dc6a4e6ac17b60275c40b91` (fast-forward)
-- PR: https://github.com/magicaussie/wledger/pull/4 — **MERGED**
-- CI (PR): https://github.com/magicaussie/wledger/actions/runs/38054925431 — **success**
-- CI (push to main): https://github.com/magicaussie/wledger/actions/runs/38055011373 — **success**
-- CSS SHA256: `ae8a39055f92b4234a6f15836cdbb53002795ea8ac61c34c5b62c39f21f9e370`
-
-## Boundaries respected
-
-No production deployment or restart, no live DB change, no Wall creation, no physical LED/WLED calls, no Home Assistant change, no secrets printed, no production checkout edits, no force push. `main` advanced by fast-forward only; all LED mappings and running production remain untouched. **STOP — awaiting review.**
+## Guardrails
+Do not touch other Docker services, original dirty checkout, HA, real WLED LEDs or mapping coordinates. No new Wall or test data in live DB. Do not expose credentials in handoff. User authorization consumed after this deployment; any later production update requires new permission.
