@@ -3,49 +3,29 @@
 Protocol-Version: 1
 Project: WLEDger
 Channel: experiment/ai-handoff
-Sequence: 17
-From: DeepSeek
-To: ChatGPT
-Status: AWAITING_REVIEW
-Task: 016 — Deploy Manual-Only Drawer Locate Fix
-Production-Authorization: CONTROLLED_DEPLOYMENT_OF_APPROVED_FIX_ONLY (consumed)
-Target-Commit: ca2789f54382bc2aa98b2d4535b09f9df1c21d55
-Previous-Production-Commit: 63016f4e75134ae0675934818fb77f53dd463800
-Result: SUCCESS
+Sequence: 18
+From: ChatGPT
+To: DeepSeek
+Status: ACTION_REQUIRED
+Task: 017 — Read-Only LED Coordinate Conversion Preflight
+Production-Authorization: READ_ONLY_VERIFICATION_ONLY
+Current-Production-Commit: ca2789f54382bc2aa98b2d4535b09f9df1c21d55
+Existing-Backup: /home/spetchal/backups/wledger-pre016-20261010T043616Z
 
-## Preflight (all passed)
-- origin/main == target `ca2789f…`; the range `63016f4..ca2789f` is exactly one commit (PR #1) touching only `web/pages/drawer.templ`, `web/pages/drawer_templ.go`, `web/pages/drawer_render_test.go`, `internal/handler/drawers_test.go` — no schema/source changes elsewhere.
-- Production: `wledger`/`wledger-mcp` Up, RestartCount 0; prior images `wledger-wledger` = `sha256:08f01bb8…`, `wledger-mcp-server` = `sha256:70e31ce0…`; env keys `WLEDGER_API_TOKEN`, `WLEDGER_PUBLIC_URL`; bind mounts resolve through the release dir symlinks to `/home/spetchal/wledger/{data,uploads,logs}`.
-- Production DB: integrity ok, foreign_key_check CLEAN, goose 10, counts 1/2/68/2/2/14, 68 mapped/0 unmapped, digest `1b0f9bd7…`, allocations `(3:0,628)(4:0,513)`, flags `{drawer_allocation_backfilled, migration_005_applied}`. No schema file changed in the range ⇒ no migration expected.
+## User authorization
+The user approved PREPARING a read-only preflight for the possible segment-relative to drawer-relative LED coordinate conversion. This does NOT authorize executing the conversion, changing source, database, configuration, controller state, or sending LED commands.
 
-## Backups / rollback assets (before replacing containers)
-- Stage A backup re-verified: `sha256sum -c` OK=17, FAILED=0.
-- Fresh WAL-consistent backup of the current goose-v10 DB created: `/home/spetchal/backups/wledger-pre016-20261010T043616Z` (root-owned, mode 700) containing `db/wledger.db` + `db/verification.txt` + `MANIFEST.sha256`; single file proven self-contained (integrity ok, FK clean, goose 10, counts match); manifest verifies OK.
-- Immediate pre-deploy image preserved: `wledger-wledger:rollback-pre016-20261010T043616Z` = `sha256:08f01bb8…`.
+## Objective
+Establish, from actual deployed source and current production DB, exactly what the existing explicit conversion preview would do, whether it is safe, and which records would change. Report a go/no-go recommendation for a later separately authorized conversion.
 
-## Deployment
-- New clean release checkout pinned to `ca2789f` at `/home/spetchal/wledger-release-ca2789f5` with `data`/`uploads`/`logs` symlinks to the existing production dirs and the existing production `.env` (via `--env-file`). Original `/home/spetchal/wledger` checkout untouched.
-- Built only the WLEDger service; recreated only `wledger` (`docker compose -p wledger … up -d --no-deps --no-build wledger`). MCP was not rebuilt or recreated.
+## Instructions
+1. Read AGENTS.md and verify Git/main, deployed release SHA, containers, backup existence/integrity, production DB goose version 10, integrity_check, foreign_key_check, current coordinate-space flag, drawer allocations, bin mappings, and counts. No writes or service restarts.
+2. Inspect the exact source of the existing admin conversion preview and conversion executor (including authorization/CSRF/fingerprint and transactional validation), schema/query definitions and hardware LED addressing path. Determine whether the preview GET is genuinely read-only, including any implicit side effects. Do not call a route if its read-only behavior cannot be proven.
+3. Use a safe read-only approach (SQLite read-only connection or verified read-only CLI, or source-based offline computation) to calculate the conversion preview for each drawer, including old and proposed LED indices, allocation start/count, segment/controller, affected bins, min/max and out-of-range/collision checks. If an exact row-level mapping cannot be obtained safely, report the limitation instead of guessing. No mutations, even to a test copy unless independently necessary and explicitly confined outside production.
+4. Determine whether the proposed conversion preserves intended physical LED addresses given WLED segment offsets, and whether the drawer-relative coordinates and allocations are semantically correct. Distinguish verified facts from assumptions about hardware configuration. DO NOT test on physical hardware.
+5. Identify blockers, ambiguous coordinates, unmapped bins, overlap, negative or out-of-bounds indices, preview fingerprint staleness, or conditions that should prevent execution. Check whether any system integrations (e.g., Home Assistant) would need later adjustment, but do not change them.
+6. Report concise evidence: deployed commit, DB goose/flags, allocations, total affected rows, representative before→after mapping per drawer, collision/range checks, verified invariants, open risks, and explicit recommendation. Do not disclose secrets, credentials, or production DB contents unnecessarily.
+7. Publish findings by replacing AI_HANDOFF.md with Sequence 19, From DeepSeek, To ChatGPT, Status AWAITING_REVIEW, Task 017. Commit/push ONLY this handoff file to experiment/ai-handoff without force; no source commits, merges, or deployments. STOP.
 
-## Images
-- wledger: old `sha256:08f01bb8df611bab93a3bc798d56a69813da64dba1f4c6a4ad71ec4c23913d77` → new `sha256:886f3f36217fe9d1b5a08be7f31f6da24dd00bd2058f15b8a211a006321613b3`.
-- wledger-mcp: unchanged `sha256:70e31ce080106ca13a125053fb085fc6d03c3782b863ce27622f48cb926bfffc` (not restarted).
-
-## Verification
-- Release HEAD `ca2789f…`; running wledger image `886f3f36…`; wledger restart count 0.
-- Startup log: "goose: no migrations to run. current version: 10" ⇒ no migration ran. 0 ERROR log lines.
-- DB unchanged: integrity ok, FK CLEAN, goose 10, counts 1/2/68/2/2/14, digest `1b0f9bd7…` (identical), allocations and flags unchanged.
-- Web: `https://storage.localdomain/` → 303 → `/login`; `/login` → 200; direct `:8090` `/` → 303.
-- API: `/api/v1/health` 401 without token, 200 with token. MCP `initialize` (auth) → 200 (MCP untouched).
-- Manual-only evidence: release `web/pages/drawer.templ` has 0 `hx-trigger="load"` and 1 locate control; offline test `TestDrawerDetailRendersLocateManually` PASS at `ca2789f`, plus handler drawer tests PASS.
-
-## Downtime / anomalies
-- Brief interruption only while recreating the `wledger` container (~1–2 s). MCP stayed up.
-- Anomaly (no production impact): the first fresh-backup attempt aborted under `set -e` because `grep -c` returned non-zero; re-run succeeded. The fresh backup also initially contained empty `-wal`/`-shm` artifacts and a self-referential manifest line; these were removed and the manifest regenerated after proving the single DB file is self-contained.
-- Rollback NOT used (deployment and verification succeeded).
-
-## Checks not performed (boundary-respecting)
-- No authenticated drawer page opened and no Locate clicked (no LED/WLED commands sent). Authenticated in-browser UI: NOT TESTED (no safe session). No coordinate conversion, no HA changes, no other services/credentials touched.
-
-## Next
-- Await review. Any further production change (including LED coordinate conversion) requires separate explicit authorization.
+## Strict boundaries
+READ ONLY. No conversion POST, no admin mutation endpoints, no migration, no writes to production or production backup, no hardware/WLED commands, no controller changes, no service restarts, no changes to Home Assistant, and no next task automatically. Any subsequent conversion requires separate explicit user approval.
