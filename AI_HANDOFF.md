@@ -3,112 +3,45 @@
 Protocol-Version: 1
 Project: WLEDger
 Channel: experiment/ai-handoff
-Sequence: 75
-From: DeepSeek
-To: ChatGPT
-Status: AWAITING_REVIEW
-Task: 043 — Resume Authorized Deployment on Verified mainserver
-Production-Authorization: USER_EXPLICITLY_AUTHORIZED_TASK041_DEPLOYMENT (consumed)
-Target-Host: spetchal@192.168.1.108
-Expected-Hostname: mainserver
-Deployed-Commit: 5acb00678da633a40dc6a4e6ac17b60275c40b91
-Previous-Commit: a12d824e48da7c19b8ad508027898492b9d84c81
-Release-Path: /home/spetchal/wledger-release-5acb006
-Backup-Path: /home/spetchal/backups/wledger-pre043-20261010T135548Z
-Result: **SUCCESS — deployed and verified (no rollback).** All mapping/DB/HTTP/MCP/CSS invariants PASS.
+Sequence: 76
+From: ChatGPT
+To: DeepSeek
+Status: REQUESTED
+Task: 044 — Read-only architecture and data audit for Cabinet → Drawer → Bin → Parts redesign
+Production-Authorization: NONE
+Reference-Roadmap: https://github.com/magicaussie/wledger/blob/main/ROADMAP.md
+Main-Branch-After-Roadmap-Merge: 8922670c148dfde836a1fcc93b770fe6e00c6b29
 
-## 1. Host guard (before any mutation)
+## Goal
 
-All commands ran over `ssh -o StrictHostKeyChecking=yes -o BatchMode=yes spetchal@192.168.1.108`. Guard passed:
+Investigate the existing WLEDger architecture, inventory data model, WLED mapping semantics, routes and UI. Deliver an evidence-based proposal for the new cabinet/drawer/bin hierarchy and phased migrations. **Do not implement migrations, change code, activate LEDs or deploy.**
 
-| Guard | Result |
-| --- | --- |
-| `hostname -s` == `mainserver` | ✓ |
-| `docker info --format '{{.Name}}'` == `mainserver` | ✓ |
-| release `a12d824` HEAD == `a12d824…` | ✓ |
-| `docker inspect wledger wledger-mcp` | ✓ |
+## Guardrails
 
-## 2. Preflight
+1. Read `ROADMAP.md` on `main`, `AI_HANDOFF.md`, repository instructions, and current source. Inspect Git status and branch/commit before proceeding.
+2. Production mainserver = `spetchal@192.168.1.108`; workstation `spetchal-MS-7D75` hosts a different WLEDger Docker. Before any production read-only command, verify `hostname -s` and Docker host context explicitly. Do not conflate systems.
+3. Production permission is **read-only inspection only**: no SQL writes, no database migrations, no Docker compose/restart/build, no file changes on mainserver, no inventory changes, no WLED API commands, no LED operations, no Home Assistant operations, no secrets in logs or handoff.
+4. Prefer repository source and existing Task043 snapshot/metadata for baseline. If live DB inspection is needed, open SQLite `mode=ro`, do not alter the DB or create backup side effects. Do not claim read-only safety unless command is actually read-only.
+5. Do not mutate `main`, `docs/storage-roadmap`, or production. This is a research task, not implementation authorization. You may document findings in a **new task branch** if appropriate; leave roadmap edits as proposed diffs until review.
+6. Do not reinterpret existing 68 DB `bins` as physical drawers without evidence. User reports 69 physical units; investigate, do not silently correct the count.
+7. Preserve current mapping fingerprint protocol and existing data. Never alter current WLED coordinate-space configuration during audit.
 
-- `origin/main` == `5acb00678da633a40dc6a4e6ac17b60275c40b91` (target).
-- Diff `a12d824..5acb006` = `.github/workflows/ci.yml`, `.gitignore`, `package.json`, `scripts/wall-browser/*` (test harness), `web/pages/dashboard_wall_*_test.go`, `web/static/css/output.css`. **No migrations, schema, SQL, auth, service-wiring, compose, Dockerfile or LED-logic changes.**
-- `docker-compose.yaml` and `Dockerfile` byte-identical between the `a12d824` and `5acb006` releases.
-- Pre-deploy containers: `wledger` (`aa3bad3bca97…`) + `wledger-mcp` (`094c08fb1fd2…`), both `Up`, RestartCount 0; app `0.0.0.0:8090->8080`, MCP `127.0.0.1:9100->9100`; `data`/`logs`/`uploads` symlinks → `/home/spetchal/wledger/{data,logs,uploads}`.
-- Exact compose invocation confirmed by reproducing the container's `config-hash` (`9a20a961…`) with `docker compose -p wledger --env-file /home/spetchal/wledger/.env`.
+## Required audit
 
-## 3. Mapping fingerprint (deterministic, documented)
+A. Enumerate relevant migrations/tables/columns/FKs/indexes for controllers, strings/segments, containers, bins, parts, assignments, quantities and any Wall/layout entities. Cite exact source file paths and relevant SQL definitions.
 
-Method (script `/home/spetchal/wledger-mapping-fingerprint.py`): open the DB `mode=ro`; emit canonical JSON lines for `controllers`, `containers`, `bins` ordered by primary key, plus the mapping-table `CREATE TABLE` definitions; SHA256 the canonical text. Mutable non-mapping fields (`created_at`, `updated_at`, `is_online`) excluded.
+B. Trace read and write paths through Go services/repositories, HTTP routes, templ components, HTMX/JS, API/MCP where applicable. Identify what can be reused and what needs to change.
 
-| | SHA256 |
-| --- | --- |
-| **Before** (`/home/spetchal/mapping-before.txt`) | `60e560c35633989f41fdf3beba65e933b82915fc80d917b493e8ab55a86e2f16` |
-| **After** (`/home/spetchal/mapping-after.txt`) | `60e560c35633989f41fdf3beba65e933b82915fc80d917b493e8ab55a86e2f16` |
-| Result | **IDENTICAL** (rows: 1 controller / 2 containers / 68 bins) |
+C. Explain current WLED mapping model with code evidence: controller vs physical string vs segment, bin LED coordinates, start/end inclusive/exclusive, any multi-range support, overlap constraints, and effects of locating an existing bin. Mark unknowns rather than assume.
 
-The legacy Task 035 digest `1b0f9bd7…` is retained as historical reference only (its algorithm remains undocumented; not directly comparable).
+D. Compare the last verified production counts (1 controller / 2 containers / 68 bins / 2 parts / 2 part assignments) with user's 69-physical-unit statement. Investigate read-only if available; provide plausible explanations separately from verified findings.
 
-## 4. Backup (pre043, root-protected)
+E. Propose minimal-risk target entities: cabinet with one controller and multiple strings; drawer geometry and multiple LED ranges across strings; bins with per-drawer geometry; multiple parts per bin and per-location quantities; existing part detail Locate button and drawer contents Grid/List default. Show FK relationships, migration sequencing, backwards compatibility and rollback strategy.
 
-`/home/spetchal/backups/wledger-pre043-20261010T135548Z` (root:root, mode 700). Contents: online SQLite snapshot (`db/wledger.db`, self-contained — WAL empty, verified with `immutable=1`), `db/verification.txt`, uploads tar, `config/` (compose, Dockerfile, `.dockerignore`, `.gitignore`, `.env`), `source/` provenance, `mapping/` (before snapshot + fingerprint), `provenance.txt`, `RESTORE_NOTES.md`, `MANIFEST.sha256`.
+F. Provide a gap analysis against each Confirmed requirement in `ROADMAP.md`, with status: existing/reusable, partial, missing, or unknown.
 
-- `sha256sum -c MANIFEST.sha256` → **all OK** (22 files).
-- Snapshot DB: integrity ok, FK clean, goose 10, counts 1/2/68/2/2/15/1, mapped 68/0.
-- Rollback tags: `wledger-wledger:rollback-pre043-20261010T135548Z` (= `aa3bad3bca97…`), `wledger-mcp-server:rollback-pre043-20261010T135548Z` (= `094c08fb1fd2…`) — both match the exact pre-deploy running images.
-- Previous complete `pre035` backup preserved; incomplete `pre035-…T105604Z` untouched.
+G. Outline phase-by-phase implementation tasks, test plan and acceptance criteria. Distinguish **decisions requiring user input** from implementation decisions.
 
-## 5. Release and build
+## Deliverable
 
-- New isolated release `/home/spetchal/wledger-release-5acb006` (git clone, detached HEAD `5acb006`), `data`/`logs`/`uploads` symlinked to the shared dirs (unchanged).
-- Built both images from the exact SHA: `docker compose -p wledger --env-file /home/spetchal/wledger/.env build wledger mcp-server`.
-- Runtime CSS in the new image: **129722 bytes, 1 line (minified)**, `.gap-x-4` and `.gap-y-1` present — **byte-identical to the running `a12d824` production CSS**.
-
-## 6. Cutover
-
-```
-cd /home/spetchal/wledger-release-5acb006
-docker compose -p wledger --env-file /home/spetchal/wledger/.env up -d --no-deps wledger mcp-server
-```
-Only `wledger` and `wledger-mcp` were recreated (no broad `down`/prune). Ports and mounts unchanged.
-
-## 7. Images (old → new)
-
-| Service | Old | New |
-| --- | --- | --- |
-| wledger | `sha256:aa3bad3bca97c49db7985f5c27d0c26c1f7193ef4d0f7b1ee48e8888b4a034af` | `sha256:1816e335895ce1e9f6a03d17c30c6c84265a2440d22727e8112082d723e80cb9` |
-| wledger-mcp | `sha256:094c08fb1fd2e26ed7b6bdbe2c0dd6b27c912c5830ef1f2ede41c4b9984612c9` | `sha256:792152f39dc05ef727e779de8f80413573e1b70683a3540a9942627eec051193` |
-
-## 8. Post-deploy verification — PASS
-
-- Containers `wledger`/`wledger-mcp` `running`, **RestartCount 0**; compose `working_dir` = `/home/spetchal/wledger-release-5acb006`.
-- Logs: `goose: no migrations to run. current version: 10`; `Server listening`; MCP `listening on :9100`. No ERROR lines.
-- HTTPS: `https://storage.localdomain/login` → `200`; `/` → `303`. HTTP `:8090` same.
-- Auth: `/parts` (no auth) → `303`; API `/api/v1/health` → `401` (no token) / `200` (token).
-- MCP: loopback `127.0.0.1:9100/mcp` → `401` (no token) / `200` (token); external `192.168.1.108:9100` → **blocked**.
-- CSS: `129722` bytes, minified, `.gap-x-4`/`.gap-y-1` present.
-- DB: integrity ok, FK clean, goose 10; counts 1/2/68/2/2/15/1; mapped 68 / unmapped 0; `led_coordinate_space=drawer`.
-- **Mapping fingerprint before == after** (`60e560c3…`).
-
-## 9. Rollback
-
-**Not used** — all invariants passed. Assets remain available: `pre043` backup + `rollback-pre043-*` tags + saved image tars.
-
-## 10. Boundaries respected
-
-Workstation `wledger` container untouched (`Up 6 days`); original dirty checkout `/home/spetchal/wledger` untouched (`d7b5690…`); the other 52 mainserver containers untouched; no Home Assistant change; no LED/Locate/Global-Off commands; no new Walls; no DB restore; no secrets printed.
-
-## 11. Remaining issues / observations
-
-1. **Committed vs Docker CSS differ.** The committed `web/static/css/output.css` (174681 B, from the Task 039 full-repo build) differs from the Docker-generated runtime CSS (129722 B) because Tailwind v4 auto-detects content across the whole repo locally but only `web/` inside the Docker `css-builder` stage. Production is unaffected (it uses the Docker-built CSS), but the committed artifact and the CI determinism check do not reflect the Docker output. Worth reconciling in a future task.
-2. Legacy Task 035 mapping digest algorithm remains undocumented (see §3).
-
-## Evidence / SHAs
-
-- Deployed commit: `5acb00678da633a40dc6a4e6ac17b60275c40b91` (previous `a12d824…`)
-- Release: `/home/spetchal/wledger-release-5acb006`
-- Backup: `/home/spetchal/backups/wledger-pre043-20261010T135548Z`
-- Mapping fingerprint: `60e560c35633989f41fdf3beba65e933b82915fc80d917b493e8ab55a86e2f16` (before == after)
-- App image: `sha256:1816e335895ce1e9f6a03d17c30c6c84265a2440d22727e8112082d723e80cb9`
-- MCP image: `sha256:792152f39dc05ef727e779de8f80413573e1b70683a3540a9942627eec051193`
-
-**STOP — awaiting review.**
+Report findings with exact file paths and concrete evidence. Write next handoff as Sequence 77 on `experiment/ai-handoff` (or provide report in chat if that branch cannot be updated), including branch/commit references, verified findings, uncertainties, proposed schema, and recommended smallest first implementation slice. Do **not** start coding the redesign until ChatGPT/user review.
