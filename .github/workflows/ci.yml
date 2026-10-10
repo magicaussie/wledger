@@ -16,13 +16,21 @@ jobs:
       CGO_ENABLED: "1"
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: "1.25.5"
           cache: true
+
+      # Node is required to regenerate the committed Tailwind CSS artifact and
+      # prove it is deterministic. Node 22 matches the toolchain used locally.
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
 
       # `go install` writes to $(go env GOPATH)/bin, which is not guaranteed to
       # be on PATH on hosted runners; make it explicit for later steps.
@@ -40,6 +48,16 @@ jobs:
           templ generate
           git diff --exit-code -- internal/db web
           test -z "$(git status --porcelain --untracked-files=normal -- internal/db web)"
+
+      # Regenerate the committed Tailwind CSS with the same canonical minified
+      # command the production Dockerfile uses, then prove the tracked artifact
+      # is byte-for-byte up to date (no drift, no untracked output).
+      - name: Verify committed CSS
+        run: |
+          npm ci
+          npm run build:css:prod
+          git diff --exit-code -- web/static/css/output.css
+          test -z "$(git status --porcelain --untracked-files=normal -- web/static/css)"
 
       - name: Build
         run: go build -tags fts5 ./...
