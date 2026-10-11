@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -32,15 +33,29 @@ type DrawerLayout struct {
 	Drawer db.Drawer
 	Bins   []db.BinDrawerAttachment
 }
+
+// DecorationInput describes Paint-style canvas art. It is deliberately separate
+// from drawers and bins so art can never acquire an inventory or LED identity.
+type DecorationInput struct {
+	Key    string  `json:"key"`
+	Kind   string  `json:"kind"`
+	X      float64 `json:"x"`
+	Y      float64 `json:"y"`
+	Width  float64 `json:"width"`
+	Height float64 `json:"height"`
+	Text   string  `json:"text,omitempty"`
+}
+
 type LayoutInput struct {
-	ID               int64         `json:"id"`
-	Revision         int64         `json:"revision"`
-	Name             string        `json:"name"`
-	CoordinateSystem string        `json:"coordinate_system"`
-	DisplayOrder     int64         `json:"display_order"`
-	Width            float64       `json:"width"`
-	Height           float64       `json:"height"`
-	Drawers          []DrawerInput `json:"drawers"`
+	ID               int64             `json:"id"`
+	Revision         int64             `json:"revision"`
+	Name             string            `json:"name"`
+	CoordinateSystem string            `json:"coordinate_system"`
+	DisplayOrder     int64             `json:"display_order"`
+	Width            float64           `json:"width"`
+	Height           float64           `json:"height"`
+	Drawers          []DrawerInput     `json:"drawers"`
+	Decorations      []DecorationInput `json:"decorations"`
 }
 type DrawerInput struct {
 	ID           int64      `json:"id"`
@@ -155,12 +170,36 @@ func validate(in LayoutInput) error {
 			}
 		}
 	}
+	seenDecorations := map[string]bool{}
+	for _, d := range in.Decorations {
+		if d.Key == "" || seenDecorations[d.Key] || (d.Kind != "outline" && d.Kind != "rectangle" && d.Kind != "line" && d.Kind != "label") {
+			return layoutError("decorative object has an invalid type or identity")
+		}
+		seenDecorations[d.Key] = true
+		if math.IsNaN(d.X) || math.IsNaN(d.Y) || math.IsInf(d.X, 0) || math.IsInf(d.Y, 0) || d.X < 0 || d.Y < 0 || math.IsNaN(d.Width) || math.IsNaN(d.Height) || math.IsInf(d.Width, 0) || math.IsInf(d.Height, 0) || d.Width < 0 || d.Height < 0 || d.X+d.Width > in.Width || d.Y+d.Height > in.Height {
+			return layoutError("decorative object is outside cabinet bounds")
+		}
+		if d.Kind != "line" && d.Kind != "label" && (!finitePositive(d.Width) || !finitePositive(d.Height)) {
+			return layoutError("decorative rectangle dimensions must be positive")
+		}
+		if d.Kind == "label" && (strings.TrimSpace(d.Text) == "" || len(d.Text) > 300) {
+			return layoutError("decorative labels must contain 1 to 300 characters")
+		}
+	}
 	return nil
 }
 
 func (s *LayoutService) Save(ctx context.Context, in LayoutInput) error {
 	if err := validate(in); err != nil {
 		return err
+	}
+	decorations := in.Decorations
+	if decorations == nil {
+		decorations = make([]DecorationInput, 0)
+	}
+	decorationsJSON, err := json.Marshal(decorations)
+	if err != nil {
+		return layoutError("decorative drawing data is invalid")
 	}
 	return s.store.ExecImmediateTx(ctx, func(q db.Querier) error {
 		cab, err := q.GetCabinet(ctx, in.ID)
@@ -214,7 +253,7 @@ func (s *LayoutService) Save(ctx context.Context, in LayoutInput) error {
 				return fmt.Errorf("%w: attached bin %d cannot be omitted; explicitly preserve or relocate it", ErrUnsafeLayout, binID)
 			}
 		}
-		if _, err = q.UpdateCabinetLayoutSettings(ctx, db.UpdateCabinetLayoutSettingsParams{Name: strings.TrimSpace(in.Name), CoordinateSystem: strings.TrimSpace(in.CoordinateSystem), DisplayOrder: in.DisplayOrder, LayoutWidth: in.Width, LayoutHeight: in.Height, ID: in.ID}); err != nil {
+		if _, err = q.UpdateCabinetLayoutSettings(ctx, db.UpdateCabinetLayoutSettingsParams{Name: strings.TrimSpace(in.Name), CoordinateSystem: strings.TrimSpace(in.CoordinateSystem), DisplayOrder: in.DisplayOrder, LayoutWidth: in.Width, LayoutHeight: in.Height, LayoutDecorationsJson: string(decorationsJSON), ID: in.ID}); err != nil {
 			return err
 		}
 		for _, input := range in.Drawers {
@@ -276,7 +315,7 @@ func (s *LayoutService) CreateCabinet(ctx context.Context, name string, order in
 		if e != nil {
 			return e
 		}
-		_, e = q.UpdateCabinetLayoutSettings(ctx, db.UpdateCabinetLayoutSettingsParams{Name: strings.TrimSpace(name), CoordinateSystem: "grid", DisplayOrder: order, LayoutWidth: width, LayoutHeight: height, ID: id})
+		_, e = q.UpdateCabinetLayoutSettings(ctx, db.UpdateCabinetLayoutSettingsParams{Name: strings.TrimSpace(name), CoordinateSystem: "grid", DisplayOrder: order, LayoutWidth: width, LayoutHeight: height, LayoutDecorationsJson: "[]", ID: id})
 		return e
 	})
 	return id, err

@@ -15,58 +15,57 @@ const executablePath = process.env.CHROMIUM_PATH || '/bin/chromium';
   if (process.env.WLEDGER_URL && process.env.WLEDGER_START_SERVER !== '0') throw new Error('set WLEDGER_START_SERVER=0 when targeting an external instance');
   let server;
   let scratchDir;
-  if (process.env.WLEDGER_START_SERVER !== '0') {
-    const repoRoot = path.resolve(__dirname, '../..');
-    let serverCwd;
-    let serverBinary;
-    let port;
-    if (!process.env.WLEDGER_URL) {
+  let databasePath;
+  let browser;
+  try {
+    if (process.env.WLEDGER_START_SERVER !== '0') {
+      const repoRoot = path.resolve(__dirname, '../..');
+      let serverCwd;
+      let serverBinary;
       const probe = net.createServer();
       await new Promise((resolve, reject) => probe.once('error', reject).listen(0, '127.0.0.1', resolve));
-      port = probe.address().port;
+      const port = probe.address().port;
       await new Promise(resolve => probe.close(resolve));
       baseURL = `http://127.0.0.1:${port}`;
+      if (process.env.WLEDGER_SERVER_BINARY) {
+        serverCwd = path.resolve(process.env.WLEDGER_SERVER_CWD || path.dirname(process.env.WLEDGER_SERVER_BINARY));
+        serverBinary = path.resolve(process.env.WLEDGER_SERVER_BINARY);
+      } else {
+        scratchDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wledger-layout-browser-'));
+        serverCwd = scratchDir;
+        serverBinary = path.join(scratchDir, 'wledger');
+        fs.symlinkSync(path.join(repoRoot, 'web'), path.join(scratchDir, 'web'));
+        fs.symlinkSync(path.join(repoRoot, 'locales'), path.join(scratchDir, 'locales'));
+        const build = spawnSync(process.env.GO_BIN || 'go', ['build', '-tags', 'fts5', '-o', serverBinary, './cmd/server'], { cwd: repoRoot, env: { ...process.env, CGO_ENABLED: '1' }, encoding: 'utf8' });
+        if (build.status !== 0) throw new Error(`failed to build browser-test server: ${build.stderr}`);
+      }
+      server = spawn(serverBinary, [], { cwd: serverCwd, env: { ...process.env, WLEDGER_INSECURE_COOKIES: '1', WLEDGER_PORT: String(port) }, stdio: 'ignore' });
+      let ready = false;
+      for (let attempt = 0; attempt < 100; attempt++) {
+        try { const response = await fetch(baseURL + '/login'); if (response.ok) { ready = true; break; } } catch {}
+        if (server.exitCode !== null) throw new Error(`disposable server exited with ${server.exitCode}`);
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+      if (!ready) throw new Error('disposable WLEDger server did not become ready');
+      databasePath = path.join(serverCwd, 'data', 'wledger.db');
+      const seed = spawnSync('python3', ['-c', `import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); c.execute("INSERT INTO bins(id,name,container_id,led_index) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name", (99001, "Browser spare bin", None, None)); c.execute("INSERT INTO parts(id,name) VALUES(?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name", (99002, "Browser test part")); c.execute("INSERT INTO part_assignments(part_id,bin_id,quantity) VALUES(?,?,?) ON CONFLICT(part_id,bin_id) DO UPDATE SET quantity=excluded.quantity", (99002, 99001, 4)); c.commit(); c.close()`, databasePath], { encoding: 'utf8' });
+      if (seed.status !== 0) throw new Error(`failed to seed disposable browser inventory: ${seed.stderr}`);
     }
-    if (process.env.WLEDGER_SERVER_BINARY) {
-      serverCwd = path.resolve(process.env.WLEDGER_SERVER_CWD || path.dirname(process.env.WLEDGER_SERVER_BINARY));
-      serverBinary = path.resolve(process.env.WLEDGER_SERVER_BINARY);
-    } else {
-      scratchDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wledger-layout-browser-'));
-      serverCwd = scratchDir;
-      serverBinary = path.join(scratchDir, 'wledger');
-      fs.symlinkSync(path.join(repoRoot, 'web'), path.join(scratchDir, 'web'));
-      fs.symlinkSync(path.join(repoRoot, 'locales'), path.join(scratchDir, 'locales'));
-      const build = spawnSync(process.env.GO_BIN || 'go', ['build', '-tags', 'fts5', '-o', serverBinary, './cmd/server'], { cwd: repoRoot, env: { ...process.env, CGO_ENABLED: '1' }, encoding: 'utf8' });
-      if (build.status !== 0) throw new Error(`failed to build browser-test server: ${build.stderr}`);
-    }
-    server = spawn(serverBinary, [], { cwd: serverCwd, env: { ...process.env, WLEDGER_INSECURE_COOKIES: '1', ...(port ? { WLEDGER_PORT: String(port) } : {}) }, stdio: 'ignore' });
-    let ready = false;
-    for (let attempt = 0; attempt < 80; attempt++) {
-      try { const response = await fetch(baseURL + '/login'); if (response.ok) { ready = true; break; } } catch {}
-      await new Promise(resolve => setTimeout(resolve, 250));
-    }
-    if (!ready) throw new Error('disposable WLEDger server did not become ready');
-    const dbPath = path.join(serverCwd, 'data', 'wledger.db');
-    const seed = spawnSync('python3', ['-c', `import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); c.execute("DELETE FROM bin_drawer_attachments WHERE bin_id=99001"); c.execute("INSERT INTO bins(id,name,container_id,led_index) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name", (99001, "Browser spare bin", None, None)); c.execute("INSERT INTO parts(id,name) VALUES(?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name", (99002, "Browser test part")); c.execute("INSERT INTO part_assignments(part_id,bin_id,quantity) VALUES(?,?,?) ON CONFLICT(part_id,bin_id) DO UPDATE SET quantity=excluded.quantity", (99002, 99001, 4)); c.commit(); c.close()`, dbPath], { encoding: 'utf8' });
-    if (seed.status !== 0) throw new Error(`failed to seed disposable browser bin: ${seed.stderr}`);
-  }
-  const browser = await chromium.launch({ executablePath, headless: true, args: ['--no-sandbox'] });
-  const page = await browser.newPage();
-  const pageErrors = [];
-  const consoleErrors = [];
-  const layoutPosts = [];
-  const lifecyclePosts = [];
-  page.on('pageerror', error => pageErrors.push(error.message));
-  page.on('console', message => { if (message.type() === 'error') consoleErrors.push(`${page.url()}: ${message.text()}`); });
-  page.on('request', request => {
-    if (request.method() === 'POST' && /\/storage\/cabinets\/\d+\/edit/.test(request.url())) {
-      layoutPosts.push({ url: request.url(), body: request.postData() || '' });
-    }
-    if (request.method() === 'POST' && request.url().includes('/storage/cabinets/')) lifecyclePosts.push({ url: request.url(), body: request.postData() || '' });
-  });
-  page.on('dialog', dialog => dialog.accept());
 
-  try {
+    browser = await chromium.launch({ executablePath, headless: true, args: ['--no-sandbox'] });
+    const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+    const pageErrors = [];
+    const consoleErrors = [];
+    const layoutPosts = [];
+    const lifecyclePaths = [];
+    page.on('pageerror', error => pageErrors.push(error.message));
+    page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()); });
+    page.on('request', request => {
+      if (request.method() === 'POST' && /\/storage\/cabinets\/\d+\/edit/.test(request.url())) layoutPosts.push({ url: request.url(), body: request.postData() || '' });
+      if (request.method() === 'POST' && request.url().includes('/storage/cabinets/')) lifecyclePaths.push(new URL(request.url()).pathname);
+    });
+    page.on('dialog', dialog => dialog.accept());
+
     await page.goto(`${baseURL}/login`);
     let authenticated = false;
     if (new URL(page.url()).pathname === '/setup') {
@@ -84,111 +83,220 @@ const executablePath = process.env.CHROMIUM_PATH || '/bin/chromium';
     }
 
     await page.goto(`${baseURL}/storage/cabinets`);
-    const cabinetName = `Browser acceptance ${Date.now()}`;
+    const cabinetName = `Visual cabinet ${Date.now()}`;
     await page.locator('input[name=name]').fill(cabinetName);
     await page.getByRole('button', { name: 'Create cabinet' }).click();
     await page.waitForURL(/\/storage\/cabinets\/\d+\/edit$/);
     const cabinetID = page.url().match(/cabinets\/(\d+)\/edit$/)[1];
+    const canvas = page.locator('svg[aria-label="Interactive physical layout canvas"]');
+    const point = async (x, y) => canvas.evaluate((svg, value) => {
+      const p = svg.createSVGPoint(); p.x = value.x; p.y = value.y;
+      const screen = p.matrixTransform(svg.getScreenCTM()); return { x: screen.x, y: screen.y };
+    }, { x, y });
+    const drag = async (x1, y1, x2, y2) => {
+      const a = await point(x1, y1); const b = await point(x2, y2);
+      await page.mouse.move(a.x, a.y); await page.mouse.down(); await page.mouse.move(b.x, b.y, { steps: 8 }); await page.mouse.up();
+    };
+    const drawerX = page.locator('input[x-model\\.number="selectedDrawer().x"]');
+    const drawerY = page.locator('input[x-model\\.number="selectedDrawer().y"]');
+    const drawerWidth = page.locator('input[x-model\\.number="selectedDrawer().width"]');
+    const drawerHeight = page.locator('input[x-model\\.number="selectedDrawer().height"]');
 
-    await page.getByRole('button', { name: 'Add drawer' }).click();
-    const drawerLabel = page.locator('input[x-model="drawer.label"]').first();
-    await drawerLabel.waitFor({ state: 'visible' });
-    await drawerLabel.fill('Browser drawer');
-    const binSelect = page.locator('select[x-model="drawer.selectedBin"]').first();
-    if (await binSelect.locator('option').count() > 1) {
-      await binSelect.selectOption('99001');
-      await page.getByRole('button', { name: 'Add bin' }).click();
-    }
-    await page.getByRole('button', { name: 'Save layout' }).click();
-    await page.waitForURL(`${baseURL}/storage/cabinets/${cabinetID}`);
-    const drawerLink = page.locator('a[href^="/storage/drawers/"]').first();
-    assert.equal(await drawerLink.count(), 1);
-    assert.equal(await drawerLink.evaluate(element => getComputedStyle(element).position), 'absolute');
-        assert.equal(await drawerLink.evaluate(element => element.style.width), '10%');
-        assert.equal(await drawerLink.evaluate(element => element.style.height), '10%');
-    const drawerURL = new URL(await drawerLink.getAttribute('href'), baseURL).href;
-    await page.goto(drawerURL);
-    assert.equal(await page.getByRole('link', { name: 'Browser test part' }).count(), 1);
-    await page.getByRole('button', { name: 'List', exact: true }).click();
-    assert.equal(await page.getByRole('button', { name: 'List', exact: true }).getAttribute('aria-pressed'), 'true');
-    await page.getByRole('button', { name: 'View Bin Layout' }).click();
-    assert.equal(await page.getByRole('button', { name: 'View Bin Layout' }).getAttribute('aria-pressed'), 'true');
-    assert.ok(await page.locator('[style*="aspect-ratio"]').count());
-    await page.goto(`${baseURL}/storage/cabinets/${cabinetID}/edit`);
-    assert.match(layoutPosts.at(-1).url, new RegExp(`/storage/cabinets/${cabinetID}/edit$`));
-    const encodedForm = new URLSearchParams(layoutPosts.at(-1).body);
-    const submittedLayout = JSON.parse(encodedForm.get('layout'));
-    assert.equal(submittedLayout.id, Number(cabinetID));
-    assert.equal(submittedLayout.drawers[0].label, 'Browser drawer');
-    assert.equal(submittedLayout.drawers[0].bins[0].id, 99001);
-    assert.ok(encodedForm.get('csrf_token'), 'layout save must include CSRF token');
+    await page.getByRole('button', { name: 'Drawer', exact: true }).click();
+    await drag(10, 10, 30, 30);
+    assert.equal(await canvas.getAttribute('viewBox'), '0 0 100 100');
+    await page.locator('input[x-model="selectedDrawer().label"]').fill('Main drawer');
 
-    await page.goto(`${baseURL}/storage/cabinets/${cabinetID}/edit`);
-    assert.equal(await page.locator('input[x-model="drawer.label"]').first().inputValue(), 'Browser drawer');
-    if (await page.getByRole('button', { name: 'Remove placement' }).count()) {
-      await page.getByRole('button', { name: 'Remove placement' }).click();
-      await page.waitForURL(`${baseURL}/storage/cabinets/${cabinetID}/edit`);
-      assert.equal(await page.locator('select[x-model="drawer.selectedBin"] option[value="99001"]').count(), 1);
-    }
-    await page.locator('input[x-model="drawer.label"]').first().fill('Edited drawer');
-    await page.getByRole('button', { name: 'Save layout' }).click();
-    await page.waitForURL(`${baseURL}/storage/cabinets/${cabinetID}`);
-    await page.goto(`${baseURL}/storage/cabinets/${cabinetID}/edit`);
-    assert.equal(await page.locator('input[x-model="drawer.label"]').first().inputValue(), 'Edited drawer');
-    await page.locator('form[action*="/storage/cabinets/"]').evaluate(form => { form.removeAttribute('x-on:submit'); form.querySelector('input[name=layout]').value = '{'; });
+assert.equal(Number(await drawerX.inputValue()), 10);
+    assert.equal(Number(await drawerY.inputValue()), 10);
+    assert.equal(Number(await drawerWidth.inputValue()), 20);
+    assert.equal(Number(await drawerHeight.inputValue()), 20);
+
+    await page.getByRole('button', { name: 'Select', exact: true }).click();
+    await drag(20, 20, 25, 20);
+    assert.equal(Number(await drawerX.inputValue()), 15);
+    await drag(35, 30, 40, 35);
+    assert.equal(Number(await drawerWidth.inputValue()), 25);
+    assert.equal(Number(await drawerHeight.inputValue()), 25);
+    await drawerWidth.fill('24'); await drawerWidth.press('Tab');
+    await page.getByRole('button', { name: 'Undo' }).click();
+    assert.equal(Number(await drawerWidth.inputValue()), 25);
+    await page.getByRole('button', { name: 'Redo' }).click();
+    assert.equal(Number(await drawerWidth.inputValue()), 24);
+
+    const snapToggle = page.locator('input[x-model="snap"]');
+    const gridToggle = page.locator('input[x-model="showGrid"]');
+    await gridToggle.uncheck();
+    await gridToggle.check();
+    await page.getByRole('button', { name: 'Zoom in' }).click();
+    assert.equal(await page.locator('text=125% zoom').count(), 1);
+    await page.getByRole('button', { name: 'Reset' }).click();
+    await page.getByRole('button', { name: 'Pan', exact: true }).click();
+    const beforePan = await canvas.getAttribute('viewBox');
+    await drag(90, 90, 85, 85);
+    assert.notEqual(await canvas.getAttribute('viewBox'), beforePan);
+    await page.getByRole('button', { name: 'Reset' }).click();
+
+    await page.locator('input[x-model\\.number="gridSize"]').fill('10');
+    await page.locator('input[x-model\\.number="gridSize"]').press('Tab');
+    await page.getByRole('button', { name: 'Drawer', exact: true }).click();
+    await drag(11, 56, 31, 76);
+    assert.equal(Number(await page.locator('input[x-model\\.number="selectedDrawer().y"]').inputValue()), 60);
+    const secondDrawerX = page.locator('input[x-model\\.number="selectedDrawer().x"]');
+    assert.equal(Number(await secondDrawerX.inputValue()), 10);
+    await snapToggle.uncheck();
+    await drag(52, 56, 70, 73);
+    const thirdDrawerX = page.locator('input[x-model\\.number="selectedDrawer().x"]');
+    assert.ok(Math.abs(Number(await thirdDrawerX.inputValue()) - 52) < 1);
+
+    await page.getByRole('button', { name: 'Dummy outline' }).click(); await drag(75, 60, 90, 90);
+    await page.getByRole('button', { name: 'Rectangle', exact: true }).click(); await drag(75, 42, 82, 48);
+    await page.getByRole('button', { name: 'Line', exact: true }).click(); await drag(75, 35, 90, 35);
+    await page.getByRole('button', { name: 'Label', exact: true }).click(); const labelPoint = await point(90, 50); await page.mouse.click(labelPoint.x, labelPoint.y);
+    await canvas.focus(); await page.keyboard.press('Delete');
+    await page.waitForFunction(() => document.querySelectorAll('svg g[data-layout-entity="true"]').length === 6);
+    await page.keyboard.press('Control+z');
+    await page.waitForFunction(() => document.querySelectorAll('svg g[data-layout-entity="true"]').length === 7);
+    await page.keyboard.press('Control+z');
+    await page.waitForFunction(() => document.querySelectorAll('svg g[data-layout-entity="true"]').length === 6);
+    await page.keyboard.press('Control+y');
+    await page.waitForFunction(() => document.querySelectorAll('svg g[data-layout-entity="true"]').length === 7);
+    await page.waitForFunction(() => document.querySelectorAll('svg g[data-layout-entity="true"]').length === 7);
+    assert.equal(await page.locator('svg g[data-layout-entity="true"]').count(), 7);
+    await page.keyboard.press('Control+z');
+    await page.keyboard.press('Control+y');
+
+    await page.getByRole('button', { name: 'Drawer', exact: true }).click();
+    await drag(20, 15, 30, 25);
     await page.getByRole('button', { name: 'Save layout' }).click();
     await page.waitForURL(/layout_error=/);
-    assert.match(await page.locator('[x-text="error"]').innerText(), /invalid layout data/i);
-    await page.goto(`${baseURL}/storage/cabinets/${cabinetID}/edit`);
+    assert.match(await page.locator('[role=alert]').innerText(), /overlap/i);
+    await page.getByRole('button', { name: /4\. Drawer 4/ }).click();
+    await page.locator('input[x-model\\.number="selectedDrawer().x"]').fill('45');
+    await page.locator('input[x-model\\.number="selectedDrawer().x"]').press('Tab');
+    await page.locator('input[x-model\\.number="selectedDrawer().y"]').fill('10');
+    await page.locator('input[x-model\\.number="selectedDrawer().y"]').press('Tab');
+    await page.getByRole('button', { name: 'Save layout' }).click();
+    await page.waitForURL(`${baseURL}/storage/cabinets/${cabinetID}`);
+    const drawerLinks = page.locator('a[href^="/storage/drawers/"]');
+    assert.equal(await drawerLinks.evaluateAll(links => new Set(links.map(link => link.getAttribute('href'))).size), 4);
+    assert.equal(await drawerLinks.first().evaluate(element => getComputedStyle(element).position), 'absolute');
 
-    await page.getByRole('button', { name: 'Add drawer' }).click();
+    await page.goto(`${baseURL}/storage/cabinets/${cabinetID}/edit`);
+    await page.getByRole('button', { name: /4\. Drawer 4/ }).click();
+    await page.locator('input[x-model\\.number="selectedDrawer().x"]').fill('99');
+    await page.locator('input[x-model\\.number="selectedDrawer().x"]').press('Tab');
     await page.getByRole('button', { name: 'Save layout' }).click();
     await page.waitForURL(/layout_error=/);
-    assert.match(await page.locator('[x-text="error"]').innerText(), /overlap/i);
-
+    assert.match(await page.locator('[role=alert]').innerText(), /outside cabinet bounds/i);
+    assert.equal(Number(await page.locator('input[x-model\\.number="selectedDrawer().x"]').inputValue()), 99, 'invalid edit should be retained');
+    await page.locator('input[x-model\\.number="selectedDrawer().x"]').fill('45');
+    await page.locator('input[x-model\\.number="selectedDrawer().x"]').press('Tab');
+    await page.getByRole('button', { name: 'Save layout' }).click();
+    await page.goto(`${baseURL}/storage/cabinets/${cabinetID}`);
+    await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`${baseURL}/storage/cabinets/${cabinetID}/edit`);
+    assert.ok(await canvas.isVisible());
+    assert.ok(await page.getByRole('button', { name: 'Drawer', exact: true }).isVisible());
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= 390));
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto(`${baseURL}/storage/cabinets/${cabinetID}/edit`);
+    await page.waitForSelector('svg g[role="button"][data-layout-entity="true"]');
+    let editorData = JSON.parse(await page.locator('#layout-editor-data').textContent());
+    assert.equal(JSON.parse(editorData.Cabinet.layout_decorations_json).length, 4);
+    const form = page.locator('form[action*="/storage/cabinets/"]');
+    const payloadBeforeError = () => JSON.parse(new URLSearchParams(layoutPosts.at(-1).body).get('layout'));
+    assert.equal(payloadBeforeError().drawers.length, 4);
+    assert.equal(payloadBeforeError().decorations.length, 4);
+
+    await page.getByRole('button', { name: /1\. Main drawer/ }).dblclick();
+    await page.getByText('Bin layout canvas').waitFor();
+    assert.equal(await canvas.getAttribute('viewBox'), '0 0 24 25');
+    const binSelect = page.locator('select[x-model="selectedAvailableBin"]');
+    await binSelect.selectOption('99001');
+    await page.locator('input[x-model="snap"]').check();
+    await page.getByRole('button', { name: 'Draw bin' }).click();
+
+    await drag(1, 1, 6, 6);
+
+    await page.waitForFunction(() => document.querySelectorAll('svg g[role="button"][data-layout-entity="true"]').length === 1);
+    assert.equal(await page.locator('svg g[role="button"][data-layout-entity="true"]').count(), 1);
+    const binX = page.locator('input[x-model\\.number="selectedBin().x"]');
+    const binWidth = page.locator('input[x-model\\.number="selectedBin().width"]');
+    assert.equal(Number(await binWidth.inputValue()), 5);
+    await page.getByRole('button', { name: 'Select', exact: true }).click();
+    await drag(2, 2, 7, 2);
+    assert.equal(Number(await binX.inputValue()), 5);
+    await drag(10, 5, 15, 10);
+    assert.equal(Number(await binWidth.inputValue()), 10);
+    await page.keyboard.press('Control+z');
+    assert.equal(await page.locator('svg g[role="button"][data-layout-entity="true"]').count(), 1);
+    await page.waitForFunction(() => Number(Array.from(document.querySelectorAll('input')).find(input => input.getAttribute('x-model.number') === 'selectedBin().width')?.value) === 5);
+    assert.equal(Number(await binWidth.inputValue()), 5);
+    await page.keyboard.press('Control+y');
+    await page.waitForFunction(() => Number(Array.from(document.querySelectorAll('input')).find(input => input.getAttribute('x-model.number') === 'selectedBin().width')?.value) === 10);
+    assert.equal(Number(await binWidth.inputValue()), 10);
+    await page.getByRole('button', { name: 'Save layout' }).click();
+    await page.waitForURL(`${baseURL}/storage/cabinets/${cabinetID}`);
+    await page.goto(`${baseURL}/storage/cabinets/${cabinetID}/edit`);
+    await page.getByRole('button', { name: /1\. Main drawer/ }).dblclick();
+    assert.equal(await page.locator('svg g[role="button"][data-layout-entity="true"]').count(), 1);
+    await page.locator('svg g[role="button"][data-layout-entity="true"]').first().click();
+    assert.equal(Number(await page.locator('input[x-model\\.number="selectedBin().x"]').inputValue()), 5);
+    assert.equal(Number(await page.locator('input[x-model\\.number="selectedBin().width"]').inputValue()), 10);
+
+    await page.getByRole('button', { name: 'Back', exact: true }).click();
+    await page.getByRole('button', { name: /1\. Main drawer/ }).click();
+    await page.getByRole('button', { name: 'Delete', exact: true }).click();
+    assert.match(await page.locator('[role=alert]').innerText(), /remove or relocate/i);
+    await page.keyboard.press('Escape');
     await page.getByRole('button', { name: 'Delete cabinet' }).click();
     await page.waitForURL(/layout_error=/);
-    assert.match(await page.locator('[x-text="error"]').innerText(), /drawer/i);
+    assert.match(await page.locator('[role=alert]').innerText(), /drawer/i);
 
     await page.goto(`${baseURL}/storage/cabinets/${cabinetID}/edit`);
-    await page.getByRole('button', { name: 'Delete', exact: true }).first().click();
+    await page.getByRole('button', { name: /1\. Main drawer/ }).dblclick();
+    await page.locator('svg g[role="button"][data-layout-entity="true"]').first().click();
+    await page.getByRole('button', { name: 'Remove placement' }).click();
     await page.waitForURL(`${baseURL}/storage/cabinets/${cabinetID}/edit`);
-    assert.equal(await page.locator('input[x-model="drawer.label"]').count(), 0);
-    await page.getByRole('button', { name: 'Delete cabinet' }).click();
-    await page.waitForURL(`${baseURL}/storage/cabinets`);
+    await page.getByRole('button', { name: /1\. Main drawer/ }).dblclick();
+    assert.equal(await page.locator('select[x-model="selectedAvailableBin"] option[value="99001"]').count(), 1);
+    const stockCheck = spawnSync('python3', ['-c', 'import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); r=c.execute("SELECT pa.quantity,b.container_id,b.led_index FROM part_assignments pa JOIN bins b ON b.id=pa.bin_id WHERE pa.part_id=99002 AND pa.bin_id=99001").fetchone(); print("|".join("NULL" if x is None else str(x) for x in r)); c.close()', databasePath], { encoding: 'utf8' });
+    assert.equal(stockCheck.stdout.trim(), '4|NULL|NULL');
 
     await page.goto(`${baseURL}/storage/cabinets`);
-    const archiveName = `Browser archive ${Date.now()}`;
-    await page.locator('input[name=name]').fill(archiveName);
+    const emptyName = `Empty cabinet ${Date.now()}`;
+    await page.locator('input[name=name]').fill(emptyName);
     await page.getByRole('button', { name: 'Create cabinet' }).click();
     await page.waitForURL(/\/storage\/cabinets\/\d+\/edit$/);
-    const archiveCabinetID = page.url().match(/cabinets\/(\d+)\/edit$/)[1];
-    await page.getByRole('button', { name: 'Add drawer' }).click();
-    await page.getByRole('button', { name: 'Save layout' }).click();
-    await page.waitForURL(`${baseURL}/storage/cabinets/${archiveCabinetID}`);
-    await page.goto(`${baseURL}/storage/cabinets/${archiveCabinetID}/edit`);
+    const emptyID = page.url().match(/cabinets\/(\d+)\/edit$/)[1];
+    await page.getByRole('button', { name: 'Delete cabinet' }).click();
+    await page.waitForURL(`${baseURL}/storage/cabinets`);
+
+    await page.locator('input[name=name]').fill(`Archived cabinet ${Date.now()}`);
+    await page.getByRole('button', { name: 'Create cabinet' }).click();
+    await page.waitForURL(/\/storage\/cabinets\/\d+\/edit$/);
+    const archiveID = page.url().match(/cabinets\/(\d+)\/edit$/)[1];
+    await page.getByRole('button', { name: 'Drawer', exact: true }).click(); await drag(10, 10, 20, 20);
+    await page.getByRole('button', { name: 'Save layout' }).click(); await page.waitForURL(`${baseURL}/storage/cabinets/${archiveID}`);
+    await page.goto(`${baseURL}/storage/cabinets/${archiveID}/edit`);
+    await page.locator('svg g[role="button"][data-layout-entity="true"]').first().click();
     await page.getByRole('button', { name: 'Archive', exact: true }).click();
-    await page.waitForURL(`${baseURL}/storage/cabinets/${archiveCabinetID}/edit`);
-    assert.equal(await page.locator('input[x-model="drawer.label"]').count(), 1);
+    await page.waitForURL(`${baseURL}/storage/cabinets/${archiveID}/edit`);
+    await page.keyboard.press('Escape');
     await page.getByRole('button', { name: 'Archive cabinet' }).click();
     await page.waitForURL(`${baseURL}/storage/cabinets`);
-    assert.equal(await page.getByText(archiveName, { exact: true }).count(), 0);
 
+    assert.ok(layoutPosts.length >= 4);
+    assert.ok(layoutPosts.every(post => new URLSearchParams(post.body).get('csrf_token')));
+    assert.ok(lifecyclePaths.every(url => !url.includes('undefined')));
     assert.deepEqual(pageErrors, []);
     const runtimeConsoleErrors = consoleErrors.filter(message => !message.includes("Blocked attempt to show a 'beforeunload' confirmation panel"));
     assert.deepEqual(runtimeConsoleErrors, []);
-    assert.ok(lifecyclePosts.length >= 4, `expected lifecycle requests, got ${lifecyclePosts}`);
-    assert.ok(lifecyclePosts.every(post => !post.url.includes('undefined')));
-    assert.ok(lifecyclePosts.every(post => { const parts = new URL(post.url).pathname.split('/'); return parts[1] === 'storage' && parts[2] === 'cabinets' && /^\d+$/.test(parts[3]); }));
-    assert.ok(lifecyclePosts.every(post => new URLSearchParams(post.body).get('csrf_token')), 'lifecycle POSTs must include CSRF tokens');
-    console.log(JSON.stringify({ result: 'PASS', cabinetID, archiveCabinetID, saves: layoutPosts.length, lifecyclePaths: lifecyclePosts.map(post => new URL(post.url).pathname), pageErrors, runtimeConsoleErrors, browserWarnings: consoleErrors.length - runtimeConsoleErrors.length }));
+    console.log(JSON.stringify({ result: 'PASS', cabinetID, emptyID, archiveID, layoutSaves: layoutPosts.length, lifecyclePaths, pageErrors, runtimeConsoleErrors, browserWarnings: consoleErrors.length - runtimeConsoleErrors.length }));
   } finally {
-    await browser.close();
-    if (server) {
-      server.kill('SIGTERM');
-      await new Promise(resolve => server.once('exit', resolve));
-    }
+    if (browser) await browser.close();
+    if (server) { server.kill('SIGTERM'); await new Promise(resolve => server.once('exit', resolve)); }
     if (scratchDir) fs.rmSync(scratchDir, { recursive: true, force: true });
   }
 })().catch(error => { console.error(error); process.exit(1); });

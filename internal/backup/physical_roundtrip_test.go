@@ -380,7 +380,7 @@ func physBaseStorageManifest() StorageManifest {
 	}
 	m.PhysicalStorage.Cabinets = []db.Cabinet{
 		{ID: 1, Name: "Cab", ControllerID: sql.NullInt64{Int64: 1, Valid: true}, CoordinateSystem: "grid",
-			LayoutRevision: 2, ElectricalRevision: 4, DisplayOrder: 0, Archived: 0, CreatedAt: now, UpdatedAt: now},
+			LayoutRevision: 2, ElectricalRevision: 4, DisplayOrder: 0, Archived: 0, CreatedAt: now, UpdatedAt: now, LayoutWidth: 20, LayoutHeight: 10, LayoutDecorationsJson: `[{"key":"paint-1","kind":"outline","x":1,"y":1,"width":5,"height":4}]`},
 	}
 	m.PhysicalStorage.Drawers = []db.Drawer{
 		{ID: 1, CabinetID: 1, Label: "D1", DisplayOrder: 0, X: 0, Y: 0, Width: 10, Height: 5, Archived: 0, CreatedAt: now, UpdatedAt: now},
@@ -406,13 +406,13 @@ func physReadPhysicalRows(t *testing.T, conn *sql.DB) physPhysicalRows {
 	t.Helper()
 	var rows physPhysicalRows
 
-	cabinetRows, err := conn.Query(`SELECT id, name, controller_id, coordinate_system, layout_revision, electrical_revision, display_order, archived, created_at, updated_at FROM cabinets ORDER BY id`)
+	cabinetRows, err := conn.Query(`SELECT id, name, controller_id, coordinate_system, layout_revision, electrical_revision, display_order, archived, created_at, updated_at, layout_width, layout_height, layout_decorations_json FROM cabinets ORDER BY id`)
 	if err != nil {
 		t.Fatalf("query cabinets: %v", err)
 	}
 	for cabinetRows.Next() {
 		var c db.Cabinet
-		if err := cabinetRows.Scan(&c.ID, &c.Name, &c.ControllerID, &c.CoordinateSystem, &c.LayoutRevision, &c.ElectricalRevision, &c.DisplayOrder, &c.Archived, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		if err := cabinetRows.Scan(&c.ID, &c.Name, &c.ControllerID, &c.CoordinateSystem, &c.LayoutRevision, &c.ElectricalRevision, &c.DisplayOrder, &c.Archived, &c.CreatedAt, &c.UpdatedAt, &c.LayoutWidth, &c.LayoutHeight, &c.LayoutDecorationsJson); err != nil {
 			cabinetRows.Close()
 			t.Fatalf("scan cabinet: %v", err)
 		}

@@ -73,7 +73,11 @@ func restorePhysicalStorage(ctx context.Context, q db.Querier, snap PhysicalStor
 		if width <= 0 || height <= 0 { // backups created before M7 had no bounds
 			width, height = 100, 100
 		}
-		if err := q.RestoreCabinet(ctx, db.RestoreCabinetParams{ID: c.ID, Name: c.Name, ControllerID: c.ControllerID, CoordinateSystem: c.CoordinateSystem, LayoutRevision: c.LayoutRevision, ElectricalRevision: c.ElectricalRevision, DisplayOrder: c.DisplayOrder, Archived: c.Archived, CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt, LayoutWidth: width, LayoutHeight: height}); err != nil {
+		decorations := c.LayoutDecorationsJson
+		if decorations == "" { // backups written before the canvas used no Paint layer
+			decorations = "[]"
+		}
+		if err := q.RestoreCabinet(ctx, db.RestoreCabinetParams{ID: c.ID, Name: c.Name, ControllerID: c.ControllerID, CoordinateSystem: c.CoordinateSystem, LayoutRevision: c.LayoutRevision, ElectricalRevision: c.ElectricalRevision, DisplayOrder: c.DisplayOrder, Archived: c.Archived, CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt, LayoutWidth: width, LayoutHeight: height, LayoutDecorationsJson: decorations}); err != nil {
 			return fmt.Errorf("cabinet restore: %w", err)
 		}
 	}

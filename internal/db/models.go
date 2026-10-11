@@ -44,18 +44,19 @@ type BinDrawerAttachment struct {
 }
 
 type Cabinet struct {
-	ID                 int64         `json:"id"`
-	Name               string        `json:"name"`
-	ControllerID       sql.NullInt64 `json:"controller_id"`
-	CoordinateSystem   string        `json:"coordinate_system"`
-	LayoutRevision     int64         `json:"layout_revision"`
-	ElectricalRevision int64         `json:"electrical_revision"`
-	DisplayOrder       int64         `json:"display_order"`
-	Archived           int64         `json:"archived"`
-	CreatedAt          sql.NullTime  `json:"created_at"`
-	UpdatedAt          sql.NullTime  `json:"updated_at"`
-	LayoutWidth        float64       `json:"layout_width"`
-	LayoutHeight       float64       `json:"layout_height"`
+	ID                    int64         `json:"id"`
+	Name                  string        `json:"name"`
+	ControllerID          sql.NullInt64 `json:"controller_id"`
+	CoordinateSystem      string        `json:"coordinate_system"`
+	LayoutRevision        int64         `json:"layout_revision"`
+	ElectricalRevision    int64         `json:"electrical_revision"`
+	DisplayOrder          int64         `json:"display_order"`
+	Archived              int64         `json:"archived"`
+	CreatedAt             sql.NullTime  `json:"created_at"`
+	UpdatedAt             sql.NullTime  `json:"updated_at"`
+	LayoutWidth           float64       `json:"layout_width"`
+	LayoutHeight          float64       `json:"layout_height"`
+	LayoutDecorationsJson string        `json:"layout_decorations_json"`
 }
 
 type Container struct {

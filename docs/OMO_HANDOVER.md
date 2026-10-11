@@ -9,13 +9,13 @@ updates. Historical handovers are references, not active instructions.
 Current task: Task 045 M6 Physical Browsing, followed by M7 Stable Layout
 Editing.
 
-Status: M1–M5 and the M6/M7 implementation are published on
-`development/chatgpt-m6-m7`. Recent Chromium acceptance found and fixed the
-editor's JSON null-collection initialization failure that prevented Add Drawer
-and Save Layout. The new disposable Playwright workflow now passes create, edit,
-save/reload, bin association/detachment, Grid/List, View Bin Layout, validation,
-archive and safe-delete checks. Continue treating full product acceptance as
-pending owner review; M8 and later remain out of scope.
+Status: M1–M5 and the evolving M6/M7 implementation are published on
+`development/chatgpt-m6-m7`. The M7 interface is now a three-panel interactive
+SVG cabinet/bin designer with persisted decorative Paint objects. Headless
+Chromium covers drawing, selection, move/resize, snap/grid, zoom/pan, numeric
+properties, undo/redo, bin placement, error retention, safe lifecycle actions,
+and inventory/electrical preservation. Continue treating full product
+acceptance as pending owner review; M8 and later remain out of scope.
 
 The current owner instruction authorizes M6/M7 source changes, isolated tests,
 documentation, commits and pushes ONLY to `development/chatgpt-m6-m7`.
@@ -24,6 +24,40 @@ migration, hardware operation or changes to the original archival checkout
 are authorized. Preserve the additive physical-storage architecture: no
 automatic legacy backfills, inventory remapping, or new Locate behavior.
 Older authorization statements below are historical, not the current scope.
+
+## M7 Visual Cabinet Designer — 2026-10-11
+
+- Replaced the primary form-list workflow in `StorageLayoutEditor` with a
+  responsive three-panel designer: drawing tools, an interactive center SVG
+  canvas, and contextual numeric properties. Drawer and bin rectangles support
+  pointer selection, drag movement, four visible resize handles, zoom, pan,
+  optional grid, adjustable spacing, snap toggle, undo/redo, arrow-key movement,
+  and Delete/Backspace confirmation. Drawer double-click enters the corresponding
+  local-coordinate bin canvas; bin drawing associates only a user-selected
+  existing unattached inventory bin.
+- Added Paint tools for a cabinet outline, decorative rectangles, lines and
+  labels. Paint objects use a separate `decorations` payload and are never
+  drawers, bins, stock or LED records. Migration `014_cabinet_decorations.sql`
+  stores them in additive cabinet JSON metadata. Save/load and backup restore
+  preserve decorations; older backup manifests safely default to an empty list.
+- Moved SVG drawing/rendering into `web/static/js/physical_layout_editor.js`.
+  SVG template cloning was avoided; the script creates SVG-namespace elements
+  with `textContent`, preserving escaping. `WLEDGER_PORT` continues to default
+  to 8080 and permits the browser harness to use a fresh random local port.
+- The browser suite now drives actual mouse drags against a newly built
+  disposable app/database. It checks drawer draw/select/move/resize, exact
+  numeric editing, configurable grid spacing, snap on/off, grid visibility,
+  zoom/pan, 390px responsive layout, paint object creation plus keyboard
+  delete/undo/redo, live cabinet/drawer `viewBox` sizing, overlap and out-of-
+  bounds rejection while retaining the draft, bin drawing/move/resize/undo/
+  redo/save/reload, safe removal, stock/legacy bin mapping preservation,
+  cabinet/drawer deletion and archive. Latest Chromium run: PASS; zero page or
+  runtime console errors and zero browser warnings.
+- Verification commands: `templ generate`, `sqlc generate`,
+  `npm run build:css:prod`, `npm test`, `npm run test:layout-browser`,
+  `CGO_ENABLED=1 go test -tags fts5 -count=1 ./...`,
+  `CGO_ENABLED=1 go vet -tags fts5 ./...`, `CGO_ENABLED=1 go build -tags fts5
+  ./...`, and `git diff --check`.
 
 ## Browser-confirmed Add Drawer / Save Layout correction — 2026-10-11
 

@@ -25,7 +25,7 @@ WHERE id = ?;
 
 -- name: UpdateCabinetLayoutSettings :execrows
 UPDATE cabinets
-SET name = ?, coordinate_system = ?, display_order = ?, layout_width = ?, layout_height = ?, updated_at = CURRENT_TIMESTAMP
+SET name = ?, coordinate_system = ?, display_order = ?, layout_width = ?, layout_height = ?, layout_decorations_json = ?, updated_at = CURRENT_TIMESTAMP
 WHERE id = ?;
 
 -- name: UpdateCabinetLayoutRevision :execrows
@@ -159,8 +159,8 @@ DELETE FROM cabinets;
 -- RestoreCabinet re-inserts a captured cabinet with its exact id, revisions,
 -- archived state and timestamps.
 -- name: RestoreCabinet :exec
-INSERT INTO cabinets (id, name, controller_id, coordinate_system, layout_revision, electrical_revision, display_order, archived, created_at, updated_at, layout_width, layout_height)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+INSERT INTO cabinets (id, name, controller_id, coordinate_system, layout_revision, electrical_revision, display_order, archived, created_at, updated_at, layout_width, layout_height, layout_decorations_json)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- RestoreDrawer re-inserts a captured drawer with its exact id, geometry,
 -- archived state and timestamps.

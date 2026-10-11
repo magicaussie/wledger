@@ -33,7 +33,7 @@ func seedLayout(t *testing.T) *LayoutService {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = store.UpdateCabinetLayoutSettings(ctx, db.UpdateCabinetLayoutSettingsParams{ID: cabinet.ID, Name: "Cabinet", CoordinateSystem: "grid", LayoutWidth: 20, LayoutHeight: 20}); err != nil {
+	if _, err = store.UpdateCabinetLayoutSettings(ctx, db.UpdateCabinetLayoutSettingsParams{ID: cabinet.ID, Name: "Cabinet", CoordinateSystem: "grid", LayoutWidth: 20, LayoutHeight: 20, LayoutDecorationsJson: "[]"}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = store.CreateDrawer(ctx, db.CreateDrawerParams{CabinetID: 1, Label: "One", Width: 10, Height: 10}); err != nil {
@@ -81,6 +81,25 @@ func TestLayoutSavePreservesStableIdentities(t *testing.T) {
 		t.Fatalf("layout not preserved: %#v", layout)
 	}
 }
+func TestLayoutSavePersistsDecorationsSeparately(t *testing.T) {
+	s := seedLayout(t)
+	in := layoutInput()
+	in.Decorations = []DecorationInput{{Key: "paint-1", Kind: "outline", X: 12, Y: 12, Width: 4, Height: 4}}
+	if err := s.Save(context.Background(), in); err != nil {
+		t.Fatal(err)
+	}
+	layout, err := s.Get(context.Background(), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if layout.Cabinet.LayoutDecorationsJson != `[{"key":"paint-1","kind":"outline","x":12,"y":12,"width":4,"height":4}]` {
+		t.Fatalf("decorations not persisted separately: %s", layout.Cabinet.LayoutDecorationsJson)
+	}
+	if layout.Drawers[0].Drawer.ID != 1 || layout.Drawers[0].Bins[0].BinID != 1 {
+		t.Fatalf("paint data changed inventory layout: %#v", layout.Drawers)
+	}
+}
+
 func TestLayoutSaveRejectsStaleAndOverlapWithoutWrites(t *testing.T) {
 	s := seedLayout(t)
 	bad := layoutInput()
@@ -100,6 +119,11 @@ func TestLayoutSaveRejectsStaleAndOverlapWithoutWrites(t *testing.T) {
 	layout, _ = s.Get(context.Background(), 1)
 	if layout.Cabinet.Name != "Cabinet" || layout.Cabinet.LayoutRevision != 0 {
 		t.Fatalf("out-of-bounds save persisted: %#v", layout.Cabinet)
+	}
+	badPaint := layoutInput()
+	badPaint.Decorations = []DecorationInput{{Key: "outside", Kind: "rectangle", X: 19, Y: 19, Width: 2, Height: 2}}
+	if err := s.Save(context.Background(), badPaint); !errors.Is(err, ErrLayoutInvalid) {
+		t.Fatalf("out-of-bounds decoration error=%v", err)
 	}
 	stale := layoutInput()
 	stale.Revision = 7
