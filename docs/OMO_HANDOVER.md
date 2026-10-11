@@ -8,7 +8,8 @@ updates. Historical handovers are references, not active instructions.
 
 Current task: Task 045, coordinated M2-M4 development.
 
-Status: M1 committed locally as `030e94c0f5aeb453fd079bfddf84b0dc3af1942a`.
+Status: M1-M3 committed locally; M4 integration and verification passed and is
+ready for its authorized local milestone commit.
 The owner authorized coordinated M2-M4 implementation, automated progression and
 local milestone commits after successful integration and tests. M5 is unauthorized.
 The owner selected the original finalized Task 045 scope: M2 backup envelope
@@ -392,3 +393,44 @@ separate controllers. No hardware addressing or Locate behavior changed.
 M4 reviewed reconciliation and legacy grid/import guards are implemented and their
 targeted race tests passed. Milestone verification and local commits remain
 ordered M3, M4. M5 and electrical-topology implementation remain unauthorized.
+
+M3 committed locally: `deef50b4d508932e01aff1872e22b549e2cdd720`,
+parent `37fd555deb6873d09d9955072f916d81f9514c01`. Its exact staged tree
+excluded M4 and passed database/backup race tests, the full Go suite, vet, build,
+gofmt and sqlc regeneration consistency. Tests prove additive migration preserves
+all three M1 fingerprints, raw legacy rows and flags; complete backup round-trips
+preserve those values and the physical graph. Rejected envelopes and transaction
+failures leave database and filesystem sentinels intact.
+
+M4 reconciliation is an explicit service workflow, not an automatic migration:
+preview is read-only and reviewed apply validates the entire batch in an immediate
+transaction before inserting attachments. Invalid geometry, out-of-bounds
+placement, missing or archived storage, controller mismatches, duplicate bins,
+stale reviews and conflicting bindings are blocked. Exact reviewed replay is a
+no-op; successful attachment batches increment each affected layout revision once.
+Failures roll back attachments and revisions and return no partial success.
+
+Legacy grid saves refuse reconciled controllers before mutation. Config import
+checks every existing controller with the same IP, including duplicate legacy IPs,
+and refuses any reconciled match. Unreconciled operations retain existing behavior.
+These guards preserve inventory identities, quantities, legacy mappings and flags.
+No new handler, editor, Locate path or electrical topology is introduced.
+
+M4 verification passed: reconciliation and legacy guard race tests, the full Go
+suite (including migration and backup regressions), vet, build, gofmt, whitespace
+and sqlc regeneration consistency. The milestone contains this handover,
+`internal/storage/reconciliation.go`, its tests, hardware service/config guards
+and `internal/hardware/reconciliation_guard_test.go`; its parent is M3
+`deef50b4d508932e01aff1872e22b549e2cdd720`.
+
+No check failed. gopls was unavailable; compiler, vet and test checks were used.
+No application startup, production database, deployment or hardware operation was
+performed. Commits remain local on `transition/omo`; nothing was pushed or merged,
+and remote synchronization was not verified. Version 2.0 archives require this
+reader: old binaries cannot restore the physical graph. Populated physical schema
+rollback and legacy restore into populated physical storage intentionally refuse.
+
+The authorized M2-M4 batch ends at its M4 local commit. Recommended next milestone
+is M5 stable bin identity decoupling, only after separate authorization; electrical
+topology remains M8. Production reconciliation of 68 bins and 69 drawers still
+requires reviewed evidence and is not inferred by these services.

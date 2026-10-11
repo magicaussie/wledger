@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -202,6 +203,47 @@ func nullIntFromPtr(v *int) sql.NullInt64 {
 	return sql.NullInt64{Int64: int64(*v), Valid: true}
 }
 
+// ErrReconciledLayout marks a refused legacy write because a controller's
+// legacy bins carry reconciled physical attachments. The legacy grid writer and
+// import match bins by grid coordinate, so allowing them to run would let that
+// matching replace, delete or reassign a reconciled bin's stable identity and
+// stock. It can be matched with errors.Is.
+var ErrReconciledLayout = errors.New("reconciled layout protects legacy bin identities")
+
+// guardReconciledController refuses a legacy mutation when any bin under the
+// controller's existing containers carries a bin_drawer_attachments row. Those
+// attachments bind stable reconciled bin IDs to physical drawers, so a legacy
+// grid save or an import into this controller could otherwise disturb them.
+//
+// It reads through the caller's transaction so the refusal shares the write
+// reservation and can never race a concurrent reconciliation. sql.ErrNoRows
+// means the bin has no attachment (unbound) and is not a failure; any other
+// read error is propagated so a partial check can never pass as safe.
+func guardReconciledController(ctx context.Context, q db.Querier, controllerID int64) error {
+	containers, err := q.GetContainersByController(ctx, controllerID)
+	if err != nil {
+		return fmt.Errorf("failed to read containers for controller %d reconciliation guard: %w", controllerID, err)
+	}
+
+	for _, c := range containers {
+		bins, err := q.GetBinsByContainer(ctx, c.ID)
+		if err != nil {
+			return fmt.Errorf("failed to read bins for container %d reconciliation guard: %w", c.ID, err)
+		}
+		for _, b := range bins {
+			_, err := q.GetBinDrawerAttachment(ctx, b.ID)
+			if err == nil {
+				return fmt.Errorf("%w: bin %d under container %d is attached to a physical drawer", ErrReconciledLayout, b.ID, c.ID)
+			}
+			if !errors.Is(err, sql.ErrNoRows) {
+				return fmt.Errorf("failed to read attachment for bin %d reconciliation guard: %w", b.ID, err)
+			}
+		}
+	}
+
+	return nil
+}
+
 func (s *service) SaveGrid(ctx context.Context, controllerID int64, gridDataJSON string, configJSON string) (int64, error) {
 	return s.SaveGridInSpace(ctx, controllerID, gridDataJSON, configJSON, "")
 }
@@ -272,6 +314,15 @@ func (s *service) SaveGridInSpace(ctx context.Context, controllerID int64, gridD
 		// segment cannot hold overlapping LED ranges.
 		if err := validateBinMappingsInSpace(space, binRows, resolved); err != nil {
 			return fmt.Errorf("%w: %v", ErrInvalidAllocation, err)
+		}
+
+		// Protect reconciled physical identities. Before any write, refuse the save
+		// when a bin under this controller's legacy containers is attached to a
+		// physical drawer: the legacy writer matches bins by grid coordinate, so
+		// letting it run could replace, delete or reassign a reconciled identity.
+		// The check shares this immediate transaction and its write reservation.
+		if err := guardReconciledController(ctx, q, controllerID); err != nil {
+			return err
 		}
 
 		// Sync Containers

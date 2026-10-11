@@ -201,6 +201,28 @@ func (s *service) ImportConfig(ctx context.Context, name, ip string, port int64,
 			return fmt.Errorf("%w: database LED coordinate space is unresolved", ErrInvalidAllocation)
 		}
 
+		// Protect reconciled physical identities before this import creates any row.
+		// ImportConfig targets a controller by its address: every stored controller
+		// that already carries the resolved address is guarded, because the legacy
+		// schema does not make ip_address unique and several rows can match. If any
+		// matching controller holds reconciled bin attachments, the import is
+		// refused, because re-importing the grid layout could collide with those
+		// identities. A config whose address matches no stored controller is a
+		// new-controller import and is unaffected. The lookup and guards share this
+		// immediate transaction and its write reservation.
+		controllers, err := q.GetControllers(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to read controllers reconciliation guard: %w", err)
+		}
+		for _, target := range controllers {
+			if target.IpAddress != cfg.Controller.IpAddress {
+				continue
+			}
+			if err := guardReconciledController(ctx, q, target.ID); err != nil {
+				return err
+			}
+		}
+
 		// Normalise every mapped imported bin into the database coordinate space
 		// using its drawer's segment-relative allocation, then validate it in that
 		// space. This keeps a cross-space import consistent: the imported indices
