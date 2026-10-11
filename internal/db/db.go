@@ -30,6 +30,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.addTagToPartStmt, err = db.PrepareContext(ctx, addTagToPart); err != nil {
 		return nil, fmt.Errorf("error preparing query AddTagToPart: %w", err)
 	}
+	if q.advanceCabinetElectricalRevisionStmt, err = db.PrepareContext(ctx, advanceCabinetElectricalRevision); err != nil {
+		return nil, fmt.Errorf("error preparing query AdvanceCabinetElectricalRevision: %w", err)
+	}
 	if q.advanceCabinetLayoutRevisionStmt, err = db.PrepareContext(ctx, advanceCabinetLayoutRevision); err != nil {
 		return nil, fmt.Errorf("error preparing query AdvanceCabinetLayoutRevision: %w", err)
 	}
@@ -62,6 +65,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.clearControllersStmt, err = db.PrepareContext(ctx, clearControllers); err != nil {
 		return nil, fmt.Errorf("error preparing query ClearControllers: %w", err)
+	}
+	if q.clearDrawerLEDAllocationsStmt, err = db.PrepareContext(ctx, clearDrawerLEDAllocations); err != nil {
+		return nil, fmt.Errorf("error preparing query ClearDrawerLEDAllocations: %w", err)
 	}
 	if q.clearDrawersStmt, err = db.PrepareContext(ctx, clearDrawers); err != nil {
 		return nil, fmt.Errorf("error preparing query ClearDrawers: %w", err)
@@ -141,6 +147,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.createDrawerStmt, err = db.PrepareContext(ctx, createDrawer); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateDrawer: %w", err)
 	}
+	if q.createDrawerLEDAllocationStmt, err = db.PrepareContext(ctx, createDrawerLEDAllocation); err != nil {
+		return nil, fmt.Errorf("error preparing query CreateDrawerLEDAllocation: %w", err)
+	}
 	if q.createInspirationTemplateStmt, err = db.PrepareContext(ctx, createInspirationTemplate); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateInspirationTemplate: %w", err)
 	}
@@ -209,6 +218,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.deleteDrawerStmt, err = db.PrepareContext(ctx, deleteDrawer); err != nil {
 		return nil, fmt.Errorf("error preparing query DeleteDrawer: %w", err)
+	}
+	if q.deleteDrawerLEDAllocationStmt, err = db.PrepareContext(ctx, deleteDrawerLEDAllocation); err != nil {
+		return nil, fmt.Errorf("error preparing query DeleteDrawerLEDAllocation: %w", err)
 	}
 	if q.deleteExpiredSupplierCacheStmt, err = db.PrepareContext(ctx, deleteExpiredSupplierCache); err != nil {
 		return nil, fmt.Errorf("error preparing query DeleteExpiredSupplierCache: %w", err)
@@ -495,6 +507,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.initSettingsStmt, err = db.PrepareContext(ctx, initSettings); err != nil {
 		return nil, fmt.Errorf("error preparing query InitSettings: %w", err)
 	}
+	if q.listAllDrawerLEDAllocationsStmt, err = db.PrepareContext(ctx, listAllDrawerLEDAllocations); err != nil {
+		return nil, fmt.Errorf("error preparing query ListAllDrawerLEDAllocations: %w", err)
+	}
 	if q.listAllDrawersStmt, err = db.PrepareContext(ctx, listAllDrawers); err != nil {
 		return nil, fmt.Errorf("error preparing query ListAllDrawers: %w", err)
 	}
@@ -515,6 +530,15 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.listCabinetsIncludingArchivedStmt, err = db.PrepareContext(ctx, listCabinetsIncludingArchived); err != nil {
 		return nil, fmt.Errorf("error preparing query ListCabinetsIncludingArchived: %w", err)
+	}
+	if q.listDrawerLEDAllocationsByCabinetStmt, err = db.PrepareContext(ctx, listDrawerLEDAllocationsByCabinet); err != nil {
+		return nil, fmt.Errorf("error preparing query ListDrawerLEDAllocationsByCabinet: %w", err)
+	}
+	if q.listDrawerLEDAllocationsByControllerStmt, err = db.PrepareContext(ctx, listDrawerLEDAllocationsByController); err != nil {
+		return nil, fmt.Errorf("error preparing query ListDrawerLEDAllocationsByController: %w", err)
+	}
+	if q.listDrawerLEDAllocationsByDrawerStmt, err = db.PrepareContext(ctx, listDrawerLEDAllocationsByDrawer); err != nil {
+		return nil, fmt.Errorf("error preparing query ListDrawerLEDAllocationsByDrawer: %w", err)
 	}
 	if q.listDrawersByCabinetStmt, err = db.PrepareContext(ctx, listDrawersByCabinet); err != nil {
 		return nil, fmt.Errorf("error preparing query ListDrawersByCabinet: %w", err)
@@ -566,6 +590,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.restoreDrawerStmt, err = db.PrepareContext(ctx, restoreDrawer); err != nil {
 		return nil, fmt.Errorf("error preparing query RestoreDrawer: %w", err)
+	}
+	if q.restoreDrawerLEDAllocationStmt, err = db.PrepareContext(ctx, restoreDrawerLEDAllocation); err != nil {
+		return nil, fmt.Errorf("error preparing query RestoreDrawerLEDAllocation: %w", err)
 	}
 	if q.restorePartStmt, err = db.PrepareContext(ctx, restorePart); err != nil {
 		return nil, fmt.Errorf("error preparing query RestorePart: %w", err)
@@ -621,6 +648,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.searchPartsStmt, err = db.PrepareContext(ctx, searchParts); err != nil {
 		return nil, fmt.Errorf("error preparing query SearchParts: %w", err)
 	}
+	if q.setControllerOnlineStatusStmt, err = db.PrepareContext(ctx, setControllerOnlineStatus); err != nil {
+		return nil, fmt.Errorf("error preparing query SetControllerOnlineStatus: %w", err)
+	}
 	if q.setFlagStmt, err = db.PrepareContext(ctx, setFlag); err != nil {
 		return nil, fmt.Errorf("error preparing query SetFlag: %w", err)
 	}
@@ -654,6 +684,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.updateCabinetStmt, err = db.PrepareContext(ctx, updateCabinet); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateCabinet: %w", err)
 	}
+	if q.updateCabinetControllerStmt, err = db.PrepareContext(ctx, updateCabinetController); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateCabinetController: %w", err)
+	}
 	if q.updateCabinetElectricalRevisionStmt, err = db.PrepareContext(ctx, updateCabinetElectricalRevision); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateCabinetElectricalRevision: %w", err)
 	}
@@ -672,6 +705,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.updateContainerConfigStmt, err = db.PrepareContext(ctx, updateContainerConfig); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateContainerConfig: %w", err)
 	}
+	if q.updateControllerLedCountStmt, err = db.PrepareContext(ctx, updateControllerLedCount); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateControllerLedCount: %w", err)
+	}
 	if q.updateControllerStatusStmt, err = db.PrepareContext(ctx, updateControllerStatus); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateControllerStatus: %w", err)
 	}
@@ -680,6 +716,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.updateDrawerGeometryStmt, err = db.PrepareContext(ctx, updateDrawerGeometry); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateDrawerGeometry: %w", err)
+	}
+	if q.updateDrawerLEDAllocationStmt, err = db.PrepareContext(ctx, updateDrawerLEDAllocation); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateDrawerLEDAllocation: %w", err)
 	}
 	if q.updateGeneralSettingsStmt, err = db.PrepareContext(ctx, updateGeneralSettings); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateGeneralSettings: %w", err)
@@ -738,6 +777,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing addTagToPartStmt: %w", cerr)
 		}
 	}
+	if q.advanceCabinetElectricalRevisionStmt != nil {
+		if cerr := q.advanceCabinetElectricalRevisionStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing advanceCabinetElectricalRevisionStmt: %w", cerr)
+		}
+	}
 	if q.advanceCabinetLayoutRevisionStmt != nil {
 		if cerr := q.advanceCabinetLayoutRevisionStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing advanceCabinetLayoutRevisionStmt: %w", cerr)
@@ -791,6 +835,11 @@ func (q *Queries) Close() error {
 	if q.clearControllersStmt != nil {
 		if cerr := q.clearControllersStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing clearControllersStmt: %w", cerr)
+		}
+	}
+	if q.clearDrawerLEDAllocationsStmt != nil {
+		if cerr := q.clearDrawerLEDAllocationsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing clearDrawerLEDAllocationsStmt: %w", cerr)
 		}
 	}
 	if q.clearDrawersStmt != nil {
@@ -923,6 +972,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing createDrawerStmt: %w", cerr)
 		}
 	}
+	if q.createDrawerLEDAllocationStmt != nil {
+		if cerr := q.createDrawerLEDAllocationStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing createDrawerLEDAllocationStmt: %w", cerr)
+		}
+	}
 	if q.createInspirationTemplateStmt != nil {
 		if cerr := q.createInspirationTemplateStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing createInspirationTemplateStmt: %w", cerr)
@@ -1036,6 +1090,11 @@ func (q *Queries) Close() error {
 	if q.deleteDrawerStmt != nil {
 		if cerr := q.deleteDrawerStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing deleteDrawerStmt: %w", cerr)
+		}
+	}
+	if q.deleteDrawerLEDAllocationStmt != nil {
+		if cerr := q.deleteDrawerLEDAllocationStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing deleteDrawerLEDAllocationStmt: %w", cerr)
 		}
 	}
 	if q.deleteExpiredSupplierCacheStmt != nil {
@@ -1513,6 +1572,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing initSettingsStmt: %w", cerr)
 		}
 	}
+	if q.listAllDrawerLEDAllocationsStmt != nil {
+		if cerr := q.listAllDrawerLEDAllocationsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listAllDrawerLEDAllocationsStmt: %w", cerr)
+		}
+	}
 	if q.listAllDrawersStmt != nil {
 		if cerr := q.listAllDrawersStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing listAllDrawersStmt: %w", cerr)
@@ -1546,6 +1610,21 @@ func (q *Queries) Close() error {
 	if q.listCabinetsIncludingArchivedStmt != nil {
 		if cerr := q.listCabinetsIncludingArchivedStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing listCabinetsIncludingArchivedStmt: %w", cerr)
+		}
+	}
+	if q.listDrawerLEDAllocationsByCabinetStmt != nil {
+		if cerr := q.listDrawerLEDAllocationsByCabinetStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listDrawerLEDAllocationsByCabinetStmt: %w", cerr)
+		}
+	}
+	if q.listDrawerLEDAllocationsByControllerStmt != nil {
+		if cerr := q.listDrawerLEDAllocationsByControllerStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listDrawerLEDAllocationsByControllerStmt: %w", cerr)
+		}
+	}
+	if q.listDrawerLEDAllocationsByDrawerStmt != nil {
+		if cerr := q.listDrawerLEDAllocationsByDrawerStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listDrawerLEDAllocationsByDrawerStmt: %w", cerr)
 		}
 	}
 	if q.listDrawersByCabinetStmt != nil {
@@ -1631,6 +1710,11 @@ func (q *Queries) Close() error {
 	if q.restoreDrawerStmt != nil {
 		if cerr := q.restoreDrawerStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing restoreDrawerStmt: %w", cerr)
+		}
+	}
+	if q.restoreDrawerLEDAllocationStmt != nil {
+		if cerr := q.restoreDrawerLEDAllocationStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing restoreDrawerLEDAllocationStmt: %w", cerr)
 		}
 	}
 	if q.restorePartStmt != nil {
@@ -1723,6 +1807,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing searchPartsStmt: %w", cerr)
 		}
 	}
+	if q.setControllerOnlineStatusStmt != nil {
+		if cerr := q.setControllerOnlineStatusStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing setControllerOnlineStatusStmt: %w", cerr)
+		}
+	}
 	if q.setFlagStmt != nil {
 		if cerr := q.setFlagStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing setFlagStmt: %w", cerr)
@@ -1778,6 +1867,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing updateCabinetStmt: %w", cerr)
 		}
 	}
+	if q.updateCabinetControllerStmt != nil {
+		if cerr := q.updateCabinetControllerStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateCabinetControllerStmt: %w", cerr)
+		}
+	}
 	if q.updateCabinetElectricalRevisionStmt != nil {
 		if cerr := q.updateCabinetElectricalRevisionStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing updateCabinetElectricalRevisionStmt: %w", cerr)
@@ -1808,6 +1902,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing updateContainerConfigStmt: %w", cerr)
 		}
 	}
+	if q.updateControllerLedCountStmt != nil {
+		if cerr := q.updateControllerLedCountStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateControllerLedCountStmt: %w", cerr)
+		}
+	}
 	if q.updateControllerStatusStmt != nil {
 		if cerr := q.updateControllerStatusStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing updateControllerStatusStmt: %w", cerr)
@@ -1821,6 +1920,11 @@ func (q *Queries) Close() error {
 	if q.updateDrawerGeometryStmt != nil {
 		if cerr := q.updateDrawerGeometryStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing updateDrawerGeometryStmt: %w", cerr)
+		}
+	}
+	if q.updateDrawerLEDAllocationStmt != nil {
+		if cerr := q.updateDrawerLEDAllocationStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateDrawerLEDAllocationStmt: %w", cerr)
 		}
 	}
 	if q.updateGeneralSettingsStmt != nil {
@@ -1934,6 +2038,7 @@ type Queries struct {
 	tx                                        *sql.Tx
 	addContainerToWallStmt                    *sql.Stmt
 	addTagToPartStmt                          *sql.Stmt
+	advanceCabinetElectricalRevisionStmt      *sql.Stmt
 	advanceCabinetLayoutRevisionStmt          *sql.Stmt
 	archiveCabinetStmt                        *sql.Stmt
 	archiveDrawerStmt                         *sql.Stmt
@@ -1945,6 +2050,7 @@ type Queries struct {
 	clearContainerBinLedIndicesStmt           *sql.Stmt
 	clearContainersStmt                       *sql.Stmt
 	clearControllersStmt                      *sql.Stmt
+	clearDrawerLEDAllocationsStmt             *sql.Stmt
 	clearDrawersStmt                          *sql.Stmt
 	clearPartAiPromptsStmt                    *sql.Stmt
 	clearPartAssignmentsStmt                  *sql.Stmt
@@ -1971,6 +2077,7 @@ type Queries struct {
 	createContainerStmt                       *sql.Stmt
 	createControllerStmt                      *sql.Stmt
 	createDrawerStmt                          *sql.Stmt
+	createDrawerLEDAllocationStmt             *sql.Stmt
 	createInspirationTemplateStmt             *sql.Stmt
 	createPartStmt                            *sql.Stmt
 	createPartAssignmentStmt                  *sql.Stmt
@@ -1994,6 +2101,7 @@ type Queries struct {
 	deleteContainerStmt                       *sql.Stmt
 	deleteControllerStmt                      *sql.Stmt
 	deleteDrawerStmt                          *sql.Stmt
+	deleteDrawerLEDAllocationStmt             *sql.Stmt
 	deleteExpiredSupplierCacheStmt            *sql.Stmt
 	deleteInspirationTemplateStmt             *sql.Stmt
 	deletePartStmt                            *sql.Stmt
@@ -2089,6 +2197,7 @@ type Queries struct {
 	getWallContainerBinsStmt                  *sql.Stmt
 	getWallsStmt                              *sql.Stmt
 	initSettingsStmt                          *sql.Stmt
+	listAllDrawerLEDAllocationsStmt           *sql.Stmt
 	listAllDrawersStmt                        *sql.Stmt
 	listAllTagsStmt                           *sql.Stmt
 	listAuditLogsStmt                         *sql.Stmt
@@ -2096,6 +2205,9 @@ type Queries struct {
 	listBinDrawerAttachmentsByDrawerStmt      *sql.Stmt
 	listCabinetsStmt                          *sql.Stmt
 	listCabinetsIncludingArchivedStmt         *sql.Stmt
+	listDrawerLEDAllocationsByCabinetStmt     *sql.Stmt
+	listDrawerLEDAllocationsByControllerStmt  *sql.Stmt
+	listDrawerLEDAllocationsByDrawerStmt      *sql.Stmt
 	listDrawersByCabinetStmt                  *sql.Stmt
 	listDrawersByCabinetIncludingArchivedStmt *sql.Stmt
 	listLowStockPartsStmt                     *sql.Stmt
@@ -2113,6 +2225,7 @@ type Queries struct {
 	restoreContainerStmt                      *sql.Stmt
 	restoreControllerStmt                     *sql.Stmt
 	restoreDrawerStmt                         *sql.Stmt
+	restoreDrawerLEDAllocationStmt            *sql.Stmt
 	restorePartStmt                           *sql.Stmt
 	restorePartAiPromptStmt                   *sql.Stmt
 	restorePartAssignmentStmt                 *sql.Stmt
@@ -2131,6 +2244,7 @@ type Queries struct {
 	restoreWallStmt                           *sql.Stmt
 	restoreWallCardStmt                       *sql.Stmt
 	searchPartsStmt                           *sql.Stmt
+	setControllerOnlineStatusStmt             *sql.Stmt
 	setFlagStmt                               *sql.Stmt
 	setPasswordResetFlagStmt                  *sql.Stmt
 	togglePartFavoriteStmt                    *sql.Stmt
@@ -2142,15 +2256,18 @@ type Queries struct {
 	updateBinLedIndexStmt                     *sql.Stmt
 	updateBinNameStmt                         *sql.Stmt
 	updateCabinetStmt                         *sql.Stmt
+	updateCabinetControllerStmt               *sql.Stmt
 	updateCabinetElectricalRevisionStmt       *sql.Stmt
 	updateCabinetLayoutRevisionStmt           *sql.Stmt
 	updateCabinetLayoutSettingsStmt           *sql.Stmt
 	updateColorsStmt                          *sql.Stmt
 	updateContainerAllocationStmt             *sql.Stmt
 	updateContainerConfigStmt                 *sql.Stmt
+	updateControllerLedCountStmt              *sql.Stmt
 	updateControllerStatusStmt                *sql.Stmt
 	updateDrawerStmt                          *sql.Stmt
 	updateDrawerGeometryStmt                  *sql.Stmt
+	updateDrawerLEDAllocationStmt             *sql.Stmt
 	updateGeneralSettingsStmt                 *sql.Stmt
 	updateInspirationTemplateStmt             *sql.Stmt
 	updatePartStmt                            *sql.Stmt
@@ -2173,6 +2290,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		tx:                                        tx,
 		addContainerToWallStmt:                    q.addContainerToWallStmt,
 		addTagToPartStmt:                          q.addTagToPartStmt,
+		advanceCabinetElectricalRevisionStmt:      q.advanceCabinetElectricalRevisionStmt,
 		advanceCabinetLayoutRevisionStmt:          q.advanceCabinetLayoutRevisionStmt,
 		archiveCabinetStmt:                        q.archiveCabinetStmt,
 		archiveDrawerStmt:                         q.archiveDrawerStmt,
@@ -2184,6 +2302,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		clearContainerBinLedIndicesStmt:           q.clearContainerBinLedIndicesStmt,
 		clearContainersStmt:                       q.clearContainersStmt,
 		clearControllersStmt:                      q.clearControllersStmt,
+		clearDrawerLEDAllocationsStmt:             q.clearDrawerLEDAllocationsStmt,
 		clearDrawersStmt:                          q.clearDrawersStmt,
 		clearPartAiPromptsStmt:                    q.clearPartAiPromptsStmt,
 		clearPartAssignmentsStmt:                  q.clearPartAssignmentsStmt,
@@ -2210,6 +2329,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		createContainerStmt:                       q.createContainerStmt,
 		createControllerStmt:                      q.createControllerStmt,
 		createDrawerStmt:                          q.createDrawerStmt,
+		createDrawerLEDAllocationStmt:             q.createDrawerLEDAllocationStmt,
 		createInspirationTemplateStmt:             q.createInspirationTemplateStmt,
 		createPartStmt:                            q.createPartStmt,
 		createPartAssignmentStmt:                  q.createPartAssignmentStmt,
@@ -2233,6 +2353,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		deleteContainerStmt:                       q.deleteContainerStmt,
 		deleteControllerStmt:                      q.deleteControllerStmt,
 		deleteDrawerStmt:                          q.deleteDrawerStmt,
+		deleteDrawerLEDAllocationStmt:             q.deleteDrawerLEDAllocationStmt,
 		deleteExpiredSupplierCacheStmt:            q.deleteExpiredSupplierCacheStmt,
 		deleteInspirationTemplateStmt:             q.deleteInspirationTemplateStmt,
 		deletePartStmt:                            q.deletePartStmt,
@@ -2328,6 +2449,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		getWallContainerBinsStmt:                  q.getWallContainerBinsStmt,
 		getWallsStmt:                              q.getWallsStmt,
 		initSettingsStmt:                          q.initSettingsStmt,
+		listAllDrawerLEDAllocationsStmt:           q.listAllDrawerLEDAllocationsStmt,
 		listAllDrawersStmt:                        q.listAllDrawersStmt,
 		listAllTagsStmt:                           q.listAllTagsStmt,
 		listAuditLogsStmt:                         q.listAuditLogsStmt,
@@ -2335,6 +2457,9 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		listBinDrawerAttachmentsByDrawerStmt:      q.listBinDrawerAttachmentsByDrawerStmt,
 		listCabinetsStmt:                          q.listCabinetsStmt,
 		listCabinetsIncludingArchivedStmt:         q.listCabinetsIncludingArchivedStmt,
+		listDrawerLEDAllocationsByCabinetStmt:     q.listDrawerLEDAllocationsByCabinetStmt,
+		listDrawerLEDAllocationsByControllerStmt:  q.listDrawerLEDAllocationsByControllerStmt,
+		listDrawerLEDAllocationsByDrawerStmt:      q.listDrawerLEDAllocationsByDrawerStmt,
 		listDrawersByCabinetStmt:                  q.listDrawersByCabinetStmt,
 		listDrawersByCabinetIncludingArchivedStmt: q.listDrawersByCabinetIncludingArchivedStmt,
 		listLowStockPartsStmt:                     q.listLowStockPartsStmt,
@@ -2352,6 +2477,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		restoreContainerStmt:                      q.restoreContainerStmt,
 		restoreControllerStmt:                     q.restoreControllerStmt,
 		restoreDrawerStmt:                         q.restoreDrawerStmt,
+		restoreDrawerLEDAllocationStmt:            q.restoreDrawerLEDAllocationStmt,
 		restorePartStmt:                           q.restorePartStmt,
 		restorePartAiPromptStmt:                   q.restorePartAiPromptStmt,
 		restorePartAssignmentStmt:                 q.restorePartAssignmentStmt,
@@ -2370,6 +2496,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		restoreWallStmt:                           q.restoreWallStmt,
 		restoreWallCardStmt:                       q.restoreWallCardStmt,
 		searchPartsStmt:                           q.searchPartsStmt,
+		setControllerOnlineStatusStmt:             q.setControllerOnlineStatusStmt,
 		setFlagStmt:                               q.setFlagStmt,
 		setPasswordResetFlagStmt:                  q.setPasswordResetFlagStmt,
 		togglePartFavoriteStmt:                    q.togglePartFavoriteStmt,
@@ -2381,15 +2508,18 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		updateBinLedIndexStmt:                     q.updateBinLedIndexStmt,
 		updateBinNameStmt:                         q.updateBinNameStmt,
 		updateCabinetStmt:                         q.updateCabinetStmt,
+		updateCabinetControllerStmt:               q.updateCabinetControllerStmt,
 		updateCabinetElectricalRevisionStmt:       q.updateCabinetElectricalRevisionStmt,
 		updateCabinetLayoutRevisionStmt:           q.updateCabinetLayoutRevisionStmt,
 		updateCabinetLayoutSettingsStmt:           q.updateCabinetLayoutSettingsStmt,
 		updateColorsStmt:                          q.updateColorsStmt,
 		updateContainerAllocationStmt:             q.updateContainerAllocationStmt,
 		updateContainerConfigStmt:                 q.updateContainerConfigStmt,
+		updateControllerLedCountStmt:              q.updateControllerLedCountStmt,
 		updateControllerStatusStmt:                q.updateControllerStatusStmt,
 		updateDrawerStmt:                          q.updateDrawerStmt,
 		updateDrawerGeometryStmt:                  q.updateDrawerGeometryStmt,
+		updateDrawerLEDAllocationStmt:             q.updateDrawerLEDAllocationStmt,
 		updateGeneralSettingsStmt:                 q.updateGeneralSettingsStmt,
 		updateInspirationTemplateStmt:             q.updateInspirationTemplateStmt,
 		updatePartStmt:                            q.updatePartStmt,

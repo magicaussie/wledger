@@ -45,6 +45,7 @@ var (
 	_ = func(m StorageManifest) ([]db.Cabinet, []db.Drawer, []db.BinDrawerAttachment) {
 		return m.PhysicalStorage.Cabinets, m.PhysicalStorage.Drawers, m.PhysicalStorage.BinAttachments
 	}
+	_ = func(m StorageManifest) []db.DrawerLedAllocation { return m.PhysicalStorage.LEDAllocations }
 )
 
 // physCurrentVersion is the default storage-manifest format version a default
@@ -176,6 +177,10 @@ func physSeedPhysical(t *testing.T, conn *sql.DB) {
 		VALUES (2, 1, 2.5, 0.0, 2.0, 3.5, 1, '2024-01-09 10:11:12', '2024-01-09 10:11:12')`)
 	exec(`INSERT INTO bin_drawer_attachments (bin_id, drawer_id, x, y, width, height, display_order, created_at, updated_at)
 		VALUES (3, 3, 0.5, 0.5, 1.25, 2.0, 0, '2024-01-10 11:12:13', '2024-01-10 11:12:13')`)
+	exec(`INSERT INTO drawer_led_allocations (id, cabinet_id, drawer_id, controller_id, start_pixel, pixel_count, display_order, created_at, updated_at)
+		VALUES (1, 1, 1, 1, 97, 8, 0, '2024-01-11 12:13:14', '2024-01-11 12:13:14')`)
+	exec(`INSERT INTO drawer_led_allocations (id, cabinet_id, drawer_id, controller_id, start_pixel, pixel_count, display_order, created_at, updated_at)
+		VALUES (2, 1, 1, 1, 150, 4, 1, '2024-01-12 13:14:15', '2024-01-12 13:14:15')`)
 }
 
 func physWriteUpload(t *testing.T, root, rel, content string) {
@@ -361,7 +366,7 @@ func physBaseStorageManifest() StorageManifest {
 		BinIndexSpace: ledspace.Segment,
 		Settings:      minimalSettings(),
 		Controllers: []db.Controller{
-			{ID: 1, Name: "Ctrl", IpAddress: "10.0.0.1", CreatedAt: now},
+			{ID: 1, Name: "Ctrl", IpAddress: "10.0.0.1", LedCount: 300, CreatedAt: now},
 		},
 		Containers: []db.Container{
 			{ID: 1, Name: "S1", ControllerID: 1, SegmentID: 0, LedStart: 0, LedCount: 16,
@@ -389,6 +394,10 @@ func physBaseStorageManifest() StorageManifest {
 		{BinID: 1, DrawerID: 1, X: 0, Y: 0, Width: 2, Height: 3, DisplayOrder: 0, CreatedAt: now, UpdatedAt: now},
 		{BinID: 2, DrawerID: 1, X: 2, Y: 0, Width: 2, Height: 3, DisplayOrder: 1, CreatedAt: now, UpdatedAt: now},
 	}
+	m.PhysicalStorage.LEDAllocations = []db.DrawerLedAllocation{
+		{ID: 1, CabinetID: 1, DrawerID: 1, ControllerID: 1, StartPixel: 97, PixelCount: 8, DisplayOrder: 0, CreatedAt: now.Time, UpdatedAt: now.Time},
+		{ID: 2, CabinetID: 1, DrawerID: 1, ControllerID: 1, StartPixel: 150, PixelCount: 4, DisplayOrder: 1, CreatedAt: now.Time, UpdatedAt: now.Time},
+	}
 	m.SystemFlags = []db.SystemFlag{
 		{Key: ledspace.FlagKey, Value: ledspace.Segment, UpdatedAt: now},
 		{Key: hardware.Migration005FlagKey, Value: "true", UpdatedAt: now},
@@ -397,9 +406,10 @@ func physBaseStorageManifest() StorageManifest {
 }
 
 type physPhysicalRows struct {
-	Cabinets    []db.Cabinet
-	Drawers     []db.Drawer
-	Attachments []db.BinDrawerAttachment
+	Cabinets       []db.Cabinet
+	Drawers        []db.Drawer
+	Attachments    []db.BinDrawerAttachment
+	LEDAllocations []db.DrawerLedAllocation
 }
 
 func physReadPhysicalRows(t *testing.T, conn *sql.DB) physPhysicalRows {
@@ -455,6 +465,23 @@ func physReadPhysicalRows(t *testing.T, conn *sql.DB) physPhysicalRows {
 	attachmentRows.Close()
 	if err := attachmentRows.Err(); err != nil {
 		t.Fatalf("iterate attachments: %v", err)
+	}
+
+	allocationRows, err := conn.Query(`SELECT id, cabinet_id, drawer_id, controller_id, start_pixel, pixel_count, display_order, created_at, updated_at FROM drawer_led_allocations ORDER BY id`)
+	if err != nil {
+		t.Fatalf("query drawer LED allocations: %v", err)
+	}
+	for allocationRows.Next() {
+		var a db.DrawerLedAllocation
+		if err := allocationRows.Scan(&a.ID, &a.CabinetID, &a.DrawerID, &a.ControllerID, &a.StartPixel, &a.PixelCount, &a.DisplayOrder, &a.CreatedAt, &a.UpdatedAt); err != nil {
+			allocationRows.Close()
+			t.Fatalf("scan drawer LED allocation: %v", err)
+		}
+		rows.LEDAllocations = append(rows.LEDAllocations, a)
+	}
+	allocationRows.Close()
+	if err := allocationRows.Err(); err != nil {
+		t.Fatalf("iterate drawer LED allocations: %v", err)
 	}
 
 	return rows
@@ -675,9 +702,9 @@ func TestPhysicalBackup_RoundTripsLegacyAndPhysicalGraph(t *testing.T) {
 	if got := len(manifest.Legacy.PartAssignments); got != 4 {
 		t.Errorf("captured legacy assignments = %d, want 4", got)
 	}
-	if len(manifest.PhysicalStorage.Cabinets) != 2 || len(manifest.PhysicalStorage.Drawers) != 3 || len(manifest.PhysicalStorage.BinAttachments) != 3 {
-		t.Errorf("captured physical graph = %d cabinets/%d drawers/%d attachments, want 2/3/3",
-			len(manifest.PhysicalStorage.Cabinets), len(manifest.PhysicalStorage.Drawers), len(manifest.PhysicalStorage.BinAttachments))
+	if len(manifest.PhysicalStorage.Cabinets) != 2 || len(manifest.PhysicalStorage.Drawers) != 3 || len(manifest.PhysicalStorage.BinAttachments) != 3 || len(manifest.PhysicalStorage.LEDAllocations) != 2 {
+		t.Errorf("captured physical graph = %d cabinets/%d drawers/%d attachments/%d LED allocations, want 2/3/3/2",
+			len(manifest.PhysicalStorage.Cabinets), len(manifest.PhysicalStorage.Drawers), len(manifest.PhysicalStorage.BinAttachments), len(manifest.PhysicalStorage.LEDAllocations))
 	}
 	if !physFlagSetContains(manifest.SystemFlags, physCustomFlagKey, physCustomFlagValue) {
 		t.Errorf("captured flags are missing the custom flag %q=%q: %+v", physCustomFlagKey, physCustomFlagValue, manifest.SystemFlags)
@@ -734,7 +761,7 @@ func TestPhysicalBackup_CurrentEmptyPhysicalGraphRoundTrips(t *testing.T) {
 	archive := source.export()
 
 	manifest := physDecodeStorageManifest(t, archive)
-	if n := len(manifest.PhysicalStorage.Cabinets) + len(manifest.PhysicalStorage.Drawers) + len(manifest.PhysicalStorage.BinAttachments); n != 0 {
+	if n := len(manifest.PhysicalStorage.Cabinets) + len(manifest.PhysicalStorage.Drawers) + len(manifest.PhysicalStorage.BinAttachments) + len(manifest.PhysicalStorage.LEDAllocations); n != 0 {
 		t.Errorf("captured physical graph has %d rows, want 0", n)
 	}
 
@@ -752,6 +779,40 @@ func TestPhysicalBackup_CurrentEmptyPhysicalGraphRoundTrips(t *testing.T) {
 		t.Errorf("current restore left physical rows: %+v", rows)
 	}
 	physAssertFingerprintsEqual(t, "empty-physical roundtrip", before, physCapture(t, target.store))
+}
+
+func TestPhysicalBackup_OlderCurrentArchiveCannotDiscardDrawerLEDAllocations(t *testing.T) {
+	target := physNewFixture(t, "older_current_without_led_allocations")
+	target.initSettings()
+	physSeedLegacy(t, target.conn)
+	physSeedPhysical(t, target.conn)
+	before := physTakeSnapshot(t, target)
+
+	manifestBytes := physMarshalManifest(t, physBaseStorageManifest())
+	var members map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(manifestBytes), &members); err != nil {
+		t.Fatal(err)
+	}
+	var physical map[string]json.RawMessage
+	if err := json.Unmarshal(members[storageManifestPhysicalField], &physical); err != nil {
+		t.Fatal(err)
+	}
+	delete(physical, "drawer_led_allocations")
+	members[storageManifestPhysicalField], _ = json.Marshal(physical)
+	manifestBytesRaw, err := json.Marshal(members)
+	if err != nil {
+		t.Fatal(err)
+	}
+	archive := physBuildZip(t, [][2]string{{currentStorageManifestName, string(manifestBytesRaw)}})
+
+	err = target.restore(archive)
+	var conflict *DrawerLEDAllocationConflictError
+	if !errors.As(err, &conflict) {
+		t.Fatalf("restore without allocation data = %v; want allocation-preservation conflict", err)
+	}
+	if after := physTakeSnapshot(t, target); !reflect.DeepEqual(before, after) {
+		t.Fatalf("refused older restore changed existing data:\nbefore=%+v\nafter=%+v", before, after)
+	}
 }
 
 // TestPhysicalBackup_LegacyRestoreIntoEmptyPhysicalGraph verifies that a legacy

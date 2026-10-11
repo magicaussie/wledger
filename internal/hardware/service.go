@@ -136,7 +136,7 @@ func (s *service) UpdateStatus(ctx context.Context, id int64) (bool, error) {
 	online, _ := s.wled.Ping(ctx, c.IpAddress)
 
 	if online != c.IsOnline.Bool {
-		err := s.store.UpdateControllerStatus(ctx, db.UpdateControllerStatusParams{
+		err := s.store.SetControllerOnlineStatus(ctx, db.SetControllerOnlineStatusParams{
 			IsOnline: sql.NullBool{Bool: online, Valid: true},
 			ID:       c.ID,
 		})

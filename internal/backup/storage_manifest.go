@@ -46,9 +46,11 @@ type StorageManifest struct {
 // is captured as empty lists so the current format always declares its physical
 // storage explicitly rather than leaving it unknown.
 type PhysicalStorageSnapshot struct {
-	Cabinets       []db.Cabinet             `json:"cabinets"`
-	Drawers        []db.Drawer              `json:"drawers"`
-	BinAttachments []db.BinDrawerAttachment `json:"bin_attachments"`
+	Cabinets               []db.Cabinet             `json:"cabinets"`
+	Drawers                []db.Drawer              `json:"drawers"`
+	BinAttachments         []db.BinDrawerAttachment `json:"bin_attachments"`
+	LEDAllocations         []db.DrawerLedAllocation `json:"drawer_led_allocations"`
+	LEDAllocationsDeclared bool                     `json:"-"`
 }
 
 // storageManifestTopLevelFields returns the set of top-level JSON member names
@@ -74,7 +76,11 @@ func physicalStorageTopLevelFields() map[string]struct{} {
 // section requires: all three lists must be present, so an omitted list can never
 // be read as an empty one.
 func physicalStorageRequiredFields() map[string]struct{} {
-	return requiredTopLevelJSONFields(reflect.TypeOf(PhysicalStorageSnapshot{}))
+	fields := requiredTopLevelJSONFields(reflect.TypeOf(PhysicalStorageSnapshot{}))
+	// The LED list was added additively to v2.0. New exports always include it,
+	// but older current-format archives remain readable when the field is absent.
+	delete(fields, "drawer_led_allocations")
+	return fields
 }
 
 // requireObjectMember returns the boundary-checked members of a required nested
@@ -167,6 +173,11 @@ func decodeCurrentStorageManifest(f *zip.File) (StorageManifest, error) {
 			return StorageManifest{}, err
 		}
 	}
+	if raw, ok := physicalMembers["drawer_led_allocations"]; ok {
+		if err := requireJSONArray(raw, storageManifestPhysicalField+".drawer_led_allocations"); err != nil {
+			return StorageManifest{}, err
+		}
+	}
 	if err := requireJSONArray(members[storageManifestSystemFlagsField], storageManifestSystemFlagsField); err != nil {
 		return StorageManifest{}, err
 	}
@@ -175,6 +186,7 @@ func decodeCurrentStorageManifest(f *zip.File) (StorageManifest, error) {
 	if err := json.Unmarshal(data, &env); err != nil {
 		return StorageManifest{}, malformedManifest("failed to parse backup JSON: " + err.Error())
 	}
+	_, env.PhysicalStorage.LEDAllocationsDeclared = physicalMembers["drawer_led_allocations"]
 
 	if env.Version != supportedCurrentManifestVersion {
 		return StorageManifest{}, &BackupFormatError{
@@ -266,9 +278,9 @@ func validateStorageGraph(legacy Manifest, snap PhysicalStorageSnapshot, flags [
 		}
 	}
 
-	controllers := make(map[int64]struct{}, len(legacy.Controllers))
+	controllers := make(map[int64]db.Controller, len(legacy.Controllers))
 	for _, c := range legacy.Controllers {
-		controllers[c.ID] = struct{}{}
+		controllers[c.ID] = c
 	}
 	bins := make(map[int64]struct{}, len(legacy.Bins))
 	for _, b := range legacy.Bins {
@@ -354,6 +366,48 @@ func validateStorageGraph(legacy Manifest, snap PhysicalStorageSnapshot, flags [
 		if reason := invalidGeometry(a.X, a.Y, a.Width, a.Height); reason != "" {
 			return invalid("bin attachment %d has invalid geometry: %s", a.BinID, reason)
 		}
+	}
+
+	allocationIDs := make(map[int64]struct{}, len(snap.LEDAllocations))
+	allocationRanges := make([]struct{ controllerID, start, end, allocationID int64 }, 0, len(snap.LEDAllocations))
+	cabinetByDrawer := make(map[int64]int64, len(snap.Drawers))
+	for _, drawer := range snap.Drawers {
+		cabinetByDrawer[drawer.ID] = drawer.CabinetID
+	}
+	cabinetByID := make(map[int64]db.Cabinet, len(snap.Cabinets))
+	for _, cabinet := range snap.Cabinets {
+		cabinetByID[cabinet.ID] = cabinet
+	}
+	for _, allocation := range snap.LEDAllocations {
+		if allocation.ID <= 0 {
+			return invalid("drawer LED allocation has a non-positive id %d", allocation.ID)
+		}
+		if _, dup := allocationIDs[allocation.ID]; dup {
+			return invalid("duplicate drawer LED allocation id %d", allocation.ID)
+		}
+		allocationIDs[allocation.ID] = struct{}{}
+		cabinetID, drawerExists := cabinetByDrawer[allocation.DrawerID]
+		if !drawerExists || cabinetID != allocation.CabinetID {
+			return invalid("drawer LED allocation %d references drawer %d outside cabinet %d", allocation.ID, allocation.DrawerID, allocation.CabinetID)
+		}
+		cabinet, cabinetExists := cabinetByID[allocation.CabinetID]
+		controller, controllerExists := controllers[allocation.ControllerID]
+		if !cabinetExists || !cabinet.ControllerID.Valid || cabinet.ControllerID.Int64 != allocation.ControllerID || !controllerExists {
+			return invalid("drawer LED allocation %d does not match its cabinet's configured controller", allocation.ID)
+		}
+		if allocation.DisplayOrder < 0 || allocation.StartPixel < 1 || allocation.PixelCount < 1 || allocation.PixelCount > math.MaxInt64-allocation.StartPixel+1 {
+			return invalid("drawer LED allocation %d has an invalid start, count, order or overflowing end", allocation.ID)
+		}
+		end := allocation.StartPixel + allocation.PixelCount - 1
+		if controller.LedCount < 1 || end > controller.LedCount {
+			return invalid("drawer LED allocation %d exceeds controller #%d capacity", allocation.ID, allocation.ControllerID)
+		}
+		for _, other := range allocationRanges {
+			if other.controllerID == allocation.ControllerID && allocation.StartPixel <= other.end && other.start <= end {
+				return invalid("drawer LED allocations %d and %d overlap on controller #%d", allocation.ID, other.allocationID, allocation.ControllerID)
+			}
+		}
+		allocationRanges = append(allocationRanges, struct{ controllerID, start, end, allocationID int64 }{allocation.ControllerID, allocation.StartPixel, end, allocation.ID})
 	}
 
 	flagKeys := make(map[string]struct{}, len(flags))

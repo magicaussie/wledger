@@ -11,6 +11,7 @@ import templruntime "github.com/a-h/templ/runtime"
 import (
 	"fmt"
 	"github.com/tuxedocurly/wledger/internal/auth"
+
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/i18n"
 	"github.com/tuxedocurly/wledger/web/components"
@@ -66,7 +67,7 @@ func Hardware(user auth.User, controllers []db.Controller) templ.Component {
 				var templ_7745c5c3_Var3 string
 				templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "BinLabels"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 19, Col: 31}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 20, Col: 31}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 				if templ_7745c5c3_Err != nil {
@@ -79,7 +80,7 @@ func Hardware(user auth.User, controllers []db.Controller) templ.Component {
 				var templ_7745c5c3_Var4 string
 				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "ImportConfig"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 23, Col: 34}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 24, Col: 34}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 				if templ_7745c5c3_Err != nil {
@@ -92,7 +93,7 @@ func Hardware(user auth.User, controllers []db.Controller) templ.Component {
 				var templ_7745c5c3_Var5 string
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "AddController"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 27, Col: 35}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 28, Col: 35}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 				if templ_7745c5c3_Err != nil {
@@ -115,7 +116,7 @@ func Hardware(user auth.User, controllers []db.Controller) templ.Component {
 				var templ_7745c5c3_Var6 string
 				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(c.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 37, Col: 47}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 38, Col: 47}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 				if templ_7745c5c3_Err != nil {
@@ -128,7 +129,7 @@ func Hardware(user auth.User, controllers []db.Controller) templ.Component {
 				var templ_7745c5c3_Var7 templ.SafeURL
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL("http://" + c.IpAddress))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 39, Col: 57}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 40, Col: 57}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 				if templ_7745c5c3_Err != nil {
@@ -141,7 +142,7 @@ func Hardware(user auth.User, controllers []db.Controller) templ.Component {
 				var templ_7745c5c3_Var8 string
 				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(c.IpAddress)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 40, Col: 23}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 41, Col: 23}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 				if templ_7745c5c3_Err != nil {
@@ -154,7 +155,7 @@ func Hardware(user auth.User, controllers []db.Controller) templ.Component {
 				var templ_7745c5c3_Var9 string
 				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/hardware/%d/status", c.ID))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 46, Col: 57}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 47, Col: 57}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 				if templ_7745c5c3_Err != nil {
@@ -167,7 +168,7 @@ func Hardware(user auth.User, controllers []db.Controller) templ.Component {
 				var templ_7745c5c3_Var10 string
 				templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Checking"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 50, Col: 33}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 51, Col: 33}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 				if templ_7745c5c3_Err != nil {
@@ -185,7 +186,7 @@ func Hardware(user auth.User, controllers []db.Controller) templ.Component {
 					var templ_7745c5c3_Var11 templ.SafeURL
 					templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/hardware/%d/grid", c.ID)))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 55, Col: 71}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 57, Col: 71}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 					if templ_7745c5c3_Err != nil {
@@ -198,7 +199,7 @@ func Hardware(user auth.User, controllers []db.Controller) templ.Component {
 					var templ_7745c5c3_Var12 string
 					templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Configure"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 57, Col: 35}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 59, Col: 35}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 					if templ_7745c5c3_Err != nil {
@@ -211,7 +212,7 @@ func Hardware(user auth.User, controllers []db.Controller) templ.Component {
 					var templ_7745c5c3_Var13 templ.SafeURL
 					templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/hardware/%d/export", c.ID)))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 59, Col: 73}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 61, Col: 73}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 					if templ_7745c5c3_Err != nil {
@@ -224,7 +225,7 @@ func Hardware(user auth.User, controllers []db.Controller) templ.Component {
 					var templ_7745c5c3_Var14 string
 					templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "ExportConfig"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 59, Col: 146}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 61, Col: 146}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 					if templ_7745c5c3_Err != nil {
@@ -237,7 +238,7 @@ func Hardware(user auth.User, controllers []db.Controller) templ.Component {
 					var templ_7745c5c3_Var15 string
 					templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Export"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 61, Col: 32}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 63, Col: 32}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 					if templ_7745c5c3_Err != nil {
@@ -250,7 +251,7 @@ func Hardware(user auth.User, controllers []db.Controller) templ.Component {
 					var templ_7745c5c3_Var16 templ.SafeURL
 					templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/hardware/%d/delete", c.ID)))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 63, Col: 78}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 65, Col: 78}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 					if templ_7745c5c3_Err != nil {
@@ -276,7 +277,7 @@ func Hardware(user auth.User, controllers []db.Controller) templ.Component {
 					var templ_7745c5c3_Var17 templ.SafeURL
 					templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/hardware/%d/grid", c.ID)))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 69, Col: 71}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 71, Col: 71}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 					if templ_7745c5c3_Err != nil {
@@ -289,7 +290,7 @@ func Hardware(user auth.User, controllers []db.Controller) templ.Component {
 					var templ_7745c5c3_Var18 string
 					templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "ViewGrid"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 70, Col: 34}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 72, Col: 34}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 					if templ_7745c5c3_Err != nil {
@@ -334,7 +335,7 @@ func Hardware(user auth.User, controllers []db.Controller) templ.Component {
 				var templ_7745c5c3_Var20 string
 				templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Name"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 87, Col: 72}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 89, Col: 72}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 				if templ_7745c5c3_Err != nil {
@@ -347,7 +348,7 @@ func Hardware(user auth.User, controllers []db.Controller) templ.Component {
 				var templ_7745c5c3_Var21 string
 				templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "IPAddress"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 91, Col: 77}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 93, Col: 77}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 				if templ_7745c5c3_Err != nil {
@@ -360,7 +361,7 @@ func Hardware(user auth.User, controllers []db.Controller) templ.Component {
 				var templ_7745c5c3_Var22 string
 				templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Port"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 95, Col: 72}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 97, Col: 72}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 				if templ_7745c5c3_Err != nil {
@@ -373,7 +374,7 @@ func Hardware(user auth.User, controllers []db.Controller) templ.Component {
 				var templ_7745c5c3_Var23 string
 				templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Cancel"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 99, Col: 101}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 102, Col: 101}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 				if templ_7745c5c3_Err != nil {
@@ -386,7 +387,7 @@ func Hardware(user auth.User, controllers []db.Controller) templ.Component {
 				var templ_7745c5c3_Var24 string
 				templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "AddController"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 100, Col: 67}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 103, Col: 67}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 				if templ_7745c5c3_Err != nil {
@@ -428,7 +429,7 @@ func Hardware(user auth.User, controllers []db.Controller) templ.Component {
 				var templ_7745c5c3_Var26 string
 				templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "ImportConfigHelp"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 108, Col: 71}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 111, Col: 71}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 				if templ_7745c5c3_Err != nil {
@@ -441,7 +442,7 @@ func Hardware(user auth.User, controllers []db.Controller) templ.Component {
 				var templ_7745c5c3_Var27 string
 				templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "ConfigFile"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 111, Col: 78}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 114, Col: 78}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 				if templ_7745c5c3_Err != nil {
@@ -454,7 +455,7 @@ func Hardware(user auth.User, controllers []db.Controller) templ.Component {
 				var templ_7745c5c3_Var28 string
 				templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "OptionalOverrides"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 114, Col: 78}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 117, Col: 78}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 				if templ_7745c5c3_Err != nil {
@@ -467,7 +468,7 @@ func Hardware(user auth.User, controllers []db.Controller) templ.Component {
 				var templ_7745c5c3_Var29 string
 				templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Name"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 116, Col: 72}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 119, Col: 72}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 				if templ_7745c5c3_Err != nil {
@@ -480,7 +481,7 @@ func Hardware(user auth.User, controllers []db.Controller) templ.Component {
 				var templ_7745c5c3_Var30 string
 				templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "LeaveBlankToUseFile"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 117, Col: 84}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 120, Col: 84}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 				if templ_7745c5c3_Err != nil {
@@ -493,7 +494,7 @@ func Hardware(user auth.User, controllers []db.Controller) templ.Component {
 				var templ_7745c5c3_Var31 string
 				templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "IPAddress"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 120, Col: 77}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 123, Col: 77}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
 				if templ_7745c5c3_Err != nil {
@@ -506,7 +507,7 @@ func Hardware(user auth.User, controllers []db.Controller) templ.Component {
 				var templ_7745c5c3_Var32 string
 				templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "LeaveBlankToUseFile"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 121, Col: 90}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 124, Col: 90}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
 				if templ_7745c5c3_Err != nil {
@@ -519,7 +520,7 @@ func Hardware(user auth.User, controllers []db.Controller) templ.Component {
 				var templ_7745c5c3_Var33 string
 				templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Port"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 124, Col: 72}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 127, Col: 72}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
 				if templ_7745c5c3_Err != nil {
@@ -532,7 +533,7 @@ func Hardware(user auth.User, controllers []db.Controller) templ.Component {
 				var templ_7745c5c3_Var34 string
 				templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "LeaveBlankToUseFile"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 125, Col: 86}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 128, Col: 86}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 				if templ_7745c5c3_Err != nil {
@@ -545,7 +546,7 @@ func Hardware(user auth.User, controllers []db.Controller) templ.Component {
 				var templ_7745c5c3_Var35 string
 				templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Cancel"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 128, Col: 104}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 131, Col: 104}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
 				if templ_7745c5c3_Err != nil {
@@ -558,7 +559,7 @@ func Hardware(user auth.User, controllers []db.Controller) templ.Component {
 				var templ_7745c5c3_Var36 string
 				templ_7745c5c3_Var36, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "ImportConfig"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 129, Col: 66}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 132, Col: 66}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var36))
 				if templ_7745c5c3_Err != nil {

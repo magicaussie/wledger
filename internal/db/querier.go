@@ -12,6 +12,7 @@ import (
 type Querier interface {
 	AddContainerToWall(ctx context.Context, arg AddContainerToWallParams) error
 	AddTagToPart(ctx context.Context, arg AddTagToPartParams) error
+	AdvanceCabinetElectricalRevision(ctx context.Context, arg AdvanceCabinetElectricalRevisionParams) (int64, error)
 	AdvanceCabinetLayoutRevision(ctx context.Context, arg AdvanceCabinetLayoutRevisionParams) (int64, error)
 	ArchiveCabinet(ctx context.Context, id int64) (int64, error)
 	ArchiveDrawer(ctx context.Context, id int64) (int64, error)
@@ -27,6 +28,7 @@ type Querier interface {
 	ClearContainerBinLedIndices(ctx context.Context, containerID sql.NullInt64) error
 	ClearContainers(ctx context.Context) error
 	ClearControllers(ctx context.Context) error
+	ClearDrawerLEDAllocations(ctx context.Context) error
 	// ClearDrawers empties the drawer table. It must run before any legacy cabinet
 	// or controller deletion, and after the attachments that reference drawers.
 	ClearDrawers(ctx context.Context) error
@@ -55,6 +57,7 @@ type Querier interface {
 	CreateContainer(ctx context.Context, arg CreateContainerParams) (int64, error)
 	CreateController(ctx context.Context, arg CreateControllerParams) (CreateControllerRow, error)
 	CreateDrawer(ctx context.Context, arg CreateDrawerParams) (int64, error)
+	CreateDrawerLEDAllocation(ctx context.Context, arg CreateDrawerLEDAllocationParams) (int64, error)
 	CreateInspirationTemplate(ctx context.Context, arg CreateInspirationTemplateParams) (InspirationTemplate, error)
 	CreatePart(ctx context.Context, arg CreatePartParams) (int64, error)
 	CreatePartAssignment(ctx context.Context, arg CreatePartAssignmentParams) error
@@ -82,6 +85,7 @@ type Querier interface {
 	DeleteContainer(ctx context.Context, id int64) error
 	DeleteController(ctx context.Context, id int64) error
 	DeleteDrawer(ctx context.Context, id int64) (int64, error)
+	DeleteDrawerLEDAllocation(ctx context.Context, arg DeleteDrawerLEDAllocationParams) (int64, error)
 	DeleteExpiredSupplierCache(ctx context.Context) error
 	DeleteInspirationTemplate(ctx context.Context, id int64) error
 	DeletePart(ctx context.Context, id int64) error
@@ -193,6 +197,7 @@ type Querier interface {
 	GetWallContainerBins(ctx context.Context, wallID int64) ([]GetWallContainerBinsRow, error)
 	GetWalls(ctx context.Context) ([]Wall, error)
 	InitSettings(ctx context.Context) error
+	ListAllDrawerLEDAllocations(ctx context.Context) ([]DrawerLedAllocation, error)
 	// ListAllDrawers returns every drawer, including archived rows and every
 	// cabinet, in a deterministic order so an exported snapshot is stable and
 	// complete.
@@ -203,6 +208,9 @@ type Querier interface {
 	ListBinDrawerAttachmentsByDrawer(ctx context.Context, drawerID int64) ([]BinDrawerAttachment, error)
 	ListCabinets(ctx context.Context) ([]Cabinet, error)
 	ListCabinetsIncludingArchived(ctx context.Context) ([]Cabinet, error)
+	ListDrawerLEDAllocationsByCabinet(ctx context.Context, cabinetID int64) ([]DrawerLedAllocation, error)
+	ListDrawerLEDAllocationsByController(ctx context.Context, controllerID int64) ([]DrawerLedAllocation, error)
+	ListDrawerLEDAllocationsByDrawer(ctx context.Context, drawerID int64) ([]DrawerLedAllocation, error)
 	ListDrawersByCabinet(ctx context.Context, cabinetID int64) ([]Drawer, error)
 	ListDrawersByCabinetIncludingArchived(ctx context.Context, cabinetID int64) ([]Drawer, error)
 	// Parts whose total stock is at or below a configured threshold. Parts with no
@@ -229,6 +237,7 @@ type Querier interface {
 	// RestoreDrawer re-inserts a captured drawer with its exact id, geometry,
 	// archived state and timestamps.
 	RestoreDrawer(ctx context.Context, arg RestoreDrawerParams) error
+	RestoreDrawerLEDAllocation(ctx context.Context, arg RestoreDrawerLEDAllocationParams) error
 	RestorePart(ctx context.Context, arg RestorePartParams) error
 	RestorePartAiPrompt(ctx context.Context, arg RestorePartAiPromptParams) error
 	RestorePartAssignment(ctx context.Context, arg RestorePartAssignmentParams) error
@@ -249,6 +258,7 @@ type Querier interface {
 	RestoreWall(ctx context.Context, arg RestoreWallParams) error
 	RestoreWallCard(ctx context.Context, arg RestoreWallCardParams) error
 	SearchParts(ctx context.Context, arg SearchPartsParams) ([]SearchPartsRow, error)
+	SetControllerOnlineStatus(ctx context.Context, arg SetControllerOnlineStatusParams) error
 	SetFlag(ctx context.Context, arg SetFlagParams) error
 	SetPasswordResetFlag(ctx context.Context, arg SetPasswordResetFlagParams) error
 	TogglePartFavorite(ctx context.Context, id int64) (sql.NullBool, error)
@@ -260,15 +270,18 @@ type Querier interface {
 	UpdateBinLedIndex(ctx context.Context, arg UpdateBinLedIndexParams) error
 	UpdateBinName(ctx context.Context, arg UpdateBinNameParams) (int64, error)
 	UpdateCabinet(ctx context.Context, arg UpdateCabinetParams) (int64, error)
+	UpdateCabinetController(ctx context.Context, arg UpdateCabinetControllerParams) (int64, error)
 	UpdateCabinetElectricalRevision(ctx context.Context, arg UpdateCabinetElectricalRevisionParams) (int64, error)
 	UpdateCabinetLayoutRevision(ctx context.Context, arg UpdateCabinetLayoutRevisionParams) (int64, error)
 	UpdateCabinetLayoutSettings(ctx context.Context, arg UpdateCabinetLayoutSettingsParams) (int64, error)
 	UpdateColors(ctx context.Context, arg UpdateColorsParams) error
 	UpdateContainerAllocation(ctx context.Context, arg UpdateContainerAllocationParams) error
 	UpdateContainerConfig(ctx context.Context, arg UpdateContainerConfigParams) error
+	UpdateControllerLedCount(ctx context.Context, arg UpdateControllerLedCountParams) (int64, error)
 	UpdateControllerStatus(ctx context.Context, arg UpdateControllerStatusParams) error
 	UpdateDrawer(ctx context.Context, arg UpdateDrawerParams) (int64, error)
 	UpdateDrawerGeometry(ctx context.Context, arg UpdateDrawerGeometryParams) (int64, error)
+	UpdateDrawerLEDAllocation(ctx context.Context, arg UpdateDrawerLEDAllocationParams) (int64, error)
 	UpdateGeneralSettings(ctx context.Context, arg UpdateGeneralSettingsParams) error
 	UpdateInspirationTemplate(ctx context.Context, arg UpdateInspirationTemplateParams) error
 	UpdatePart(ctx context.Context, arg UpdatePartParams) error

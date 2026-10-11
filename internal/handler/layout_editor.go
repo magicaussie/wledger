@@ -58,6 +58,55 @@ func (h *Handler) HandleLayoutSave(w http.ResponseWriter, r *http.Request) {
 	}
 	http.Redirect(w, r, "/storage/cabinets/"+strconv.FormatInt(id, 10), http.StatusSeeOther)
 }
+
+func (h *Handler) HandleCabinetControllerSave(w http.ResponseWriter, r *http.Request) {
+	cabinetID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	controllerID, controllerErr := strconv.ParseInt(r.FormValue("controller_id"), 10, 64)
+	revision, revisionErr := strconv.ParseInt(r.FormValue("electrical_revision"), 10, 64)
+	if err != nil || controllerErr != nil || revisionErr != nil {
+		http.Error(w, "invalid controller assignment request", http.StatusBadRequest)
+		return
+	}
+	if err := h.layoutService().SaveCabinetController(r.Context(), cabinetID, revision, controllerID); err != nil {
+		target := "/storage/cabinets/" + strconv.FormatInt(cabinetID, 10) + "/edit?controller_error=" + url.QueryEscape(err.Error())
+		http.Redirect(w, r, target, http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, "/storage/cabinets/"+strconv.FormatInt(cabinetID, 10)+"/edit?controller_saved=1", http.StatusSeeOther)
+}
+
+func (h *Handler) HandleDrawerLEDAllocationsSave(w http.ResponseWriter, r *http.Request) {
+	cabinetID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	drawerID, drawerErr := strconv.ParseInt(chi.URLParam(r, "drawerID"), 10, 64)
+	if err != nil || drawerErr != nil {
+		http.Error(w, "invalid cabinet or drawer id", http.StatusBadRequest)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		layoutMutationError(w, r, cabinetID, fmt.Errorf("invalid form: %w", err))
+		return
+	}
+	revision, err := layoutRevision(r)
+	if err != nil {
+		layoutMutationError(w, r, cabinetID, errors.New("invalid electrical revision"))
+		return
+	}
+	var allocations []storage.LEDAllocationInput
+	if err := json.Unmarshal([]byte(r.FormValue("allocations")), &allocations); err != nil {
+		layoutMutationError(w, r, cabinetID, fmt.Errorf("invalid LED allocation data: %w", err))
+		return
+	}
+	if allocations == nil {
+		allocations = []storage.LEDAllocationInput{}
+	}
+	if err := h.layoutService().SaveDrawerLEDAllocations(r.Context(), cabinetID, drawerID, revision, allocations); err != nil {
+		target := "/storage/cabinets/" + strconv.FormatInt(cabinetID, 10) + "/edit?led_error=" + url.QueryEscape(err.Error())
+		http.Redirect(w, r, target, http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, "/storage/cabinets/"+strconv.FormatInt(cabinetID, 10)+"/edit?led_saved=1", http.StatusSeeOther)
+}
+
 func layoutRevision(r *http.Request) (int64, error) {
 	return strconv.ParseInt(r.FormValue("revision"), 10, 64)
 }

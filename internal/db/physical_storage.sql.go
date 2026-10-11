@@ -10,6 +10,25 @@ import (
 	"database/sql"
 )
 
+const advanceCabinetElectricalRevision = `-- name: AdvanceCabinetElectricalRevision :execrows
+UPDATE cabinets
+SET electrical_revision = electrical_revision + 1, updated_at = CURRENT_TIMESTAMP
+WHERE id = ? AND electrical_revision = ?
+`
+
+type AdvanceCabinetElectricalRevisionParams struct {
+	ID                 int64 `json:"id"`
+	ElectricalRevision int64 `json:"electrical_revision"`
+}
+
+func (q *Queries) AdvanceCabinetElectricalRevision(ctx context.Context, arg AdvanceCabinetElectricalRevisionParams) (int64, error) {
+	result, err := q.exec(ctx, q.advanceCabinetElectricalRevisionStmt, advanceCabinetElectricalRevision, arg.ID, arg.ElectricalRevision)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const advanceCabinetLayoutRevision = `-- name: AdvanceCabinetLayoutRevision :execrows
 UPDATE cabinets
 SET layout_revision = layout_revision + 1, updated_at = CURRENT_TIMESTAMP
@@ -854,6 +873,25 @@ func (q *Queries) UpdateCabinet(ctx context.Context, arg UpdateCabinetParams) (i
 		arg.DisplayOrder,
 		arg.ID,
 	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const updateCabinetController = `-- name: UpdateCabinetController :execrows
+UPDATE cabinets
+SET controller_id = ?, updated_at = CURRENT_TIMESTAMP
+WHERE id = ?
+`
+
+type UpdateCabinetControllerParams struct {
+	ControllerID sql.NullInt64 `json:"controller_id"`
+	ID           int64         `json:"id"`
+}
+
+func (q *Queries) UpdateCabinetController(ctx context.Context, arg UpdateCabinetControllerParams) (int64, error) {
+	result, err := q.exec(ctx, q.updateCabinetControllerStmt, updateCabinetController, arg.ControllerID, arg.ID)
 	if err != nil {
 		return 0, err
 	}

@@ -5,7 +5,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -27,6 +30,32 @@ func setupTest(t *testing.T) (Service, db.Store, *sql.DB) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	return NewService(store, wClient, logger), store, dbConn
+}
+
+func TestService_UpdateStatusPreservesControllerLEDCapacity(t *testing.T) {
+	_, store, dbConn := setupTest(t)
+	defer dbConn.Close()
+	ctx := context.Background()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusInternalServerError) }))
+	defer server.Close()
+	controller, err := store.CreateController(ctx, db.CreateControllerParams{Name: "Capacity", IpAddress: strings.TrimPrefix(server.URL, "http://")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.UpdateControllerStatus(ctx, db.UpdateControllerStatusParams{IsOnline: sql.NullBool{Bool: true, Valid: true}, LedCount: 200, ID: controller.ID}); err != nil {
+		t.Fatal(err)
+	}
+	service := NewService(store, wled.NewClient(), slog.New(slog.NewTextHandler(os.Stdout, nil)))
+	if online, err := service.UpdateStatus(ctx, controller.ID); err != nil || online {
+		t.Fatalf("UpdateStatus = %v, %v; want offline, nil", online, err)
+	}
+	stored, err := store.GetController(ctx, controller.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.LedCount != 200 || stored.IsOnline.Bool {
+		t.Fatalf("status refresh changed capacity or failed to update status: led_count=%d online=%v", stored.LedCount, stored.IsOnline.Bool)
+	}
 }
 
 func TestService_ListControllers(t *testing.T) {

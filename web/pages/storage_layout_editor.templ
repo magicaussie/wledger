@@ -13,7 +13,7 @@ templ StorageLayoutEditor(layout storage.CabinetLayout, user auth.User) {
 	@layouts.Base("Cabinet designer", user) {
 		@templ.JSONScript("layout-editor-data", layout)
 		<div class="max-w-[1800px] mx-auto w-full" x-data="physicalLayoutEditor()" x-init="init()" x-on:keydown.window="onKeydown($event)">
-			@components.PageHeader("Cabinet designer", "Draw and arrange physical drawers and bin placements. Electrical mappings are read-only here.", []components.Breadcrumb{{Label: "Physical storage", URL: "/storage/cabinets"}, {Label: layout.Cabinet.Name, URL: fmt.Sprintf("/storage/cabinets/%d", layout.Cabinet.ID)}, {Label: "Designer"}})
+			@components.PageHeader("Cabinet designer", "Save physical layout and drawer LED allocations as separate operations. Configuration never activates WLED.", []components.Breadcrumb{{Label: "Physical storage", URL: "/storage/cabinets"}, {Label: layout.Cabinet.Name, URL: fmt.Sprintf("/storage/cabinets/%d", layout.Cabinet.ID)}, {Label: "Designer"}})
 			<form method="POST" action={templ.SafeURL(fmt.Sprintf("/storage/cabinets/%d/edit", layout.Cabinet.ID))} x-on:submit="prepare($event)" class="space-y-3">
 				<input type="hidden" name="csrf_token" value={csrf.TokenFromContext(ctx)} x-ref="csrf"/>
 				<input type="hidden" name="layout" x-ref="layout"/>
@@ -91,21 +91,37 @@ templ StorageLayoutEditor(layout storage.CabinetLayout, user auth.User) {
 							<section class="space-y-3" x-show="state.uiSelectionKind === 'drawer'">
 								<label class="form-control"><span class="label-text text-xs">Drawer label</span><input class="input input-bordered input-sm" x-model="selectedDrawer().label" x-on:focus="beginPropertyEdit()" x-on:change="finishPropertyEdit()"/></label>
 								<div class="grid grid-cols-2 gap-2"><label class="form-control"><span class="label-text text-xs">Order</span><input class="input input-bordered input-sm" type="number" x-model.number="selectedDrawer().display_order" x-on:focus="beginPropertyEdit()" x-on:change="finishPropertyEdit()"/></label><label class="form-control"><span class="label-text text-xs">Width</span><input class="input input-bordered input-sm" type="number" min="0.1" step="any" x-model.number="selectedDrawer().width" x-on:focus="beginPropertyEdit()" x-on:change="finishPropertyEdit()"/></label><label class="form-control"><span class="label-text text-xs">X</span><input class="input input-bordered input-sm" type="number" min="0" step="any" x-model.number="selectedDrawer().x" x-on:focus="beginPropertyEdit()" x-on:change="finishPropertyEdit()"/></label><label class="form-control"><span class="label-text text-xs">Y</span><input class="input input-bordered input-sm" type="number" min="0" step="any" x-model.number="selectedDrawer().y" x-on:focus="beginPropertyEdit()" x-on:change="finishPropertyEdit()"/></label><label class="form-control"><span class="label-text text-xs">Height</span><input class="input input-bordered input-sm" type="number" min="0.1" step="any" x-model.number="selectedDrawer().height" x-on:focus="beginPropertyEdit()" x-on:change="finishPropertyEdit()"/></label></div>
-								<div class="rounded border border-warning/50 bg-warning/10 p-3 space-y-2">
-									<h3 class="font-bold text-sm">LED Start / LED Count — draft only</h3>
-									<p class="text-xs">M7 authorizes physical layout editing, not writing electrical mappings. These values are kept in this browser only and are never applied to WLED or the live allocation records.</p>
+								<div class="rounded border border-info/50 bg-info/10 p-3 space-y-2">
+									<h3 class="font-bold text-sm">Saved LED allocation ranges</h3>
+									<p class="text-xs">Controller-wide, 1-based pixel numbers. A range may cross physical string boundaries; strings are not treated as WLED segments. Saving this mapping does not send requests to WLED.</p>
 									<p class="text-xs" x-text="controllerSummary()"></p>
-									<div class="grid grid-cols-2 gap-2">
-										<label class="form-control"><span class="label-text text-xs">LED Start</span><input class="input input-bordered input-sm" type="number" min="0" step="1" placeholder="Not configured" x-model="ledDraftFor(selectedDrawer()).start" x-bind:disabled="!selectedDrawer().id"/></label>
-										<label class="form-control"><span class="label-text text-xs">LED Count</span><input class="input input-bordered input-sm" type="number" min="1" step="1" placeholder="Not configured" x-model="ledDraftFor(selectedDrawer()).count" x-bind:disabled="!selectedDrawer().id"/></label>
-									</div>
-									<p class="text-xs" x-text="ledDraftStatus(selectedDrawer()).error || ledDraftStatus(selectedDrawer()).message" x-bind:class="ledDraftStatus(selectedDrawer()).error ? 'text-error font-semibold' : 'opacity-80'"></p>
-									<p class="text-xs text-info" x-show="!selectedDrawer().id">Save this physical drawer first to associate a browser-local draft with its stable drawer ID.</p>
-									<div class="flex gap-2"><button type="button" class="btn btn-xs btn-outline" x-on:click="saveLedDraft(selectedDrawer())" x-bind:disabled="!selectedDrawer().id">Save LED draft</button><button type="button" class="btn btn-xs btn-ghost" x-on:click="clearLedDraft(selectedDrawer())" x-bind:disabled="!selectedDrawer().id">Clear draft</button></div>
-									<p class="text-xs text-success" x-show="ledDraftSaved">LED draft saved in this browser only.</p>
-									<p class="text-xs text-error" role="alert" x-show="ledDraftError" x-text="ledDraftError"></p><p class="text-xs text-warning" role="status" x-show="ledDraftLoadNotice" x-text="ledDraftLoadNotice"></p>
+									if user.IsAdmin() && layout.Controller != nil {
+										<div class="rounded bg-base-300/50 p-2 space-y-2">
+											<label class="form-control"><span class="label-text text-xs">Total controller pixels across all physical strings</span><input class="input input-bordered input-sm" type="number" min="0" step="1" x-model="capacityDraft"/></label>
+											<p class="text-xs">This capacity defines the controller-wide 1-based index space; it does not configure WLED segments or activate hardware.</p>
+											<button type="button" class="btn btn-xs btn-outline" x-on:click="saveControllerCapacity()">Save controller capacity</button>
+											<p class="text-xs text-success" role="status" x-show="capacitySaveNotice" x-text="capacitySaveNotice"></p>
+											<p class="text-xs text-error" role="alert" x-show="capacitySaveError" x-text="capacitySaveError"></p>
+										</div>
+									}
+									<template x-for="(range,index) in ledRangesFor(selectedDrawer())" :key="range.id || ('new-' + index)">
+										<div class="rounded border border-base-300 p-2 space-y-2">
+											<div class="flex items-center justify-between"><strong class="text-xs" x-text="'Range ' + (index + 1)"></strong><button type="button" class="btn btn-xs btn-ghost text-error" x-on:click="removeLedRange(selectedDrawer(), index)">Remove range</button></div>
+											<div class="grid grid-cols-3 gap-2">
+												<label class="form-control"><span class="label-text text-xs">LED Start</span><input class="input input-bordered input-sm" type="number" min="1" step="1" x-model="range.start_pixel" x-bind:disabled="!selectedDrawer().id"/></label>
+												<label class="form-control"><span class="label-text text-xs">LED Count</span><input class="input input-bordered input-sm" type="number" min="1" step="1" x-model="range.pixel_count" x-bind:disabled="!selectedDrawer().id"/></label>
+												<div class="form-control"><span class="label-text text-xs">LED End</span><output class="input input-bordered input-sm" x-text="ledEnd(range)"></output></div>
+											</div>
+										</div>
+									</template>
+									<div class="flex flex-wrap gap-2"><button type="button" class="btn btn-xs btn-outline" x-on:click="addLedRange(selectedDrawer())" x-bind:disabled="!selectedDrawer().id">＋ Add range</button><button type="button" class="btn btn-xs btn-primary" x-on:click="saveLedAllocations(selectedDrawer())" x-bind:disabled="!selectedDrawer().id">Save LED mapping</button></div>
+									<p class="text-xs text-info" x-show="!selectedDrawer().id">Save this physical drawer with “Save layout” first. Its stable ID is required before creating a permanent LED allocation.</p>
+									<p class="text-xs" x-text="ledStatus(selectedDrawer()).error || ledStatus(selectedDrawer()).message" x-bind:class="ledStatus(selectedDrawer()).error ? 'text-error font-semibold' : 'opacity-80'"></p>
+									<p class="text-xs text-success" role="status" x-show="ledSaveNotice" x-text="ledSaveNotice"></p>
+									<p class="text-xs text-error" role="alert" x-show="ledSaveError" x-text="ledSaveError"></p>
+									<p class="text-xs text-warning" role="status" x-show="legacyLedDraftNotice" x-text="legacyLedDraftNotice"></p>
 								</div>
-								<div class="rounded bg-base-300/50 p-2 text-xs"><strong>Live electrical configuration</strong><p class="mt-1">Read-only. The existing allocation schema is attached to electrical containers/segments, not physical drawer IDs. No drawer-to-segment assignment exists in this M7 scope; do not apply a draft until that mapping is separately authorized and reviewed.</p></div>
+								<div class="rounded bg-base-300/50 p-2 text-xs"><strong>Coordinate-space boundary</strong><p class="mt-1">These rows store controller-wide pixel indices and the cabinet’s assigned controller. Legacy containers remain WLED segment allocations; no physical-output-to-WLED-segment conversion or Locate integration is performed here.</p></div>
 								<div class="flex flex-wrap gap-2"><button type="button" class="btn btn-sm btn-outline" x-on:click="openDrawer(selectedDrawer())">Open bin layout</button><button type="button" class="btn btn-sm btn-warning btn-outline" x-on:click="archiveDrawer()" x-show="selectedDrawer()?.id">Archive</button><button type="button" class="btn btn-sm btn-error btn-outline" x-on:click="deleteSelectedDrawer()">Delete</button></div>
 							</section>
 							<section class="space-y-3" x-show="state.uiSelectionKind === 'bin'">
@@ -118,6 +134,15 @@ templ StorageLayoutEditor(layout storage.CabinetLayout, user auth.User) {
 								<div class="grid grid-cols-2 gap-2"><label class="form-control"><span class="label-text text-xs">X</span><input class="input input-bordered input-sm" type="number" x-model.number="selectedDecoration().x" x-on:focus="beginPropertyEdit()" x-on:change="finishPropertyEdit()"/></label><label class="form-control"><span class="label-text text-xs">Y</span><input class="input input-bordered input-sm" type="number" x-model.number="selectedDecoration().y" x-on:focus="beginPropertyEdit()" x-on:change="finishPropertyEdit()"/></label><label class="form-control"><span class="label-text text-xs">Width</span><input class="input input-bordered input-sm" type="number" min="0" step="any" x-model.number="selectedDecoration().width" x-on:focus="beginPropertyEdit()" x-on:change="finishPropertyEdit()"/></label><label class="form-control"><span class="label-text text-xs">Height</span><input class="input input-bordered input-sm" type="number" min="0" step="any" x-model.number="selectedDecoration().height" x-on:focus="beginPropertyEdit()" x-on:change="finishPropertyEdit()"/></label></div><p class="text-xs opacity-70">Paint objects are decorative; they are never inventory bins or drawers.</p><button type="button" class="btn btn-error btn-outline btn-sm" x-on:click="deleteDecoration()">Delete drawing</button>
 							</section>
 							<section class="space-y-3" x-show="!state.uiSelectionKind">
+								if user.IsAdmin() {
+									<div class="rounded border border-base-300 p-3 space-y-2">
+										<label class="form-control"><span class="label-text text-xs">Assigned WLED controller</span><select class="select select-bordered select-sm" x-model="controllerDraft"><option value="0">Unassigned</option><template x-for="controller in controllers" :key="controller.id"><option x-bind:value="String(controller.id)" x-text="controller.name + ' (#' + controller.id + ') — ' + controller.led_count + ' pixels'"></option></template></select></label>
+										<p class="text-xs">A controller can belong to only one cabinet. Clear saved drawer ranges before changing or removing this assignment.</p>
+										<button type="button" class="btn btn-xs btn-outline" x-on:click="saveCabinetController()">Save controller assignment</button>
+										<p class="text-xs text-success" role="status" x-show="controllerSaveNotice" x-text="controllerSaveNotice"></p>
+										<p class="text-xs text-error" role="alert" x-show="controllerSaveError" x-text="controllerSaveError"></p>
+									</div>
+								}
 								<label class="form-control"><span class="label-text text-xs">Cabinet name</span><input class="input input-bordered input-sm" x-model="state.name" x-on:focus="beginPropertyEdit()" x-on:change="finishPropertyEdit()"/></label>
 								<div class="grid grid-cols-2 gap-2"><label class="form-control"><span class="label-text text-xs">Canvas width</span><input class="input input-bordered input-sm" type="number" min="0.1" step="any" x-model.number="state.width" x-on:focus="beginPropertyEdit()" x-on:change="finishPropertyEdit()"/></label><label class="form-control"><span class="label-text text-xs">Canvas height</span><input class="input input-bordered input-sm" type="number" min="0.1" step="any" x-model.number="state.height" x-on:focus="beginPropertyEdit()" x-on:change="finishPropertyEdit()"/></label></div>
 								<p class="text-xs opacity-70">Controller and electrical assignments are read-only and unchanged by this editor.</p><button type="button" class="btn btn-warning btn-outline btn-sm" x-on:click="archiveCabinet()">Archive cabinet</button><button type="button" class="btn btn-error btn-outline btn-sm" x-on:click="deleteCabinet()">Delete cabinet</button>

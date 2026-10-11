@@ -6,25 +6,98 @@ This is the single active development handover document. `AGENTS.md` defines
 development policy; the root `ROADMAP.md` records product requirements and design
 updates. Historical handovers are references, not active instructions.
 
-Current task: Task 045 M6 Physical Browsing, followed by M7 Stable Layout
-Editing.
+Current task: Task 046 — Permanent Drawer LED Allocation, an explicitly
+authorized database-backed extension to the M6/M7 Cabinet Designer scope.
 
-Status: M1–M5 and the evolving M6/M7 implementation are published on
-`development/chatgpt-m6-m7`. The M7 interface is a three-panel interactive SVG
-cabinet/bin designer with persisted decorative Paint objects. LED Start/Count
-sidebar controls are browser-local drafts only: current M7 authorization does
-not permit changing live electrical mappings, and no physical drawer-to-segment
-assignment exists. Headless Chromium covers visual editing, draft validation/
-reload, lifecycle safety, and stock/electrical preservation. Full product
-acceptance remains subject to owner review; M8 and later remain out of scope.
+Status at baseline: branch `development/chatgpt-m6-m7` was clean at
+`c65240efe4bef607d4acc5d1d0f54126f65d71c7`, synchronized with its origin branch.
+Task implementation adds persistent drawer LED ranges separately from physical
+layout; code, full verification, browser coverage and the local commit are complete.
+The approved push to the development branch is pending. Earlier M7
+browser-local draft notes in this handover are historical and superseded by the
+Task 046 section; those values are deliberately not imported or deleted.
 
-The current owner instruction authorizes M6/M7 source changes, isolated tests,
-documentation, commits and pushes ONLY to `development/chatgpt-m6-m7`.
-No merge to main, deployment, production database changes, destructive
-migration, hardware operation or changes to the original archival checkout
-are authorized. Preserve the additive physical-storage architecture: no
-automatic legacy backfills, inventory remapping, or new Locate behavior.
+The current owner instruction authorizes implementation, tests, documentation,
+a local commit and push ONLY to `development/chatgpt-m6-m7`. It does not
+authorize merge to main, deployment, production migration/restore, changes to
+existing live mappings, hardware activation or edits to the archival checkout.
+The implementation is additive: it does not backfill or rewrite legacy LED,
+bin, container, inventory or Locate data.
 Older authorization statements below are historical, not the current scope.
+
+## Task 046 — Permanent Drawer LED Allocation — 2026-10-12
+
+- **Baseline/branch:** started clean on `development/chatgpt-m6-m7` at
+  `c65240efe4bef607d4acc5d1d0f54126f65d71c7` (parent of the task commit).
+  Owner authorized this extension and only a development-branch commit/push.
+- **Audit conclusion:** `controllers.led_count` is the existing controller
+  capacity. Legacy `containers.led_start/led_count` are stored on electrical
+  container/WLED-segment rows; `segment_id` is not a physical string/output
+  identifier, and neither these tables nor `bins.led_index` defines a mapping
+  from physical output order to WLED segments. `drawers` are independent
+  physical records. No legacy mapping was converted or changed.
+- **Addressing contract:** new drawer allocations use controller-wide,
+  user-facing 1-based pixel numbers `[start, start + count - 1]`, bounded by
+  that controller's positive `controllers.led_count`. This namespace is
+  independent of physical-string and WLED-segment boundaries. For a controller
+  with two 100-pixel strings, Start 97 / Count 8 is one allocation 97–104; it
+  is not split. This does not infer which WLED segment/output receives an index.
+- **Persistence:** additive migration 015 creates `drawer_led_allocations` with
+  stable row ID, drawer/cabinet/controller FKs, 1-based start, count and order.
+  Composite FKs require the allocation's cabinet to own the drawer and assigned
+  controller, protecting controller reassignment. Saves use `BEGIN IMMEDIATE`,
+  `cabinets.electrical_revision` optimistic concurrency, range/overflow/capacity
+  checks and controller-wide overlap rejection. Multiple ordered, nonoverlapping
+  ranges per drawer are supported. An admin can assign/unassign a controller
+  in the Designer when no drawer ranges exist; assignment changes use the cabinet
+  electrical revision and preserve all physical/inventory records. An admin can
+  explicitly set total `controllers.led_count` from the Designer when missing or
+  incorrect; capacity edits use expected-value and cabinet electrical-revision
+  checks and cannot shrink below any saved allocation.
+- **UI/security:** the Designer loads server allocations, shows Start/Count/End,
+  assigned controller and validation status, plus add/remove controls. “Save
+  layout”, “Save controller assignment”, “Save controller capacity” and “Save
+  LED mapping” are separate POST transactions. A new drawer must first be
+  persisted for its stable ID; unsaved canvas edits block navigation-causing
+  electrical saves, and unsaved electrical drafts block physical-layout saves.
+  Controller assignment/capacity writes are admin-authorized;
+  drawer mapping/layout writes remain editor/admin-authorized; every new write
+  is CSRF protected. Legacy browser-local LED drafts are never imported or
+  removed; the UI warns and leaves them untouched. Mapping/config writes issue
+  no WLED requests.
+- **Backup/lifecycle:** new exports include allocations and restore validates
+  identities, controller ownership, capacity, ordering, overflow and overlap.
+  Old current-format archives lacking the new allocation list remain readable,
+  but restoring one over existing allocations is refused to prevent data loss.
+  Drawer archive preserves mappings; permanent deletion is blocked until ranges
+  are explicitly cleared. Legacy bin/stock/container rows remain untouched.
+- **Related defect fixed:** controller online-status refresh previously used an
+  update query that also wrote a zero `led_count`; status refresh now updates
+  online state only, preserving configured allocation capacity.
+- **Delegation/review:** DeepSeek V4.1 Flash performed a read-only source audit
+  and a follow-up review; its capacity-source and unsaved-edit findings were
+  resolved and rechecked. Implementation and acceptance remain the lead agent's
+  responsibility.
+- **Verification:** `sqlc generate`, `templ generate`, production CSS build,
+  `npm test`, headless Chromium `npm run test:layout-browser`, focused and full
+  `CGO_ENABLED=1 go test -tags fts5`, `go vet`, `go build`, and `git diff
+  --check` pass. The Chromium run assigned a controller through the UI, saved a
+  97–104 cross-boundary range, reloaded two disjoint ranges, checked capacity/
+  overlap errors, saved controller capacity through the UI, proved unsaved canvas
+  edits block electrical-save navigation, and observed zero WLED requests and zero
+  page/console errors. Go router tests also cover authorization and CSRF rejection
+  for these configuration write routes. CSS
+  retains the existing nonfatal daisyUI `@property --radialprogress` warning.
+  Full commit/parent hashes, changed files and remote synchronization are reported
+  in the task completion report after publication.
+- **Risks/limits:** no physical string/output configuration table, WLED segment
+  coordinate conversion, Locate consumption or hardware activation was added.
+  A separately reviewed future Locate path must explicitly convert saved
+  controller-wide pixels to the intended WLED segment/output without treating
+  legacy `containers` as drawers. New v2.0 backups include an additive allocation
+  field unknown to older binaries; restoring new exports requires this or a newer
+  build. The new build accepts old backups but refuses old snapshots over saved
+  drawer allocations so they cannot silently erase unmappable data.
 
 ## M7 LED sidebar authorization boundary — 2026-10-12
 

@@ -148,14 +148,20 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 			// Physical layout editing (M7): editor/admin, CSRF-protected writes.
 			r.Get("/storage/cabinets/{id}/edit", h.HandleLayoutEditor)
 			r.Group(func(r chi.Router) {
+				r.Use(mw.RequireRole("admin"))
+				r.Use(mw.RequireCSRF)
+				r.Post("/storage/cabinets/{id}/controller", h.HandleCabinetControllerSave)
+			})
+			r.Group(func(r chi.Router) {
 				r.Use(mw.RequireCSRF)
 				r.Post("/storage/cabinets", h.HandleLayoutCabinetCreate)
 				r.Post("/storage/cabinets/{id}/edit", h.HandleLayoutSave)
-								r.Post("/storage/cabinets/{id}/archive", h.HandleLayoutCabinetArchive)
-								r.Post("/storage/cabinets/{id}/delete", h.HandleLayoutCabinetDelete)
-								r.Post("/storage/cabinets/{id}/drawers/{drawerID}/archive", h.HandleLayoutDrawerArchive)
-								r.Post("/storage/cabinets/{id}/drawers/{drawerID}/delete", h.HandleLayoutDrawerDelete)
-								r.Post("/storage/cabinets/{id}/bins/{binID}/detach", h.HandleLayoutBinDetach)
+				r.Post("/storage/cabinets/{id}/drawers/{drawerID}/led", h.HandleDrawerLEDAllocationsSave)
+				r.Post("/storage/cabinets/{id}/archive", h.HandleLayoutCabinetArchive)
+				r.Post("/storage/cabinets/{id}/delete", h.HandleLayoutCabinetDelete)
+				r.Post("/storage/cabinets/{id}/drawers/{drawerID}/archive", h.HandleLayoutDrawerArchive)
+				r.Post("/storage/cabinets/{id}/drawers/{drawerID}/delete", h.HandleLayoutDrawerDelete)
+				r.Post("/storage/cabinets/{id}/bins/{binID}/detach", h.HandleLayoutBinDetach)
 			})
 
 			// Parts CRUD
@@ -213,6 +219,10 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 			r.Get("/hardware/{id}/export", h.HandleHardwareExport)
 			r.Post("/hardware/{id}/delete", h.HandleHardwareDelete)
 			r.Post("/hardware/{id}/grid", h.HandleHardwareGridSave)
+			r.Group(func(r chi.Router) {
+				r.Use(mw.RequireCSRF)
+				r.Post("/hardware/{id}/capacity", h.HandleHardwareCapacitySave)
+			})
 
 			// LED Coordinate Space Conversion (drawer-relative opt-in)
 			r.Get("/hardware/conversion", h.HandleConversionPreview)

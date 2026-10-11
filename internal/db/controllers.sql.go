@@ -11,7 +11,7 @@ import (
 )
 
 const createController = `-- name: CreateController :one
-INSERT INTO controllers (name, ip_address, port) 
+INSERT INTO controllers (name, ip_address, port)
 VALUES (?, ?, ?)
 RETURNING id, name, ip_address, is_online, created_at
 `
@@ -158,9 +158,45 @@ func (q *Queries) RestoreController(ctx context.Context, arg RestoreControllerPa
 	return err
 }
 
+const setControllerOnlineStatus = `-- name: SetControllerOnlineStatus :exec
+UPDATE controllers
+SET is_online = ?
+WHERE id = ?
+`
+
+type SetControllerOnlineStatusParams struct {
+	IsOnline sql.NullBool `json:"is_online"`
+	ID       int64        `json:"id"`
+}
+
+func (q *Queries) SetControllerOnlineStatus(ctx context.Context, arg SetControllerOnlineStatusParams) error {
+	_, err := q.exec(ctx, q.setControllerOnlineStatusStmt, setControllerOnlineStatus, arg.IsOnline, arg.ID)
+	return err
+}
+
+const updateControllerLedCount = `-- name: UpdateControllerLedCount :execrows
+UPDATE controllers
+SET led_count = ?
+WHERE id = ? AND led_count = ?
+`
+
+type UpdateControllerLedCountParams struct {
+	LedCount   int64 `json:"led_count"`
+	ID         int64 `json:"id"`
+	LedCount_2 int64 `json:"led_count_2"`
+}
+
+func (q *Queries) UpdateControllerLedCount(ctx context.Context, arg UpdateControllerLedCountParams) (int64, error) {
+	result, err := q.exec(ctx, q.updateControllerLedCountStmt, updateControllerLedCount, arg.LedCount, arg.ID, arg.LedCount_2)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const updateControllerStatus = `-- name: UpdateControllerStatus :exec
-UPDATE controllers 
-SET is_online = ?, led_count = ? 
+UPDATE controllers
+SET is_online = ?, led_count = ?
 WHERE id = ?
 `
 

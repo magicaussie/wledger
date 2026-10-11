@@ -21,6 +21,17 @@ func (e *PhysicalStorageConflictError) Error() string {
 	return "restore refused: " + e.Reason
 }
 
+// DrawerLEDAllocationConflictError prevents an older v2.0 archive that predates
+// persistent drawer LED allocations from silently clearing mappings it cannot
+// reproduce.
+type DrawerLEDAllocationConflictError struct {
+	Reason string
+}
+
+func (e *DrawerLEDAllocationConflictError) Error() string {
+	return "restore refused: " + e.Reason
+}
+
 // physicalGraphPopulated reports whether the installation holds any cabinet,
 // drawer or bin attachment. Every table is read so a partially populated graph is
 // still detected rather than assumed impossible.
@@ -51,6 +62,9 @@ func physicalGraphPopulated(ctx context.Context, q db.Querier) (bool, error) {
 // drawers, drawers reference cabinets and cabinets reference controllers, so the
 // restrictive foreign keys would otherwise block the legacy clears.
 func clearPhysicalStorage(ctx context.Context, q db.Querier) error {
+	if err := q.ClearDrawerLEDAllocations(ctx); err != nil {
+		return fmt.Errorf("failed to clear drawer LED allocations: %w", err)
+	}
 	if err := q.ClearBinDrawerAttachments(ctx); err != nil {
 		return fmt.Errorf("failed to clear bin attachments: %w", err)
 	}
@@ -89,6 +103,11 @@ func restorePhysicalStorage(ctx context.Context, q db.Querier, snap PhysicalStor
 	for _, a := range snap.BinAttachments {
 		if err := q.RestoreBinDrawerAttachment(ctx, db.RestoreBinDrawerAttachmentParams(a)); err != nil {
 			return fmt.Errorf("bin attachment restore: %w", err)
+		}
+	}
+	for _, allocation := range snap.LEDAllocations {
+		if err := q.RestoreDrawerLEDAllocation(ctx, db.RestoreDrawerLEDAllocationParams(allocation)); err != nil {
+			return fmt.Errorf("drawer LED allocation restore: %w", err)
 		}
 	}
 	return nil

@@ -229,3 +229,39 @@ A part type may be stocked in multiple bins, with quantities tracked per locatio
 - Distinguish electrical string/segment, physical drawer, internal bin and inventory assignment as separate entities in the revised schema; avoid repurposing existing `containers` into physical drawers by name alone.
 
 **Roadmap changelog:** v0.5 — flexible multi-user data-driven schema, no cabinet-specific hardcoding.
+
+
+## Design update — 2026-10-12: permanent controller-wide drawer LED allocations
+
+**Confirmed implementation contract:**
+- Permanent drawer assignments are separate child records; never repurpose
+  `containers.led_start/led_count` or `bins.led_index` as drawer allocations.
+- User-facing indices are 1-based controller-wide pixel numbers. For physical
+  strings arranged as 1–100 and 101–200, a drawer range Start 97 / Count 8 is
+  one valid 97–104 allocation, even though it crosses the physical-string edge.
+- Multiple non-contiguous ranges per drawer are supported and deterministically
+  ordered. Ranges overlap neither other drawers nor another range on that drawer.
+- Capacity is checked against the assigned controller's positive total LED
+  capacity, which must be explicitly configured as the total across physical
+  strings when absent or incorrect. Physical strings/outputs, WLED segments
+  and legacy containers remain distinct concepts; saved global indices are not
+  automatically converted to a segment-relative WLED request.
+- Physical drawer layout saves and electrical allocation saves are separate
+  transactions. A drawer needs a stable persisted ID before allocation. Moving
+  or resizing the physical drawer does not rewrite its mapping.
+- Allocation writes must be authorized, CSRF-protected, transactional and
+  revision-safe. Backups preserve allocations; older snapshots lacking this
+  additive data must not silently erase allocations on restore.
+- This data model is configuration only. It does not activate hardware, alter
+  existing live mappings, or implement the Locate-to-WLED conversion.
+
+**Architecture note:** Existing `containers` rows carry `segment_id` and legacy
+segment-scoped allocations, but do not identify physical strings/outputs or
+controller-wide output offsets. Those records cannot establish physical-string
+versus-WLED-segment correspondence. Future Locate integration must add and
+review an explicit controller-global-pixel → WLED segment/output conversion;
+it must not infer this relationship from container names or IDs.
+
+**Roadmap changelog:** v0.6 — confirmed persistent controller-wide drawer
+allocation coordinates, cross-string range behavior, and separation from legacy
+segment mappings.

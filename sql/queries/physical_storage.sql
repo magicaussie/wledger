@@ -23,6 +23,11 @@ UPDATE cabinets
 SET name = ?, controller_id = ?, coordinate_system = ?, display_order = ?, updated_at = CURRENT_TIMESTAMP
 WHERE id = ?;
 
+-- name: UpdateCabinetController :execrows
+UPDATE cabinets
+SET controller_id = ?, updated_at = CURRENT_TIMESTAMP
+WHERE id = ?;
+
 -- name: UpdateCabinetLayoutSettings :execrows
 UPDATE cabinets
 SET name = ?, coordinate_system = ?, display_order = ?, layout_width = ?, layout_height = ?, layout_decorations_json = ?, updated_at = CURRENT_TIMESTAMP
@@ -42,6 +47,11 @@ WHERE id = ? AND layout_revision = ?;
 UPDATE cabinets
 SET electrical_revision = ?, updated_at = CURRENT_TIMESTAMP
 WHERE id = ?;
+
+-- name: AdvanceCabinetElectricalRevision :execrows
+UPDATE cabinets
+SET electrical_revision = electrical_revision + 1, updated_at = CURRENT_TIMESTAMP
+WHERE id = ? AND electrical_revision = ?;
 
 -- name: ArchiveCabinet :execrows
 UPDATE cabinets

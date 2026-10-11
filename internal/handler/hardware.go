@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/tuxedocurly/wledger/internal/hardware"
 	"github.com/tuxedocurly/wledger/internal/ledspace"
 	"github.com/tuxedocurly/wledger/internal/qrcode"
+	"github.com/tuxedocurly/wledger/internal/storage"
 	"github.com/tuxedocurly/wledger/internal/wled"
 	"github.com/tuxedocurly/wledger/web/pages"
 )
@@ -68,6 +70,37 @@ func (h *Handler) HandleHardwareCreate(w http.ResponseWriter, r *http.Request) {
 }
 
 // POST /hardware/{id}/delete
+func (h *Handler) HandleHardwareCapacitySave(w http.ResponseWriter, r *http.Request) {
+	controllerID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	capacity, capacityErr := strconv.ParseInt(r.FormValue("led_count"), 10, 64)
+	expectedCapacity, expectedErr := strconv.ParseInt(r.FormValue("expected_led_count"), 10, 64)
+	electricalRevision, revisionErr := strconv.ParseInt(r.FormValue("electrical_revision"), 10, 64)
+	if err != nil || capacityErr != nil || expectedErr != nil || revisionErr != nil {
+		http.Error(w, "invalid controller capacity request", http.StatusBadRequest)
+		return
+	}
+	if err := h.layoutService().SaveControllerLEDCapacity(r.Context(), controllerID, expectedCapacity, capacity, electricalRevision); err != nil {
+		status := http.StatusBadRequest
+		if errors.Is(err, storage.ErrLEDControllerCapacityStale) || errors.Is(err, storage.ErrLEDAllocationStale) {
+			status = http.StatusConflict
+		}
+		cabinet, cabinetErr := h.Queries.GetCabinetByController(r.Context(), sql.NullInt64{Int64: controllerID, Valid: true})
+		if cabinetErr == nil {
+			target := fmt.Sprintf("/storage/cabinets/%d/edit?capacity_error=%s", cabinet.ID, url.QueryEscape(err.Error()))
+			http.Redirect(w, r, target, http.StatusSeeOther)
+			return
+		}
+		h.UIError.Respond(w, r, err, "Controller LED capacity was not saved", status)
+		return
+	}
+	cabinet, err := h.Queries.GetCabinetByController(r.Context(), sql.NullInt64{Int64: controllerID, Valid: true})
+	if err == nil {
+		http.Redirect(w, r, fmt.Sprintf("/storage/cabinets/%d/edit?capacity_saved=1", cabinet.ID), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, "/hardware", http.StatusSeeOther)
+}
+
 func (h *Handler) HandleHardwareDelete(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, _ := strconv.Atoi(idStr)

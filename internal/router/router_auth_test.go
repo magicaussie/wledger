@@ -173,6 +173,45 @@ func (e *authTestEnv) csrfToken(t *testing.T, cookies []*http.Cookie) string {
 	return rr.Body.String()
 }
 
+func TestDrawerLEDConfigurationWritesRequireAdminAndCSRF(t *testing.T) {
+	env := newAuthTestEnv(t)
+	defer env.conn.Close()
+	env.createUser(t, "viewer@test.com", "viewer")
+	env.createUser(t, "editor@test.com", "editor")
+	env.createUser(t, "admin@test.com", "admin")
+
+	mappingPath := "/storage/cabinets/1/drawers/1/led"
+	assignmentPath := "/storage/cabinets/1/controller"
+	capacityPath := "/hardware/1/capacity"
+
+	viewerCookies := env.login(t, "viewer@test.com")
+	for _, path := range []string{mappingPath, assignmentPath, capacityPath} {
+		if rr := env.post(path, viewerCookies); rr.Code != http.StatusForbidden {
+			t.Errorf("viewer POST %s = %d, want 403", path, rr.Code)
+		}
+	}
+
+	editorCookies := env.login(t, "editor@test.com")
+	for _, path := range []string{assignmentPath, capacityPath} {
+		if rr := env.post(path, editorCookies); rr.Code != http.StatusForbidden {
+			t.Errorf("editor POST %s = %d, want admin-only 403", path, rr.Code)
+		}
+	}
+	if rr := env.post(mappingPath, editorCookies); rr.Code != http.StatusForbidden {
+		t.Errorf("editor mapping POST without CSRF = %d, want 403", rr.Code)
+	}
+
+	adminCookies := env.login(t, "admin@test.com")
+	for _, path := range []string{mappingPath, assignmentPath, capacityPath} {
+		if rr := env.post(path, adminCookies); rr.Code != http.StatusForbidden {
+			t.Errorf("admin POST %s without CSRF = %d, want 403", path, rr.Code)
+		}
+		if rr := env.postWithCSRF(path, adminCookies, "invalid-token"); rr.Code != http.StatusForbidden {
+			t.Errorf("admin POST %s with invalid CSRF = %d, want 403", path, rr.Code)
+		}
+	}
+}
+
 // TestHardwareActionsRequireAuthentication verifies that an unauthenticated
 // guest cannot reach any LED-operating endpoint (redirected to /login) and that
 // no WLED action is triggered.

@@ -299,6 +299,10 @@ func (s *service) snapshotStorageManifest(ctx context.Context) (StorageManifest,
 		if err != nil {
 			return fmt.Errorf("failed to fetch bin attachments: %w", err)
 		}
+		ledAllocations, err := q.ListAllDrawerLEDAllocations(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to fetch drawer LED allocations: %w", err)
+		}
 		flags, err := q.GetAllSystemFlags(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to fetch system flags: %w", err)
@@ -315,6 +319,9 @@ func (s *service) snapshotStorageManifest(ctx context.Context) (StorageManifest,
 		if attachments == nil {
 			attachments = []db.BinDrawerAttachment{}
 		}
+		if ledAllocations == nil {
+			ledAllocations = []db.DrawerLedAllocation{}
+		}
 		if flags == nil {
 			flags = []db.SystemFlag{}
 		}
@@ -324,9 +331,11 @@ func (s *service) snapshotStorageManifest(ctx context.Context) (StorageManifest,
 			ExportedAt: m.ExportedAt,
 			Legacy:     m,
 			PhysicalStorage: PhysicalStorageSnapshot{
-				Cabinets:       cabinets,
-				Drawers:        drawers,
-				BinAttachments: attachments,
+				Cabinets:               cabinets,
+				Drawers:                drawers,
+				BinAttachments:         attachments,
+				LEDAllocations:         ledAllocations,
+				LEDAllocationsDeclared: true,
 			},
 			SystemFlags: flags,
 		}
@@ -550,6 +559,15 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 			}
 		}
 	}
+	if envelope.Current != nil && !envelope.Current.PhysicalStorage.LEDAllocationsDeclared {
+		allocations, err := s.store.ListAllDrawerLEDAllocations(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to check existing drawer LED allocations: %w", err)
+		}
+		if len(allocations) != 0 {
+			return &DrawerLEDAllocationConflictError{Reason: "this older current-format backup does not contain drawer LED allocations, but this installation has saved mappings; export a new backup before restoring"}
+		}
+	}
 
 	// Every pre-extraction validation has passed; only now clean up staging left
 	// behind by a previous, interrupted restore. Running this after the whole
@@ -628,6 +646,15 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 				return &PhysicalStorageConflictError{
 					Reason: "the archive is a legacy " + legacyManifestName + " backup that carries no physical storage, but this installation already has cabinets, drawers or bin attachments",
 				}
+			}
+		}
+		if envelope.Current != nil && !envelope.Current.PhysicalStorage.LEDAllocationsDeclared {
+			allocations, err := qtx.ListAllDrawerLEDAllocations(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to recheck existing drawer LED allocations: %w", err)
+			}
+			if len(allocations) != 0 {
+				return &DrawerLEDAllocationConflictError{Reason: "this older current-format backup does not contain drawer LED allocations, but this installation has saved mappings; export a new backup before restoring"}
 			}
 		}
 		s.logger.Debug("clearing existing database records")

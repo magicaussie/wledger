@@ -4,12 +4,21 @@ function physicalLayoutEditor() {
     lastStateJSON: '',
     bins: [],
     controller: null,
+    controllers: [],
     controllerError: '',
-    ledDrafts: {},
-    ledDraftKey: '',
-    ledDraftSaved: false,
-    ledDraftError: '',
-    ledDraftLoadNotice: '',
+    controllerDraft: '0',
+    controllerSaveNotice: '',
+    controllerSaveError: '',
+    ledRanges: {},
+    persistedLedRanges: {},
+    electricalRevision: 0,
+    allowElectricalNavigation: false,
+    capacityDraft: '',
+    capacitySaveNotice: '',
+    capacitySaveError: '',
+    ledSaveNotice: '',
+    ledSaveError: '',
+    legacyLedDraftNotice: '',
     mode: 'cabinet',
     tool: 'select',
     selection: { kind: '', key: '' },
@@ -35,7 +44,22 @@ function physicalLayoutEditor() {
       const data = JSON.parse(document.getElementById('layout-editor-data').textContent);
       const cabinet = data.Cabinet;
       this.controller = data.Controller || null;
+      this.controllers = data.Controllers || [];
       this.controllerError = data.ControllerError || '';
+      this.controllerDraft = this.controller ? String(this.controller.id) : '0';
+      this.electricalRevision = cabinet.electrical_revision;
+      const query = new URLSearchParams(window.location.search);
+      this.controllerSaveError = query.get('controller_error') || '';
+      this.controllerSaveNotice = query.get('controller_saved') === '1' ? 'Controller assignment saved.' : '';
+      this.capacityDraft = this.controller ? String(this.controller.led_count) : '';
+      this.capacitySaveError = query.get('capacity_error') || '';
+      this.capacitySaveNotice = query.get('capacity_saved') === '1' ? 'Controller-wide pixel capacity saved.' : '';
+      this.ledSaveError = query.get('led_error') || '';
+      this.ledSaveNotice = new URLSearchParams(window.location.search).get('led_saved') === '1' ? 'Electrical mapping saved to the database.' : '';
+      const oldLedDraftKey = `wledger-led-allocation-draft-cab-${cabinet.id}`;
+      try {
+        if (localStorage.getItem(oldLedDraftKey) !== null) this.legacyLedDraftNotice = 'A legacy browser-local LED draft exists but was not imported. Database allocations are authoritative; the old draft has been left untouched.';
+      } catch { this.legacyLedDraftNotice = 'Browser storage is unavailable; saved database allocations remain authoritative.'; }
       let decorations = [];
       try { decorations = JSON.parse(cabinet.layout_decorations_json || '[]'); } catch { decorations = []; }
       this.state = {
@@ -70,17 +94,18 @@ function physicalLayoutEditor() {
           })),
         })),
       };
+      this.ledRanges = {};
+      for (const item of data.Drawers || []) {
+        this.ledRanges[`drawer-${item.Drawer.id}`] = (item.LedAllocations || []).map(range => ({ id: range.id, start_pixel: String(range.start_pixel), pixel_count: String(range.pixel_count) }));
+      }
+      this.persistedLedRanges = this.clone(this.ledRanges);
       this.bins = (data.UnattachedBins || []).map(bin => ({ id: bin.id, name: bin.name }));
-      this.ledDraftKey = `wledger-led-allocation-draft-cab-${cabinet.id}`;
-      for (const drawer of this.state.drawers) this.ledDrafts[drawer.key] = { start: '', count: '' };
-      this.loadLedDrafts();
       this.draftKey = `wledger-layout-draft-${cabinet.id}`;
       if (this.error) this.restoreDraft();
       this.selection = { kind: this.state.uiSelectionKind || '', key: this.state.uiSelectionKey || '' };
       this.lastStateJSON = this.layoutFingerprint();
       this.pushHistoryBase();
-      this.$watch('ledDrafts', () => { this.ledDraftSaved = false; this.ledDraftError = ''; }, { deep: true });
-            this.$watch('state', () => {
+      this.$watch('state', () => {
         const current = this.layoutFingerprint();
         if (!this.saving && current !== this.lastStateJSON) {
           this.dirty = true;
@@ -90,7 +115,7 @@ function physicalLayoutEditor() {
         this.renderCanvas();
       }, { deep: true });
       window.addEventListener('beforeunload', event => {
-        if (this.dirty) { event.preventDefault(); event.returnValue = ''; }
+        if ((this.dirty || this.hasUnsavedElectricalChanges()) && !this.saving && !this.allowElectricalNavigation) { event.preventDefault(); event.returnValue = ''; }
       });
       this.$nextTick(() => { this.renderCanvas(); this.$refs.canvas?.focus(); });
     },
@@ -153,6 +178,11 @@ function physicalLayoutEditor() {
     },
     prepare(event) {
       this.error = '';
+      if (this.hasUnsavedElectricalChanges()) {
+        event.preventDefault();
+        this.error = 'Save or cancel controller and LED allocation changes before saving the physical layout.';
+        return;
+      }
       const payload = this.cleanPayload();
       if (!payload.name.trim() || !Number.isFinite(payload.width) || !Number.isFinite(payload.height) || payload.width <= 0 || payload.height <= 0) {
         event.preventDefault();
@@ -375,82 +405,110 @@ function physicalLayoutEditor() {
     selectedDrawer() { return this.entity('drawer', this.selection.key) || (this.emptyDrawer ||= { id:0,key:'',label:'',display_order:0,x:0,y:0,width:1,height:1,bins:[] }); },
     selectedBin() { return this.entity('bin', this.selection.key) || (this.emptyBin ||= { id:0,key:'',name:'',display_order:0,x:0,y:0,width:1,height:1 }); },
     selectedDecoration() { return this.entity('decoration', this.selection.key) || (this.emptyDecoration ||= { key:'',kind:'label',text:'',x:0,y:0,width:0,height:0 }); },
-    loadLedDrafts() {
-      try {
-        const saved = JSON.parse(localStorage.getItem(this.ledDraftKey) || 'null');
-        const controllerID = this.controller ? Number(this.controller.id) : null;
-        if (!saved) return;
-        if (saved.controllerId !== controllerID) { this.ledDraftLoadNotice = 'A saved draft belongs to a different controller configuration and was not loaded.'; return; }
-        for (const drawer of this.state.drawers) {
-          if (!drawer.id) continue;
-          const entry = saved.allocations?.[String(drawer.id)];
-          if (entry) this.ledDrafts[drawer.key] = { start: entry.start ?? '', count: entry.count ?? '' };
-        }
-      } catch { this.ledDraftLoadNotice = 'The saved LED draft could not be read.'; }
+    ledRangesFor(drawer) {
+      if (!drawer) return [];
+      if (!this.ledRanges[drawer.key]) this.ledRanges[drawer.key] = [];
+      return this.ledRanges[drawer.key];
     },
-    ledDraftFor(drawer) {
-      if (!drawer) return this.emptyLedDraft ||= { start: '', count: '' };
-      if (!this.ledDrafts[drawer.key]) this.ledDrafts[drawer.key] = { start: '', count: '' };
-      return this.ledDrafts[drawer.key];
+    ledRangesChanged(drawerKey) {
+      return JSON.stringify(this.ledRanges[drawerKey] || []) !== JSON.stringify(this.persistedLedRanges[drawerKey] || []);
     },
-    ledDraftStatus(drawer) {
-      const draft = this.ledDraftFor(drawer);
-      const startText = String(draft.start ?? '').trim();
-      const countText = String(draft.count ?? '').trim();
-      if (!startText && !countText) return { error: '', message: 'Unconfigured. No LED draft values are stored.' };
-      if (!startText || !countText) return { error: 'Enter both LED Start and LED Count, or leave both blank.' };
-      const start = Number(startText); const count = Number(countText);
-      if (!Number.isSafeInteger(start) || start < 0) return { error: 'LED Start must be a non-negative whole number.' };
-      if (!Number.isSafeInteger(count) || count <= 0) return { error: 'LED Count must be a positive whole number.' };
-      const end = start + count;
-      if (!Number.isSafeInteger(end)) return { error: 'LED range exceeds the supported numeric range.' };
-      for (const other of this.state.drawers) {
-        if (other.key === drawer?.key || !other.id) continue;
-        const otherDraft = this.ledDraftFor(other);
-        const otherStart = Number(otherDraft.start); const otherCount = Number(otherDraft.count);
-        if (!String(otherDraft.start ?? '').trim() || !String(otherDraft.count ?? '').trim() || !Number.isSafeInteger(otherStart) || !Number.isSafeInteger(otherCount) || otherCount <= 0) continue;
-        if (start < otherStart + otherCount && otherStart < end) return { error: `This draft overlaps ${other.label}. Segment assignment is unknown, so overlap is checked conservatively across this cabinet.` };
-      }
-      if (this.controllerError) return { error: this.controllerError + ' Drafts cannot be validated against a controller.' };
-            if (!this.controller) return { error: '', message: 'Valid local draft only. No cabinet controller is assigned; the range cannot be checked against a controller.' };
+    hasUnsavedLedRangesExcept(drawerKey = '') {
+      return this.state.drawers.some(drawer => drawer.key !== drawerKey && this.ledRangesChanged(drawer.key));
+    },
+    controllerAssignmentChanged() {
+      return String(Number(this.controllerDraft) || 0) !== String(this.controller?.id || 0);
+    },
+    controllerCapacityChanged() {
+      return !!this.controller && Number(this.capacityDraft) !== Number(this.controller.led_count);
+    },
+    hasUnsavedElectricalChanges() {
+      return this.controllerAssignmentChanged() || this.controllerCapacityChanged() || this.hasUnsavedLedRangesExcept();
+    },
+    ledEnd(range) {
+      const start = Number(range?.start_pixel); const count = Number(range?.pixel_count);
+      return Number.isSafeInteger(start) && start >= 1 && Number.isSafeInteger(count) && count >= 1 && Number.isSafeInteger(start + count - 1) ? start + count - 1 : '—';
+    },
+    ledStatus(drawer) {
+      if (this.controllerError) return { error: `${this.controllerError} Electrical allocations cannot be validated.` };
+      if (!this.controller) return { error: 'Assign a controller to this cabinet before saving LED allocations.' };
       const capacity = Number(this.controller.led_count);
-      if (!Number.isSafeInteger(capacity) || capacity <= 0) return { error: 'The assigned controller has no valid LED capacity.' };
-      if (end > capacity) return { error: `LED range ends at ${end}, beyond controller #${this.controller.id} capacity (${capacity}).` };
-      return { error: '', message: `Draft range [${start}, ${end}) fits controller #${this.controller.id} (${capacity} LEDs). No electrical segment is assigned; this remains a local draft.` };
+      if (!Number.isSafeInteger(capacity) || capacity < 1) return { error: 'The assigned controller has no valid positive LED capacity.' };
+      const ranges = [];
+      for (const candidate of this.state.drawers) {
+        for (const range of this.ledRangesFor(candidate)) {
+          const startText = String(range.start_pixel ?? '').trim(); const countText = String(range.pixel_count ?? '').trim();
+          if (!startText && !countText) continue;
+          if (!startText || !countText) return { error: `Enter both LED Start and LED Count for every range on ${candidate.label}.` };
+          const start = Number(startText); const count = Number(countText);
+          if (!Number.isSafeInteger(start) || start < 1) return { error: 'LED Start must be a whole number of at least 1.' };
+          if (!Number.isSafeInteger(count) || count < 1) return { error: 'LED Count must be a positive whole number.' };
+          const end = start + count - 1;
+          if (!Number.isSafeInteger(end)) return { error: 'LED End overflows the supported integer range.' };
+          if (end > capacity) return { error: `LED range ends at ${end}, beyond controller #${this.controller.id} capacity (${capacity}).` };
+          ranges.push({ drawer: candidate, range, start, end });
+        }
+      }
+      for (let i = 0; i < ranges.length; i++) for (let j = i + 1; j < ranges.length; j++) {
+        if (ranges[i].start <= ranges[j].end && ranges[j].start <= ranges[i].end) return { error: `LED ranges overlap: ${ranges[i].drawer.label} (${ranges[i].start}–${ranges[i].end}) and ${ranges[j].drawer.label} (${ranges[j].start}–${ranges[j].end}).` };
+      }
+      return { error: '', message: `Validated in controller-wide 1-based pixel space (capacity ${capacity}). Physical string boundaries do not split a range.` };
     },
     controllerSummary() {
       if (this.controllerError) return this.controllerError;
       if (!this.controller) return 'LED Controller: none assigned to this cabinet.';
-      return `LED Controller: ${this.controller.name} (#${this.controller.id}), ${this.controller.led_count} LEDs (read-only).`;
+      return `Assigned controller: ${this.controller.name} (#${this.controller.id}), capacity ${this.controller.led_count} controller-wide pixels.`;
     },
-    saveLedDraft(drawer) {
-      this.ledDraftError = '';
-      if (!drawer?.id) { this.ledDraftError = 'Save this physical drawer first so the draft can use its stable ID.'; return; }
-      const status = this.ledDraftStatus(drawer);
-      if (status.error) { this.ledDraftError = status.error; return; }
-      const allocations = {};
-      for (const item of this.state.drawers) {
-        if (!item.id) continue;
-        const value = this.ledDraftFor(item);
-        if (String(value.start ?? '').trim() || String(value.count ?? '').trim()) allocations[String(item.id)] = { start: String(value.start ?? ''), count: String(value.count ?? '') };
-      }
-      const controllerId = this.controller ? Number(this.controller.id) : null;
-      try { localStorage.setItem(this.ledDraftKey, JSON.stringify({ controllerId, allocations })); this.ledDraftSaved = true; }
-      catch { this.ledDraftError = 'This browser cannot store the local LED draft.'; }
+    addLedRange(drawer) {
+      if (!drawer?.id) { this.ledSaveError = 'Save this physical drawer first to obtain its stable ID.'; return; }
+      this.ledRangesFor(drawer).push({ id: 0, start_pixel: '', pixel_count: '' });
+      this.ledSaveError = ''; this.ledSaveNotice = '';
     },
-    clearLedDraft(drawer) {
-      if (!drawer?.id) return;
-      this.ledDraftError = '';
-      this.ledDraftFor(drawer).start = '';
-      this.ledDraftFor(drawer).count = '';
-      const saved = {};
-      for (const item of this.state.drawers) {
-        if (!item.id || item.id === drawer.id) continue;
-        const value = this.ledDraftFor(item);
-        if (String(value.start ?? '').trim() || String(value.count ?? '').trim()) saved[String(item.id)] = { start:String(value.start ?? ''), count:String(value.count ?? '') };
-      }
-      try { localStorage.setItem(this.ledDraftKey, JSON.stringify({ controllerId:this.controller ? Number(this.controller.id) : null, allocations:saved })); this.ledDraftSaved = true; }
-      catch { this.ledDraftError = 'This browser cannot update the local LED draft.'; }
+    removeLedRange(drawer, index) {
+      this.ledRangesFor(drawer).splice(index, 1);
+      this.ledSaveError = ''; this.ledSaveNotice = '';
+    },
+    saveCabinetController() {
+      this.controllerSaveError = ''; this.controllerSaveNotice = '';
+      if (this.dirty) { this.controllerSaveError = 'Save or cancel physical layout changes before changing controller assignment.'; return; }
+      if (this.controllerCapacityChanged() || this.hasUnsavedLedRangesExcept()) { this.controllerSaveError = 'Save or cancel controller-capacity and LED-range edits before changing controller assignment.'; return; }
+      const controllerID = Number(this.controllerDraft);
+      if (!Number.isSafeInteger(controllerID) || controllerID < 0) { this.controllerSaveError = 'Choose a valid controller or Unassigned.'; return; }
+      const form = document.createElement('form'); form.method = 'post'; form.action = `/storage/cabinets/${this.state.id}/controller`;
+      const fields = [['csrf_token', this.$refs.csrf.value], ['electrical_revision', this.electricalRevision], ['controller_id', controllerID]];
+      for (const [name, value] of fields) { const input = document.createElement('input'); input.type = 'hidden'; input.name = name; input.value = value; form.appendChild(input); }
+      this.allowElectricalNavigation = true;
+      document.body.appendChild(form); form.submit();
+    },
+    saveControllerCapacity() {
+      this.capacitySaveError = ''; this.capacitySaveNotice = '';
+      if (this.dirty) { this.capacitySaveError = 'Save or cancel physical layout changes before saving controller capacity.'; return; }
+      if (this.controllerAssignmentChanged() || this.hasUnsavedLedRangesExcept()) { this.capacitySaveError = 'Save or cancel controller-assignment and LED-range edits before saving capacity.'; return; }
+      if (!this.controller) { this.capacitySaveError = 'Assign a controller to this cabinet before configuring its capacity.'; return; }
+      const capacity = Number(this.capacityDraft);
+      if (!Number.isSafeInteger(capacity) || capacity < 1) { this.capacitySaveError = 'Controller-wide LED capacity must be a positive whole number.'; return; }
+      const form = document.createElement('form'); form.method = 'post'; form.action = `/hardware/${this.controller.id}/capacity`;
+      const fields = [['csrf_token', this.$refs.csrf.value], ['led_count', capacity], ['expected_led_count', this.controller.led_count], ['electrical_revision', this.electricalRevision]];
+      for (const [name, value] of fields) { const input = document.createElement('input'); input.type = 'hidden'; input.name = name; input.value = value; form.appendChild(input); }
+      this.allowElectricalNavigation = true;
+      document.body.appendChild(form); form.submit();
+    },
+    saveLedAllocations(drawer) {
+      this.ledSaveError = ''; this.ledSaveNotice = '';
+      if (this.dirty) { this.ledSaveError = 'Save or cancel physical layout changes before saving LED allocations.'; return; }
+      if (this.controllerAssignmentChanged() || this.controllerCapacityChanged()) { this.ledSaveError = 'Save or cancel controller-assignment and capacity edits before saving LED allocations.'; return; }
+      if (this.hasUnsavedLedRangesExcept(drawer.key)) { this.ledSaveError = 'Save or cancel LED-range edits on other drawers before saving this drawer.'; return; }
+      if (!drawer?.id) { this.ledSaveError = 'Save this physical drawer first; no permanent mapping is created for an unsaved drawer.'; return; }
+      const status = this.ledStatus(drawer);
+      if (status.error) { this.ledSaveError = status.error; return; }
+      const allocations = this.ledRangesFor(drawer)
+        .filter(range => String(range.start_pixel ?? '').trim() || String(range.pixel_count ?? '').trim())
+        .map(range => ({ id: Number(range.id) || 0, start_pixel: Number(range.start_pixel), pixel_count: Number(range.pixel_count) }));
+      const form = document.createElement('form'); form.method = 'post'; form.action = `/storage/cabinets/${this.state.id}/drawers/${drawer.id}/led`;
+      const fields = [['csrf_token', this.$refs.csrf.value], ['revision', this.electricalRevision], ['allocations', JSON.stringify(allocations)]];
+      for (const [name, value] of fields) { const input = document.createElement('input'); input.type = 'hidden'; input.name = name; input.value = value; form.appendChild(input); }
+      this.allowElectricalNavigation = true;
+      document.body.appendChild(form); form.submit();
     },
     activeDrawer() { return this.state.drawers.find(item => item.key === this.activeDrawerKey) || (this.selection.kind === 'drawer' ? this.selectedDrawer() : null); },
     openDrawer(drawer) { if (!drawer) return; this.activeDrawerKey = drawer.key; this.mode = 'bins'; this.tool = 'select'; this.setSelection('', ''); this.resetView(); this.renderCanvas(); },

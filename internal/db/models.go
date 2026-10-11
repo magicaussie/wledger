@@ -97,6 +97,18 @@ type Drawer struct {
 	UpdatedAt    sql.NullTime `json:"updated_at"`
 }
 
+type DrawerLedAllocation struct {
+	ID           int64     `json:"id"`
+	CabinetID    int64     `json:"cabinet_id"`
+	DrawerID     int64     `json:"drawer_id"`
+	ControllerID int64     `json:"controller_id"`
+	StartPixel   int64     `json:"start_pixel"`
+	PixelCount   int64     `json:"pixel_count"`
+	DisplayOrder int64     `json:"display_order"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
 type InspirationTemplate struct {
 	ID              int64        `json:"id"`
 	Title           string       `json:"title"`

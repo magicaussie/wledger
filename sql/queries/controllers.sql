@@ -3,7 +3,7 @@ INSERT INTO controllers (id, name, ip_address, port, mac_address, is_online, led
 VALUES (?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: CreateController :one
-INSERT INTO controllers (name, ip_address, port) 
+INSERT INTO controllers (name, ip_address, port)
 VALUES (?, ?, ?)
 RETURNING id, name, ip_address, is_online, created_at;
 
@@ -20,6 +20,16 @@ SELECT * FROM controllers WHERE ip_address = ?;
 DELETE FROM controllers WHERE id = ?;
 
 -- name: UpdateControllerStatus :exec
-UPDATE controllers 
-SET is_online = ?, led_count = ? 
+UPDATE controllers
+SET is_online = ?, led_count = ?
 WHERE id = ?;
+
+-- name: SetControllerOnlineStatus :exec
+UPDATE controllers
+SET is_online = ?
+WHERE id = ?;
+
+-- name: UpdateControllerLedCount :execrows
+UPDATE controllers
+SET led_count = ?
+WHERE id = ? AND led_count = ?;

@@ -27,13 +27,15 @@ func NewLayoutService(store db.Store) *LayoutService { return &LayoutService{sto
 type CabinetLayout struct {
 	Cabinet         db.Cabinet
 	Controller      *db.Controller
+	Controllers     []db.Controller
 	ControllerError string
 	Drawers         []DrawerLayout
 	UnattachedBins  []db.ListUnattachedBinsRow
 }
 type DrawerLayout struct {
-	Drawer db.Drawer
-	Bins   []db.BinDrawerAttachment
+	Drawer         db.Drawer
+	Bins           []db.BinDrawerAttachment
+	LedAllocations []db.DrawerLedAllocation
 }
 
 // DecorationInput describes Paint-style canvas art. It is deliberately separate
@@ -91,6 +93,16 @@ func (s *LayoutService) Get(ctx context.Context, cabinetID int64) (CabinetLayout
 			return err
 		}
 		out.Cabinet = cabinet
+		controllers, err := q.GetControllers(ctx)
+		if err != nil {
+			return err
+		}
+		if controllers != nil {
+			out.Controllers = controllers
+		}
+		if out.Controllers == nil {
+			out.Controllers = make([]db.Controller, 0)
+		}
 		if cabinet.ControllerID.Valid {
 			controller, controllerErr := q.GetController(ctx, cabinet.ControllerID.Int64)
 			if errors.Is(controllerErr, sql.ErrNoRows) {
@@ -113,7 +125,14 @@ func (s *LayoutService) Get(ctx context.Context, cabinetID int64) (CabinetLayout
 			if bins == nil {
 				bins = make([]db.BinDrawerAttachment, 0)
 			}
-			out.Drawers = append(out.Drawers, DrawerLayout{Drawer: drawer, Bins: bins})
+			allocations, err := q.ListDrawerLEDAllocationsByDrawer(ctx, drawer.ID)
+			if err != nil {
+				return err
+			}
+			if allocations == nil {
+				allocations = make([]db.DrawerLedAllocation, 0)
+			}
+			out.Drawers = append(out.Drawers, DrawerLayout{Drawer: drawer, Bins: bins, LedAllocations: allocations})
 		}
 		unattached, err := q.ListUnattachedBins(ctx)
 		if err != nil {
@@ -428,6 +447,13 @@ func (s *LayoutService) drawerMutation(ctx context.Context, cabinetID, drawerID,
 			}
 			if len(bins) != 0 {
 				return fmt.Errorf("%w: drawer has %d bin placement(s); remove or relocate them first", ErrUnsafeLayout, len(bins))
+			}
+			allocations, e := q.ListDrawerLEDAllocationsByDrawer(ctx, drawerID)
+			if e != nil {
+				return e
+			}
+			if len(allocations) != 0 {
+				return fmt.Errorf("%w: drawer has %d saved LED range(s); clear its electrical mapping first", ErrUnsafeLayout, len(allocations))
 			}
 		}
 		if archive {
