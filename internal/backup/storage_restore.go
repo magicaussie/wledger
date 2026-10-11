@@ -69,7 +69,11 @@ func clearPhysicalStorage(ctx context.Context, q db.Querier) error {
 // the rows captured.
 func restorePhysicalStorage(ctx context.Context, q db.Querier, snap PhysicalStorageSnapshot) error {
 	for _, c := range snap.Cabinets {
-		if err := q.RestoreCabinet(ctx, db.RestoreCabinetParams(c)); err != nil {
+		width, height := c.LayoutWidth, c.LayoutHeight
+		if width <= 0 || height <= 0 { // backups created before M7 had no bounds
+			width, height = 100, 100
+		}
+		if err := q.RestoreCabinet(ctx, db.RestoreCabinetParams{ID: c.ID, Name: c.Name, ControllerID: c.ControllerID, CoordinateSystem: c.CoordinateSystem, LayoutRevision: c.LayoutRevision, ElectricalRevision: c.ElectricalRevision, DisplayOrder: c.DisplayOrder, Archived: c.Archived, CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt, LayoutWidth: width, LayoutHeight: height}); err != nil {
 			return fmt.Errorf("cabinet restore: %w", err)
 		}
 	}

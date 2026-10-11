@@ -58,6 +58,40 @@ Older authorization statements below are historical, not the current scope.
 - No delegation, production access, server startup, hardware activation,
   deployment, merge or changes to the archival checkout occurred.
 
+## M6/M7 implementation — 2026-10-11
+
+- M6 cabinet detail now renders its persisted physical drawer geometry as a
+  responsive proportional layout, with the existing drawer cards retained as a
+  keyboard-accessible alternative. Editors/admins receive an Edit layout link.
+- M7 adds migration 013 for explicit cabinet layout bounds (`layout_width`,
+  `layout_height`, defaulting existing cabinets to 100×100). It does not alter
+  bins, stock, containers, controllers, LEDs or assignments. Backups include
+  the additive fields; restoring a pre-M7 snapshot safely supplies the neutral
+  100×100 defaults.
+- `storage.LayoutService` performs create/read/save of physical layouts inside
+  `BEGIN IMMEDIATE` transactions. Save validates finite positive dimensions,
+  non-negative origins, cabinet/drawer bounds, drawer/bin overlap, duplicate
+  IDs and labels. It uses `layout_revision` for stale editor conflict rejection.
+  It preserves cabinet/drawer/bin IDs, stock and assignments. Existing attached
+  bins may be moved/resized within their drawer but may not be silently moved
+  between drawers. Omitted existing drawers are rejected rather than deleted.
+  Only explicitly selected unattached bins can be newly associated.
+- Added editor routes restricted to editor/admin and CSRF-protected write
+  routes. The responsive editor supports cabinet settings, drawer add/rename/
+  order/move/resize, numeric bin geometry and explicit unattached-bin
+  association. It includes a browser unsaved-change warning and cancel action.
+  It makes no hardware requests and exposes no electrical controls.
+- Automated evidence: `sqlc generate`, `templ generate`, `npm run
+  build:css:prod`, `npm test`, `go test -tags fts5 -count=1 ./...` all passed.
+  `internal/storage/layout_test.go` covers stable IDs/revision, stale conflict,
+  overlap rollback and unattached-bin association. CSS retains the known
+  nonfatal daisyUI `@property --radialprogress` warning.
+- Browser acceptance remains unavailable: the Zed browser connector is not
+  running and Playwright is not installed in the checkout. No real browser
+  screenshots or pointer/touch test run has been claimed. This is the only
+  outstanding verification category; all code paths were verified with
+  isolated SQLite fixtures and application test suites.
+
 ## Git baseline
 
 | Item | Baseline |

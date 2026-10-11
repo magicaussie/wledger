@@ -60,6 +60,8 @@ type BrowseCabinet struct {
 	LayoutRevision int64
 	// ElectricalRevision advances whenever the electrical mapping changes.
 	ElectricalRevision int64
+	// LayoutWidth and LayoutHeight bound cabinet-local drawer geometry.
+	LayoutWidth, LayoutHeight float64
 	// DisplayOrder orders the cabinet among its siblings.
 	DisplayOrder int64
 	// Archived is 1 when the cabinet is archived. It is exposed, not hidden:
@@ -404,6 +406,8 @@ func newBrowseCabinet(row db.Cabinet) BrowseCabinet {
 		CoordinateSystem:   row.CoordinateSystem,
 		LayoutRevision:     row.LayoutRevision,
 		ElectricalRevision: row.ElectricalRevision,
+		LayoutWidth:        row.LayoutWidth,
+		LayoutHeight:       row.LayoutHeight,
 		DisplayOrder:       row.DisplayOrder,
 		Archived:           row.Archived,
 		Drawers:            make([]BrowseDrawer, 0),

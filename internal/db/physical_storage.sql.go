@@ -10,6 +10,25 @@ import (
 	"database/sql"
 )
 
+const advanceCabinetLayoutRevision = `-- name: AdvanceCabinetLayoutRevision :execrows
+UPDATE cabinets
+SET layout_revision = layout_revision + 1, updated_at = CURRENT_TIMESTAMP
+WHERE id = ? AND layout_revision = ?
+`
+
+type AdvanceCabinetLayoutRevisionParams struct {
+	ID             int64 `json:"id"`
+	LayoutRevision int64 `json:"layout_revision"`
+}
+
+func (q *Queries) AdvanceCabinetLayoutRevision(ctx context.Context, arg AdvanceCabinetLayoutRevisionParams) (int64, error) {
+	result, err := q.exec(ctx, q.advanceCabinetLayoutRevisionStmt, advanceCabinetLayoutRevision, arg.ID, arg.LayoutRevision)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const archiveCabinet = `-- name: ArchiveCabinet :execrows
 UPDATE cabinets
 SET archived = 1, updated_at = CURRENT_TIMESTAMP
@@ -213,7 +232,7 @@ func (q *Queries) GetBinDrawerAttachment(ctx context.Context, binID int64) (BinD
 }
 
 const getCabinet = `-- name: GetCabinet :one
-SELECT id, name, controller_id, coordinate_system, layout_revision, electrical_revision, display_order, archived, created_at, updated_at FROM cabinets WHERE id = ?
+SELECT id, name, controller_id, coordinate_system, layout_revision, electrical_revision, display_order, archived, created_at, updated_at, layout_width, layout_height FROM cabinets WHERE id = ?
 `
 
 func (q *Queries) GetCabinet(ctx context.Context, id int64) (Cabinet, error) {
@@ -230,12 +249,14 @@ func (q *Queries) GetCabinet(ctx context.Context, id int64) (Cabinet, error) {
 		&i.Archived,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LayoutWidth,
+		&i.LayoutHeight,
 	)
 	return i, err
 }
 
 const getCabinetByController = `-- name: GetCabinetByController :one
-SELECT id, name, controller_id, coordinate_system, layout_revision, electrical_revision, display_order, archived, created_at, updated_at FROM cabinets WHERE controller_id = ?
+SELECT id, name, controller_id, coordinate_system, layout_revision, electrical_revision, display_order, archived, created_at, updated_at, layout_width, layout_height FROM cabinets WHERE controller_id = ?
 `
 
 func (q *Queries) GetCabinetByController(ctx context.Context, controllerID sql.NullInt64) (Cabinet, error) {
@@ -252,6 +273,8 @@ func (q *Queries) GetCabinetByController(ctx context.Context, controllerID sql.N
 		&i.Archived,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LayoutWidth,
+		&i.LayoutHeight,
 	)
 	return i, err
 }
@@ -400,7 +423,7 @@ func (q *Queries) ListBinDrawerAttachmentsByDrawer(ctx context.Context, drawerID
 }
 
 const listCabinets = `-- name: ListCabinets :many
-SELECT id, name, controller_id, coordinate_system, layout_revision, electrical_revision, display_order, archived, created_at, updated_at FROM cabinets
+SELECT id, name, controller_id, coordinate_system, layout_revision, electrical_revision, display_order, archived, created_at, updated_at, layout_width, layout_height FROM cabinets
 WHERE archived = 0
 ORDER BY display_order ASC, id ASC
 `
@@ -425,6 +448,8 @@ func (q *Queries) ListCabinets(ctx context.Context) ([]Cabinet, error) {
 			&i.Archived,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.LayoutWidth,
+			&i.LayoutHeight,
 		); err != nil {
 			return nil, err
 		}
@@ -440,7 +465,7 @@ func (q *Queries) ListCabinets(ctx context.Context) ([]Cabinet, error) {
 }
 
 const listCabinetsIncludingArchived = `-- name: ListCabinetsIncludingArchived :many
-SELECT id, name, controller_id, coordinate_system, layout_revision, electrical_revision, display_order, archived, created_at, updated_at FROM cabinets
+SELECT id, name, controller_id, coordinate_system, layout_revision, electrical_revision, display_order, archived, created_at, updated_at, layout_width, layout_height FROM cabinets
 ORDER BY display_order ASC, id ASC
 `
 
@@ -464,6 +489,8 @@ func (q *Queries) ListCabinetsIncludingArchived(ctx context.Context) ([]Cabinet,
 			&i.Archived,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.LayoutWidth,
+			&i.LayoutHeight,
 		); err != nil {
 			return nil, err
 		}
@@ -560,6 +587,40 @@ func (q *Queries) ListDrawersByCabinetIncludingArchived(ctx context.Context, cab
 	return items, nil
 }
 
+const listUnattachedBins = `-- name: ListUnattachedBins :many
+SELECT id, name FROM bins
+WHERE id NOT IN (SELECT bin_id FROM bin_drawer_attachments)
+ORDER BY name ASC, id ASC
+`
+
+type ListUnattachedBinsRow struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
+}
+
+func (q *Queries) ListUnattachedBins(ctx context.Context) ([]ListUnattachedBinsRow, error) {
+	rows, err := q.query(ctx, q.listUnattachedBinsStmt, listUnattachedBins)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListUnattachedBinsRow
+	for rows.Next() {
+		var i ListUnattachedBinsRow
+		if err := rows.Scan(&i.ID, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const restoreBinDrawerAttachment = `-- name: RestoreBinDrawerAttachment :exec
 INSERT INTO bin_drawer_attachments (bin_id, drawer_id, x, y, width, height, display_order, created_at, updated_at)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -595,8 +656,8 @@ func (q *Queries) RestoreBinDrawerAttachment(ctx context.Context, arg RestoreBin
 }
 
 const restoreCabinet = `-- name: RestoreCabinet :exec
-INSERT INTO cabinets (id, name, controller_id, coordinate_system, layout_revision, electrical_revision, display_order, archived, created_at, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO cabinets (id, name, controller_id, coordinate_system, layout_revision, electrical_revision, display_order, archived, created_at, updated_at, layout_width, layout_height)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type RestoreCabinetParams struct {
@@ -610,6 +671,8 @@ type RestoreCabinetParams struct {
 	Archived           int64         `json:"archived"`
 	CreatedAt          sql.NullTime  `json:"created_at"`
 	UpdatedAt          sql.NullTime  `json:"updated_at"`
+	LayoutWidth        float64       `json:"layout_width"`
+	LayoutHeight       float64       `json:"layout_height"`
 }
 
 // RestoreCabinet re-inserts a captured cabinet with its exact id, revisions,
@@ -626,6 +689,8 @@ func (q *Queries) RestoreCabinet(ctx context.Context, arg RestoreCabinetParams) 
 		arg.Archived,
 		arg.CreatedAt,
 		arg.UpdatedAt,
+		arg.LayoutWidth,
+		arg.LayoutHeight,
 	)
 	return err
 }
@@ -744,6 +809,23 @@ func (q *Queries) UpdateBinDrawerAttachmentGeometry(ctx context.Context, arg Upd
 	return result.RowsAffected()
 }
 
+const updateBinName = `-- name: UpdateBinName :execrows
+UPDATE bins SET name = ? WHERE id = ?
+`
+
+type UpdateBinNameParams struct {
+	Name string `json:"name"`
+	ID   int64  `json:"id"`
+}
+
+func (q *Queries) UpdateBinName(ctx context.Context, arg UpdateBinNameParams) (int64, error) {
+	result, err := q.exec(ctx, q.updateBinNameStmt, updateBinName, arg.Name, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const updateCabinet = `-- name: UpdateCabinet :execrows
 UPDATE cabinets
 SET name = ?, controller_id = ?, coordinate_system = ?, display_order = ?, updated_at = CURRENT_TIMESTAMP
@@ -804,6 +886,36 @@ type UpdateCabinetLayoutRevisionParams struct {
 
 func (q *Queries) UpdateCabinetLayoutRevision(ctx context.Context, arg UpdateCabinetLayoutRevisionParams) (int64, error) {
 	result, err := q.exec(ctx, q.updateCabinetLayoutRevisionStmt, updateCabinetLayoutRevision, arg.LayoutRevision, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const updateCabinetLayoutSettings = `-- name: UpdateCabinetLayoutSettings :execrows
+UPDATE cabinets
+SET name = ?, coordinate_system = ?, display_order = ?, layout_width = ?, layout_height = ?, updated_at = CURRENT_TIMESTAMP
+WHERE id = ?
+`
+
+type UpdateCabinetLayoutSettingsParams struct {
+	Name             string  `json:"name"`
+	CoordinateSystem string  `json:"coordinate_system"`
+	DisplayOrder     int64   `json:"display_order"`
+	LayoutWidth      float64 `json:"layout_width"`
+	LayoutHeight     float64 `json:"layout_height"`
+	ID               int64   `json:"id"`
+}
+
+func (q *Queries) UpdateCabinetLayoutSettings(ctx context.Context, arg UpdateCabinetLayoutSettingsParams) (int64, error) {
+	result, err := q.exec(ctx, q.updateCabinetLayoutSettingsStmt, updateCabinetLayoutSettings,
+		arg.Name,
+		arg.CoordinateSystem,
+		arg.DisplayOrder,
+		arg.LayoutWidth,
+		arg.LayoutHeight,
+		arg.ID,
+	)
 	if err != nil {
 		return 0, err
 	}

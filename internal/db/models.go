@@ -54,6 +54,8 @@ type Cabinet struct {
 	Archived           int64         `json:"archived"`
 	CreatedAt          sql.NullTime  `json:"created_at"`
 	UpdatedAt          sql.NullTime  `json:"updated_at"`
+	LayoutWidth        float64       `json:"layout_width"`
+	LayoutHeight       float64       `json:"layout_height"`
 }
 
 type Container struct {

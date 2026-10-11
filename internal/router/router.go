@@ -145,6 +145,14 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 		r.Group(func(r chi.Router) {
 			r.Use(mw.RequireRole("editor", "admin"))
 
+			// Physical layout editing (M7): editor/admin, CSRF-protected writes.
+			r.Get("/storage/cabinets/{id}/edit", h.HandleLayoutEditor)
+			r.Group(func(r chi.Router) {
+				r.Use(mw.RequireCSRF)
+				r.Post("/storage/cabinets", h.HandleLayoutCabinetCreate)
+				r.Post("/storage/cabinets/{id}/edit", h.HandleLayoutSave)
+			})
+
 			// Parts CRUD
 			r.Get("/parts/new", h.HandlePartsNew)
 			r.Post("/parts", h.HandlePartsCreate)

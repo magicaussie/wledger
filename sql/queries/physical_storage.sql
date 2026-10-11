@@ -23,10 +23,20 @@ UPDATE cabinets
 SET name = ?, controller_id = ?, coordinate_system = ?, display_order = ?, updated_at = CURRENT_TIMESTAMP
 WHERE id = ?;
 
+-- name: UpdateCabinetLayoutSettings :execrows
+UPDATE cabinets
+SET name = ?, coordinate_system = ?, display_order = ?, layout_width = ?, layout_height = ?, updated_at = CURRENT_TIMESTAMP
+WHERE id = ?;
+
 -- name: UpdateCabinetLayoutRevision :execrows
 UPDATE cabinets
 SET layout_revision = ?, updated_at = CURRENT_TIMESTAMP
 WHERE id = ?;
+
+-- name: AdvanceCabinetLayoutRevision :execrows
+UPDATE cabinets
+SET layout_revision = layout_revision + 1, updated_at = CURRENT_TIMESTAMP
+WHERE id = ? AND layout_revision = ?;
 
 -- name: UpdateCabinetElectricalRevision :execrows
 UPDATE cabinets
@@ -94,6 +104,14 @@ VALUES (?, ?, ?, ?, ?, ?, ?);
 -- name: GetBinDrawerAttachment :one
 SELECT * FROM bin_drawer_attachments WHERE bin_id = ?;
 
+-- name: ListUnattachedBins :many
+SELECT id, name FROM bins
+WHERE id NOT IN (SELECT bin_id FROM bin_drawer_attachments)
+ORDER BY name ASC, id ASC;
+
+-- name: UpdateBinName :execrows
+UPDATE bins SET name = ? WHERE id = ?;
+
 -- name: ListBinDrawerAttachments :many
 SELECT * FROM bin_drawer_attachments
 ORDER BY drawer_id ASC, display_order ASC, bin_id ASC;
@@ -141,8 +159,8 @@ DELETE FROM cabinets;
 -- RestoreCabinet re-inserts a captured cabinet with its exact id, revisions,
 -- archived state and timestamps.
 -- name: RestoreCabinet :exec
-INSERT INTO cabinets (id, name, controller_id, coordinate_system, layout_revision, electrical_revision, display_order, archived, created_at, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+INSERT INTO cabinets (id, name, controller_id, coordinate_system, layout_revision, electrical_revision, display_order, archived, created_at, updated_at, layout_width, layout_height)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- RestoreDrawer re-inserts a captured drawer with its exact id, geometry,
 -- archived state and timestamps.

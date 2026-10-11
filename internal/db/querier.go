@@ -12,6 +12,7 @@ import (
 type Querier interface {
 	AddContainerToWall(ctx context.Context, arg AddContainerToWallParams) error
 	AddTagToPart(ctx context.Context, arg AddTagToPartParams) error
+	AdvanceCabinetLayoutRevision(ctx context.Context, arg AdvanceCabinetLayoutRevisionParams) (int64, error)
 	ArchiveCabinet(ctx context.Context, id int64) (int64, error)
 	ArchiveDrawer(ctx context.Context, id int64) (int64, error)
 	CleanupSessions(ctx context.Context, expiry float64) error
@@ -209,6 +210,7 @@ type Querier interface {
 	// unconfigured parts are not flagged. Ordered by the largest shortfall first.
 	ListLowStockParts(ctx context.Context) ([]ListLowStockPartsRow, error)
 	ListParts(ctx context.Context, arg ListPartsParams) ([]ListPartsRow, error)
+	ListUnattachedBins(ctx context.Context) ([]ListUnattachedBinsRow, error)
 	ListUsers(ctx context.Context) ([]ListUsersRow, error)
 	MarkInspirationSeedsApplied(ctx context.Context) error
 	ReassignPartAssignment(ctx context.Context, arg ReassignPartAssignmentParams) error
@@ -256,9 +258,11 @@ type Querier interface {
 	UpdateBinDrawerAttachment(ctx context.Context, arg UpdateBinDrawerAttachmentParams) (int64, error)
 	UpdateBinDrawerAttachmentGeometry(ctx context.Context, arg UpdateBinDrawerAttachmentGeometryParams) (int64, error)
 	UpdateBinLedIndex(ctx context.Context, arg UpdateBinLedIndexParams) error
+	UpdateBinName(ctx context.Context, arg UpdateBinNameParams) (int64, error)
 	UpdateCabinet(ctx context.Context, arg UpdateCabinetParams) (int64, error)
 	UpdateCabinetElectricalRevision(ctx context.Context, arg UpdateCabinetElectricalRevisionParams) (int64, error)
 	UpdateCabinetLayoutRevision(ctx context.Context, arg UpdateCabinetLayoutRevisionParams) (int64, error)
+	UpdateCabinetLayoutSettings(ctx context.Context, arg UpdateCabinetLayoutSettingsParams) (int64, error)
 	UpdateColors(ctx context.Context, arg UpdateColorsParams) error
 	UpdateContainerAllocation(ctx context.Context, arg UpdateContainerAllocationParams) error
 	UpdateContainerConfig(ctx context.Context, arg UpdateContainerConfigParams) error

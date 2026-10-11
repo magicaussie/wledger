@@ -30,6 +30,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.addTagToPartStmt, err = db.PrepareContext(ctx, addTagToPart); err != nil {
 		return nil, fmt.Errorf("error preparing query AddTagToPart: %w", err)
 	}
+	if q.advanceCabinetLayoutRevisionStmt, err = db.PrepareContext(ctx, advanceCabinetLayoutRevision); err != nil {
+		return nil, fmt.Errorf("error preparing query AdvanceCabinetLayoutRevision: %w", err)
+	}
 	if q.archiveCabinetStmt, err = db.PrepareContext(ctx, archiveCabinet); err != nil {
 		return nil, fmt.Errorf("error preparing query ArchiveCabinet: %w", err)
 	}
@@ -525,6 +528,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.listPartsStmt, err = db.PrepareContext(ctx, listParts); err != nil {
 		return nil, fmt.Errorf("error preparing query ListParts: %w", err)
 	}
+	if q.listUnattachedBinsStmt, err = db.PrepareContext(ctx, listUnattachedBins); err != nil {
+		return nil, fmt.Errorf("error preparing query ListUnattachedBins: %w", err)
+	}
 	if q.listUsersStmt, err = db.PrepareContext(ctx, listUsers); err != nil {
 		return nil, fmt.Errorf("error preparing query ListUsers: %w", err)
 	}
@@ -642,6 +648,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.updateBinLedIndexStmt, err = db.PrepareContext(ctx, updateBinLedIndex); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateBinLedIndex: %w", err)
 	}
+	if q.updateBinNameStmt, err = db.PrepareContext(ctx, updateBinName); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateBinName: %w", err)
+	}
 	if q.updateCabinetStmt, err = db.PrepareContext(ctx, updateCabinet); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateCabinet: %w", err)
 	}
@@ -650,6 +659,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.updateCabinetLayoutRevisionStmt, err = db.PrepareContext(ctx, updateCabinetLayoutRevision); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateCabinetLayoutRevision: %w", err)
+	}
+	if q.updateCabinetLayoutSettingsStmt, err = db.PrepareContext(ctx, updateCabinetLayoutSettings); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateCabinetLayoutSettings: %w", err)
 	}
 	if q.updateColorsStmt, err = db.PrepareContext(ctx, updateColors); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateColors: %w", err)
@@ -724,6 +736,11 @@ func (q *Queries) Close() error {
 	if q.addTagToPartStmt != nil {
 		if cerr := q.addTagToPartStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing addTagToPartStmt: %w", cerr)
+		}
+	}
+	if q.advanceCabinetLayoutRevisionStmt != nil {
+		if cerr := q.advanceCabinetLayoutRevisionStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing advanceCabinetLayoutRevisionStmt: %w", cerr)
 		}
 	}
 	if q.archiveCabinetStmt != nil {
@@ -1551,6 +1568,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing listPartsStmt: %w", cerr)
 		}
 	}
+	if q.listUnattachedBinsStmt != nil {
+		if cerr := q.listUnattachedBinsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listUnattachedBinsStmt: %w", cerr)
+		}
+	}
 	if q.listUsersStmt != nil {
 		if cerr := q.listUsersStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing listUsersStmt: %w", cerr)
@@ -1746,6 +1768,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing updateBinLedIndexStmt: %w", cerr)
 		}
 	}
+	if q.updateBinNameStmt != nil {
+		if cerr := q.updateBinNameStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateBinNameStmt: %w", cerr)
+		}
+	}
 	if q.updateCabinetStmt != nil {
 		if cerr := q.updateCabinetStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing updateCabinetStmt: %w", cerr)
@@ -1759,6 +1786,11 @@ func (q *Queries) Close() error {
 	if q.updateCabinetLayoutRevisionStmt != nil {
 		if cerr := q.updateCabinetLayoutRevisionStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing updateCabinetLayoutRevisionStmt: %w", cerr)
+		}
+	}
+	if q.updateCabinetLayoutSettingsStmt != nil {
+		if cerr := q.updateCabinetLayoutSettingsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateCabinetLayoutSettingsStmt: %w", cerr)
 		}
 	}
 	if q.updateColorsStmt != nil {
@@ -1902,6 +1934,7 @@ type Queries struct {
 	tx                                        *sql.Tx
 	addContainerToWallStmt                    *sql.Stmt
 	addTagToPartStmt                          *sql.Stmt
+	advanceCabinetLayoutRevisionStmt          *sql.Stmt
 	archiveCabinetStmt                        *sql.Stmt
 	archiveDrawerStmt                         *sql.Stmt
 	cleanupSessionsStmt                       *sql.Stmt
@@ -2067,6 +2100,7 @@ type Queries struct {
 	listDrawersByCabinetIncludingArchivedStmt *sql.Stmt
 	listLowStockPartsStmt                     *sql.Stmt
 	listPartsStmt                             *sql.Stmt
+	listUnattachedBinsStmt                    *sql.Stmt
 	listUsersStmt                             *sql.Stmt
 	markInspirationSeedsAppliedStmt           *sql.Stmt
 	reassignPartAssignmentStmt                *sql.Stmt
@@ -2106,9 +2140,11 @@ type Queries struct {
 	updateBinDrawerAttachmentStmt             *sql.Stmt
 	updateBinDrawerAttachmentGeometryStmt     *sql.Stmt
 	updateBinLedIndexStmt                     *sql.Stmt
+	updateBinNameStmt                         *sql.Stmt
 	updateCabinetStmt                         *sql.Stmt
 	updateCabinetElectricalRevisionStmt       *sql.Stmt
 	updateCabinetLayoutRevisionStmt           *sql.Stmt
+	updateCabinetLayoutSettingsStmt           *sql.Stmt
 	updateColorsStmt                          *sql.Stmt
 	updateContainerAllocationStmt             *sql.Stmt
 	updateContainerConfigStmt                 *sql.Stmt
@@ -2137,6 +2173,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		tx:                                        tx,
 		addContainerToWallStmt:                    q.addContainerToWallStmt,
 		addTagToPartStmt:                          q.addTagToPartStmt,
+		advanceCabinetLayoutRevisionStmt:          q.advanceCabinetLayoutRevisionStmt,
 		archiveCabinetStmt:                        q.archiveCabinetStmt,
 		archiveDrawerStmt:                         q.archiveDrawerStmt,
 		cleanupSessionsStmt:                       q.cleanupSessionsStmt,
@@ -2302,6 +2339,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		listDrawersByCabinetIncludingArchivedStmt: q.listDrawersByCabinetIncludingArchivedStmt,
 		listLowStockPartsStmt:                     q.listLowStockPartsStmt,
 		listPartsStmt:                             q.listPartsStmt,
+		listUnattachedBinsStmt:                    q.listUnattachedBinsStmt,
 		listUsersStmt:                             q.listUsersStmt,
 		markInspirationSeedsAppliedStmt:           q.markInspirationSeedsAppliedStmt,
 		reassignPartAssignmentStmt:                q.reassignPartAssignmentStmt,
@@ -2341,9 +2379,11 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		updateBinDrawerAttachmentStmt:             q.updateBinDrawerAttachmentStmt,
 		updateBinDrawerAttachmentGeometryStmt:     q.updateBinDrawerAttachmentGeometryStmt,
 		updateBinLedIndexStmt:                     q.updateBinLedIndexStmt,
+		updateBinNameStmt:                         q.updateBinNameStmt,
 		updateCabinetStmt:                         q.updateCabinetStmt,
 		updateCabinetElectricalRevisionStmt:       q.updateCabinetElectricalRevisionStmt,
 		updateCabinetLayoutRevisionStmt:           q.updateCabinetLayoutRevisionStmt,
+		updateCabinetLayoutSettingsStmt:           q.updateCabinetLayoutSettingsStmt,
 		updateColorsStmt:                          q.updateColorsStmt,
 		updateContainerAllocationStmt:             q.updateContainerAllocationStmt,
 		updateContainerConfigStmt:                 q.updateContainerConfigStmt,
