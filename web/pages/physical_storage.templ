@@ -1,0 +1,293 @@
+package pages
+
+import (
+	"fmt"
+
+	"github.com/tuxedocurly/wledger/internal/auth"
+	"github.com/tuxedocurly/wledger/internal/i18n"
+	"github.com/tuxedocurly/wledger/internal/storage"
+	"github.com/tuxedocurly/wledger/web/components"
+	"github.com/tuxedocurly/wledger/web/layouts"
+)
+
+// Physical browsing (M6) — read-only.
+//
+// These three pages walk the PHYSICAL storage layout: cabinet -> drawer ->
+// attached bin -> stocked parts. The grouping is physical throughout: a drawer
+// belongs to its cabinet and a bin is listed only because a
+// bin_drawer_attachments row attaches it to that drawer. Nothing on these pages
+// groups by, filters on, or infers anything from a bin's legacy container_id;
+// that column is an ELECTRICAL association and is presented (if at all) as a
+// separate, clearly-labelled concept.
+//
+// Physical placement and electrical mapping are kept visually distinct: a
+// "Physical placement" badge marks the geometry read from the physical tables,
+// and an "Electrical mapping" note explains that LED behaviour is managed
+// elsewhere and is not changed here. These pages are browsing only — they add
+// no editing, drag/resize or reassignment controls and no Locate action.
+
+templ StorageCabinets(cabinets []storage.BrowseCabinet, user auth.User) {
+	@layouts.Base(i18n.T(ctx, "M6Storage"), user) {
+		<div class="max-w-7xl mx-auto w-full">
+			@components.PageHeader(
+				i18n.T(ctx, "M6Storage"),
+				i18n.T(ctx, "M6BrowsePhysicalStorage"),
+				nil,
+			)
+
+			if len(cabinets) == 0 {
+				@components.PhysicalStorageEmptyState(i18n.T(ctx, "M6NoCabinetsConfigured"), i18n.T(ctx, "M6NoCabinetsConfiguredDescription"))
+			} else {
+				<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-12 items-start">
+					for _, cabinet := range cabinets {
+						<div class="card bg-base-200 shadow-xl border border-base-300 h-full">
+							<div class="card-body p-5">
+								<div class="flex items-start justify-between gap-3">
+									<div class="min-w-0">
+										<h2 class="text-xl font-bold truncate">{ cabinet.Name }</h2>
+									</div>
+									<span class="badge badge-sm badge-outline font-mono shrink-0 whitespace-nowrap">{ i18n.T(ctx, "M6CabinetNumber") } #{ fmt.Sprintf("%d", cabinet.ID) }</span>
+								</div>
+								<div class="flex flex-wrap gap-2 mt-3">
+									<span class="badge badge-ghost badge-sm uppercase tracking-wider">{ i18n.T(ctx, "M6PhysicalPlacement") }</span>
+									if cabinet.Archived != 0 {
+										<span class="badge badge-warning badge-sm">{ i18n.T(ctx, "M6Archived") }</span>
+									}
+								</div>
+								<div class="divider my-2"></div>
+								<dl class="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+									<div class="min-w-0">
+										<dt class="uppercase tracking-wider text-base-content/80">{ i18n.T(ctx, "M6ActiveDrawers") }</dt>
+										<dd class="font-mono text-sm">{ fmt.Sprintf("%d", len(cabinet.Drawers)) }</dd>
+									</div>
+									<div class="min-w-0">
+										<dt class="uppercase tracking-wider text-base-content/80">{ i18n.T(ctx, "M6CoordinateSystem") }</dt>
+										<dd class="font-mono text-sm truncate">{ cabinet.CoordinateSystem }</dd>
+									</div>
+									<div class="min-w-0">
+										<dt class="uppercase tracking-wider text-base-content/80">{ i18n.T(ctx, "M6LayoutRevision") }</dt>
+										<dd class="font-mono text-sm">{ fmt.Sprintf("%d", cabinet.LayoutRevision) }</dd>
+									</div>
+									<div class="min-w-0">
+										<dt class="uppercase tracking-wider text-base-content/80">{ i18n.T(ctx, "M6ElectricalController") }</dt>
+										<dd class="font-mono text-sm">
+											if cabinet.ControllerID.Valid {
+												{ fmt.Sprintf("#%d", cabinet.ControllerID.Int64) }
+											} else {
+												{ i18n.T(ctx, "M6None") }
+											}
+										</dd>
+									</div>
+								</dl>
+								<div class="card-actions justify-end mt-4">
+									<a href={ templ.SafeURL(fmt.Sprintf("/storage/cabinets/%d", cabinet.ID)) } class="btn btn-outline btn-sm gap-2">
+										{ i18n.T(ctx, "View") }
+									</a>
+								</div>
+							</div>
+						</div>
+					}
+				</div>
+			}
+		</div>
+	}
+}
+
+templ StorageCabinet(cabinet storage.BrowseCabinet, user auth.User) {
+	@layouts.Base(cabinet.Name, user) {
+		<div class="max-w-5xl mx-auto w-full">
+			@components.PageHeader(
+				cabinet.Name,
+				i18n.T(ctx, "M6CabinetDetailDescription"),
+				[]components.Breadcrumb{
+					{Label: i18n.T(ctx, "M6Storage"), URL: "/storage/cabinets"},
+					{Label: cabinet.Name},
+				},
+			) {
+				<span class="badge badge-ghost badge-md font-mono">{ i18n.T(ctx, "M6CabinetNumber") } #{ fmt.Sprintf("%d", cabinet.ID) }</span>
+			}
+
+			<div class="card bg-base-200 shadow-xl border border-base-300 mb-6">
+				<div class="card-body p-5">
+					<div class="flex flex-wrap items-center gap-2">
+						<span class="badge badge-ghost badge-sm uppercase tracking-wider">{ i18n.T(ctx, "M6PhysicalPlacement") }</span>
+						if cabinet.Archived != 0 {
+							<span class="badge badge-warning badge-sm">{ i18n.T(ctx, "M6Archived") }</span>
+						}
+					</div>
+					<p class="text-sm text-base-content/80 mt-2">
+						{ i18n.T(ctx, "M6ElectricalMappingNotice") }
+					</p>
+					<div class="divider my-2"></div>
+					<dl class="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+						<div class="min-w-0">
+							<dt class="uppercase tracking-wider text-base-content/80">{ i18n.T(ctx, "M6CoordinateSystem") }</dt>
+							<dd class="font-mono text-sm truncate">{ cabinet.CoordinateSystem }</dd>
+						</div>
+						<div class="min-w-0">
+							<dt class="uppercase tracking-wider text-base-content/80">{ i18n.T(ctx, "M6LayoutRevision") }</dt>
+							<dd class="font-mono text-sm">{ fmt.Sprintf("%d", cabinet.LayoutRevision) }</dd>
+						</div>
+						<div class="min-w-0">
+							<dt class="uppercase tracking-wider text-base-content/80">{ i18n.T(ctx, "M6ElectricalRevision") }</dt>
+							<dd class="font-mono text-sm">{ fmt.Sprintf("%d", cabinet.ElectricalRevision) }</dd>
+						</div>
+						<div class="min-w-0">
+							<dt class="uppercase tracking-wider text-base-content/80">{ i18n.T(ctx, "M6ElectricalController") }</dt>
+							<dd class="font-mono text-sm">
+								if cabinet.ControllerID.Valid {
+									{ fmt.Sprintf("#%d", cabinet.ControllerID.Int64) }
+								} else {
+									{ i18n.T(ctx, "M6None") }
+								}
+							</dd>
+						</div>
+					</dl>
+				</div>
+			</div>
+
+			<h2 class="text-xs uppercase tracking-widest font-bold text-base-content/80 mb-3">
+				{ i18n.T(ctx, "M6DrawersLabel") } · { fmt.Sprintf("%d", len(cabinet.Drawers)) }
+			</h2>
+
+			if len(cabinet.Drawers) == 0 {
+				@components.PhysicalStorageEmptyState(i18n.T(ctx, "M6NoActiveDrawers"), i18n.T(ctx, "M6NoActiveDrawersDescription"))
+			} else {
+				<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-12">
+					for _, drawer := range cabinet.Drawers {
+						<a
+							href={ templ.SafeURL(fmt.Sprintf("/storage/drawers/%d", drawer.ID)) }
+							class="card bg-base-200 shadow-md border border-base-300 hover:shadow-lg transition-all block"
+						>
+							<div class="card-body p-4">
+								<div class="flex items-start justify-between gap-2">
+									<h3 class="font-bold truncate">
+										if drawer.Label != "" {
+											{ drawer.Label }
+										} else {
+											{ i18n.T(ctx, "M6Drawer") }
+										}
+									</h3>
+									<span class="badge badge-sm badge-outline font-mono shrink-0">#{ fmt.Sprintf("%d", drawer.ID) }</span>
+								</div>
+								<p class="text-xs text-base-content/80 font-mono mt-1">
+									{ fmt.Sprintf("%g × %g", drawer.Width, drawer.Height) } · at ({ fmt.Sprintf("%g, %g", drawer.X, drawer.Y) })
+								</p>
+								<p class="text-xs text-base-content/80 mt-1">{ i18n.T(ctx, "M6OpenDrawerToViewBins") }</p>
+							</div>
+						</a>
+					}
+				</div>
+			}
+		</div>
+	}
+}
+
+templ StorageDrawer(detail storage.BrowseDrawerDetail, user auth.User) {
+	@layouts.Base(drawerName(detail.Drawer, i18n.T(ctx, "M6Drawer")), user) {
+		<div class="max-w-6xl mx-auto w-full">
+			@components.PageHeader(
+				drawerName(detail.Drawer, i18n.T(ctx, "M6Drawer")),
+				i18n.T(ctx, "M6DrawerDetailDescription"),
+				[]components.Breadcrumb{
+					{Label: i18n.T(ctx, "M6Storage"), URL: "/storage/cabinets"},
+					{Label: fmt.Sprintf("%s #%d", i18n.T(ctx, "M6CabinetNumber"), detail.Drawer.CabinetID), URL: fmt.Sprintf("/storage/cabinets/%d", detail.Drawer.CabinetID)},
+					{Label: drawerName(detail.Drawer, i18n.T(ctx, "M6Drawer"))},
+				},
+			) {
+				<span class="badge badge-ghost badge-md font-mono">{ i18n.T(ctx, "M6Drawer") } #{ fmt.Sprintf("%d", detail.Drawer.ID) }</span>
+			}
+
+			<div class="card bg-base-200 shadow-xl border border-base-300 mb-6">
+				<div class="card-body p-5">
+					<div class="flex flex-wrap items-center gap-2">
+						<span class="badge badge-ghost badge-sm uppercase tracking-wider">{ i18n.T(ctx, "M6PhysicalPlacement") }</span>
+						<span class="badge badge-outline badge-sm uppercase tracking-wider">{ i18n.T(ctx, "M6ElectricalMappingSeparate") }</span>
+						<span class="badge badge-ghost badge-sm font-mono">{ i18n.T(ctx, "M6BinCountLabel") }: { fmt.Sprintf("%d", len(detail.Bins)) } · { i18n.T(ctx, "M6UnitCountLabel") }: { fmt.Sprintf("%d", totalUnits(detail.Bins)) }</span>
+					</div>
+					<p class="text-sm text-base-content/80 mt-2">
+						{ i18n.T(ctx, "M6PhysicalVsElectricalExplanation") }
+					</p>
+					<div class="divider my-2"></div>
+					<p class="text-xs font-mono text-base-content/80">
+						{ i18n.T(ctx, "M6DrawerGeometry") }: { fmt.Sprintf("%g × %g", detail.Drawer.Width, detail.Drawer.Height) } { i18n.T(ctx, "M6CoordinateAt") } ({ fmt.Sprintf("%g, %g", detail.Drawer.X, detail.Drawer.Y) })
+					</p>
+				</div>
+			</div>
+
+			if len(detail.Bins) == 0 {
+				@components.PhysicalStorageEmptyState(i18n.T(ctx, "M6NoBinsInDrawer"), i18n.T(ctx, "M6NoBinsInDrawerDescription"))
+			} else {
+				<div class="grid grid-cols-1 md:grid-cols-2 gap-4 pb-12 items-start">
+					for _, bin := range detail.Bins {
+						<div class="card bg-base-200 shadow-md border border-base-300">
+							<div class="card-body p-4">
+								<div class="flex items-start justify-between gap-2">
+									<div class="min-w-0">
+										<h3 class="font-bold truncate">
+											if bin.Name != "" {
+												{ bin.Name }
+											} else {
+												{ i18n.T(ctx, "M6Bin") }
+											}
+										</h3>
+									</div>
+									<span class="badge badge-sm badge-outline font-mono shrink-0">{ i18n.T(ctx, "M6BinNumber") } #{ fmt.Sprintf("%d", bin.BinID) }</span>
+								</div>
+								<p class="text-xs text-base-content/80 font-mono mt-1">
+									{ fmt.Sprintf("%g × %g", bin.Width, bin.Height) } { i18n.T(ctx, "M6CoordinateAt") } ({ fmt.Sprintf("%g, %g", bin.X, bin.Y) })
+								</p>
+								<div class="divider my-2"></div>
+								if len(bin.Contents) == 0 {
+									<div class="flex items-center justify-between">
+										<span class="text-xs text-base-content/80">{ i18n.T(ctx, "EmptyBin") }</span>
+										<a href={ templ.SafeURL(fmt.Sprintf("/parts?bin=%d", bin.BinID)) } class="btn btn-ghost btn-xs">{ i18n.T(ctx, "View") }</a>
+									</div>
+								} else {
+									<ul class="space-y-2">
+										for _, part := range bin.Contents {
+											<li class="flex items-center justify-between gap-3">
+												<div class="min-w-0">
+													<a href={ templ.SafeURL(fmt.Sprintf("/parts/%d", part.PartID)) } class="link-hover font-medium truncate block">{ part.Name }</a>
+													if part.PartNumber.Valid && part.PartNumber.String != "" {
+														<span class="text-[11px] font-mono text-base-content/80">{ i18n.T(ctx, "M6PartNumber") } { part.PartNumber.String }</span>
+													}
+												</div>
+												<span class="font-mono text-base-content/80 shrink-0">×{ fmt.Sprintf("%d", part.Quantity) }</span>
+											</li>
+										}
+									</ul>
+									<div class="card-actions justify-end mt-3">
+										<a href={ templ.SafeURL(fmt.Sprintf("/parts?bin=%d", bin.BinID)) } class="btn btn-ghost btn-xs">{ i18n.T(ctx, "View") }</a>
+									</div>
+								}
+							</div>
+						</div>
+					}
+				</div>
+			}
+		</div>
+	}
+}
+
+// drawerName returns a drawer's label, or a stable fallback built from its id
+// when the label is empty — used for the page title and the breadcrumb tail.
+func drawerName(drawer storage.BrowseDrawer, fallback string) string {
+	if drawer.Label != "" {
+		return drawer.Label
+	}
+	return fmt.Sprintf("%s #%d", fallback, drawer.ID)
+}
+
+// totalUnits sums the recorded quantities across every bin's contents so a
+// drawer can show a stable "N bins / M units" summary. Zero quantities are
+// counted as zero — the value is never rounded or inferred.
+func totalUnits(bins []storage.BrowseBin) int64 {
+	var total int64
+	for _, bin := range bins {
+		for _, part := range bin.Contents {
+			total += part.Quantity
+		}
+	}
+	return total
+}

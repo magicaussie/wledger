@@ -547,7 +547,7 @@
     "other": "2. Choose Physical Bin"
   },
   "SetQuantity": {
-    "other": "3. Set Quantity"
+    "other": "Set Quantity"
   },
   "SelectControllerPrompt": {
     "other": "Select a controller above to see available bins"
@@ -1217,5 +1217,201 @@
   },
   "DrawerRelativeEditingNotice": {
     "other": "Bin indices are drawer-relative. Each bin is addressed from the start of its own drawer's LED allocation. The segment-relative (S) physical position is shown for reference."
+  },
+  "M6Storage": {
+    "description": "Navigation label and page title for physical storage browsing",
+    "other": "Storage"
+  },
+  "M6BrowsePhysicalStorage": {
+    "description": "Introduction on the physical storage cabinet list",
+    "other": "Browse the physical cabinets, drawers and bins in your storage layout."
+  },
+  "M6NoCabinetsConfigured": {
+    "description": "Empty state title when no physical cabinets exist",
+    "other": "No cabinets configured"
+  },
+  "M6NoCabinetsConfiguredDescription": {
+    "description": "Empty state description for physical cabinet browsing",
+    "other": "Physical cabinets appear here once they are defined in the storage layout. This page is read-only."
+  },
+  "M6PhysicalPlacement": {
+    "description": "Label for geometry sourced from physical storage records",
+    "other": "Physical placement"
+  },
+  "M6Archived": {
+    "description": "Status label for an archived physical cabinet",
+    "other": "Archived"
+  },
+  "M6ActiveDrawers": {
+    "description": "Cabinet-list count label for active physical drawers",
+    "other": "Active drawers"
+  },
+  "M6CoordinateSystem": {
+    "description": "Physical cabinet coordinate-system label",
+    "other": "Coordinate system"
+  },
+  "M6LayoutRevision": {
+    "description": "Physical cabinet layout revision label",
+    "other": "Layout revision"
+  },
+  "M6ElectricalRevision": {
+    "description": "Separate electrical mapping revision label",
+    "other": "Electrical revision"
+  },
+  "M6ElectricalController": {
+    "description": "Optional WLED controller association, shown as electrical metadata",
+    "other": "Electrical controller"
+  },
+  "M6None": {
+    "description": "Value shown when a cabinet has no controller association",
+    "other": "None"
+  },
+  "M6CabinetDetailDescription": {
+    "description": "Description on a physical cabinet detail page",
+    "other": "Active drawers in this physical cabinet."
+  },
+  "M6ElectricalMappingNotice": {
+    "description": "Notice distinguishing physical geometry from optional electrical mapping",
+    "other": "Drawer and bin geometry describes physical storage. Electrical mapping, including which LEDs light a bin, is a separate optional association and is not edited here."
+  },
+  "M6DrawersLabel": {
+    "description": "Heading for the physical drawer list",
+    "other": "Drawers"
+  },
+  "M6NoActiveDrawers": {
+    "description": "Empty state title for a physical cabinet without active drawers",
+    "other": "No active drawers"
+  },
+  "M6NoActiveDrawersDescription": {
+    "description": "Empty state description for a physical cabinet without active drawers",
+    "other": "This cabinet has no active drawers in the physical layout yet."
+  },
+  "M6Drawer": {
+    "description": "Fallback label for a physical drawer without a custom label",
+    "other": "Drawer"
+  },
+  "M6OpenDrawerToViewBins": {
+    "description": "Instruction on a physical drawer card",
+    "other": "Open drawer to view attached bins"
+  },
+  "M6DrawerDetailDescription": {
+    "description": "Description on a physical drawer browsing page",
+    "other": "Bins physically attached to this drawer and the parts they currently hold."
+  },
+  "M6ElectricalMappingSeparate": {
+    "description": "Badge distinguishing electrical mapping from physical placement",
+    "other": "Electrical mapping — separate"
+  },
+  "M6BinCountLabel": {
+    "description": "Label for the count of bins in a physical drawer",
+    "other": "Bins"
+  },
+  "M6UnitCountLabel": {
+    "description": "Label for the total quantity of inventory units in a physical drawer",
+    "other": "Units"
+  },
+  "M6PhysicalVsElectricalExplanation": {
+    "description": "Explanation that physical bin grouping does not imply electrical mapping",
+    "other": "Bins below are grouped by physical attachment to this drawer, not by electrical association. LED behavior and bin addressing remain managed separately on the Hardware pages."
+  },
+  "M6DrawerGeometry": {
+    "description": "Label for the physical drawer geometry",
+    "other": "Drawer geometry"
+  },
+  "M6Bin": {
+    "description": "Fallback label for a physical bin without a custom label",
+    "other": "Bin"
+  },
+  "M6CabinetNumber": {
+    "description": "Physical cabinet identity label",
+    "other": "Cabinet"
+  },
+  "M6BinNumber": {
+    "description": "Stable physical bin identity label",
+    "other": "Bin"
+  },
+  "M6CoordinateAt": {
+    "description": "Word separating physical dimensions from their origin",
+    "other": "at"
+  },
+  "M6PartNumber": {
+    "description": "Manufacturer part number label",
+    "other": "MPN"
+  },
+  "M6NoBinsInDrawer": {
+    "description": "Empty state title for a physical drawer",
+    "other": "No bins in this physical drawer"
+  },
+  "M6NoBinsInDrawerDescription": {
+    "description": "Empty state description for a physical drawer without attached bins",
+    "other": "Bins appear here only after an explicit physical attachment."
+  },
+  "M6PhysicalBinsCount": {
+    "description": "Picker count label for bins grouped by physical location",
+    "other": "Bins"
+  },
+  "M6NoBinsConfigured": {
+    "description": "Picker empty state title when there are no bins",
+    "other": "No bins configured"
+  },
+  "M6NoBinsConfiguredDescription": {
+    "description": "Picker empty state description when there are no bins",
+    "other": "Bins appear here once they exist in the storage layout."
+  },
+  "M6PickerPhysicalPlacementCabinet": {
+    "description": "Accessible group label for a physical cabinet in the bin picker",
+    "other": "Physical placement: cabinet {{.Name}}"
+  },
+  "M6PickerDrawer": {
+    "description": "Accessible group label for a physical drawer in the bin picker",
+    "other": "Drawer {{.Name}}"
+  },
+  "M6PickerDrawerNumber": {
+    "description": "Stable drawer identity label in the bin picker",
+    "other": "Drawer #{{.ID}}"
+  },
+  "M6PickerNoBinsAttached": {
+    "description": "Message when a physical drawer has no attached bins",
+    "other": "No bins attached to this drawer."
+  },
+  "M6PickerUnplacedGroup": {
+    "description": "Bin-picker group for bins without recorded physical attachments",
+    "other": "No physical placement"
+  },
+  "M6PickerInactivePlacement": {
+    "description": "Bin-picker group for bins attached outside the active physical hierarchy",
+    "other": "Inactive physical placement"
+  },
+  "M6PickerInactiveDescription": {
+    "description": "Explanation for bins attached to an archived or unavailable location",
+    "other": "These bins are attached to an archived or unavailable physical location. They remain selectable; choosing one does not change its placement or electrical mapping."
+  },
+  "M6PickerUnplacedDescription": {
+    "description": "Explanation for bins with no recorded physical attachment",
+    "other": "These bins have no recorded physical location yet. Selecting one stores only its bin ID; no placement or electrical mapping is inferred."
+  },
+  "M6PickerOneBin": {
+    "description": "Singular bin count in the physical bin picker",
+    "other": "1 bin"
+  },
+  "M6PickerManyBins": {
+    "description": "Plural bin count in the physical bin picker",
+    "other": "{{.Count}} bins"
+  },
+  "M6ChoosePhysicalBin": {
+    "description": "Label for the stock-assignment physical-bin selector",
+    "other": "Choose a physical bin"
+  },
+  "M6ChooseNewPhysicalBin": {
+    "description": "Label for the stock-move physical-bin selector",
+    "other": "Choose a new physical bin"
+  },
+  "M6LoadingBins": {
+    "description": "Loading status for the physical-bin selector",
+    "other": "Loading bins…"
+  },
+  "M6MoveStock": {
+    "description": "Action that moves stock to the selected physical bin",
+    "other": "Move Stock"
   }
 }

@@ -410,6 +410,21 @@
   "LowStockWarning": {
     "other": "Advertencia de Stock Bajo"
   },
+  "LowStock": {
+    "other": "Stock Bajo"
+  },
+  "LowStockDescription": {
+    "other": "Piezas en o por debajo de su nivel de reorden."
+  },
+  "NoLowStockParts": {
+    "other": "Nada que reordenar"
+  },
+  "NoLowStockPartsDescription": {
+    "other": "Todas las piezas están por encima de su nivel de reorden."
+  },
+  "ExportCSV": {
+    "other": "Exportar CSV"
+  },
   "Locations": {
     "other": "Ubicaciones"
   },
@@ -465,7 +480,7 @@
     "other": "2. Elegir Contenedor Físico"
   },
   "SetQuantity": {
-    "other": "3. Establecer Cantidad"
+    "other": "Establecer Cantidad"
   },
   "SelectControllerPrompt": {
     "other": "Seleccione un controlador arriba para ver los contenedores disponibles"
@@ -987,7 +1002,7 @@
     "other": "Attach this label to the part's storage location. Scanning it opens the part's page."
   },
   "Close": {
-    "other": "Close"
+    "other": "Cerrar"
   },
   "DymoLabelSize": {
     "other": "Label Size (DYMO LabelWriter 550)"
@@ -1018,5 +1033,152 @@
   },
   "View": {
     "other": "Ver"
+  },
+  "M6Storage": {
+    "other": "Almacenamiento"
+  },
+  "M6BrowsePhysicalStorage": {
+    "other": "Explore los armarios, cajones y contenedores físicos de su diseño de almacenamiento."
+  },
+  "M6NoCabinetsConfigured": {
+    "other": "No hay armarios configurados"
+  },
+  "M6NoCabinetsConfiguredDescription": {
+    "other": "Los armarios físicos aparecen aquí una vez definidos en el diseño de almacenamiento. Esta página es de solo lectura."
+  },
+  "M6PhysicalPlacement": {
+    "other": "Ubicación física"
+  },
+  "M6Archived": {
+    "other": "Archivado"
+  },
+  "M6ActiveDrawers": {
+    "other": "Cajones activos"
+  },
+  "M6CoordinateSystem": {
+    "other": "Sistema de coordenadas"
+  },
+  "M6LayoutRevision": {
+    "other": "Revisión del diseño"
+  },
+  "M6ElectricalRevision": {
+    "other": "Revisión eléctrica"
+  },
+  "M6ElectricalController": {
+    "other": "Controlador eléctrico"
+  },
+  "M6None": {
+    "other": "Ninguno"
+  },
+  "M6CabinetDetailDescription": {
+    "other": "Cajones activos en este armario físico."
+  },
+  "M6ElectricalMappingNotice": {
+    "other": "La geometría de cajones y contenedores describe el almacenamiento físico. La asignación eléctrica, incluido qué LED ilumina un contenedor, es una asociación opcional separada y no se edita aquí."
+  },
+  "M6DrawersLabel": {
+    "other": "Cajones"
+  },
+  "M6NoActiveDrawers": {
+    "other": "Sin cajones activos"
+  },
+  "M6NoActiveDrawersDescription": {
+    "other": "Este armario aún no tiene cajones activos en el diseño físico."
+  },
+  "M6Drawer": {
+    "other": "Cajón"
+  },
+  "M6OpenDrawerToViewBins": {
+    "other": "Abra el cajón para ver los contenedores adjuntos"
+  },
+  "M6DrawerDetailDescription": {
+    "other": "Contenedores físicamente adjuntos a este cajón y las piezas que contienen actualmente."
+  },
+  "M6ElectricalMappingSeparate": {
+    "other": "Asignación eléctrica — separada"
+  },
+  "M6BinCountLabel": {
+    "other": "Contenedores"
+  },
+  "M6UnitCountLabel": {
+    "other": "Unidades"
+  },
+  "M6PhysicalVsElectricalExplanation": {
+    "other": "Los contenedores de abajo se agrupan por su adjunción física a este cajón, no por asociación eléctrica. El comportamiento de los LED y el direccionamiento de contenedores se siguen gestionando por separado en las páginas de Hardware."
+  },
+  "M6DrawerGeometry": {
+    "other": "Geometría del cajón"
+  },
+  "M6Bin": {
+    "other": "Contenedor"
+  },
+  "M6CabinetNumber": {
+    "other": "Armario"
+  },
+  "M6BinNumber": {
+    "other": "Contenedor"
+  },
+  "M6CoordinateAt": {
+    "other": "en"
+  },
+  "M6PartNumber": {
+    "other": "MPN"
+  },
+  "M6NoBinsInDrawer": {
+    "other": "No hay contenedores en este cajón físico"
+  },
+  "M6NoBinsInDrawerDescription": {
+    "other": "Los contenedores aparecen aquí solo tras una adjunción física explícita."
+  },
+  "M6PhysicalBinsCount": {
+    "other": "Contenedores"
+  },
+  "M6NoBinsConfigured": {
+    "other": "No hay contenedores configurados"
+  },
+  "M6NoBinsConfiguredDescription": {
+    "other": "Los contenedores aparecen aquí una vez que existen en el diseño de almacenamiento."
+  },
+  "M6PickerPhysicalPlacementCabinet": {
+    "other": "Ubicación física: armario {{.Name}}"
+  },
+  "M6PickerDrawer": {
+    "other": "Cajón {{.Name}}"
+  },
+  "M6PickerDrawerNumber": {
+    "other": "Cajón n.º {{.ID}}"
+  },
+  "M6PickerNoBinsAttached": {
+    "other": "No hay contenedores adjuntos a este cajón."
+  },
+  "M6PickerUnplacedGroup": {
+    "other": "Sin ubicación física"
+  },
+  "M6PickerInactivePlacement": {
+    "other": "Ubicación física inactiva"
+  },
+  "M6PickerInactiveDescription": {
+    "other": "Estos contenedores están vinculados a una ubicación física archivada o no disponible. Siguen disponibles para su selección; elegirlos no cambia su ubicación ni su asignación eléctrica."
+  },
+  "M6PickerUnplacedDescription": {
+    "other": "Estos contenedores aún no tienen una ubicación física registrada. Al seleccionar uno solo se guarda su ID de contenedor; no se infiere ninguna ubicación ni asignación eléctrica."
+  },
+  "M6PickerOneBin": {
+    "other": "1 contenedor"
+  },
+  "M6PickerManyBins": {
+    "other": "{{.Count}} contenedores"
+  },
+  "M6ChoosePhysicalBin": {
+    "other": "Elegir un contenedor físico"
+  },
+  "M6ChooseNewPhysicalBin": {
+    "other": "Elegir un nuevo contenedor físico"
+  },
+  "M6LoadingBins": {
+    "other": "Cargando contenedores…"
+  },
+  "M6MoveStock": {
+    "other": "Mover Stock"
   }
 }

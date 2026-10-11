@@ -392,6 +392,21 @@
   "LowStockWarning": {
     "other": "低库存警告"
   },
+  "LowStock": {
+    "other": "低库存"
+  },
+  "LowStockDescription": {
+    "other": "零件库存已达到或低于再订货水平。"
+  },
+  "NoLowStockParts": {
+    "other": "无需补货"
+  },
+  "NoLowStockPartsDescription": {
+    "other": "所有零件都高于其再订货水平。"
+  },
+  "ExportCSV": {
+    "other": "导出 CSV"
+  },
   "Locations": {
     "other": "位置"
   },
@@ -447,7 +462,7 @@
     "other": "2. 选择物理料箱"
   },
   "SetQuantity": {
-    "other": "3. 设置数量"
+    "other": "设置数量"
   },
   "SelectControllerPrompt": {
     "other": "在上放选择一个控制器以查看可用料箱"
@@ -969,7 +984,7 @@
     "other": "Attach this label to the part's storage location. Scanning it opens the part's page."
   },
   "Close": {
-    "other": "Close"
+    "other": "关闭"
   },
   "DymoLabelSize": {
     "other": "Label Size (DYMO LabelWriter 550)"
@@ -1000,5 +1015,152 @@
   },
   "View": {
     "other": "查看"
+  },
+  "M6Storage": {
+    "other": "存储"
+  },
+  "M6BrowsePhysicalStorage": {
+    "other": "浏览存储布局中的物理柜体、抽屉和料箱。"
+  },
+  "M6NoCabinetsConfigured": {
+    "other": "未配置柜体"
+  },
+  "M6NoCabinetsConfiguredDescription": {
+    "other": "在存储布局中定义物理柜体后，它们会显示在这里。此页面为只读。"
+  },
+  "M6PhysicalPlacement": {
+    "other": "物理位置"
+  },
+  "M6Archived": {
+    "other": "已归档"
+  },
+  "M6ActiveDrawers": {
+    "other": "活动抽屉"
+  },
+  "M6CoordinateSystem": {
+    "other": "坐标系"
+  },
+  "M6LayoutRevision": {
+    "other": "布局修订"
+  },
+  "M6ElectricalRevision": {
+    "other": "电气修订"
+  },
+  "M6ElectricalController": {
+    "other": "电气控制器"
+  },
+  "M6None": {
+    "other": "无"
+  },
+  "M6CabinetDetailDescription": {
+    "other": "此物理柜体中的活动抽屉。"
+  },
+  "M6ElectricalMappingNotice": {
+    "other": "抽屉和料箱几何描述的是物理存储。电气映射（包括哪些 LED 点亮某个料箱）是单独的可选关联，不在此处编辑。"
+  },
+  "M6DrawersLabel": {
+    "other": "抽屉"
+  },
+  "M6NoActiveDrawers": {
+    "other": "无活动抽屉"
+  },
+  "M6NoActiveDrawersDescription": {
+    "other": "此柜体在物理布局中尚无活动抽屉。"
+  },
+  "M6Drawer": {
+    "other": "抽屉"
+  },
+  "M6OpenDrawerToViewBins": {
+    "other": "打开抽屉以查看已附加的料箱"
+  },
+  "M6DrawerDetailDescription": {
+    "other": "物理附加到此抽屉的料箱及其当前存放的零件。"
+  },
+  "M6ElectricalMappingSeparate": {
+    "other": "电气映射 — 独立"
+  },
+  "M6BinCountLabel": {
+    "other": "料箱"
+  },
+  "M6UnitCountLabel": {
+    "other": "单位"
+  },
+  "M6PhysicalVsElectricalExplanation": {
+    "other": "下方的料箱按与此抽屉的物理附加关系分组，而非按电气关联。LED 行为和料箱寻址仍在硬件页面单独管理。"
+  },
+  "M6DrawerGeometry": {
+    "other": "抽屉几何"
+  },
+  "M6Bin": {
+    "other": "料箱"
+  },
+  "M6CabinetNumber": {
+    "other": "柜体"
+  },
+  "M6BinNumber": {
+    "other": "料箱"
+  },
+  "M6CoordinateAt": {
+    "other": "位于"
+  },
+  "M6PartNumber": {
+    "other": "MPN"
+  },
+  "M6NoBinsInDrawer": {
+    "other": "此物理抽屉中没有料箱"
+  },
+  "M6NoBinsInDrawerDescription": {
+    "other": "只有在显式物理附加后，料箱才会显示在这里。"
+  },
+  "M6PhysicalBinsCount": {
+    "other": "料箱"
+  },
+  "M6NoBinsConfigured": {
+    "other": "未配置料箱"
+  },
+  "M6NoBinsConfiguredDescription": {
+    "other": "料箱在存储布局中存在后会显示在这里。"
+  },
+  "M6PickerPhysicalPlacementCabinet": {
+    "other": "物理位置：柜体 {{.Name}}"
+  },
+  "M6PickerDrawer": {
+    "other": "抽屉 {{.Name}}"
+  },
+  "M6PickerDrawerNumber": {
+    "other": "抽屉 #{{.ID}}"
+  },
+  "M6PickerNoBinsAttached": {
+    "other": "此抽屉未附加任何料箱。"
+  },
+  "M6PickerUnplacedGroup": {
+    "other": "无物理位置"
+  },
+  "M6PickerInactivePlacement": {
+    "other": "非活动物理位置"
+  },
+  "M6PickerInactiveDescription": {
+    "other": "这些料箱附加在已归档或不可用的物理位置。它们仍可选择；选择它们不会更改其位置或电气映射。"
+  },
+  "M6PickerUnplacedDescription": {
+    "other": "这些料箱尚无记录的物理位置。选择一个只会存储其料箱 ID；不会推断位置或电气映射。"
+  },
+  "M6PickerOneBin": {
+    "other": "1 个料箱"
+  },
+  "M6PickerManyBins": {
+    "other": "{{.Count}} 个料箱"
+  },
+  "M6ChoosePhysicalBin": {
+    "other": "选择物理料箱"
+  },
+  "M6ChooseNewPhysicalBin": {
+    "other": "选择新的物理料箱"
+  },
+  "M6LoadingBins": {
+    "other": "正在加载料箱…"
+  },
+  "M6MoveStock": {
+    "other": "移动库存"
   }
 }

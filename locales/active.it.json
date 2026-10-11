@@ -392,6 +392,21 @@
   "LowStockWarning": {
     "other": "Avviso Stock Basso"
   },
+  "LowStock": {
+    "other": "Stock Basso"
+  },
+  "LowStockDescription": {
+    "other": "Parti al livello di riordino o al di sotto di esso."
+  },
+  "NoLowStockParts": {
+    "other": "Niente da riordinare"
+  },
+  "NoLowStockPartsDescription": {
+    "other": "Tutte le parti sono al di sopra del loro livello di riordino."
+  },
+  "ExportCSV": {
+    "other": "Esporta CSV"
+  },
   "Locations": {
     "other": "Posizioni"
   },
@@ -447,7 +462,7 @@
     "other": "2. Scegli Contenitore Fisico"
   },
   "SetQuantity": {
-    "other": "3. Imposta Quantità"
+    "other": "Imposta Quantità"
   },
   "SelectControllerPrompt": {
     "other": "Seleziona un controller sopra per vedere i contenitori disponibili"
@@ -969,7 +984,7 @@
     "other": "Attach this label to the part's storage location. Scanning it opens the part's page."
   },
   "Close": {
-    "other": "Close"
+    "other": "Chiudi"
   },
   "DymoLabelSize": {
     "other": "Label Size (DYMO LabelWriter 550)"
@@ -1000,5 +1015,152 @@
   },
   "View": {
     "other": "Visualizza"
+  },
+  "M6Storage": {
+    "other": "Archivio"
+  },
+  "M6BrowsePhysicalStorage": {
+    "other": "Sfoglia gli armadi, i cassetti e i contenitori fisici del tuo layout di archivio."
+  },
+  "M6NoCabinetsConfigured": {
+    "other": "Nessun armadio configurato"
+  },
+  "M6NoCabinetsConfiguredDescription": {
+    "other": "Gli armadi fisici appaiono qui dopo essere stati definiti nel layout di archivio. Questa pagina è di sola lettura."
+  },
+  "M6PhysicalPlacement": {
+    "other": "Posizione fisica"
+  },
+  "M6Archived": {
+    "other": "Archiviato"
+  },
+  "M6ActiveDrawers": {
+    "other": "Cassetti attivi"
+  },
+  "M6CoordinateSystem": {
+    "other": "Sistema di coordinate"
+  },
+  "M6LayoutRevision": {
+    "other": "Revisione del layout"
+  },
+  "M6ElectricalRevision": {
+    "other": "Revisione elettrica"
+  },
+  "M6ElectricalController": {
+    "other": "Controller elettrico"
+  },
+  "M6None": {
+    "other": "Nessuno"
+  },
+  "M6CabinetDetailDescription": {
+    "other": "Cassetti attivi in questo armadio fisico."
+  },
+  "M6ElectricalMappingNotice": {
+    "other": "La geometria di cassetti e contenitori descrive l'archivio fisico. La mappatura elettrica, incluso quali LED illuminano un contenitore, è un'associazione opzionale separata e non viene modificata qui."
+  },
+  "M6DrawersLabel": {
+    "other": "Cassetti"
+  },
+  "M6NoActiveDrawers": {
+    "other": "Nessun cassetto attivo"
+  },
+  "M6NoActiveDrawersDescription": {
+    "other": "Questo armadio non ha ancora cassetti attivi nel layout fisico."
+  },
+  "M6Drawer": {
+    "other": "Cassetto"
+  },
+  "M6OpenDrawerToViewBins": {
+    "other": "Apri il cassetto per vedere i contenitori collegati"
+  },
+  "M6DrawerDetailDescription": {
+    "other": "Contenitori fisicamente collegati a questo cassetto e le parti che contengono attualmente."
+  },
+  "M6ElectricalMappingSeparate": {
+    "other": "Mappatura elettrica — separata"
+  },
+  "M6BinCountLabel": {
+    "other": "Contenitori"
+  },
+  "M6UnitCountLabel": {
+    "other": "Unità"
+  },
+  "M6PhysicalVsElectricalExplanation": {
+    "other": "I contenitori sottostanti sono raggruppati per collegamento fisico a questo cassetto, non per associazione elettrica. Il comportamento dei LED e l'indirizzamento dei contenitori restano gestiti separatamente nelle pagine Hardware."
+  },
+  "M6DrawerGeometry": {
+    "other": "Geometria del cassetto"
+  },
+  "M6Bin": {
+    "other": "Contenitore"
+  },
+  "M6CabinetNumber": {
+    "other": "Armadio"
+  },
+  "M6BinNumber": {
+    "other": "Contenitore"
+  },
+  "M6CoordinateAt": {
+    "other": "a"
+  },
+  "M6PartNumber": {
+    "other": "MPN"
+  },
+  "M6NoBinsInDrawer": {
+    "other": "Nessun contenitore in questo cassetto fisico"
+  },
+  "M6NoBinsInDrawerDescription": {
+    "other": "I contenitori appaiono qui solo dopo un collegamento fisico esplicito."
+  },
+  "M6PhysicalBinsCount": {
+    "other": "Contenitori"
+  },
+  "M6NoBinsConfigured": {
+    "other": "Nessun contenitore configurato"
+  },
+  "M6NoBinsConfiguredDescription": {
+    "other": "I contenitori appaiono qui una volta esistenti nel layout di archivio."
+  },
+  "M6PickerPhysicalPlacementCabinet": {
+    "other": "Posizione fisica: armadio {{.Name}}"
+  },
+  "M6PickerDrawer": {
+    "other": "Cassetto {{.Name}}"
+  },
+  "M6PickerDrawerNumber": {
+    "other": "Cassetto n. {{.ID}}"
+  },
+  "M6PickerNoBinsAttached": {
+    "other": "Nessun contenitore collegato a questo cassetto."
+  },
+  "M6PickerUnplacedGroup": {
+    "other": "Nessuna posizione fisica"
+  },
+  "M6PickerInactivePlacement": {
+    "other": "Posizione fisica inattiva"
+  },
+  "M6PickerInactiveDescription": {
+    "other": "Questi contenitori sono collegati a una posizione fisica archiviata o non disponibile. Restano selezionabili; la scelta non modifica la posizione né la mappatura elettrica."
+  },
+  "M6PickerUnplacedDescription": {
+    "other": "Questi contenitori non hanno ancora una posizione fisica registrata. Selezionandone uno viene memorizzato solo il suo ID contenitore; non viene dedotta alcuna posizione o mappatura elettrica."
+  },
+  "M6PickerOneBin": {
+    "other": "1 contenitore"
+  },
+  "M6PickerManyBins": {
+    "other": "{{.Count}} contenitori"
+  },
+  "M6ChoosePhysicalBin": {
+    "other": "Scegli un contenitore fisico"
+  },
+  "M6ChooseNewPhysicalBin": {
+    "other": "Scegli un nuovo contenitore fisico"
+  },
+  "M6LoadingBins": {
+    "other": "Caricamento contenitori…"
+  },
+  "M6MoveStock": {
+    "other": "Sposta Stock"
   }
 }

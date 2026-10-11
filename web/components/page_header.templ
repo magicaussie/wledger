@@ -28,7 +28,7 @@ templ PageHeader(title string, description string, breadcrumbs []Breadcrumb) {
 				<p class="text-sm md:text-lg opacity-70 mt-2">{ description }</p>
 			}
 		</div>
-		<div class="flex gap-2">
+		<div class="flex flex-wrap max-w-full gap-2">
 			{ children... }
 		</div>
 	</div>

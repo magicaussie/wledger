@@ -392,6 +392,21 @@
   "LowStockWarning": {
     "other": "Avertissement de stock bas"
   },
+  "LowStock": {
+    "other": "Stock bas"
+  },
+  "LowStockDescription": {
+    "other": "Pièces à leur niveau de réapprovisionnement ou en dessous."
+  },
+  "NoLowStockParts": {
+    "other": "Rien à réapprovisionner"
+  },
+  "NoLowStockPartsDescription": {
+    "other": "Toutes les pièces sont au-dessus de leur niveau de réapprovisionnement."
+  },
+  "ExportCSV": {
+    "other": "Exporter CSV"
+  },
   "Locations": {
     "other": "Emplacements"
   },
@@ -447,7 +462,7 @@
     "other": "2. Choisir le bac physique"
   },
   "SetQuantity": {
-    "other": "3. Définir la quantité"
+    "other": "Définir la quantité"
   },
   "SelectControllerPrompt": {
     "other": "Sélectionnez un contrôleur ci-dessus pour voir les bacs disponibles"
@@ -969,7 +984,7 @@
     "other": "Attach this label to the part's storage location. Scanning it opens the part's page."
   },
   "Close": {
-    "other": "Close"
+    "other": "Fermer"
   },
   "DymoLabelSize": {
     "other": "Label Size (DYMO LabelWriter 550)"
@@ -1000,5 +1015,152 @@
   },
   "View": {
     "other": "Voir"
+  },
+  "M6Storage": {
+    "other": "Stockage"
+  },
+  "M6BrowsePhysicalStorage": {
+    "other": "Parcourez les armoires, tiroirs et bacs physiques de votre agencement de stockage."
+  },
+  "M6NoCabinetsConfigured": {
+    "other": "Aucune armoire configurée"
+  },
+  "M6NoCabinetsConfiguredDescription": {
+    "other": "Les armoires physiques apparaissent ici une fois définies dans l'agencement de stockage. Cette page est en lecture seule."
+  },
+  "M6PhysicalPlacement": {
+    "other": "Emplacement physique"
+  },
+  "M6Archived": {
+    "other": "Archivé"
+  },
+  "M6ActiveDrawers": {
+    "other": "Tiroirs actifs"
+  },
+  "M6CoordinateSystem": {
+    "other": "Système de coordonnées"
+  },
+  "M6LayoutRevision": {
+    "other": "Révision de l'agencement"
+  },
+  "M6ElectricalRevision": {
+    "other": "Révision électrique"
+  },
+  "M6ElectricalController": {
+    "other": "Contrôleur électrique"
+  },
+  "M6None": {
+    "other": "Aucun"
+  },
+  "M6CabinetDetailDescription": {
+    "other": "Tiroirs actifs dans cette armoire physique."
+  },
+  "M6ElectricalMappingNotice": {
+    "other": "La géométrie des tiroirs et des bacs décrit le stockage physique. Le mappage électrique, y compris quelles LED éclairent un bac, est une association facultative distincte et n'est pas modifiée ici."
+  },
+  "M6DrawersLabel": {
+    "other": "Tiroirs"
+  },
+  "M6NoActiveDrawers": {
+    "other": "Aucun tiroir actif"
+  },
+  "M6NoActiveDrawersDescription": {
+    "other": "Cette armoire n'a pas encore de tiroirs actifs dans l'agencement physique."
+  },
+  "M6Drawer": {
+    "other": "Tiroir"
+  },
+  "M6OpenDrawerToViewBins": {
+    "other": "Ouvrir le tiroir pour voir les bacs attachés"
+  },
+  "M6DrawerDetailDescription": {
+    "other": "Bacs physiquement attachés à ce tiroir et les pièces qu'ils contiennent actuellement."
+  },
+  "M6ElectricalMappingSeparate": {
+    "other": "Mappage électrique — distinct"
+  },
+  "M6BinCountLabel": {
+    "other": "Bacs"
+  },
+  "M6UnitCountLabel": {
+    "other": "Unités"
+  },
+  "M6PhysicalVsElectricalExplanation": {
+    "other": "Les bacs ci-dessous sont regroupés par attachement physique à ce tiroir, et non par association électrique. Le comportement des LED et l'adressage des bacs restent gérés séparément sur les pages Matériel."
+  },
+  "M6DrawerGeometry": {
+    "other": "Géométrie du tiroir"
+  },
+  "M6Bin": {
+    "other": "Bac"
+  },
+  "M6CabinetNumber": {
+    "other": "Armoire"
+  },
+  "M6BinNumber": {
+    "other": "Bac"
+  },
+  "M6CoordinateAt": {
+    "other": "à"
+  },
+  "M6PartNumber": {
+    "other": "MPN"
+  },
+  "M6NoBinsInDrawer": {
+    "other": "Aucun bac dans ce tiroir physique"
+  },
+  "M6NoBinsInDrawerDescription": {
+    "other": "Les bacs n'apparaissent ici qu'après un attachement physique explicite."
+  },
+  "M6PhysicalBinsCount": {
+    "other": "Bacs"
+  },
+  "M6NoBinsConfigured": {
+    "other": "Aucun bac configuré"
+  },
+  "M6NoBinsConfiguredDescription": {
+    "other": "Les bacs apparaissent ici une fois qu'ils existent dans l'agencement de stockage."
+  },
+  "M6PickerPhysicalPlacementCabinet": {
+    "other": "Emplacement physique : armoire {{.Name}}"
+  },
+  "M6PickerDrawer": {
+    "other": "Tiroir {{.Name}}"
+  },
+  "M6PickerDrawerNumber": {
+    "other": "Tiroir n° {{.ID}}"
+  },
+  "M6PickerNoBinsAttached": {
+    "other": "Aucun bac attaché à ce tiroir."
+  },
+  "M6PickerUnplacedGroup": {
+    "other": "Aucun emplacement physique"
+  },
+  "M6PickerInactivePlacement": {
+    "other": "Emplacement physique inactif"
+  },
+  "M6PickerInactiveDescription": {
+    "other": "Ces bacs sont attachés à un emplacement physique archivé ou indisponible. Ils restent sélectionnables ; leur sélection ne modifie ni leur emplacement ni leur mappage électrique."
+  },
+  "M6PickerUnplacedDescription": {
+    "other": "Ces bacs n'ont pas encore d'emplacement physique enregistré. En sélectionner un ne stocke que son ID de bac ; aucun emplacement ni mappage électrique n'est déduit."
+  },
+  "M6PickerOneBin": {
+    "other": "1 bac"
+  },
+  "M6PickerManyBins": {
+    "other": "{{.Count}} bacs"
+  },
+  "M6ChoosePhysicalBin": {
+    "other": "Choisir un bac physique"
+  },
+  "M6ChooseNewPhysicalBin": {
+    "other": "Choisir un nouveau bac physique"
+  },
+  "M6LoadingBins": {
+    "other": "Chargement des bacs…"
+  },
+  "M6MoveStock": {
+    "other": "Déplacer le stock"
   }
 }

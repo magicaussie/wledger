@@ -51,3 +51,48 @@ func TestListParts_WithBinID(t *testing.T) {
 		t.Errorf("Expected Part A (ID %d), got ID %d", p1, parts[0].ID)
 	}
 }
+
+// TestListParts_WithBinID_NullContainer is an M6 regression guard: filtering
+// parts by a stable bin ID must work when that bin has container_id IS NULL.
+func TestListParts_WithBinID_NullContainer(t *testing.T) {
+	database, s, dbCleanup := setupTestDB(t)
+	defer dbCleanup()
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	tagSvc := tags.NewService(database, s)
+	docSvc := documents.NewService(s, logger)
+	svc := NewService(database, s, logger, tagSvc, docSvc)
+
+	ctx := context.Background()
+
+	// A stable bin with no container link (container_id IS NULL).
+	looseBin, _ := s.CreateBin(ctx, db.CreateBinParams{Name: "Loose Bin", ContainerID: sql.NullInt64{Valid: false}})
+
+	// A second, container-linked bin, so the filter is proven to stay scoped.
+	ctrl, _ := s.CreateController(ctx, db.CreateControllerParams{Name: "C1", IpAddress: "1.2.3.4"})
+	cont, _ := s.CreateContainer(ctx, db.CreateContainerParams{Name: "Cont1", ControllerID: ctrl.ID})
+	linkedBin, _ := s.CreateBin(ctx, db.CreateBinParams{Name: "Linked Bin", ContainerID: sql.NullInt64{Int64: cont, Valid: true}})
+
+	inLooseBin, _ := svc.CreatePart(ctx, CreatePartRequest{Name: "In Loose Bin"})
+	inLinkedBin, _ := svc.CreatePart(ctx, CreatePartRequest{Name: "In Linked Bin"})
+
+	const looseQty = 7
+	s.CreatePartAssignment(ctx, db.CreatePartAssignmentParams{PartID: inLooseBin, BinID: sql.NullInt64{Int64: looseBin, Valid: true}, Quantity: looseQty})
+	s.CreatePartAssignment(ctx, db.CreatePartAssignmentParams{PartID: inLinkedBin, BinID: sql.NullInt64{Int64: linkedBin, Valid: true}, Quantity: 3})
+
+	looseBinID := int64(looseBin)
+	parts, err := svc.ListParts(ctx, "", 1, &looseBinID)
+	if err != nil {
+		t.Fatalf("ListParts by NULL-container bin failed: %v", err)
+	}
+
+	if len(parts) != 1 {
+		t.Fatalf("Expected exactly 1 part in the NULL-container bin, got %d", len(parts))
+	}
+	if parts[0].ID != inLooseBin {
+		t.Errorf("Expected part %d in the NULL-container bin, got %d", inLooseBin, parts[0].ID)
+	}
+	if parts[0].TotalStock != looseQty {
+		t.Errorf("Expected total stock %d in the NULL-container bin, got %d", looseQty, parts[0].TotalStock)
+	}
+}

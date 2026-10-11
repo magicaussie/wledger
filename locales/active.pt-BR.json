@@ -392,6 +392,21 @@
   "LowStockWarning": {
     "other": "Aviso de Estoque Baixo"
   },
+  "LowStock": {
+    "other": "Estoque Baixo"
+  },
+  "LowStockDescription": {
+    "other": "Peças no nível de reabastecimento ou abaixo dele."
+  },
+  "NoLowStockParts": {
+    "other": "Nada para reabastecer"
+  },
+  "NoLowStockPartsDescription": {
+    "other": "Todas as peças estão acima do nível de reabastecimento."
+  },
+  "ExportCSV": {
+    "other": "Exportar CSV"
+  },
   "Locations": {
     "other": "Locais"
   },
@@ -447,7 +462,7 @@
     "other": "2. Escolher Caixa Física"
   },
   "SetQuantity": {
-    "other": "3. Definir Quantidade"
+    "other": "Definir Quantidade"
   },
   "SelectControllerPrompt": {
     "other": "Selecione um controlador acima para ver as caixas disponíveis"
@@ -969,7 +984,7 @@
     "other": "Attach this label to the part's storage location. Scanning it opens the part's page."
   },
   "Close": {
-    "other": "Close"
+    "other": "Fechar"
   },
   "DymoLabelSize": {
     "other": "Label Size (DYMO LabelWriter 550)"
@@ -1000,5 +1015,152 @@
   },
   "View": {
     "other": "Ver"
+  },
+  "M6Storage": {
+    "other": "Armazenamento"
+  },
+  "M6BrowsePhysicalStorage": {
+    "other": "Navegue pelos armários, gavetas e caixas físicas no seu layout de armazenamento."
+  },
+  "M6NoCabinetsConfigured": {
+    "other": "Nenhum armário configurado"
+  },
+  "M6NoCabinetsConfiguredDescription": {
+    "other": "Os armários físicos aparecem aqui depois de definidos no layout de armazenamento. Esta página é somente leitura."
+  },
+  "M6PhysicalPlacement": {
+    "other": "Posição física"
+  },
+  "M6Archived": {
+    "other": "Arquivado"
+  },
+  "M6ActiveDrawers": {
+    "other": "Gavetas ativas"
+  },
+  "M6CoordinateSystem": {
+    "other": "Sistema de coordenadas"
+  },
+  "M6LayoutRevision": {
+    "other": "Revisão do layout"
+  },
+  "M6ElectricalRevision": {
+    "other": "Revisão elétrica"
+  },
+  "M6ElectricalController": {
+    "other": "Controlador elétrico"
+  },
+  "M6None": {
+    "other": "Nenhum"
+  },
+  "M6CabinetDetailDescription": {
+    "other": "Gavetas ativas neste armário físico."
+  },
+  "M6ElectricalMappingNotice": {
+    "other": "A geometria de gavetas e caixas descreve o armazenamento físico. O mapeamento elétrico, incluindo quais LEDs iluminam uma caixa, é uma associação opcional separada e não é editado aqui."
+  },
+  "M6DrawersLabel": {
+    "other": "Gavetas"
+  },
+  "M6NoActiveDrawers": {
+    "other": "Nenhuma gaveta ativa"
+  },
+  "M6NoActiveDrawersDescription": {
+    "other": "Este armário ainda não tem gavetas ativas no layout físico."
+  },
+  "M6Drawer": {
+    "other": "Gaveta"
+  },
+  "M6OpenDrawerToViewBins": {
+    "other": "Abra a gaveta para ver as caixas anexadas"
+  },
+  "M6DrawerDetailDescription": {
+    "other": "Caixas fisicamente anexadas a esta gaveta e as peças que elas contêm atualmente."
+  },
+  "M6ElectricalMappingSeparate": {
+    "other": "Mapeamento elétrico — separado"
+  },
+  "M6BinCountLabel": {
+    "other": "Caixas"
+  },
+  "M6UnitCountLabel": {
+    "other": "Unidades"
+  },
+  "M6PhysicalVsElectricalExplanation": {
+    "other": "As caixas abaixo são agrupadas por anexação física a esta gaveta, não por associação elétrica. O comportamento dos LEDs e o endereçamento das caixas continuam sendo gerenciados separadamente nas páginas de Hardware."
+  },
+  "M6DrawerGeometry": {
+    "other": "Geometria da gaveta"
+  },
+  "M6Bin": {
+    "other": "Caixa"
+  },
+  "M6CabinetNumber": {
+    "other": "Armário"
+  },
+  "M6BinNumber": {
+    "other": "Caixa"
+  },
+  "M6CoordinateAt": {
+    "other": "em"
+  },
+  "M6PartNumber": {
+    "other": "MPN"
+  },
+  "M6NoBinsInDrawer": {
+    "other": "Nenhuma caixa nesta gaveta física"
+  },
+  "M6NoBinsInDrawerDescription": {
+    "other": "As caixas aparecem aqui somente após uma anexação física explícita."
+  },
+  "M6PhysicalBinsCount": {
+    "other": "Caixas"
+  },
+  "M6NoBinsConfigured": {
+    "other": "Nenhuma caixa configurada"
+  },
+  "M6NoBinsConfiguredDescription": {
+    "other": "As caixas aparecem aqui quando existirem no layout de armazenamento."
+  },
+  "M6PickerPhysicalPlacementCabinet": {
+    "other": "Posição física: armário {{.Name}}"
+  },
+  "M6PickerDrawer": {
+    "other": "Gaveta {{.Name}}"
+  },
+  "M6PickerDrawerNumber": {
+    "other": "Gaveta nº {{.ID}}"
+  },
+  "M6PickerNoBinsAttached": {
+    "other": "Nenhuma caixa anexada a esta gaveta."
+  },
+  "M6PickerUnplacedGroup": {
+    "other": "Sem posição física"
+  },
+  "M6PickerInactivePlacement": {
+    "other": "Posição física inativa"
+  },
+  "M6PickerInactiveDescription": {
+    "other": "Estas caixas estão anexadas a uma posição física arquivada ou indisponível. Elas continuam selecionáveis; selecioná-las não altera sua posição nem o mapeamento elétrico."
+  },
+  "M6PickerUnplacedDescription": {
+    "other": "Estas caixas ainda não têm uma posição física registrada. Selecionar uma armazena apenas seu ID de caixa; nenhuma posição ou mapeamento elétrico é inferido."
+  },
+  "M6PickerOneBin": {
+    "other": "1 caixa"
+  },
+  "M6PickerManyBins": {
+    "other": "{{.Count}} caixas"
+  },
+  "M6ChoosePhysicalBin": {
+    "other": "Escolher uma caixa física"
+  },
+  "M6ChooseNewPhysicalBin": {
+    "other": "Escolher uma nova caixa física"
+  },
+  "M6LoadingBins": {
+    "other": "Carregando caixas…"
+  },
+  "M6MoveStock": {
+    "other": "Mover Estoque"
   }
 }

@@ -392,6 +392,21 @@
   "LowStockWarning": {
     "other": "Warnung bei niedrigem Lagerbestand"
   },
+  "LowStock": {
+    "other": "Niedriger Bestand"
+  },
+  "LowStockDescription": {
+    "other": "Teile auf oder unter ihrer Nachbestellgrenze."
+  },
+  "NoLowStockParts": {
+    "other": "Nichts nachzubestellen"
+  },
+  "NoLowStockPartsDescription": {
+    "other": "Alle Teile liegen über ihrer Nachbestellgrenze."
+  },
+  "ExportCSV": {
+    "other": "CSV exportieren"
+  },
   "Locations": {
     "other": "Standorte"
   },
@@ -447,7 +462,7 @@
     "other": "2. Physisches Fach wählen"
   },
   "SetQuantity": {
-    "other": "3. Menge festlegen"
+    "other": "Menge festlegen"
   },
   "SelectControllerPrompt": {
     "other": "Wählen Sie oben einen Controller aus, um verfügbare Fächer zu sehen"
@@ -969,7 +984,7 @@
     "other": "Attach this label to the part's storage location. Scanning it opens the part's page."
   },
   "Close": {
-    "other": "Close"
+    "other": "Schließen"
   },
   "DymoLabelSize": {
     "other": "Label Size (DYMO LabelWriter 550)"
@@ -1000,5 +1015,152 @@
   },
   "View": {
     "other": "Ansehen"
+  },
+  "M6Storage": {
+    "other": "Lager"
+  },
+  "M6BrowsePhysicalStorage": {
+    "other": "Durchsuchen Sie die physischen Schränke, Schubladen und Fächer in Ihrem Lagerlayout."
+  },
+  "M6NoCabinetsConfigured": {
+    "other": "Keine Schränke konfiguriert"
+  },
+  "M6NoCabinetsConfiguredDescription": {
+    "other": "Physische Schränke erscheinen hier, sobald sie im Lagerlayout definiert sind. Diese Seite ist schreibgeschützt."
+  },
+  "M6PhysicalPlacement": {
+    "other": "Physische Platzierung"
+  },
+  "M6Archived": {
+    "other": "Archiviert"
+  },
+  "M6ActiveDrawers": {
+    "other": "Aktive Schubladen"
+  },
+  "M6CoordinateSystem": {
+    "other": "Koordinatensystem"
+  },
+  "M6LayoutRevision": {
+    "other": "Layout-Revision"
+  },
+  "M6ElectricalRevision": {
+    "other": "Elektrische Revision"
+  },
+  "M6ElectricalController": {
+    "other": "Elektrischer Controller"
+  },
+  "M6None": {
+    "other": "Keine"
+  },
+  "M6CabinetDetailDescription": {
+    "other": "Aktive Schubladen in diesem physischen Schrank."
+  },
+  "M6ElectricalMappingNotice": {
+    "other": "Die Geometrie von Schubladen und Fächern beschreibt den physischen Lagerort. Die elektrische Zuordnung, einschließlich welcher LEDs ein Fach beleuchten, ist eine separate optionale Verknüpfung und wird hier nicht bearbeitet."
+  },
+  "M6DrawersLabel": {
+    "other": "Schubladen"
+  },
+  "M6NoActiveDrawers": {
+    "other": "Keine aktiven Schubladen"
+  },
+  "M6NoActiveDrawersDescription": {
+    "other": "Dieser Schrank hat noch keine aktiven Schubladen im physischen Layout."
+  },
+  "M6Drawer": {
+    "other": "Schublade"
+  },
+  "M6OpenDrawerToViewBins": {
+    "other": "Schublade öffnen, um angehängte Fächer anzuzeigen"
+  },
+  "M6DrawerDetailDescription": {
+    "other": "Physisch an diese Schublade angehängte Fächer und die Teile, die sie derzeit enthalten."
+  },
+  "M6ElectricalMappingSeparate": {
+    "other": "Elektrische Zuordnung — separat"
+  },
+  "M6BinCountLabel": {
+    "other": "Fächer"
+  },
+  "M6UnitCountLabel": {
+    "other": "Einheiten"
+  },
+  "M6PhysicalVsElectricalExplanation": {
+    "other": "Die Fächer unten sind nach physischer Anhängigkeit an diese Schublade gruppiert, nicht nach elektrischer Zuordnung. LED-Verhalten und Fachadressierung werden weiterhin separat auf den Hardware-Seiten verwaltet."
+  },
+  "M6DrawerGeometry": {
+    "other": "Schubladengeometrie"
+  },
+  "M6Bin": {
+    "other": "Fach"
+  },
+  "M6CabinetNumber": {
+    "other": "Schrank"
+  },
+  "M6BinNumber": {
+    "other": "Fach"
+  },
+  "M6CoordinateAt": {
+    "other": "bei"
+  },
+  "M6PartNumber": {
+    "other": "MPN"
+  },
+  "M6NoBinsInDrawer": {
+    "other": "Keine Fächer in dieser physischen Schublade"
+  },
+  "M6NoBinsInDrawerDescription": {
+    "other": "Fächer erscheinen hier erst nach einer expliziten physischen Anhängung."
+  },
+  "M6PhysicalBinsCount": {
+    "other": "Fächer"
+  },
+  "M6NoBinsConfigured": {
+    "other": "Keine Fächer konfiguriert"
+  },
+  "M6NoBinsConfiguredDescription": {
+    "other": "Fächer erscheinen hier, sobald sie im Lagerlayout existieren."
+  },
+  "M6PickerPhysicalPlacementCabinet": {
+    "other": "Physische Platzierung: Schrank {{.Name}}"
+  },
+  "M6PickerDrawer": {
+    "other": "Schublade {{.Name}}"
+  },
+  "M6PickerDrawerNumber": {
+    "other": "Schublade #{{.ID}}"
+  },
+  "M6PickerNoBinsAttached": {
+    "other": "Keine Fächer an diese Schublade angehängt."
+  },
+  "M6PickerUnplacedGroup": {
+    "other": "Keine physische Platzierung"
+  },
+  "M6PickerInactivePlacement": {
+    "other": "Inaktive physische Platzierung"
+  },
+  "M6PickerInactiveDescription": {
+    "other": "Diese Fächer sind einem archivierten oder nicht verfügbaren physischen Standort zugeordnet. Sie bleiben auswählbar; ihre Platzierung oder elektrische Zuordnung wird dadurch nicht geändert."
+  },
+  "M6PickerUnplacedDescription": {
+    "other": "Diese Fächer haben noch keinen erfassten physischen Standort. Wenn Sie eines auswählen, wird nur seine Fach-ID gespeichert; es wird keine Platzierung oder elektrische Zuordnung abgeleitet."
+  },
+  "M6PickerOneBin": {
+    "other": "1 Fach"
+  },
+  "M6PickerManyBins": {
+    "other": "{{.Count}} Fächer"
+  },
+  "M6ChoosePhysicalBin": {
+    "other": "Ein physisches Fach wählen"
+  },
+  "M6ChooseNewPhysicalBin": {
+    "other": "Ein neues physisches Fach wählen"
+  },
+  "M6LoadingBins": {
+    "other": "Fächer werden geladen…"
+  },
+  "M6MoveStock": {
+    "other": "Bestand verschieben"
   }
 }

@@ -84,6 +84,12 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 		// Drawers (containers)
 		r.Get("/drawers/{id}", h.HandleDrawerDetail)
 
+		// Physical storage browsing (read-only)
+		r.Get("/storage/cabinets", h.HandleStorageCabinets)
+		r.Get("/storage/cabinets/{id}", h.HandleStorageCabinet)
+		r.Get("/storage/drawers/{id}", h.HandleStorageDrawer)
+		r.Get("/storage/bin_picker", h.HandleStorageBinPicker)
+
 		// Hardware (Read)
 		r.Get("/hardware", h.HandleHardwareList)
 		r.Get("/hardware/labels", h.HandleBinLabels)

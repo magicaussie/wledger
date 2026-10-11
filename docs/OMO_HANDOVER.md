@@ -6,26 +6,22 @@ This is the single active development handover document. `AGENTS.md` defines
 development policy; the root `ROADMAP.md` records product requirements and design
 updates. Historical handovers are references, not active instructions.
 
-Current task: Task 045, coordinated M2-M4 development.
+Current task: Task 045 M6 Physical Browsing, followed by M7 Stable Layout
+Editing.
 
-Status: M1-M3 committed locally; M4 integration and verification passed and is
-ready for its authorized local milestone commit.
-The owner authorized coordinated M2-M4 implementation, automated progression and
-local milestone commits after successful integration and tests. M5 is unauthorized.
-The owner selected the original finalized Task 045 scope: M2 backup envelope
-guards; M3 physical schema and complete backup; M4 reviewed reconciliation and
-legacy identity guards. Electrical topology belongs to the later M8 milestone,
-not this batch. Shared foundation work used isolated, nonconflicting worktrees.
+Status: M1-M5 are committed locally. M6 implementation is present in the
+uncommitted working tree. After two visual reviews returned REVISE, the owner
+resumed work on 2026-10-11; corrections, full Go gates, CSS generation, and
+Templ consistency now pass. Fresh browser captures and independent visual
+acceptance remain pending, so M6 is not committed. M7 remains authorized to
+begin only after M6 passes its gates and is committed separately; M7 has not
+started. M8 and later remain out of scope.
 
-M1 changed only `internal/hardware/compatibility.go`,
-`internal/hardware/compatibility_test.go` and this handover document. Its helper
-must not change existing runtime behavior or write to databases, audit logs,
-files, the network or hardware. Isolated regression tests may initialize the
-existing schema in temporary fixtures. No application startup, deployment,
-production access, WLED access, pushes or merges
-are authorized. M2-M4 may add schema, queries, generated models, services and tests
-within the approved additive architecture. No destructive migration, automatic
-legacy backfill or activation of new Locate behavior is authorized.
+The owner authorized M6/M7 source changes, automated tests, integration and one
+local commit per verified milestone. No push, merge, deployment, production
+access, database changes or hardware operation is authorized. Preserve the
+additive physical-storage architecture: no destructive migrations, automatic
+legacy backfills, inventory remapping, or new Locate behavior.
 
 ## Git baseline
 
@@ -437,9 +433,13 @@ requires reviewed evidence and is not inferred by these services.
 
 ## Task 045 M5 — Bin Decoupling
 
-**Status:** In progress; explicitly authorized by the owner on 2026-10-11 for
-implementation, automated tests and one local commit. No push, merge, deploy,
-production database access, WLED operation or M6 work is authorized.
+**Status:** Completed and committed locally. The owner explicitly authorized
+implementation, automated tests and one local commit on 2026-10-11.
+
+**Commit:** `2e6056f9f9c176270a231c42df97f4e9082053f9`
+(`feat: decouple bins from legacy containers`), parent
+`b9d52ab1b3ee2fd7dd403c74d4f32f0e7135e1bf`. No push, merge, deployment,
+production database access or WLED operation occurred.
 
 **Baseline:** branch `transition/omo`, commit
 `b9d52ab1b3ee2fd7dd403c74d4f32f0e7135e1bf`, parent
@@ -478,4 +478,126 @@ audit and authorized local commit remain pending.
 **Open risk:** Older application binaries expect non-NULL `bins.container_id`
 when scanning bin rows. Existing legacy rows and their behavior are preserved,
 but binaries predating M5 are not compatible with rows deliberately created
-without a legacy container. M6 has not started.
+without a legacy container. Rollback intentionally refuses while any bin has
+NULL `container_id`.
+
+## Task 045 M6 + M7 — Physical Browsing and Stable Layout Editing
+
+**Status:** M6 implementation is authorized and in progress. M7 is also
+authorized to begin automatically after M6 passes its gates and is committed as
+a separate local commit. M8 and later remain out of scope.
+
+**Authorization:** Owner message on 2026-10-11 authorizes M6 and M7 source work,
+automated tests, integration and one local commit per verified milestone. No
+push, merge, deployment, production access or hardware operation is authorized.
+
+**Baseline:** branch `transition/omo`, commit
+`2e6056f9f9c176270a231c42df97f4e9082053f9`, parent
+`b9d52ab1b3ee2fd7dd403c74d4f32f0e7135e1bf`; worktree was clean before this
+task. The target worktree is `/home/spetchal/Code/wledger-omo`; the separate
+original checkout `/home/spetchal/Code/wledger/wledger` on
+`experiment/ai-handoff` remains untouched. The target branch was five commits
+ahead of `origin/transition/omo`.
+
+**Architecture constraints:** Continue using `cabinets`, `drawers`, and
+`bin_drawer_attachments` as physical storage truth. Legacy `containers` remain
+electrical strings/segments and are not renamed or treated as physical drawers.
+Browse and select bins by stable `bins.id`, including bins whose
+`container_id` is NULL. NULL electrical ownership does not imply a physical
+drawer; only an explicit user selection may attach a bin. Physical browsing or
+editing must not change part assignments, quantities, electrical mappings or
+the existing Locate path.
+
+**Milestone gates:** M6 adds physical cabinet/drawer/bin browsing and bin
+selection; M7 adds reviewed physical layout editing with stable identities,
+validated geometry, stale/conflicting edit protection, transaction integrity
+and rollback. Each milestone receives its own targeted and full Go verification,
+generated-code/formatting checks, independent integration review and local
+commit. M7 starts only after M6 verification and commit.
+
+**Delegation in progress:** Three independent read-only DeepSeek V4.1 Flash
+investigations were launched for routes/handlers, storage/backup queries, and
+web templates; a fourth source investigation maps stock assignment/bin-filter
+behavior. M6 read-model and UI-design-document implementation tasks are also
+delegated with disjoint file ownership. The peak concurrent worker count so far
+is three. Detailed model token usage and verified implementation evidence will
+be added as the milestones progress.
+
+### M6 implementation decisions and QA corrections
+
+M6 remains in progress and has not been committed. The M6 browse service reads
+physical placement only from `bin_drawer_attachments`; it displays stock through
+stable bin and part IDs, keeps exact quantities (including zero), and never
+reads `bins.container_id` to determine physical location. Browse routes are
+read-only; the bin picker stores the selected existing `bin_id` without
+creating or changing a physical attachment or electrical mapping. Existing
+backup schema and electrical/Locate behavior are unchanged.
+
+Two independent read-only QA reviews identified additional M6 corrections:
+
+- A bin attached beneath an archived cabinet/drawer was omitted from the
+  active hierarchy and incorrectly excluded from the unplaced group. The
+  picker now has a separate inactive/unavailable physical-placement group;
+  truly unattached bins remain in the distinct “No physical placement” group.
+- Picker data was composed across multiple transactions. `BrowseService`
+  now creates the complete active/inactive/unplaced partition in one deferred
+  read transaction. A deterministic WAL test commits a concurrent attachment
+  between the attachment read and subsequent reads and verifies the picker
+  returns one consistent pre-write snapshot.
+- Inventory rows with identical part names now use stable part IDs as their
+  deterministic ordering tiebreak.
+- Visual QA found duplicate cabinet/bin IDs, undersized picker touch targets,
+  wrapping count badges, a non-warning count using warning color, and missing
+  selected/focus styles in the stale CSS. Templates now show each identity
+  once, keep count badges intact with neutral styling, render a selected wash
+  plus check glyph, enforce a 44px button target, and provide an immediate
+  2px primary focus outline with no transition. Long bin names truncate within
+  the button. Unnecessary button scaling motion was removed.
+- The first rendered part-detail phone capture exposed an overflowing
+  PageHeader action row. The shared header now wraps actions within its
+  available width; a fresh 390px DOM probe reports the actions fit and the
+  document width remains 390px.
+- The original phone captures showed the navigation drawer during its closing
+  transition after device emulation, rather than a product navigation defect.
+  Follow-up captures must apply device emulation after navigation and await the
+  drawer's `visibility` transition before taking the screenshot.
+
+Both independent visual QA passes A and B completed with REVISE. Their
+141-image matrix at `/tmp/wledger-m6-captures-final-1791705950361-08b157/`
+was validated, but it predates the latest review-driven locale, contrast and
+picker changes and is no longer acceptance evidence for the current tree.
+Pass A found selected-glyph row reflow and theme-transition capture artifacts.
+Pass B found muted-text contrast problems, raw low-stock keys in the old CJK
+captures, and the same theme capture artifact. The current working tree now
+contains changes for those product findings, but no fresh screenshots or final
+review pass have been completed.
+
+After the picker, Chinese punctuation, regional Chinese-tag handling, muted
+text contrast across the M6 inventory surfaces, locale and test diagnostic
+corrections, the current shared-tree gates passed:
+`PATH=/home/spetchal/.local/go-sdk/go/bin:$PATH CGO_ENABLED=1 go test -tags
+fts5 -count=1 ./...`, `go vet -tags fts5 ./...`, and `go build -tags fts5
+./...`. `npm run build:css` passed and regenerated
+`web/static/css/output.css` (SHA-256
+`c693764b763c237cdc44f7e503da754bf9bd47c4ea986c78a6ce0061eeb5062f`).
+`git diff --check` passed. A read-only isolated `templ v0.3.977` audit
+regenerated all 91 Templ outputs twice and confirmed byte-identical results
+before the final contrast changes; after those changes `templ generate` ran
+successfully at the repository root to update generated counterparts.
+
+The two 141-image visual reviews remain REVISE evidence only for the preceding
+source snapshot. The current source contains fixes for their product findings,
+but requires fresh browser captures after theme transitions settle, with
+selected-state frames taken after removing keyboard focus. Final independent
+visual approval is still pending. BrowserSkill setup identified Google Chrome
+as the workstation's default and in-use browser, installed its CLI/daemon, but
+could not register the extension because the Chrome Web Store extension path
+requires administrator rights. The exact remaining setup instruction is
+available to the owner in the current session.
+
+The owner resumed M6 work on 2026-10-11. M6 remains uncommitted until fresh
+visual acceptance; M7 has not started and remains gated on the separate M6
+commit. `docs/AI_DEVELOPMENT_HANDOVER.md` is a stop-time snapshot, not the
+current source of truth. The original `/home/spetchal/Code/wledger/wledger`
+checkout remains untouched. No push, merge, deployment, production access or
+hardware operation occurred.

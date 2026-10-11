@@ -392,6 +392,21 @@
   "LowStockWarning": {
     "other": "Предупреждение о низком запасе"
   },
+  "LowStock": {
+    "other": "Низкий запас"
+  },
+  "LowStockDescription": {
+    "other": "Детали на уровне дозаказа или ниже."
+  },
+  "NoLowStockParts": {
+    "other": "Нечего дозаказывать"
+  },
+  "NoLowStockPartsDescription": {
+    "other": "Все детали выше уровня дозаказа."
+  },
+  "ExportCSV": {
+    "other": "Экспорт CSV"
+  },
   "Locations": {
     "other": "Местоположения"
   },
@@ -447,7 +462,7 @@
     "other": "2. Выберите физическую ячейку"
   },
   "SetQuantity": {
-    "other": "3. Установите количество"
+    "other": "Установите количество"
   },
   "SelectControllerPrompt": {
     "other": "Выберите контроллер выше, чтобы увидеть доступные ячейки"
@@ -969,7 +984,7 @@
     "other": "Attach this label to the part's storage location. Scanning it opens the part's page."
   },
   "Close": {
-    "other": "Close"
+    "other": "Закрыть"
   },
   "DymoLabelSize": {
     "other": "Label Size (DYMO LabelWriter 550)"
@@ -1000,5 +1015,152 @@
   },
   "View": {
     "other": "Просмотр"
+  },
+  "M6Storage": {
+    "other": "Хранилище"
+  },
+  "M6BrowsePhysicalStorage": {
+    "other": "Просматривайте физические шкафы, ящики и ячейки в вашей схеме хранения."
+  },
+  "M6NoCabinetsConfigured": {
+    "other": "Шкафы не настроены"
+  },
+  "M6NoCabinetsConfiguredDescription": {
+    "other": "Физические шкафы появятся здесь после их определения в схеме хранения. Эта страница доступна только для чтения."
+  },
+  "M6PhysicalPlacement": {
+    "other": "Физическое размещение"
+  },
+  "M6Archived": {
+    "other": "Архивный"
+  },
+  "M6ActiveDrawers": {
+    "other": "Активные ящики"
+  },
+  "M6CoordinateSystem": {
+    "other": "Система координат"
+  },
+  "M6LayoutRevision": {
+    "other": "Ревизия схемы"
+  },
+  "M6ElectricalRevision": {
+    "other": "Электрическая ревизия"
+  },
+  "M6ElectricalController": {
+    "other": "Электрический контроллер"
+  },
+  "M6None": {
+    "other": "Нет"
+  },
+  "M6CabinetDetailDescription": {
+    "other": "Активные ящики в этом физическом шкафу."
+  },
+  "M6ElectricalMappingNotice": {
+    "other": "Геометрия ящиков и ячеек описывает физическое хранение. Электрическая привязка, включая то, какие светодиоды подсвечивают ячейку, — это отдельная необязательная связь, и здесь она не редактируется."
+  },
+  "M6DrawersLabel": {
+    "other": "Ящики"
+  },
+  "M6NoActiveDrawers": {
+    "other": "Нет активных ящиков"
+  },
+  "M6NoActiveDrawersDescription": {
+    "other": "В этом шкафу пока нет активных ящиков в физической схеме."
+  },
+  "M6Drawer": {
+    "other": "Ящик"
+  },
+  "M6OpenDrawerToViewBins": {
+    "other": "Откройте ящик, чтобы увидеть прикреплённые ячейки"
+  },
+  "M6DrawerDetailDescription": {
+    "other": "Ячейки, физически прикреплённые к этому ящику, и детали, которые они сейчас содержат."
+  },
+  "M6ElectricalMappingSeparate": {
+    "other": "Электрическая привязка — отдельно"
+  },
+  "M6BinCountLabel": {
+    "other": "Ячейки"
+  },
+  "M6UnitCountLabel": {
+    "other": "Единицы"
+  },
+  "M6PhysicalVsElectricalExplanation": {
+    "other": "Ячейки ниже сгруппированы по физическому креплению к этому ящику, а не по электрической привязке. Поведение светодиодов и адресация ячеек по-прежнему управляются отдельно на страницах «Оборудование»."
+  },
+  "M6DrawerGeometry": {
+    "other": "Геометрия ящика"
+  },
+  "M6Bin": {
+    "other": "Ячейка"
+  },
+  "M6CabinetNumber": {
+    "other": "Шкаф"
+  },
+  "M6BinNumber": {
+    "other": "Ячейка"
+  },
+  "M6CoordinateAt": {
+    "other": "в"
+  },
+  "M6PartNumber": {
+    "other": "MPN"
+  },
+  "M6NoBinsInDrawer": {
+    "other": "В этом физическом ящике нет ячеек"
+  },
+  "M6NoBinsInDrawerDescription": {
+    "other": "Ячейки появятся здесь только после явного физического крепления."
+  },
+  "M6PhysicalBinsCount": {
+    "other": "Ячейки"
+  },
+  "M6NoBinsConfigured": {
+    "other": "Ячейки не настроены"
+  },
+  "M6NoBinsConfiguredDescription": {
+    "other": "Ячейки появятся здесь, когда они будут созданы в схеме хранения."
+  },
+  "M6PickerPhysicalPlacementCabinet": {
+    "other": "Физическое размещение: шкаф {{.Name}}"
+  },
+  "M6PickerDrawer": {
+    "other": "Ящик {{.Name}}"
+  },
+  "M6PickerDrawerNumber": {
+    "other": "Ящик №{{.ID}}"
+  },
+  "M6PickerNoBinsAttached": {
+    "other": "К этому ящику не прикреплено ни одной ячейки."
+  },
+  "M6PickerUnplacedGroup": {
+    "other": "Нет физического размещения"
+  },
+  "M6PickerInactivePlacement": {
+    "other": "Неактивное физическое размещение"
+  },
+  "M6PickerInactiveDescription": {
+    "other": "Эти ячейки прикреплены к архивному или недоступному физическому месту. Их по-прежнему можно выбрать; выбор не изменяет размещение или электрическую привязку."
+  },
+  "M6PickerUnplacedDescription": {
+    "other": "У этих ячеек пока нет записанного физического местоположения. При выборе сохраняется только идентификатор ячейки; размещение или электрическая привязка не выводятся."
+  },
+  "M6PickerOneBin": {
+    "other": "1 ячейка"
+  },
+  "M6PickerManyBins": {
+    "other": "{{.Count}} ячеек"
+  },
+  "M6ChoosePhysicalBin": {
+    "other": "Выберите физическую ячейку"
+  },
+  "M6ChooseNewPhysicalBin": {
+    "other": "Выберите новую физическую ячейку"
+  },
+  "M6LoadingBins": {
+    "other": "Загрузка ячеек…"
+  },
+  "M6MoveStock": {
+    "other": "Переместить запас"
   }
 }

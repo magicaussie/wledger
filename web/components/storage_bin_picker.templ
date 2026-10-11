@@ -1,0 +1,230 @@
+package components
+
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	"github.com/tuxedocurly/wledger/internal/i18n"
+)
+
+// StorageBinPickerBin is one selectable bin. ID is the stable bins.id that the
+// form submits; it survives layout, numbering and electrical-mapping changes.
+type StorageBinPickerBin struct {
+	// ID is the stable bin identity, rendered as data-bin-id and bound to the
+	// hidden bin_id field.
+	ID int64
+	// Name is the bin's editable label.
+	Name string
+}
+
+// StorageBinPickerDrawer groups the bins physically attached to one drawer.
+type StorageBinPickerDrawer struct {
+	// ID is the stable drawer identity.
+	ID int64
+	// Label is the drawer's editable label.
+	Label string
+	// Bins holds the attached bins in deterministic physical order.
+	Bins []StorageBinPickerBin
+}
+
+// StorageBinPickerCabinet groups one physical cabinet's drawers.
+type StorageBinPickerCabinet struct {
+	// ID is the stable cabinet identity.
+	ID int64
+	// Name is the cabinet's editable label.
+	Name string
+	// Drawers holds the cabinet's active drawers in layout order.
+	Drawers []StorageBinPickerDrawer
+}
+
+// StorageBinPickerView is the M6 bin-picker read model. It is built from
+// physical placement truth (cabinets, drawers, bin_drawer_attachments): a bin
+// is listed under a cabinet/drawer only because an explicit attachment row
+// places it there.
+//
+// A bin without any attachment row is listed in Unplaced instead, under the
+// clearly labelled "No physical placement" group, so a legacy row (including a
+// bin whose container_id is NULL) stays selectable. Nothing about its location
+// is inferred from bins.container_id, from a controller, or from anything else.
+type StorageBinPickerView struct {
+	// Cabinets holds the physically placed bins, grouped cabinet/drawer.
+	Cabinets []StorageBinPickerCabinet
+	// Inactive holds bins attached outside the active cabinet/drawer hierarchy.
+	Inactive []StorageBinPickerBin
+	// Unplaced holds every bin with no bin_drawer_attachments row, in stable id
+	// order.
+	Unplaced []StorageBinPickerBin
+}
+
+// StorageBinPicker renders the M6 bin-selection fragment consumed by the Add
+// Stock and Move Stock forms.
+//
+// Contract with those forms (unchanged from the legacy grid picker):
+//   - one hidden input named bin_id carries the selected stable bin id;
+//   - choosing a bin dispatches bin-selected (with detail.id) and re-dispatches
+//     bin-selected-form, which is what enables the form's submit button;
+//   - x-init registers window.pickerReady() so a scanned bin QR selects the bin.
+//
+// It is keyboard accessible: every bin is a real <button type="button">, so it
+// is reached with Tab and chosen with Enter or Space, and selection state is
+// exposed through aria-pressed. It only populates the bin_id choice: it writes
+// nothing, creates no attachment and infers no placement.
+templ StorageBinPicker(view StorageBinPickerView) {
+	<div
+		x-data="{ selectedBinID: '' }"
+		@bin-selected.stop="selectedBinID = $event.detail.id; $dispatch('bin-selected-form', {id: $event.detail.id})"
+		class="space-y-8"
+		x-init="window.pickerReady()"
+	>
+		<input type="hidden" name="bin_id" :value="selectedBinID" required/>
+		if len(view.Cabinets) == 0 && len(view.Inactive) == 0 && len(view.Unplaced) == 0 {
+			<div data-bin-empty="true" class="text-center py-12 text-base-content/80 border-2 border-dashed border-base-300 rounded-xl">
+				<p class="text-lg font-medium">{ i18n.T(ctx, "M6NoBinsConfigured") }</p>
+				<p class="text-sm">{ i18n.T(ctx, "M6NoBinsConfiguredDescription") }</p>
+			</div>
+		} else {
+			for _, cabinet := range view.Cabinets {
+				@StorageBinPickerCabinetGroup(cabinet)
+			}
+			if len(view.Inactive) > 0 {
+				@StorageBinPickerInactiveGroup(view.Inactive)
+			}
+			if len(view.Unplaced) > 0 {
+				@StorageBinPickerUnplacedGroup(view.Unplaced)
+			}
+		}
+	</div>
+}
+
+// StorageBinPickerCabinetGroup renders one physical cabinet and its drawers.
+templ StorageBinPickerCabinetGroup(cabinet StorageBinPickerCabinet) {
+	<section
+		data-bin-group="cabinet"
+		data-cabinet-id={ fmt.Sprintf("%d", cabinet.ID) }
+		class="flex flex-col gap-3"
+		aria-label={ i18n.TD(ctx, "M6PickerPhysicalPlacementCabinet", map[string]string{"Name": cabinet.Name}) }
+	>
+		<div class="flex items-center justify-between px-2">
+			<h3 class="font-bold text-sm uppercase tracking-wider">{ cabinet.Name }</h3>
+			<span class="badge badge-sm badge-ghost text-base-content/80 font-mono shrink-0 whitespace-nowrap">{ storageBinPickerBinCountLabel(ctx, storageBinPickerBinCount(cabinet.Drawers)) }</span>
+		</div>
+		for _, drawer := range cabinet.Drawers {
+			@StorageBinPickerDrawerGroup(drawer)
+		}
+	</section>
+}
+
+// StorageBinPickerDrawerGroup renders one drawer's physically attached bins.
+templ StorageBinPickerDrawerGroup(drawer StorageBinPickerDrawer) {
+	<div
+		data-bin-group="drawer"
+		data-drawer-id={ fmt.Sprintf("%d", drawer.ID) }
+		role="group"
+		aria-label={ i18n.TD(ctx, "M6PickerDrawer", map[string]string{"Name": drawer.Label}) }
+		class="flex flex-col gap-3 bg-base-200/50 rounded-xl border border-base-300 p-4 shadow-inner"
+	>
+		<div class="flex items-center justify-between px-1">
+			<h4 class="text-xs font-bold uppercase tracking-wider text-base-content/80">
+				if drawer.Label != "" {
+					{ drawer.Label }
+				} else {
+					{ i18n.TD(ctx, "M6PickerDrawerNumber", map[string]string{"ID": fmt.Sprintf("%d", drawer.ID)}) }
+				}
+			</h4>
+			if drawer.Label != "" {
+				<span class="text-[10px] text-base-content/80 uppercase tracking-widest font-mono">{ i18n.TD(ctx, "M6PickerDrawerNumber", map[string]string{"ID": fmt.Sprintf("%d", drawer.ID)}) }</span>
+			}
+		</div>
+		if len(drawer.Bins) == 0 {
+			<p class="text-xs text-base-content/80 px-1">{ i18n.T(ctx, "M6PickerNoBinsAttached") }</p>
+		} else {
+			<div class="flex flex-wrap gap-2">
+				for _, bin := range drawer.Bins {
+					@StorageBinPickerBinButton(bin)
+				}
+			</div>
+		}
+	</div>
+}
+
+// StorageBinPickerInactiveGroup preserves selectability without claiming that
+// a bin has no attachment when its physical location is inactive or unavailable.
+templ StorageBinPickerInactiveGroup(bins []StorageBinPickerBin) {
+	<section data-bin-group="inactive-physical" class="flex flex-col gap-3" aria-label={ i18n.T(ctx, "M6PickerInactivePlacement") }>
+		<div class="flex items-center justify-between px-2">
+			<h3 class="font-bold text-sm uppercase tracking-wider">{ i18n.T(ctx, "M6PickerInactivePlacement") }</h3>
+			<span class="badge badge-sm badge-ghost text-base-content/80 font-mono shrink-0 whitespace-nowrap">{ storageBinPickerBinCountLabel(ctx, len(bins)) }</span>
+		</div>
+		<p class="text-xs text-base-content/80 px-2 -mt-1">
+			{ i18n.T(ctx, "M6PickerInactiveDescription") }
+		</p>
+		<div class="flex flex-wrap gap-2 bg-base-200/50 rounded-xl border border-dashed border-base-300 p-4">
+			for _, bin := range bins {
+				@StorageBinPickerBinButton(bin)
+			}
+		</div>
+	</section>
+}
+
+// StorageBinPickerUnplacedGroup renders every bin with no recorded physical
+// placement. The label and the note state exactly what is known: these bins
+// exist and are selectable, and their location is not inferred.
+templ StorageBinPickerUnplacedGroup(bins []StorageBinPickerBin) {
+	<section data-bin-group="unplaced" class="flex flex-col gap-3" aria-label={ i18n.T(ctx, "M6PickerUnplacedGroup") }>
+		<div class="flex items-center justify-between px-2">
+			<h3 class="font-bold text-sm uppercase tracking-wider">{ i18n.T(ctx, "M6PickerUnplacedGroup") }</h3>
+			<span class="badge badge-sm badge-ghost text-base-content/80 font-mono shrink-0 whitespace-nowrap">{ storageBinPickerBinCountLabel(ctx, len(bins)) }</span>
+		</div>
+		<p class="text-xs text-base-content/80 px-2 -mt-1">
+			{ i18n.T(ctx, "M6PickerUnplacedDescription") }
+		</p>
+		<div class="flex flex-wrap gap-2 bg-base-200/50 rounded-xl border border-dashed border-base-300 p-4">
+			for _, bin := range bins {
+				@StorageBinPickerBinButton(bin)
+			}
+		</div>
+	</section>
+}
+
+// StorageBinPickerBinButton is one selectable bin. It is a native button so the
+// picker works from the keyboard (Tab to focus, Enter or Space to select) and
+// exposes its selected state through aria-pressed.
+templ StorageBinPickerBinButton(bin StorageBinPickerBin) {
+	<button
+		type="button"
+		data-bin-id={ fmt.Sprintf("%d", bin.ID) }
+		title={ bin.Name }
+		@click={ fmt.Sprintf("$dispatch('bin-selected', {id: '%d'})", bin.ID) }
+		:class={ fmt.Sprintf("selectedBinID == '%d' ? 'bg-primary/20' : ''", bin.ID) }
+		:aria-pressed={ fmt.Sprintf("selectedBinID == '%d'", bin.ID) }
+		class="btn btn-sm h-auto min-h-[44px] max-w-full px-3 py-2 normal-case justify-start gap-2 border border-base-300 rounded-lg text-xs font-bold shadow-sm hover:shadow-md aria-[pressed=false]:hover:bg-base-300/60 transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+	>
+		<span
+			aria-hidden="true"
+			class="inline-block w-4 shrink-0 text-center font-bold text-base-content opacity-0"
+			:class={ fmt.Sprintf("{ 'opacity-100': selectedBinID == '%d', 'opacity-0': selectedBinID != '%d' }", bin.ID, bin.ID) }
+		>✓</span>
+		<span class="font-mono text-[10px] text-base-content/80">#{ fmt.Sprintf("%d", bin.ID) }</span>
+		<span class="min-w-0 truncate">{ bin.Name }</span>
+	</button>
+}
+
+// storageBinPickerBinCountLabel labels how many stable bins a group contains.
+func storageBinPickerBinCountLabel(ctx context.Context, count int) string {
+	// Chinese typography uses the full-width colon with no trailing space; every
+	// other locale keeps the existing half-width "colon space" separator.
+	if strings.HasPrefix(strings.ToLower(i18n.GetLanguage(ctx)), "zh") {
+		return fmt.Sprintf("%s：%d", i18n.T(ctx, "M6PhysicalBinsCount"), count)
+	}
+	return fmt.Sprintf("%s: %d", i18n.T(ctx, "M6PhysicalBinsCount"), count)
+}
+
+// storageBinPickerBinCount counts the bins attached across a cabinet's drawers.
+func storageBinPickerBinCount(drawers []StorageBinPickerDrawer) int {
+	count := 0
+	for _, drawer := range drawers {
+		count += len(drawer.Bins)
+	}
+	return count
+}

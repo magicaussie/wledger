@@ -225,35 +225,21 @@ if user.CanWrite() {
 						x-data="{ hasSelection: false }"
 					>
 						<div class="form-control w-full">
-							<label class="label pt-0 pb-2 justify-start gap-2">
-								<span class="label-text font-bold text-xs uppercase tracking-widest">{ i18n.T(ctx, "SelectWLEDController") }</span>
-							</label>
-							<select
-								name="controller_id"
-								class="select select-bordered w-full"
-								hx-get="/parts/bin_picker"
-								hx-target="#visual_bin_picker"
-								hx-trigger="change"
-								required
-								@change="hasSelection = false"
-							>
-								<option value="" disabled selected>{ i18n.T(ctx, "SelectAController") }</option>
-								for _, c := range controllers {
-									<option value={ fmt.Sprintf("%d", c.ID) }>{ c.Name }</option>
-								}
-							</select>
-						</div>
-						<div class="form-control w-full">
-							<label class="label pt-0 pb-2 justify-start gap-2">
-								<span class="label-text font-bold text-xs uppercase tracking-widest">{ i18n.T(ctx, "ChoosePhysicalBin") }</span>
-							</label>
+							<h3 id="visual_bin_picker_label" class="label pt-0 pb-2 justify-start gap-2">
+								<span class="label-text font-bold text-xs uppercase tracking-widest">{ i18n.T(ctx, "M6ChoosePhysicalBin") }</span>
+							</h3>
 							<div
 								id="visual_bin_picker"
-								class="min-h-[200px] flex items-center justify-center border-2 border-dashed border-base-300 rounded-xl bg-base-200/30"
+								role="group"
+								aria-labelledby="visual_bin_picker_label"
+								class="min-h-[200px] border-2 border-dashed border-base-300 rounded-xl bg-base-200/30 p-4"
+								hx-get="/storage/bin_picker"
+								hx-trigger="load"
+								hx-swap="innerHTML"
 								@bin-selected-form="hasSelection = true"
 							>
-								<div class="text-center opacity-40 py-8">
-									<p class="text-sm">{ i18n.T(ctx, "SelectControllerPrompt") }</p>
+								<div class="text-center text-base-content/80 py-12">
+									<p class="text-sm">{ i18n.T(ctx, "M6LoadingBins") }</p>
 								</div>
 							</div>
 						</div>
@@ -383,7 +369,6 @@ templ StockRow(partID int64, s db.GetPartAssignmentsRow, user auth.User, control
 							i18n.TD(ctx, "ReassignOrphanedStockDesc", map[string]interface{}{"Count": s.Quantity}),
 							fmt.Sprintf("/parts/%d/stock/%d/move", partID, s.ID),
 							s.Quantity,
-							controllers,
 						)
 					} else {
 						<button
@@ -399,7 +384,6 @@ templ StockRow(partID int64, s db.GetPartAssignmentsRow, user auth.User, control
 							i18n.TD(ctx, "MoveStockDesc", map[string]interface{}{"Count": s.Quantity}),
 							fmt.Sprintf("/parts/%d/stock/%d/move", partID, s.ID),
 							s.Quantity,
-							controllers,
 						)
 					                                        }
 					                                        <form action={ templ.SafeURL(fmt.Sprintf("/parts/%d/stock/%d/delete", partID, s.ID)) } method="POST" { templ.Attributes{"onsubmit": fmt.Sprintf("return confirm('%s');", i18n.T(ctx, "ConfirmRemoveStock"))}... }>
