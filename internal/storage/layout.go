@@ -276,6 +276,168 @@ func (s *LayoutService) CreateCabinet(ctx context.Context, name string, order in
 	return id, err
 }
 
+// ArchiveCabinet preserves every drawer, bin, stock assignment and electrical
+// record. It only hides the cabinet from active physical browsing.
+func (s *LayoutService) ArchiveCabinet(ctx context.Context, cabinetID, revision int64) error {
+	return s.store.ExecImmediateTx(ctx, func(q db.Querier) error {
+		cab, err := q.GetCabinet(ctx, cabinetID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrLayoutNotFound
+		}
+		if err != nil {
+			return err
+		}
+		if cab.LayoutRevision != revision {
+			return ErrLayoutStale
+		}
+		if _, err = q.ArchiveCabinet(ctx, cabinetID); err != nil {
+			return err
+		}
+		rows, err := q.AdvanceCabinetLayoutRevision(ctx, db.AdvanceCabinetLayoutRevisionParams{ID: cabinetID, LayoutRevision: revision})
+		if err != nil {
+			return err
+		}
+		if rows != 1 {
+			return ErrLayoutStale
+		}
+		return nil
+	})
+}
+
+// DeleteCabinet only removes an empty physical cabinet. Drawer, bin, inventory
+// and electrical records are never cascaded.
+func (s *LayoutService) DeleteCabinet(ctx context.Context, cabinetID, revision int64) error {
+	return s.store.ExecImmediateTx(ctx, func(q db.Querier) error {
+		cab, err := q.GetCabinet(ctx, cabinetID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrLayoutNotFound
+		}
+		if err != nil {
+			return err
+		}
+		if cab.LayoutRevision != revision {
+			return ErrLayoutStale
+		}
+		drawers, err := q.ListDrawersByCabinetIncludingArchived(ctx, cabinetID)
+		if err != nil {
+			return err
+		}
+		if len(drawers) != 0 {
+			return fmt.Errorf("%w: cabinet has %d drawer(s); remove them explicitly first", ErrUnsafeLayout, len(drawers))
+		}
+		rows, err := q.DeleteCabinet(ctx, cabinetID)
+		if err != nil {
+			return err
+		}
+		if rows != 1 {
+			return ErrLayoutNotFound
+		}
+		return nil
+	})
+}
+
+func (s *LayoutService) ArchiveDrawer(ctx context.Context, cabinetID, drawerID, revision int64) error {
+	return s.drawerMutation(ctx, cabinetID, drawerID, revision, true)
+}
+func (s *LayoutService) DeleteDrawer(ctx context.Context, cabinetID, drawerID, revision int64) error {
+	return s.drawerMutation(ctx, cabinetID, drawerID, revision, false)
+}
+func (s *LayoutService) drawerMutation(ctx context.Context, cabinetID, drawerID, revision int64, archive bool) error {
+	return s.store.ExecImmediateTx(ctx, func(q db.Querier) error {
+		cab, err := q.GetCabinet(ctx, cabinetID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrLayoutNotFound
+		}
+		if err != nil {
+			return err
+		}
+		if cab.LayoutRevision != revision {
+			return ErrLayoutStale
+		}
+		drawer, err := q.GetDrawer(ctx, drawerID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrLayoutNotFound
+		}
+		if err != nil {
+			return err
+		}
+		if drawer.CabinetID != cabinetID {
+			return fmt.Errorf("%w: drawer does not belong to cabinet", ErrUnsafeLayout)
+		}
+		if !archive {
+			bins, e := q.ListBinDrawerAttachmentsByDrawer(ctx, drawerID)
+			if e != nil {
+				return e
+			}
+			if len(bins) != 0 {
+				return fmt.Errorf("%w: drawer has %d bin placement(s); remove or relocate them first", ErrUnsafeLayout, len(bins))
+			}
+		}
+		if archive {
+			_, err = q.ArchiveDrawer(ctx, drawerID)
+		} else {
+			_, err = q.DeleteDrawer(ctx, drawerID)
+		}
+		if err != nil {
+			return err
+		}
+		rows, err := q.AdvanceCabinetLayoutRevision(ctx, db.AdvanceCabinetLayoutRevisionParams{ID: cabinetID, LayoutRevision: revision})
+		if err != nil {
+			return err
+		}
+		if rows != 1 {
+			return ErrLayoutStale
+		}
+		return nil
+	})
+}
+
+// DetachBinPlacement removes only the physical attachment. The bins row,
+// assignments, quantities, legacy container and LED coordinates stay untouched.
+func (s *LayoutService) DetachBinPlacement(ctx context.Context, cabinetID, binID, revision int64) error {
+	return s.store.ExecImmediateTx(ctx, func(q db.Querier) error {
+		cab, err := q.GetCabinet(ctx, cabinetID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrLayoutNotFound
+		}
+		if err != nil {
+			return err
+		}
+		if cab.LayoutRevision != revision {
+			return ErrLayoutStale
+		}
+		attachment, err := q.GetBinDrawerAttachment(ctx, binID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrLayoutNotFound
+		}
+		if err != nil {
+			return err
+		}
+		drawer, err := q.GetDrawer(ctx, attachment.DrawerID)
+		if err != nil {
+			return err
+		}
+		if drawer.CabinetID != cabinetID {
+			return fmt.Errorf("%w: placement belongs to another cabinet", ErrUnsafeLayout)
+		}
+		rows, err := q.DeleteBinDrawerAttachment(ctx, binID)
+		if err != nil {
+			return err
+		}
+		if rows != 1 {
+			return ErrLayoutNotFound
+		}
+		rows, err = q.AdvanceCabinetLayoutRevision(ctx, db.AdvanceCabinetLayoutRevisionParams{ID: cabinetID, LayoutRevision: revision})
+		if err != nil {
+			return err
+		}
+		if rows != 1 {
+			return ErrLayoutStale
+		}
+		return nil
+	})
+}
+
 func sortDrawerLayouts(items []DrawerLayout) {
 	sort.Slice(items, func(i, j int) bool { return items[i].Drawer.ID < items[j].Drawer.ID })
 }

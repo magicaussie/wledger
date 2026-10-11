@@ -151,6 +151,11 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 				r.Use(mw.RequireCSRF)
 				r.Post("/storage/cabinets", h.HandleLayoutCabinetCreate)
 				r.Post("/storage/cabinets/{id}/edit", h.HandleLayoutSave)
+								r.Post("/storage/cabinets/{id}/archive", h.HandleLayoutCabinetArchive)
+								r.Post("/storage/cabinets/{id}/delete", h.HandleLayoutCabinetDelete)
+								r.Post("/storage/cabinets/{id}/drawers/{drawerID}/archive", h.HandleLayoutDrawerArchive)
+								r.Post("/storage/cabinets/{id}/drawers/{drawerID}/delete", h.HandleLayoutDrawerDelete)
+								r.Post("/storage/cabinets/{id}/bins/{binID}/detach", h.HandleLayoutBinDetach)
 			})
 
 			// Parts CRUD

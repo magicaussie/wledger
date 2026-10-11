@@ -112,6 +112,29 @@ Older authorization statements below are historical, not the current scope.
   therefore NOT TESTED and must be completed manually or in a browser-enabled
   environment. Do not report it as passed.
 
+## M7 full physical-layout lifecycle — 2026-10-11
+
+- Added explicit CSRF-protected editor/admin lifecycle routes and confirmed
+  action controls: archive/delete cabinet, archive/delete drawer, and Remove
+  placement. Controls require a browser confirmation before posting the current
+  layout revision.
+- Cabinet archive preserves drawers, bins, stock and electrical records.
+  Cabinet deletion is allowed only with zero drawers (active or archived).
+  Drawer archive preserves placements and stock. Drawer deletion requires zero
+  attached placements. Placement removal deletes only
+  `bin_drawer_attachments`; the inventory bin and any part assignments,
+  quantities, legacy container mapping and LED fields remain intact.
+- Every lifecycle operation executes in `BEGIN IMMEDIATE`, validates the
+  cabinet revision, verifies ownership and advances the revision atomically.
+  Stale requests, cross-cabinet operations and unsafe deletes reject without
+  partial mutation.
+- Added lifecycle regression coverage for blocked occupied-drawer deletion,
+  placement detachment with inventory-bin preservation, successful empty
+  drawer/cabinet deletion, archived drawer state and stale archive rejection.
+  Full tagged Go suite, vet, build, templ/sqlc generation, production CSS build
+  and JS tests passed after the change. Browser acceptance remains untested
+  because the browser connector/Playwright are unavailable.
+
 ## Git baseline
 
 | Item | Baseline |

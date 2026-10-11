@@ -98,6 +98,47 @@ func TestLayoutSaveRejectsOmittedAttachedBin(t *testing.T) {
 	}
 }
 
+func TestDetachThenDeleteDrawerAndCabinetPreservesBin(t *testing.T) {
+	s := seedLayout(t)
+	ctx := context.Background()
+	if err := s.DeleteDrawer(ctx, 1, 1, 0); !errors.Is(err, ErrUnsafeLayout) {
+		t.Fatalf("delete occupied drawer = %v", err)
+	}
+	if err := s.DetachBinPlacement(ctx, 1, 1, 0); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.store.GetBin(ctx, 1); err != nil {
+		t.Fatalf("detach removed inventory bin: %v", err)
+	}
+	if err := s.DeleteDrawer(ctx, 1, 1, 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DeleteCabinet(ctx, 1, 2); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.store.GetBin(ctx, 1); err != nil {
+		t.Fatalf("cabinet lifecycle removed inventory bin: %v", err)
+	}
+}
+
+func TestArchiveAndStaleLifecycleAreProtected(t *testing.T) {
+	s := seedLayout(t)
+	ctx := context.Background()
+	if err := s.ArchiveDrawer(ctx, 1, 1, 0); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ArchiveCabinet(ctx, 1, 0); !errors.Is(err, ErrLayoutStale) {
+		t.Fatalf("stale archive = %v", err)
+	}
+	layout, err := s.Get(ctx, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if layout.Cabinet.LayoutRevision != 1 || layout.Drawers[0].Drawer.Archived != 1 {
+		t.Fatalf("archive not persisted: %#v", layout)
+	}
+}
+
 func TestLayoutSaveAssociatesExistingUnattachedBin(t *testing.T) {
 	s := seedLayout(t)
 	ctx := context.Background()
