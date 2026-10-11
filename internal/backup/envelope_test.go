@@ -231,8 +231,10 @@ func TestRestoreEnvelope_RejectsUnsupportedFramingBeforeMutation(t *testing.T) {
 			},
 		},
 		{
-			name:     "current storage manifest alone",
-			wantCode: FormatUnsupportedCurrentManifest,
+			// storage_data.json is a supported envelope now, so an unrecognized
+			// member in it is a content error rather than a framing one.
+			name:     "unknown field in current storage manifest",
+			wantCode: FormatUnknownManifestField,
 			zip: func(t *testing.T) []byte {
 				return buildEnvelopeZip(t, [][2]string{{currentStorageManifestName, `{"storage":true}`}})
 			},

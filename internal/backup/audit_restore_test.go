@@ -211,16 +211,7 @@ func TestRestore_AuditSQLNullVsJSONNullVsEmptyObject(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open zip: %v", err)
 	}
-	var manifest Manifest
-	for _, f := range zr.File {
-		if f.Name == "restore_data.json" {
-			rc, _ := f.Open()
-			if err := json.NewDecoder(rc).Decode(&manifest); err != nil {
-				t.Fatalf("decode manifest: %v", err)
-			}
-			rc.Close()
-		}
-	}
+	manifest := openExportedLegacyManifest(t, zr)
 	if len(manifest.AuditLogs) != 3 {
 		t.Fatalf("expected 3 manifest audit rows, got %d", len(manifest.AuditLogs))
 	}

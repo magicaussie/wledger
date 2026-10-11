@@ -31,6 +31,31 @@ type Bin struct {
 	GridY       sql.NullInt64 `json:"grid_y"`
 }
 
+type BinDrawerAttachment struct {
+	BinID        int64        `json:"bin_id"`
+	DrawerID     int64        `json:"drawer_id"`
+	X            float64      `json:"x"`
+	Y            float64      `json:"y"`
+	Width        float64      `json:"width"`
+	Height       float64      `json:"height"`
+	DisplayOrder int64        `json:"display_order"`
+	CreatedAt    sql.NullTime `json:"created_at"`
+	UpdatedAt    sql.NullTime `json:"updated_at"`
+}
+
+type Cabinet struct {
+	ID                 int64         `json:"id"`
+	Name               string        `json:"name"`
+	ControllerID       sql.NullInt64 `json:"controller_id"`
+	CoordinateSystem   string        `json:"coordinate_system"`
+	LayoutRevision     int64         `json:"layout_revision"`
+	ElectricalRevision int64         `json:"electrical_revision"`
+	DisplayOrder       int64         `json:"display_order"`
+	Archived           int64         `json:"archived"`
+	CreatedAt          sql.NullTime  `json:"created_at"`
+	UpdatedAt          sql.NullTime  `json:"updated_at"`
+}
+
 type Container struct {
 	ID            int64          `json:"id"`
 	Name          string         `json:"name"`
@@ -53,6 +78,20 @@ type Controller struct {
 	IsOnline   sql.NullBool   `json:"is_online"`
 	LedCount   int64          `json:"led_count"`
 	CreatedAt  sql.NullTime   `json:"created_at"`
+}
+
+type Drawer struct {
+	ID           int64        `json:"id"`
+	CabinetID    int64        `json:"cabinet_id"`
+	Label        string       `json:"label"`
+	DisplayOrder int64        `json:"display_order"`
+	X            float64      `json:"x"`
+	Y            float64      `json:"y"`
+	Width        float64      `json:"width"`
+	Height       float64      `json:"height"`
+	Archived     int64        `json:"archived"`
+	CreatedAt    sql.NullTime `json:"created_at"`
+	UpdatedAt    sql.NullTime `json:"updated_at"`
 }
 
 type InspirationTemplate struct {

@@ -371,6 +371,24 @@ are required; unverified or unsupported profiles must not translate or activate
 new Locate. No legacy offset or physical correspondence is inferred.
 Reference: https://kno.wled.ge/interfaces/json-api/#per-segment-individual-led-control
 
-Next: verify and commit the M2-only tree, complete physical backup round-trip in
-M3, then integrate reviewed reconciliation and legacy identity protection in M4.
-M5 and electrical-topology implementation remain unauthorized.
+M2 committed locally: `37fd555deb6873d09d9955072f916d81f9514c01`
+(`feat: guard backup envelopes before restore mutation`). Before committing,
+the exact staged M2-only tree was exported into an isolated temporary checkout;
+backup guard race tests, the full Go suite, vet and build all passed there.
+The uncommitted physical foundation was excluded from that commit.
+
+M3 implementation is integrated: additive cabinets, drawers and bin attachments
+with restrictive foreign keys and no legacy backfill; complete version 2.0
+`storage_data.json` backups capture legacy data, physical rows and all system flags
+in one transaction. Restore preserves IDs, quantities, mappings, revisions and
+timestamps. Incomplete, ambiguous or contradictory envelopes are refused before
+cleanup or mutation. Legacy 1.0 restore refuses a populated physical target.
+Migration rollback refuses populated new tables.
+
+Current snapshots preserve legacy mappings exactly; legacy allocation heuristics
+apply only to legacy archives because their segment-only grouping can conflate
+separate controllers. No hardware addressing or Locate behavior changed.
+
+M4 reviewed reconciliation and legacy grid/import guards are implemented and their
+targeted race tests passed. Milestone verification and local commits remain
+ordered M3, M4. M5 and electrical-topology implementation remain unauthorized.

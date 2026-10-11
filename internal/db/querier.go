@@ -12,12 +12,23 @@ import (
 type Querier interface {
 	AddContainerToWall(ctx context.Context, arg AddContainerToWallParams) error
 	AddTagToPart(ctx context.Context, arg AddTagToPartParams) error
+	ArchiveCabinet(ctx context.Context, id int64) (int64, error)
+	ArchiveDrawer(ctx context.Context, id int64) (int64, error)
 	CleanupSessions(ctx context.Context, expiry float64) error
 	ClearAuditLogs(ctx context.Context) error
+	// ClearBinDrawerAttachments empties the bin attachment table. It must run
+	// before any legacy bin or drawer deletion: attachments reference both.
+	ClearBinDrawerAttachments(ctx context.Context) error
 	ClearBins(ctx context.Context) error
+	// ClearCabinets empties the cabinet table. It must run before any legacy
+	// controller deletion, and after the drawers and cabinets it references.
+	ClearCabinets(ctx context.Context) error
 	ClearContainerBinLedIndices(ctx context.Context, containerID int64) error
 	ClearContainers(ctx context.Context) error
 	ClearControllers(ctx context.Context) error
+	// ClearDrawers empties the drawer table. It must run before any legacy cabinet
+	// or controller deletion, and after the attachments that reference drawers.
+	ClearDrawers(ctx context.Context) error
 	ClearPartAiPrompts(ctx context.Context) error
 	ClearPartAssignments(ctx context.Context) error
 	ClearPartDocs(ctx context.Context) error
@@ -38,8 +49,11 @@ type Querier interface {
 	CountUsers(ctx context.Context) (int64, error)
 	CreateAuditLog(ctx context.Context, arg CreateAuditLogParams) error
 	CreateBin(ctx context.Context, arg CreateBinParams) (int64, error)
+	CreateBinDrawerAttachment(ctx context.Context, arg CreateBinDrawerAttachmentParams) error
+	CreateCabinet(ctx context.Context, arg CreateCabinetParams) (int64, error)
 	CreateContainer(ctx context.Context, arg CreateContainerParams) (int64, error)
 	CreateController(ctx context.Context, arg CreateControllerParams) (CreateControllerRow, error)
+	CreateDrawer(ctx context.Context, arg CreateDrawerParams) (int64, error)
 	CreateInspirationTemplate(ctx context.Context, arg CreateInspirationTemplateParams) (InspirationTemplate, error)
 	CreatePart(ctx context.Context, arg CreatePartParams) (int64, error)
 	CreatePartAssignment(ctx context.Context, arg CreatePartAssignmentParams) error
@@ -55,12 +69,18 @@ type Querier interface {
 	CreateTag(ctx context.Context, name string) (Tag, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error)
 	CreateWall(ctx context.Context, arg CreateWallParams) (int64, error)
+	// DeleteAllSystemFlags removes every flag so a current-format restore can
+	// replace the flag set exactly instead of upserting onto the old one.
+	DeleteAllSystemFlags(ctx context.Context) error
 	DeleteAssignment(ctx context.Context, id int64) error
 	DeleteBin(ctx context.Context, id int64) error
 	DeleteBinByLed(ctx context.Context, arg DeleteBinByLedParams) error
+	DeleteBinDrawerAttachment(ctx context.Context, binID int64) (int64, error)
 	DeleteBinsByContainer(ctx context.Context, containerID int64) error
+	DeleteCabinet(ctx context.Context, id int64) (int64, error)
 	DeleteContainer(ctx context.Context, id int64) error
 	DeleteController(ctx context.Context, id int64) error
+	DeleteDrawer(ctx context.Context, id int64) (int64, error)
 	DeleteExpiredSupplierCache(ctx context.Context) error
 	DeleteInspirationTemplate(ctx context.Context, id int64) error
 	DeletePart(ctx context.Context, id int64) error
@@ -104,6 +124,10 @@ type Querier interface {
 	GetAllSupplierCache(ctx context.Context) ([]SupplierCache, error)
 	GetAllSupplierCredentials(ctx context.Context) ([]SupplierCredential, error)
 	GetAllSupplierReferences(ctx context.Context) ([]SupplierReference, error)
+	// GetAllSystemFlags captures every flag, with no key filter, so a backup is
+	// complete and a restore can reproduce the exact flag set (including the
+	// absence of a key).
+	GetAllSystemFlags(ctx context.Context) ([]SystemFlag, error)
 	GetAllUsers(ctx context.Context) ([]User, error)
 	GetAllWallCards(ctx context.Context) ([]WallCard, error)
 	GetAllWallContainerBins(ctx context.Context) ([]GetAllWallContainerBinsRow, error)
@@ -113,7 +137,10 @@ type Querier interface {
 	GetBinByContainerAndLed(ctx context.Context, arg GetBinByContainerAndLedParams) (int64, error)
 	GetBinByLocation(ctx context.Context, arg GetBinByLocationParams) (int64, error)
 	GetBinContents(ctx context.Context, binID sql.NullInt64) ([]GetBinContentsRow, error)
+	GetBinDrawerAttachment(ctx context.Context, binID int64) (BinDrawerAttachment, error)
 	GetBinsByContainer(ctx context.Context, containerID int64) ([]Bin, error)
+	GetCabinet(ctx context.Context, id int64) (Cabinet, error)
+	GetCabinetByController(ctx context.Context, controllerID sql.NullInt64) (Cabinet, error)
 	GetContainer(ctx context.Context, id int64) (Container, error)
 	GetContainersByController(ctx context.Context, controllerID int64) ([]Container, error)
 	GetController(ctx context.Context, id int64) (Controller, error)
@@ -129,6 +156,7 @@ type Querier interface {
 	// container/bin; a nonexistent controller returns no rows.
 	GetDashboardGridByController(ctx context.Context, id int64) ([]GetDashboardGridByControllerRow, error)
 	GetDashboardStats(ctx context.Context) (GetDashboardStatsRow, error)
+	GetDrawer(ctx context.Context, id int64) (Drawer, error)
 	GetFlag(ctx context.Context, key string) (string, error)
 	GetInspirationTemplate(ctx context.Context, id int64) (InspirationTemplate, error)
 	GetLatestPriceSnapshot(ctx context.Context, partID int64) ([]GetLatestPriceSnapshotRow, error)
@@ -164,8 +192,18 @@ type Querier interface {
 	GetWallContainerBins(ctx context.Context, wallID int64) ([]GetWallContainerBinsRow, error)
 	GetWalls(ctx context.Context) ([]Wall, error)
 	InitSettings(ctx context.Context) error
+	// ListAllDrawers returns every drawer, including archived rows and every
+	// cabinet, in a deterministic order so an exported snapshot is stable and
+	// complete.
+	ListAllDrawers(ctx context.Context) ([]Drawer, error)
 	ListAllTags(ctx context.Context) ([]Tag, error)
 	ListAuditLogs(ctx context.Context, arg ListAuditLogsParams) ([]ListAuditLogsRow, error)
+	ListBinDrawerAttachments(ctx context.Context) ([]BinDrawerAttachment, error)
+	ListBinDrawerAttachmentsByDrawer(ctx context.Context, drawerID int64) ([]BinDrawerAttachment, error)
+	ListCabinets(ctx context.Context) ([]Cabinet, error)
+	ListCabinetsIncludingArchived(ctx context.Context) ([]Cabinet, error)
+	ListDrawersByCabinet(ctx context.Context, cabinetID int64) ([]Drawer, error)
+	ListDrawersByCabinetIncludingArchived(ctx context.Context, cabinetID int64) ([]Drawer, error)
 	// Parts whose total stock is at or below a configured threshold. Parts with no
 	// threshold set (reorder_level/min_stock_threshold of 0 or NULL) are excluded so
 	// unconfigured parts are not flagged. Ordered by the largest shortfall first.
@@ -178,8 +216,17 @@ type Querier interface {
 	RemoveTagsFromPart(ctx context.Context, partID int64) error
 	RestoreAuditLog(ctx context.Context, arg RestoreAuditLogParams) error
 	RestoreBin(ctx context.Context, arg RestoreBinParams) error
+	// RestoreBinDrawerAttachment re-inserts a captured bin attachment with its
+	// exact bin, drawer, geometry and timestamps.
+	RestoreBinDrawerAttachment(ctx context.Context, arg RestoreBinDrawerAttachmentParams) error
+	// RestoreCabinet re-inserts a captured cabinet with its exact id, revisions,
+	// archived state and timestamps.
+	RestoreCabinet(ctx context.Context, arg RestoreCabinetParams) error
 	RestoreContainer(ctx context.Context, arg RestoreContainerParams) error
 	RestoreController(ctx context.Context, arg RestoreControllerParams) error
+	// RestoreDrawer re-inserts a captured drawer with its exact id, geometry,
+	// archived state and timestamps.
+	RestoreDrawer(ctx context.Context, arg RestoreDrawerParams) error
 	RestorePart(ctx context.Context, arg RestorePartParams) error
 	RestorePartAiPrompt(ctx context.Context, arg RestorePartAiPromptParams) error
 	RestorePartAssignment(ctx context.Context, arg RestorePartAssignmentParams) error
@@ -192,6 +239,9 @@ type Querier interface {
 	RestoreSettings(ctx context.Context, arg RestoreSettingsParams) error
 	RestoreSupplierCredential(ctx context.Context, arg RestoreSupplierCredentialParams) error
 	RestoreSupplierReference(ctx context.Context, arg RestoreSupplierReferenceParams) error
+	// RestoreSystemFlag restores a flag with its captured timestamp so the flag set
+	// round-trips exactly.
+	RestoreSystemFlag(ctx context.Context, arg RestoreSystemFlagParams) error
 	RestoreTag(ctx context.Context, arg RestoreTagParams) error
 	RestoreUser(ctx context.Context, arg RestoreUserParams) error
 	RestoreWall(ctx context.Context, arg RestoreWallParams) error
@@ -200,12 +250,21 @@ type Querier interface {
 	SetFlag(ctx context.Context, arg SetFlagParams) error
 	SetPasswordResetFlag(ctx context.Context, arg SetPasswordResetFlagParams) error
 	TogglePartFavorite(ctx context.Context, id int64) (sql.NullBool, error)
+	UnarchiveCabinet(ctx context.Context, id int64) (int64, error)
+	UnarchiveDrawer(ctx context.Context, id int64) (int64, error)
 	UpdateBin(ctx context.Context, arg UpdateBinParams) error
+	UpdateBinDrawerAttachment(ctx context.Context, arg UpdateBinDrawerAttachmentParams) (int64, error)
+	UpdateBinDrawerAttachmentGeometry(ctx context.Context, arg UpdateBinDrawerAttachmentGeometryParams) (int64, error)
 	UpdateBinLedIndex(ctx context.Context, arg UpdateBinLedIndexParams) error
+	UpdateCabinet(ctx context.Context, arg UpdateCabinetParams) (int64, error)
+	UpdateCabinetElectricalRevision(ctx context.Context, arg UpdateCabinetElectricalRevisionParams) (int64, error)
+	UpdateCabinetLayoutRevision(ctx context.Context, arg UpdateCabinetLayoutRevisionParams) (int64, error)
 	UpdateColors(ctx context.Context, arg UpdateColorsParams) error
 	UpdateContainerAllocation(ctx context.Context, arg UpdateContainerAllocationParams) error
 	UpdateContainerConfig(ctx context.Context, arg UpdateContainerConfigParams) error
 	UpdateControllerStatus(ctx context.Context, arg UpdateControllerStatusParams) error
+	UpdateDrawer(ctx context.Context, arg UpdateDrawerParams) (int64, error)
+	UpdateDrawerGeometry(ctx context.Context, arg UpdateDrawerGeometryParams) (int64, error)
 	UpdateGeneralSettings(ctx context.Context, arg UpdateGeneralSettingsParams) error
 	UpdateInspirationTemplate(ctx context.Context, arg UpdateInspirationTemplateParams) error
 	UpdatePart(ctx context.Context, arg UpdatePartParams) error

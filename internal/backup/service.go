@@ -93,27 +93,32 @@ func (s *service) Export(ctx context.Context, w io.Writer) error {
 	// consistent snapshot: a concurrent write cannot make one entity reference
 	// another that the same manifest is missing. Any read failure aborts the
 	// export instead of being reported as a successful, incomplete backup.
-	manifest, err := s.snapshotManifest(ctx)
+	// One snapshot yields the complete historical manifest, the physical storage
+	// graph and every system flag.
+	env, err := s.snapshotStorageManifest(ctx)
 	if err != nil {
 		return err
 	}
 	zw := newBackupZipWriter(w)
 
-	// Add restore_data.json
-	s.logger.Debug("adding restore_data.json to backup")
-	fJson, err := zw.Create("restore_data.json")
+	// Add storage_data.json. A current backup writes exactly one manifest entry:
+	// restore_data.json is no longer emitted, so an older build fails on the
+	// missing legacy entry instead of silently ignoring physical storage it
+	// cannot read.
+	s.logger.Debug("adding storage_data.json to backup")
+	fJson, err := zw.Create(currentStorageManifestName)
 	if err != nil {
 		return fmt.Errorf("failed to create json entry: %w", err)
 	}
 	enc := json.NewEncoder(fJson)
 	enc.SetIndent("", "  ")
-	if err := enc.Encode(manifest); err != nil {
+	if err := enc.Encode(env); err != nil {
 		return fmt.Errorf("failed to encode json: %w", err)
 	}
 
 	// add human_readable_parts.csv
 	s.logger.Debug("adding human_readable_parts.csv to backup")
-	if err := writePartsCSV(zw, manifest.Parts, manifest.PartAssignments); err != nil {
+	if err := writePartsCSV(zw, env.Legacy.Parts, env.Legacy.PartAssignments); err != nil {
 		return err
 	}
 
@@ -159,16 +164,18 @@ func withinDir(base, target string) bool {
 	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
-// snapshotManifest reads every entity required by a backup inside a single
-// transaction, so the manifest is a consistent snapshot and a concurrent write
-// cannot make one entity reference another the manifest omits. Every read is
-// checked; a failure aborts the export instead of silently producing an empty
-// or partial manifest.
-func (s *service) snapshotManifest(ctx context.Context) (Manifest, error) {
-	var manifest Manifest
+// snapshotStorageManifest reads everything a current backup carries inside a
+// single transaction: the complete historical manifest, the physical storage
+// graph and every system flag. One transaction yields one consistent snapshot,
+// so a concurrent write cannot make one entity reference another that the same
+// snapshot omits. No snapshot is split across transactions and no nested
+// transaction is used. Every read is checked; a failure aborts the export
+// instead of silently producing an empty or partial manifest.
+func (s *service) snapshotStorageManifest(ctx context.Context) (StorageManifest, error) {
+	var env StorageManifest
 	err := s.store.ExecTx(ctx, func(q db.Querier) error {
 		var m Manifest
-		m.Version = "1.0"
+		m.Version = supportedLegacyManifestVersion
 		m.ExportedAt = time.Now()
 
 		settings, err := q.GetSettings(ctx)
@@ -277,13 +284,58 @@ func (s *service) snapshotManifest(ctx context.Context) (Manifest, error) {
 		}
 		m.BinIndexSpace = space
 
-		manifest = m
+		// Read the physical graph and every system flag through the same querier, so
+		// the one transaction covers the whole installation rather than only the
+		// legacy tables.
+		cabinets, err := q.ListCabinetsIncludingArchived(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to fetch cabinets: %w", err)
+		}
+		drawers, err := q.ListAllDrawers(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to fetch drawers: %w", err)
+		}
+		attachments, err := q.ListBinDrawerAttachments(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to fetch bin attachments: %w", err)
+		}
+		flags, err := q.GetAllSystemFlags(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to fetch system flags: %w", err)
+		}
+		// An empty graph and flag list are captured as empty arrays rather than
+		// null, so the current format always declares its physical storage and flag
+		// set explicitly instead of leaving them unknown.
+		if cabinets == nil {
+			cabinets = []db.Cabinet{}
+		}
+		if drawers == nil {
+			drawers = []db.Drawer{}
+		}
+		if attachments == nil {
+			attachments = []db.BinDrawerAttachment{}
+		}
+		if flags == nil {
+			flags = []db.SystemFlag{}
+		}
+
+		env = StorageManifest{
+			Version:    supportedCurrentManifestVersion,
+			ExportedAt: m.ExportedAt,
+			Legacy:     m,
+			PhysicalStorage: PhysicalStorageSnapshot{
+				Cabinets:       cabinets,
+				Drawers:        drawers,
+				BinAttachments: attachments,
+			},
+			SystemFlags: flags,
+		}
 		return nil
 	})
 	if err != nil {
-		return Manifest{}, err
+		return StorageManifest{}, err
 	}
-	return manifest, nil
+	return env, nil
 }
 
 // writePartsCSV writes the human-readable parts CSV to the archive. Every write
@@ -432,14 +484,19 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 	}
 
 	// Validate the archive envelope before any state is changed: exactly one
-	// supported manifest must be present and its JSON must be well-formed. This
-	// runs before uploads/staging cleanup and before any database work, so an
-	// unsupported, duplicate, ambiguous or malformed backup leaves the
-	// installation untouched.
-	manifest, err := readRestoreEnvelope(zr)
+	// supported manifest must be present, its JSON must be well-formed, and a
+	// current manifest's physical storage graph must be internally consistent.
+	// This runs before uploads/staging cleanup and before any database work, so an
+	// unsupported, duplicate, ambiguous, malformed or inconsistent backup leaves
+	// the installation untouched.
+	envelope, err := readRestoreEnvelope(zr)
 	if err != nil {
 		return err
 	}
+	// A current archive declares its complete physical storage and may therefore
+	// replace the target graph. A legacy archive declares none, so it is only
+	// restorable into an installation that has no physical storage to lose.
+	manifest := envelope.Legacy
 
 	// Resolve the coordinate system of the backup's bin LED indices. An
 	// unsupported explicit marker is rejected; an absent marker on a backup that
@@ -450,31 +507,54 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 		return err
 	}
 
-	// Validate restored drawer allocations before touching any persisted data,
-	// using the coordinate system the backup declares. Segment-relative and
-	// drawer-relative backups both validate bin containment against the drawer
-	// allocation, but in their own coordinate space. Unresolved backups only have
-	// their allocation ranges checked, because bin containment cannot be assessed
+	// A legacy archive is interpreted in the coordinate space it declares, so its
+	// bin indices are validated against the drawer allocations before anything is
+	// changed: segment-relative and drawer-relative backups both validate bin
+	// containment in their own coordinate space, and an unresolved backup only has
+	// its allocation ranges checked, because bin containment cannot be assessed
 	// without a known bin coordinate space.
-	switch space {
-	case ledspace.Segment:
-		if _, err := hardware.ValidateRestoredAllocations(manifest.Containers, manifest.Bins); err != nil {
-			return fmt.Errorf("invalid backup: %w", err)
+	//
+	// A current archive is a byte-exact capture of a running installation whose
+	// flags are restored exactly, so the stored state is already authoritative:
+	// the legacy interpretation heuristics are not applied to it. Its own physical
+	// storage graph is validated by the envelope decode instead.
+	if envelope.Current == nil {
+		switch space {
+		case ledspace.Segment:
+			if _, err := hardware.ValidateRestoredAllocations(manifest.Containers, manifest.Bins); err != nil {
+				return fmt.Errorf("invalid backup: %w", err)
+			}
+		case ledspace.Drawer:
+			if err := hardware.ValidateRestoredDrawerAllocations(manifest.Containers, manifest.Bins); err != nil {
+				return fmt.Errorf("invalid backup: %w", err)
+			}
+		default: // unresolved
+			if err := hardware.ValidateRestoredAllocationRanges(manifest.Containers); err != nil {
+				return fmt.Errorf("invalid backup: %w", err)
+			}
 		}
-	case ledspace.Drawer:
-		if err := hardware.ValidateRestoredDrawerAllocations(manifest.Containers, manifest.Bins); err != nil {
-			return fmt.Errorf("invalid backup: %w", err)
+	}
+
+	// A legacy archive cannot reproduce physical storage, so restoring it over a
+	// populated physical graph would discard that data irrecoverably. Refusing
+	// here, before the uploads staging cleanup and before any database mutation,
+	// leaves the installation's rows and files exactly as they were.
+	if envelope.Current == nil {
+		populated, err := physicalGraphPopulated(ctx, s.store)
+		if err != nil {
+			return err
 		}
-	default: // unresolved
-		if err := hardware.ValidateRestoredAllocationRanges(manifest.Containers); err != nil {
-			return fmt.Errorf("invalid backup: %w", err)
+		if populated {
+			return &PhysicalStorageConflictError{
+				Reason: "the archive is a legacy " + legacyManifestName + " backup that carries no physical storage, but this installation already has cabinets, drawers or bin attachments",
+			}
 		}
 	}
 
 	// Every pre-extraction validation has passed; only now clean up staging left
 	// behind by a previous, interrupted restore. Running this after the whole
-	// manifest validation (envelope, coordinate space and allocations) means no
-	// rejected backup ever destroys leftover staging evidence.
+	// manifest validation (envelope, coordinate space, allocations and physical
+	// storage) means no rejected backup ever destroys leftover staging evidence.
 	s.cleanAbandonedStagingDirs()
 
 	// Extract uploads to temp directory
@@ -536,7 +616,27 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 	// (BEGIN IMMEDIATE) so a concurrent coordinate conversion cannot commit
 	// between the restore's reads and its writes.
 	err = s.store.ExecImmediateTx(ctx, func(qtx db.Querier) error {
+		// Re-check inside the write transaction so a physical graph that appeared
+		// after the pre-restore check is refused atomically rather than silently
+		// cleared.
+		if envelope.Current == nil {
+			populated, err := physicalGraphPopulated(ctx, qtx)
+			if err != nil {
+				return err
+			}
+			if populated {
+				return &PhysicalStorageConflictError{
+					Reason: "the archive is a legacy " + legacyManifestName + " backup that carries no physical storage, but this installation already has cabinets, drawers or bin attachments",
+				}
+			}
+		}
 		s.logger.Debug("clearing existing database records")
+		// Physical storage is cleared first: bin attachments reference bins and
+		// drawers, drawers reference cabinets and cabinets reference controllers,
+		// so the legacy clears below could not run while physical rows remain.
+		if err := clearPhysicalStorage(ctx, qtx); err != nil {
+			return err
+		}
 		// Order matters for Foreign Keys
 		if err := qtx.ClearAuditLogs(ctx); err != nil {
 			return fmt.Errorf("failed to clear audit logs: %w", err)
@@ -601,6 +701,20 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 		s.logger.Debug("restoring database records from manifest")
 		if err := s.restoreData(ctx, qtx, manifest); err != nil {
 			return err
+		}
+		// A current archive carries a complete physical graph, restored after the
+		// legacy controllers and bins it references, so it replaces the target
+		// graph exactly, including an explicitly empty one. Its flags replace the
+		// stored flag set exactly rather than being normalized like a legacy
+		// restore, so the restored system matches the backed-up system.
+		if envelope.Current != nil {
+			if err := restorePhysicalStorage(ctx, qtx, envelope.Current.PhysicalStorage); err != nil {
+				return err
+			}
+			if err := restoreSystemFlags(ctx, qtx, envelope.Current.SystemFlags); err != nil {
+				return err
+			}
+			return nil
 		}
 		// Persist the coordinate-space state atomically with the restored data so
 		// it survives restarts and cannot be left stale by a crash.
@@ -704,6 +818,13 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 		// Drawer-relative bins already carry their own allocations, and the
 		// segment-based backfill would derive meaningless ranges from them.
 		s.logger.Warn("restored backup is drawer-relative; segment-based drawer allocation backfill skipped")
+		return nil
+	}
+
+	// A current backup already carries its complete derived state, so no
+	// allocation may be derived for it: the restore reproduces the backed-up
+	// system exactly, including every flag.
+	if envelope.Current != nil {
 		return nil
 	}
 

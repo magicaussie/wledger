@@ -7,7 +7,50 @@ package db
 
 import (
 	"context"
+	"database/sql"
 )
+
+const deleteAllSystemFlags = `-- name: DeleteAllSystemFlags :exec
+DELETE FROM system_flags
+`
+
+// DeleteAllSystemFlags removes every flag so a current-format restore can
+// replace the flag set exactly instead of upserting onto the old one.
+func (q *Queries) DeleteAllSystemFlags(ctx context.Context) error {
+	_, err := q.exec(ctx, q.deleteAllSystemFlagsStmt, deleteAllSystemFlags)
+	return err
+}
+
+const getAllSystemFlags = `-- name: GetAllSystemFlags :many
+SELECT key, value, updated_at FROM system_flags
+ORDER BY key ASC
+`
+
+// GetAllSystemFlags captures every flag, with no key filter, so a backup is
+// complete and a restore can reproduce the exact flag set (including the
+// absence of a key).
+func (q *Queries) GetAllSystemFlags(ctx context.Context) ([]SystemFlag, error) {
+	rows, err := q.query(ctx, q.getAllSystemFlagsStmt, getAllSystemFlags)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SystemFlag
+	for rows.Next() {
+		var i SystemFlag
+		if err := rows.Scan(&i.Key, &i.Value, &i.UpdatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
 
 const getFlag = `-- name: GetFlag :one
 SELECT value FROM system_flags WHERE key = ?
@@ -18,6 +61,24 @@ func (q *Queries) GetFlag(ctx context.Context, key string) (string, error) {
 	var value string
 	err := row.Scan(&value)
 	return value, err
+}
+
+const restoreSystemFlag = `-- name: RestoreSystemFlag :exec
+INSERT INTO system_flags (key, value, updated_at)
+VALUES (?, ?, ?)
+`
+
+type RestoreSystemFlagParams struct {
+	Key       string       `json:"key"`
+	Value     string       `json:"value"`
+	UpdatedAt sql.NullTime `json:"updated_at"`
+}
+
+// RestoreSystemFlag restores a flag with its captured timestamp so the flag set
+// round-trips exactly.
+func (q *Queries) RestoreSystemFlag(ctx context.Context, arg RestoreSystemFlagParams) error {
+	_, err := q.exec(ctx, q.restoreSystemFlagStmt, restoreSystemFlag, arg.Key, arg.Value, arg.UpdatedAt)
+	return err
 }
 
 const setFlag = `-- name: SetFlag :exec

@@ -109,8 +109,11 @@ func TestExport_HappyPath(t *testing.T) {
 		files[f.Name] = true
 	}
 
-	if !files["restore_data.json"] {
-		t.Error("restore_data.json missing from backup")
+	if !files["storage_data.json"] {
+		t.Error("storage_data.json missing from backup")
+	}
+	if files["restore_data.json"] {
+		t.Error("a current backup must not also carry restore_data.json")
 	}
 	if !files["human_readable_parts.csv"] {
 		t.Error("human_readable_parts.csv missing from backup")
@@ -123,14 +126,26 @@ func TestExport_HappyPath(t *testing.T) {
 		t.Error("uploads/images/img.png missing from backup")
 	}
 
-	// Verify JSON Content
-	rc, _ := zr.Open("restore_data.json")
-	defer rc.Close()
-	var manifest Manifest
-	if err := json.NewDecoder(rc).Decode(&manifest); err != nil {
+	// The current envelope declares its own version and embeds the complete
+	// historical manifest.
+	var env StorageManifest
+	rc, err := zr.Open("storage_data.json")
+	if err != nil {
+		t.Fatalf("open storage_data.json: %v", err)
+	}
+	if err := json.NewDecoder(rc).Decode(&env); err != nil {
+		rc.Close()
 		t.Fatalf("failed to decode manifest: %v", err)
 	}
+	rc.Close()
+	if env.Version != supportedCurrentManifestVersion {
+		t.Errorf("manifest version = %q, want %q", env.Version, supportedCurrentManifestVersion)
+	}
+	if env.Legacy.Version != supportedLegacyManifestVersion {
+		t.Errorf("embedded legacy version = %q, want %q", env.Legacy.Version, supportedLegacyManifestVersion)
+	}
 
+	manifest := env.Legacy
 	if len(manifest.Users) != 1 {
 		t.Errorf("expected 1 user in manifest, got %d", len(manifest.Users))
 	}
@@ -437,14 +452,7 @@ func TestExport_IncludesBinIndexSpace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("zip: %v", err)
 	}
-	var manifest Manifest
-	for _, f := range zr.File {
-		if f.Name == "restore_data.json" {
-			rc, _ := f.Open()
-			_ = json.NewDecoder(rc).Decode(&manifest)
-			rc.Close()
-		}
-	}
+	manifest := openExportedLegacyManifest(t, zr)
 	if manifest.BinIndexSpace != ledspace.Segment {
 		t.Errorf("bin_index_space = %q, want %q", manifest.BinIndexSpace, ledspace.Segment)
 	}
@@ -755,16 +763,7 @@ func TestExport_IncludesDrawerBinIndexSpace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read zip: %v", err)
 	}
-	var manifest Manifest
-	for _, f := range zr.File {
-		if f.Name == "restore_data.json" {
-			rc, _ := f.Open()
-			if err := json.NewDecoder(rc).Decode(&manifest); err != nil {
-				t.Fatalf("decode manifest: %v", err)
-			}
-			rc.Close()
-		}
-	}
+	manifest := openExportedLegacyManifest(t, zr)
 	if manifest.BinIndexSpace != ledspace.Drawer {
 		t.Errorf("bin_index_space = %q, want %q", manifest.BinIndexSpace, ledspace.Drawer)
 	}
@@ -943,16 +942,7 @@ func TestRestore_UnresolvedBackupRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read zip: %v", err)
 	}
-	var manifest Manifest
-	for _, f := range zr.File {
-		if f.Name == "restore_data.json" {
-			rc, _ := f.Open()
-			if err := json.NewDecoder(rc).Decode(&manifest); err != nil {
-				t.Fatalf("decode manifest: %v", err)
-			}
-			rc.Close()
-		}
-	}
+	manifest := openExportedLegacyManifest(t, zr)
 	if manifest.BinIndexSpace != ledspace.Unresolved {
 		t.Fatalf("exported bin_index_space = %q, want %q", manifest.BinIndexSpace, ledspace.Unresolved)
 	}

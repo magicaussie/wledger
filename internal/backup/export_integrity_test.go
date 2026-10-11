@@ -143,22 +143,47 @@ func newExportHarness(t *testing.T, wrap func(db.Querier) db.Querier) (*exportSt
 	return store, svc, uploadsDir, func() { fsCleanup(); dbCleanup() }
 }
 
+// openExportedLegacyManifest decodes the historical manifest from an exported
+// archive. It accepts the current storage_data.json 2.0 envelope, whose legacy
+// member holds the complete historical manifest, as well as a legacy
+// restore_data.json, so the machine-equality assertions keep testing the same
+// data after the export switched to the current envelope.
+func openExportedLegacyManifest(t *testing.T, zr *zip.Reader) Manifest {
+	t.Helper()
+	decode := func(f *zip.File, v any) {
+		t.Helper()
+		rc, err := f.Open()
+		if err != nil {
+			t.Fatalf("open %s: %v", f.Name, err)
+		}
+		defer rc.Close()
+		if err := json.NewDecoder(rc).Decode(v); err != nil {
+			t.Fatalf("decode %s: %v", f.Name, err)
+		}
+	}
+	for _, f := range zr.File {
+		switch f.Name {
+		case currentStorageManifestName:
+			var env StorageManifest
+			decode(f, &env)
+			return env.Legacy
+		case legacyManifestName:
+			var m Manifest
+			decode(f, &m)
+			return m
+		}
+	}
+	t.Fatalf("exported archive carries neither %s nor %s", currentStorageManifestName, legacyManifestName)
+	return Manifest{}
+}
+
 func decodeManifest(t *testing.T, buf *bytes.Buffer) Manifest {
 	t.Helper()
 	zr, err := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
 	if err != nil {
 		t.Fatalf("read generated zip: %v", err)
 	}
-	rc, err := zr.Open("restore_data.json")
-	if err != nil {
-		t.Fatalf("open manifest: %v", err)
-	}
-	defer rc.Close()
-	var m Manifest
-	if err := json.NewDecoder(rc).Decode(&m); err != nil {
-		t.Fatalf("decode manifest: %v", err)
-	}
-	return m
+	return openExportedLegacyManifest(t, zr)
 }
 
 func TestExport_DatabaseReadFailure(t *testing.T) {
