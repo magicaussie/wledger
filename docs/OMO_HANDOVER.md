@@ -135,6 +135,27 @@ Older authorization statements below are historical, not the current scope.
   and JS tests passed after the change. Browser acceptance remains untested
   because the browser connector/Playwright are unavailable.
 
+## M7 browser-reported undefined lifecycle URL correction — 2026-10-11
+
+- Real Chrome acceptance found cabinet deletion posting to
+  `/storage/cabinets/undefined/delete`. Root cause: `templ.JSONScript` honors
+  `db` JSON tags (`id`, `layout_revision`, `bin_id`), while the editor JS was
+  incorrectly reading Go export names (`ID`, `LayoutRevision`, `BinID`). Thus
+  the editor state never received a cabinet ID. The same defect affected drawer
+  and bin lifecycle URLs and initial editor geometry hydration.
+- Corrected every JSON access to the serialized lower-case contract. Lifecycle
+  form submission now builds `/storage/cabinets/<stable numeric id>/...` with
+  POST, the request-scoped CSRF token, and the current revision. The generated
+  template was regenerated.
+- Lifecycle failures now redirect back to the editor with an escaped actionable
+  `layout_error` message instead of rendering a raw HTTP error page. Successful
+  cabinet archive/delete still redirects to the cabinet list; successful drawer
+  lifecycle and detach actions redirect to the editor.
+- Added a render regression that checks generated editor markup uses JSON field
+  names and contains stable numeric URLs/CSRF controls, while rejecting the
+  erroneous Go-style JS access. Full Go test/vet/build, templ/sqlc generation,
+  production CSS build and JS suite passed. Browser re-test remains required.
+
 ## Git baseline
 
 | Item | Baseline |

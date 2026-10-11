@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/url"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
@@ -66,15 +67,10 @@ func (h *Handler) HandleLayoutSave(w http.ResponseWriter, r *http.Request) {
 func layoutRevision(r *http.Request) (int64, error) {
 	return strconv.ParseInt(r.FormValue("revision"), 10, 64)
 }
-func layoutMutationError(w http.ResponseWriter, err error) {
-	status := http.StatusBadRequest
-	if errors.Is(err, storage.ErrLayoutStale) {
-		status = http.StatusConflict
-	}
-	if errors.Is(err, storage.ErrLayoutNotFound) {
-		status = http.StatusNotFound
-	}
-	http.Error(w, err.Error(), status)
+func layoutMutationError(w http.ResponseWriter, r *http.Request, cabinetID int64, err error) {
+	// Lifecycle requests originate in the editor. Preserve the actionable error
+	// there instead of stranding the user on a raw HTTP error page.
+	http.Redirect(w, r, "/storage/cabinets/"+strconv.FormatInt(cabinetID, 10)+"/edit?layout_error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 }
 func (h *Handler) HandleLayoutCabinetArchive(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
@@ -88,7 +84,7 @@ func (h *Handler) HandleLayoutCabinetArchive(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	if er = h.layoutService().ArchiveCabinet(r.Context(), id, rev); er != nil {
-		layoutMutationError(w, er)
+		layoutMutationError(w, r, id, er)
 		return
 	}
 	http.Redirect(w, r, "/storage/cabinets", http.StatusSeeOther)
@@ -105,7 +101,7 @@ func (h *Handler) HandleLayoutCabinetDelete(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	if er = h.layoutService().DeleteCabinet(r.Context(), id, rev); er != nil {
-		layoutMutationError(w, er)
+		layoutMutationError(w, r, id, er)
 		return
 	}
 	http.Redirect(w, r, "/storage/cabinets", http.StatusSeeOther)
@@ -135,7 +131,7 @@ func (h *Handler) handleDrawerLifecycle(w http.ResponseWriter, r *http.Request, 
 		err = h.layoutService().DeleteDrawer(r.Context(), cab, drawer, rev)
 	}
 	if err != nil {
-		layoutMutationError(w, err)
+		layoutMutationError(w, r, cab, err)
 		return
 	}
 	http.Redirect(w, r, "/storage/cabinets/"+strconv.FormatInt(cab, 10)+"/edit", http.StatusSeeOther)
@@ -153,7 +149,7 @@ func (h *Handler) HandleLayoutBinDetach(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if err := h.layoutService().DetachBinPlacement(r.Context(), cab, bin, rev); err != nil {
-		layoutMutationError(w, err)
+		layoutMutationError(w, r, cab, err)
 		return
 	}
 	http.Redirect(w, r, "/storage/cabinets/"+strconv.FormatInt(cab, 10)+"/edit", http.StatusSeeOther)
