@@ -233,7 +233,7 @@ func seed(ctx context.Context, store db.Store) error {
 			}
 			if _, err := store.CreateBin(ctx, db.CreateBinParams{
 				Name:        name,
-				ContainerID: contA,
+				ContainerID: sql.NullInt64{Int64: contA, Valid: true},
 				Width:       sql.NullInt64{Int64: 1, Valid: true},
 				GridX:       sql.NullInt64{Int64: int64(x), Valid: true},
 				GridY:       sql.NullInt64{Int64: int64(y), Valid: true},
@@ -252,7 +252,7 @@ func seed(ctx context.Context, store db.Store) error {
 	if err != nil {
 		return err
 	}
-	bins, err := store.GetBinsByContainer(ctx, contA)
+	bins, err := store.GetBinsByContainer(ctx, sql.NullInt64{Int64: contA, Valid: true})
 	if err != nil {
 		return err
 	}

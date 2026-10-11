@@ -388,7 +388,7 @@ func TestExportRestore_AuditAndDrawerSpace(t *testing.T) {
 		ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true},
 	})
 	if _, err := srcStore.CreateBin(ctx, db.CreateBinParams{
-		Name: "a1", ContainerID: cont, LedIndex: sql.NullInt64{Int64: 3, Valid: true},
+		Name: "a1", ContainerID: sql.NullInt64{Int64: cont, Valid: true}, LedIndex: sql.NullInt64{Int64: 3, Valid: true},
 		Width: sql.NullInt64{Int64: 2, Valid: true},
 	}); err != nil {
 		t.Fatalf("create bin: %v", err)
@@ -416,7 +416,7 @@ func TestExportRestore_AuditAndDrawerSpace(t *testing.T) {
 	if err != nil || space != ledspace.Drawer {
 		t.Fatalf("restored space = %q (err %v), want drawer", space, err)
 	}
-	bins, _ := dstStore.GetBinsByContainer(ctx, cont)
+	bins, _ := dstStore.GetBinsByContainer(ctx, sql.NullInt64{Int64: cont, Valid: true})
 	if len(bins) != 1 || !bins[0].LedIndex.Valid || bins[0].LedIndex.Int64 != 3 {
 		t.Fatalf("restored bin = %+v, want drawer-relative index 3", bins)
 	}
@@ -441,7 +441,7 @@ func TestExportRestore_AuditAndSegmentSpace(t *testing.T) {
 		ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true},
 	})
 	if _, err := srcStore.CreateBin(ctx, db.CreateBinParams{
-		Name: "a1", ContainerID: cont, LedIndex: sql.NullInt64{Int64: 7, Valid: true},
+		Name: "a1", ContainerID: sql.NullInt64{Int64: cont, Valid: true}, LedIndex: sql.NullInt64{Int64: 7, Valid: true},
 		Width: sql.NullInt64{Int64: 1, Valid: true},
 	}); err != nil {
 		t.Fatalf("create bin: %v", err)
@@ -467,7 +467,7 @@ func TestExportRestore_AuditAndSegmentSpace(t *testing.T) {
 	if space != ledspace.Segment {
 		t.Fatalf("restored space = %q, want segment", space)
 	}
-	bins, _ := dstStore.GetBinsByContainer(ctx, cont)
+	bins, _ := dstStore.GetBinsByContainer(ctx, sql.NullInt64{Int64: cont, Valid: true})
 	if len(bins) != 1 || !bins[0].LedIndex.Valid || bins[0].LedIndex.Int64 != 7 {
 		t.Fatalf("restored bin = %+v, want segment index 7", bins)
 	}

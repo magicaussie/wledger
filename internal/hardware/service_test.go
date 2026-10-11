@@ -71,7 +71,7 @@ func TestService_DeleteController(t *testing.T) {
 	// Add a bin
 	store.CreateBin(ctx, db.CreateBinParams{
 		Name:        "Bin 1",
-		ContainerID: cont,
+		ContainerID: sql.NullInt64{Int64: cont, Valid: true},
 	})
 
 	err := s.DeleteController(ctx, c.ID)

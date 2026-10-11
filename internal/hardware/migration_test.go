@@ -61,13 +61,13 @@ func TestMigrateLegacyLedIndices(t *testing.T) {
 	// Setup Bins with RELATIVE indices
 	// Cont 1 Bins: 0, 1
 	_, err = store.CreateBin(ctx, db.CreateBinParams{
-		Name: "C1B1", ContainerID: cont1, LedIndex: sql.NullInt64{Int64: 0, Valid: true},
+		Name: "C1B1", ContainerID: sql.NullInt64{Int64: cont1, Valid: true}, LedIndex: sql.NullInt64{Int64: 0, Valid: true},
 	})
 	if err != nil {
 		t.Fatalf("failed to create bin C1B1: %v", err)
 	}
 	_, err = store.CreateBin(ctx, db.CreateBinParams{
-		Name: "C1B2", ContainerID: cont1, LedIndex: sql.NullInt64{Int64: 1, Valid: true},
+		Name: "C1B2", ContainerID: sql.NullInt64{Int64: cont1, Valid: true}, LedIndex: sql.NullInt64{Int64: 1, Valid: true},
 	})
 	if err != nil {
 		t.Fatalf("failed to create bin C1B2: %v", err)
@@ -75,13 +75,13 @@ func TestMigrateLegacyLedIndices(t *testing.T) {
 
 	// Cont 2 Bins: 0, 1
 	_, err = store.CreateBin(ctx, db.CreateBinParams{
-		Name: "C2B1", ContainerID: cont2, LedIndex: sql.NullInt64{Int64: 0, Valid: true},
+		Name: "C2B1", ContainerID: sql.NullInt64{Int64: cont2, Valid: true}, LedIndex: sql.NullInt64{Int64: 0, Valid: true},
 	})
 	if err != nil {
 		t.Fatalf("failed to create bin C2B1: %v", err)
 	}
 	_, err = store.CreateBin(ctx, db.CreateBinParams{
-		Name: "C2B2", ContainerID: cont2, LedIndex: sql.NullInt64{Int64: 1, Valid: true},
+		Name: "C2B2", ContainerID: sql.NullInt64{Int64: cont2, Valid: true}, LedIndex: sql.NullInt64{Int64: 1, Valid: true},
 	})
 	if err != nil {
 		t.Fatalf("failed to create bin C2B2: %v", err)
@@ -95,7 +95,7 @@ func TestMigrateLegacyLedIndices(t *testing.T) {
 
 	// Verify results
 	// Cont 1 bins should remain 0, 1 (offset 0)
-	bins1, err := store.GetBinsByContainer(ctx, cont1)
+	bins1, err := store.GetBinsByContainer(ctx, sql.NullInt64{Int64: cont1, Valid: true})
 	if err != nil {
 		t.Fatalf("failed to get bins for cont 1: %v", err)
 	}
@@ -107,7 +107,7 @@ func TestMigrateLegacyLedIndices(t *testing.T) {
 	}
 
 	// Cont 2 bins should be 10, 11 (offset 10)
-	bins2, err := store.GetBinsByContainer(ctx, cont2)
+	bins2, err := store.GetBinsByContainer(ctx, sql.NullInt64{Int64: cont2, Valid: true})
 	if err != nil {
 		t.Fatalf("failed to get bins for cont 2: %v", err)
 	}
@@ -166,10 +166,10 @@ func TestMigrateLegacyLedIndicesSkipsUnresolved(t *testing.T) {
 	}
 
 	// Container-relative indices that migration 005 would shift by 10.
-	if _, err := store.CreateBin(ctx, db.CreateBinParams{Name: "C2B1", ContainerID: cont2, LedIndex: sql.NullInt64{Int64: 0, Valid: true}}); err != nil {
+	if _, err := store.CreateBin(ctx, db.CreateBinParams{Name: "C2B1", ContainerID: sql.NullInt64{Int64: cont2, Valid: true}, LedIndex: sql.NullInt64{Int64: 0, Valid: true}}); err != nil {
 		t.Fatalf("failed to create bin: %v", err)
 	}
-	if _, err := store.CreateBin(ctx, db.CreateBinParams{Name: "C2B2", ContainerID: cont2, LedIndex: sql.NullInt64{Int64: 1, Valid: true}}); err != nil {
+	if _, err := store.CreateBin(ctx, db.CreateBinParams{Name: "C2B2", ContainerID: sql.NullInt64{Int64: cont2, Valid: true}, LedIndex: sql.NullInt64{Int64: 1, Valid: true}}); err != nil {
 		t.Fatalf("failed to create bin: %v", err)
 	}
 
@@ -181,7 +181,7 @@ func TestMigrateLegacyLedIndicesSkipsUnresolved(t *testing.T) {
 		t.Fatalf("migration failed: %v", err)
 	}
 
-	bins, err := store.GetBinsByContainer(ctx, cont2)
+	bins, err := store.GetBinsByContainer(ctx, sql.NullInt64{Int64: cont2, Valid: true})
 	if err != nil {
 		t.Fatalf("failed to get bins: %v", err)
 	}
@@ -225,10 +225,10 @@ func TestMigrateLegacyLedIndicesSkipsDrawer(t *testing.T) {
 	}
 
 	// Drawer-relative indices that migration 005 would shift by 10.
-	if _, err := store.CreateBin(ctx, db.CreateBinParams{Name: "C2B1", ContainerID: cont2, LedIndex: sql.NullInt64{Int64: 0, Valid: true}}); err != nil {
+	if _, err := store.CreateBin(ctx, db.CreateBinParams{Name: "C2B1", ContainerID: sql.NullInt64{Int64: cont2, Valid: true}, LedIndex: sql.NullInt64{Int64: 0, Valid: true}}); err != nil {
 		t.Fatalf("failed to create bin: %v", err)
 	}
-	if _, err := store.CreateBin(ctx, db.CreateBinParams{Name: "C2B2", ContainerID: cont2, LedIndex: sql.NullInt64{Int64: 1, Valid: true}}); err != nil {
+	if _, err := store.CreateBin(ctx, db.CreateBinParams{Name: "C2B2", ContainerID: sql.NullInt64{Int64: cont2, Valid: true}, LedIndex: sql.NullInt64{Int64: 1, Valid: true}}); err != nil {
 		t.Fatalf("failed to create bin: %v", err)
 	}
 
@@ -240,7 +240,7 @@ func TestMigrateLegacyLedIndicesSkipsDrawer(t *testing.T) {
 		t.Fatalf("migration failed: %v", err)
 	}
 
-	bins, err := store.GetBinsByContainer(ctx, cont2)
+	bins, err := store.GetBinsByContainer(ctx, sql.NullInt64{Int64: cont2, Valid: true})
 	if err != nil {
 		t.Fatalf("failed to get bins: %v", err)
 	}

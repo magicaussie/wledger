@@ -127,7 +127,7 @@ func seedSegmentScenario(t *testing.T, f *convFixture) (int64, int64) {
 		t.Fatalf("create container: %v", err)
 	}
 	binID, err := f.store.CreateBin(ctx, db.CreateBinParams{
-		Name: "a1", ContainerID: cont, LedIndex: sql.NullInt64{Int64: 3, Valid: true},
+		Name: "a1", ContainerID: sql.NullInt64{Int64: cont, Valid: true}, LedIndex: sql.NullInt64{Int64: 3, Valid: true},
 		Width: sql.NullInt64{Int64: 1, Valid: true},
 	})
 	if err != nil {
@@ -207,7 +207,7 @@ func TestConversionConfirm_Success(t *testing.T) {
 	if space != ledspace.Drawer {
 		t.Fatalf("space = %q, want drawer", space)
 	}
-	bins, _ := f.store.GetBinsByContainer(ctx, cont)
+	bins, _ := f.store.GetBinsByContainer(ctx, sql.NullInt64{Int64: cont, Valid: true})
 	if len(bins) != 1 || !bins[0].LedIndex.Valid || bins[0].LedIndex.Int64 != 3 {
 		t.Fatalf("bin after conversion = %+v, want index 3 (drawer-relative)", bins)
 	}
@@ -244,7 +244,7 @@ func TestConversionConfirm_StaleRejected(t *testing.T) {
 	if space != ledspace.Segment {
 		t.Fatalf("stale confirmation changed space to %q", space)
 	}
-	bins, _ := f.store.GetBinsByContainer(ctx, cont)
+	bins, _ := f.store.GetBinsByContainer(ctx, sql.NullInt64{Int64: cont, Valid: true})
 	if len(bins) != 1 || bins[0].LedIndex.Int64 != 4 {
 		t.Fatalf("stale confirmation modified bins: %+v", bins)
 	}
@@ -262,7 +262,7 @@ func TestConversionConfirm_RefusedWhenBlocked(t *testing.T) {
 	})
 	// Out-of-range bin blocks the conversion.
 	if _, err := f.store.CreateBin(ctx, db.CreateBinParams{
-		Name: "bad", ContainerID: cont, LedIndex: sql.NullInt64{Int64: 15, Valid: true},
+		Name: "bad", ContainerID: sql.NullInt64{Int64: cont, Valid: true}, LedIndex: sql.NullInt64{Int64: 15, Valid: true},
 		Width: sql.NullInt64{Int64: 1, Valid: true},
 	}); err != nil {
 		t.Fatalf("create bin: %v", err)

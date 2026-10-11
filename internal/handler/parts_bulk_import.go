@@ -202,7 +202,7 @@ func resolveBinLocation(ctx context.Context, q db.Querier, space, ip string, seg
 				continue
 			}
 			return q.GetBinByContainerAndLed(ctx, db.GetBinByContainerAndLedParams{
-				ContainerID: c.ID,
+				ContainerID: sql.NullInt64{Int64: c.ID, Valid: true},
 				LedIndex:    sql.NullInt64{Int64: ledIndex - c.LedStart, Valid: true},
 			})
 		}

@@ -434,3 +434,48 @@ The authorized M2-M4 batch ends at its M4 local commit. Recommended next milesto
 is M5 stable bin identity decoupling, only after separate authorization; electrical
 topology remains M8. Production reconciliation of 68 bins and 69 drawers still
 requires reviewed evidence and is not inferred by these services.
+
+## Task 045 M5 — Bin Decoupling
+
+**Status:** In progress; explicitly authorized by the owner on 2026-10-11 for
+implementation, automated tests and one local commit. No push, merge, deploy,
+production database access, WLED operation or M6 work is authorized.
+
+**Baseline:** branch `transition/omo`, commit
+`b9d52ab1b3ee2fd7dd403c74d4f32f0e7135e1bf`, parent
+`deef50b4d508932e01aff1872e22b549e2cdd720`. The worktree was clean before M5;
+the branch was four commits ahead of `origin/transition/omo`.
+
+**Scope and decisions:** Migration 012 rebuilds `bins` to make
+`container_id` nullable while preserving bin IDs, AUTOINCREMENT high-water,
+assignments, quantities, legacy electrical columns, foreign keys, delete actions,
+unique constraints and indexes. NULL means no legacy electrical-container
+association; it does not imply or synthesize a drawer assignment. Physical
+attachment remains an explicit reviewed operation and is independent of the
+optional electrical association. Controller-mismatch validation applies only
+when the bin has a legacy container. The legacy mapped-bin Locate path remains
+unchanged; bins without an electrical container are refused before WLED access.
+Rollback restores NOT NULL only when every bin has a container; otherwise it
+refuses without inferring or backfilling a value.
+
+**Delegated implementation:** `st_01a128ac` (DeepSeek V4.1 Flash via OpenRouter,
+deep-low, medium) implemented migration 012 and migration preservation/rollback
+tests. `st_01a128ad` (DeepSeek V4.1 Flash via OpenRouter, deep-low, medium)
+updated sqlc-generated models and nullable call sites. `st_01a128ae` (DeepSeek
+V4.1 Flash via OpenRouter, quick, low) added query regressions. Luna reviewed the
+integrated null-ID behavior and corrected reconciliation so an explicit
+physical attachment does not require an electrical container.
+
+**Final verification:** Migration forward/rollback tests passed, including the
+rollback refusal and same-named main-table preservation checks. The final
+`go test -tags fts5 -count=1 ./...` passed; `go vet -tags fts5 ./...`,
+`go build -tags fts5 ./...` and the production server binary build all passed.
+Two `sqlc generate` runs produced no generated-file changes. `gofmt -d` and
+tracked/untracked whitespace checks were clean. `gopls` is not installed; the
+compiler, vet and tests provided source verification. The independent acceptance
+audit and authorized local commit remain pending.
+
+**Open risk:** Older application binaries expect non-NULL `bins.container_id`
+when scanning bin rows. Existing legacy rows and their behavior are preserved,
+but binaries predating M5 are not compatible with rows deliberately created
+without a legacy container. M6 has not started.

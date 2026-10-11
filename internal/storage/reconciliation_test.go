@@ -515,6 +515,52 @@ func TestPreview_ExactEdgeWithinDrawer(t *testing.T) {
 	}
 }
 
+// TestApplyReviewed_UnassignedBinPhysicalAttachment keeps physical attachment
+// independent from the bin's optional legacy electrical container mapping.
+func TestApplyReviewed_UnassignedBinPhysicalAttachment(t *testing.T) {
+	f := newFixture(t, "apply_unassigned_bin")
+	f.mustExec(`INSERT INTO bins (id, name, container_id, led_index, width, grid_x, grid_y) VALUES (5, 'Unassigned', NULL, NULL, 1, NULL, NULL)`)
+	f.mustExec(`INSERT INTO part_assignments (id, part_id, bin_id, quantity) VALUES (5, 1, 5, 7)`)
+
+	candidate := storage.AttachmentCandidate{
+		BinID:        5,
+		DrawerID:     drawerA,
+		X:            1,
+		Y:            1,
+		Width:        1,
+		Height:       1,
+		DisplayOrder: 1,
+	}
+	entries, err := f.svc.Preview(f.ctx, []storage.AttachmentCandidate{candidate})
+	if err != nil {
+		t.Fatalf("Preview: %v", err)
+	}
+	if len(entries) != 1 || entries[0].Status != storage.StatusPending {
+		t.Fatalf("Preview entries = %+v, want one pending attachment", entries)
+	}
+
+	result, err := f.svc.ApplyReviewed(f.ctx, []storage.AttachmentCandidate{candidate})
+	if err != nil {
+		t.Fatalf("ApplyReviewed: %v", err)
+	}
+	if result.Created != 1 || result.AlreadyAttached != 0 {
+		t.Fatalf("ApplyReviewed result = %+v, want one created attachment", result)
+	}
+
+	if got := f.count(`SELECT container_id IS NULL FROM bins WHERE id = 5`); got != 1 {
+		t.Fatalf("bin container_id null flag = %d, want 1 after physical attachment", got)
+	}
+	if got := f.count(`SELECT bin_id FROM part_assignments WHERE id = 5`); got != 5 {
+		t.Fatalf("assignment bin_id = %d, want 5", got)
+	}
+	if got := f.count(`SELECT quantity FROM part_assignments WHERE id = 5`); got != 7 {
+		t.Fatalf("assignment quantity = %d, want 7", got)
+	}
+	if got := f.count(`SELECT drawer_id FROM bin_drawer_attachments WHERE bin_id = 5`); got != drawerA {
+		t.Fatalf("drawer_id = %d, want %d", got, drawerA)
+	}
+}
+
 // TestApply_RevisionFailureZeroResult forces the cabinet layout-revision bump to
 // fail (via a real trigger) after the attachment insert, and requires the whole
 // transaction to roll back: a zero ApplyResult and an exactly unchanged

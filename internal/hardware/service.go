@@ -156,7 +156,7 @@ func (s *service) GetBinsByController(ctx context.Context, id int64) ([]db.Bin, 
 
 	var allBins []db.Bin
 	for _, c := range containers {
-		bins, err := s.store.GetBinsByContainer(ctx, c.ID)
+		bins, err := s.store.GetBinsByContainer(ctx, sql.NullInt64{Int64: c.ID, Valid: true})
 		if err == nil {
 			allBins = append(allBins, bins...)
 		}
@@ -226,7 +226,7 @@ func guardReconciledController(ctx context.Context, q db.Querier, controllerID i
 	}
 
 	for _, c := range containers {
-		bins, err := q.GetBinsByContainer(ctx, c.ID)
+		bins, err := q.GetBinsByContainer(ctx, sql.NullInt64{Int64: c.ID, Valid: true})
 		if err != nil {
 			return fmt.Errorf("failed to read bins for container %d reconciliation guard: %w", c.ID, err)
 		}
@@ -395,14 +395,14 @@ func (s *service) SaveGridInSpace(ctx context.Context, controllerID int64, gridD
 			}
 
 			// Get existing bins from DB to preserve IDs (and part assignments)
-			existingBins, err := q.GetBinsByContainer(ctx, dbID)
+			existingBins, err := q.GetBinsByContainer(ctx, sql.NullInt64{Int64: dbID, Valid: true})
 			if err != nil {
 				return err
 			}
 
 			// Clear all LED indices for this container to avoid unique constraint violations during swap/resize
 			// SQLite UNIQUE(container_id, led_index) allows multiple NULLs
-			err = q.ClearContainerBinLedIndices(ctx, dbID)
+			err = q.ClearContainerBinLedIndices(ctx, sql.NullInt64{Int64: dbID, Valid: true})
 			if err != nil {
 				return fmt.Errorf("failed to clear bin indices: %w", err)
 			}
@@ -439,7 +439,7 @@ func (s *service) SaveGridInSpace(ctx context.Context, controllerID int64, gridD
 					// Create new bin
 					_, err := q.CreateBin(ctx, db.CreateBinParams{
 						Name:        b.Name,
-						ContainerID: dbID,
+						ContainerID: sql.NullInt64{Int64: dbID, Valid: true},
 						LedIndex:    nullIntFromPtr(b.LedIndex),
 						Width:       sql.NullInt64{Int64: int64(clampWidth(b.Width)), Valid: true},
 						GridX:       sql.NullInt64{Int64: int64(b.X), Valid: true},

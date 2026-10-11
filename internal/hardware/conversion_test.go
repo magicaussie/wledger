@@ -45,7 +45,7 @@ func mkBinID(t *testing.T, store db.Store, ctx context.Context, contID int64, na
 	t.Helper()
 	id, err := store.CreateBin(ctx, db.CreateBinParams{
 		Name:        name,
-		ContainerID: contID,
+		ContainerID: sql.NullInt64{Int64: contID, Valid: true},
 		LedIndex:    sql.NullInt64{Int64: idx, Valid: true},
 		Width:       sql.NullInt64{Int64: width, Valid: true},
 	})
@@ -57,7 +57,7 @@ func mkBinID(t *testing.T, store db.Store, ctx context.Context, contID int64, na
 
 func checkBin(t *testing.T, store db.Store, ctx context.Context, containerID int64, name string, want int64) {
 	t.Helper()
-	bins, err := store.GetBinsByContainer(ctx, containerID)
+	bins, err := store.GetBinsByContainer(ctx, sql.NullInt64{Int64: containerID, Valid: true})
 	if err != nil {
 		t.Fatalf("get bins: %v", err)
 	}
@@ -96,7 +96,7 @@ func assertConsistentState(t *testing.T, store db.Store) {
 				return err
 			}
 			for _, c := range containers {
-				bins, err := q.GetBinsByContainer(ctx, c.ID)
+				bins, err := q.GetBinsByContainer(ctx, sql.NullInt64{Int64: c.ID, Valid: true})
 				if err != nil {
 					return err
 				}
@@ -270,7 +270,7 @@ func TestConvertToDrawerRelative_NullIndicesPreserved(t *testing.T) {
 	a := mkContainer(t, store, ctx, ctrl.ID, "A", 0, `{"type":"linear","total":10}`, 0, 10)
 	mkBin(t, store, ctx, a, "a1", 3, 1)
 	if _, err := store.CreateBin(ctx, db.CreateBinParams{
-		Name: "a2", ContainerID: a, LedIndex: sql.NullInt64{Valid: false}, Width: sql.NullInt64{Int64: 1, Valid: true},
+		Name: "a2", ContainerID: sql.NullInt64{Int64: a, Valid: true}, LedIndex: sql.NullInt64{Valid: false}, Width: sql.NullInt64{Int64: 1, Valid: true},
 	}); err != nil {
 		t.Fatalf("create unmapped bin: %v", err)
 	}
@@ -280,7 +280,7 @@ func TestConvertToDrawerRelative_NullIndicesPreserved(t *testing.T) {
 	}
 	checkBin(t, store, ctx, a, "a1", 3)
 
-	bins, _ := store.GetBinsByContainer(ctx, a)
+	bins, _ := store.GetBinsByContainer(ctx, sql.NullInt64{Int64: a, Valid: true})
 	for _, b := range bins {
 		if b.Name == "a2" && b.LedIndex.Valid {
 			t.Errorf("unmapped bin a2 gained an index: %d", b.LedIndex.Int64)

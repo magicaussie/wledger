@@ -48,13 +48,13 @@ func TestService(t *testing.T) {
 	ctrl, _ := s.CreateController(ctx, db.CreateControllerParams{Name: "Ctrl1", IpAddress: "1.2.3.4"})
 
 	cont, _ := s.CreateContainer(ctx, db.CreateContainerParams{
-		Name: "Container1",
+		Name:         "Container1",
 		ControllerID: ctrl.ID,
-		SegmentID: 0,
+		SegmentID:    0,
 	})
 
-	bin1ID, _ := s.CreateBin(ctx, db.CreateBinParams{Name: "A1", ContainerID: cont, LedIndex: sql.NullInt64{Int64: 0, Valid: true}})
-	bin2ID, _ := s.CreateBin(ctx, db.CreateBinParams{Name: "A2", ContainerID: cont, LedIndex: sql.NullInt64{Int64: 1, Valid: true}})
+	bin1ID, _ := s.CreateBin(ctx, db.CreateBinParams{Name: "A1", ContainerID: sql.NullInt64{Int64: cont, Valid: true}, LedIndex: sql.NullInt64{Int64: 0, Valid: true}})
+	bin2ID, _ := s.CreateBin(ctx, db.CreateBinParams{Name: "A2", ContainerID: sql.NullInt64{Int64: cont, Valid: true}, LedIndex: sql.NullInt64{Int64: 1, Valid: true}})
 
 	// Create Part directly via DB store to avoid dependency on parts service
 	partID, err := s.CreatePart(ctx, db.CreatePartParams{
@@ -254,8 +254,8 @@ func TestMoveStock_PartAssignmentMismatch(t *testing.T) {
 	s.CreateUser(context.Background(), db.CreateUserParams{Email: "admin@test.com", Role: "admin"})
 	ctrl, _ := s.CreateController(ctx, db.CreateControllerParams{Name: "Ctrl1", IpAddress: "1.2.3.4"})
 	cont, _ := s.CreateContainer(ctx, db.CreateContainerParams{Name: "Container1", ControllerID: ctrl.ID})
-	bin1, _ := s.CreateBin(ctx, db.CreateBinParams{Name: "A1", ContainerID: cont, LedIndex: sql.NullInt64{Int64: 0, Valid: true}})
-	bin2, _ := s.CreateBin(ctx, db.CreateBinParams{Name: "A2", ContainerID: cont, LedIndex: sql.NullInt64{Int64: 1, Valid: true}})
+	bin1, _ := s.CreateBin(ctx, db.CreateBinParams{Name: "A1", ContainerID: sql.NullInt64{Int64: cont, Valid: true}, LedIndex: sql.NullInt64{Int64: 0, Valid: true}})
+	bin2, _ := s.CreateBin(ctx, db.CreateBinParams{Name: "A2", ContainerID: sql.NullInt64{Int64: cont, Valid: true}, LedIndex: sql.NullInt64{Int64: 1, Valid: true}})
 
 	partA := createTestPart(t, s, ctx, "Part A")
 	partB := createTestPart(t, s, ctx, "Part B")
@@ -326,7 +326,7 @@ func TestRemoveStock_PartMismatch(t *testing.T) {
 	s.CreateUser(context.Background(), db.CreateUserParams{Email: "admin@test.com", Role: "admin"})
 	ctrl, _ := s.CreateController(ctx, db.CreateControllerParams{Name: "Ctrl1", IpAddress: "1.2.3.4"})
 	cont, _ := s.CreateContainer(ctx, db.CreateContainerParams{Name: "Container1", ControllerID: ctrl.ID})
-	bin1, _ := s.CreateBin(ctx, db.CreateBinParams{Name: "A1", ContainerID: cont, LedIndex: sql.NullInt64{Int64: 0, Valid: true}})
+	bin1, _ := s.CreateBin(ctx, db.CreateBinParams{Name: "A1", ContainerID: sql.NullInt64{Int64: cont, Valid: true}, LedIndex: sql.NullInt64{Int64: 0, Valid: true}})
 
 	partA := createTestPart(t, s, ctx, "Part A")
 	partB := createTestPart(t, s, ctx, "Part B")
@@ -367,7 +367,7 @@ func TestMoveStock_SameBin(t *testing.T) {
 	s.CreateUser(context.Background(), db.CreateUserParams{Email: "admin@test.com", Role: "admin"})
 	ctrl, _ := s.CreateController(ctx, db.CreateControllerParams{Name: "Ctrl1", IpAddress: "1.2.3.4"})
 	cont, _ := s.CreateContainer(ctx, db.CreateContainerParams{Name: "Container1", ControllerID: ctrl.ID})
-	bin1ID, _ := s.CreateBin(ctx, db.CreateBinParams{Name: "A1", ContainerID: cont})
+	bin1ID, _ := s.CreateBin(ctx, db.CreateBinParams{Name: "A1", ContainerID: sql.NullInt64{Int64: cont, Valid: true}})
 
 	partID, _ := s.CreatePart(ctx, db.CreatePartParams{Name: "Stock Part"})
 

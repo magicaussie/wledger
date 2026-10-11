@@ -57,6 +57,8 @@ const (
 	CodeUnknownSpace CompatibilityCode = "unknown_coordinate_space"
 	// CodeContainerNotFound: a bin references a container that is not stored.
 	CodeContainerNotFound CompatibilityCode = "container_not_found"
+	// CodeContainerUnassigned: the bin has no legacy electrical container.
+	CodeContainerUnassigned CompatibilityCode = "container_unassigned"
 	// CodeContainerMissingController: a container references a missing controller.
 	CodeContainerMissingController CompatibilityCode = "container_missing_controller"
 	// CodeNegativeIndex: the stored LED index is negative.
@@ -434,12 +436,15 @@ func (v compatibilityView) resolveTargets() []CompatibilityBinTarget {
 	for _, bin := range v.raw.Bins {
 		target := CompatibilityBinTarget{
 			BinID:          bin.ID,
-			ContainerID:    bin.ContainerID,
 			RawLedIndex:    bin.LedIndex,
 			RawWidth:       bin.Width,
 			EffectiveWidth: effectiveBinWidth(bin.Width),
 		}
-		container, hasContainer := v.containers[bin.ContainerID]
+		container, hasContainer := db.Container{}, false
+		if bin.ContainerID.Valid {
+			target.ContainerID = bin.ContainerID.Int64
+			container, hasContainer = v.containers[bin.ContainerID.Int64]
+		}
 		var hasController bool
 		if hasContainer {
 			target.ControllerID = container.ControllerID
@@ -455,6 +460,8 @@ func (v compatibilityView) resolveTargets() []CompatibilityBinTarget {
 			target.Refusal = CodeUnknownSpace
 		case v.space == ledspace.Unresolved:
 			target.Refusal = CodeUnresolvedSpace
+		case !bin.ContainerID.Valid:
+			target.Refusal = CodeContainerUnassigned
 		case !hasContainer:
 			target.Refusal = CodeContainerNotFound
 		case !hasController:
@@ -864,7 +871,8 @@ func (v compatibilityView) targetDiagnostics(targets []CompatibilityBinTarget) [
 			Index:        target.RawLedIndex.Int64,
 			Width:        target.EffectiveWidth,
 		}
-		if _, ok := v.containers[target.ContainerID]; !ok && target.Refusal != CodeContainerNotFound {
+		if _, ok := v.containers[target.ContainerID]; !ok &&
+			target.Refusal != CodeContainerNotFound && target.Refusal != CodeContainerUnassigned {
 			missing := finding
 			missing.Code = CodeContainerNotFound
 			missing.Severity = CompatibilitySeverityWarning
@@ -878,6 +886,9 @@ func (v compatibilityView) targetDiagnostics(targets []CompatibilityBinTarget) [
 				// CompatibilityRaw.Bins.
 				finding.Severity = CompatibilitySeverityInfo
 				finding.Index = 0
+			}
+			if target.Refusal == CodeContainerUnassigned {
+				finding.Severity = CompatibilitySeverityInfo
 			}
 			diagnostics = append(diagnostics, finding)
 			continue

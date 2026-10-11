@@ -33,7 +33,7 @@ func (h *Handler) HandleDrawerDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	bins, err := h.Queries.GetBinsByContainer(r.Context(), id)
+	bins, err := h.Queries.GetBinsByContainer(r.Context(), sql.NullInt64{Int64: id, Valid: true})
 	if err != nil {
 		h.UIError.Respond(w, r, err, "Failed to fetch bins", http.StatusInternalServerError)
 		return

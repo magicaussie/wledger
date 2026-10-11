@@ -37,7 +37,7 @@ func TestOrphanedStock(t *testing.T) {
 	// Create Bin
 	binID, err := q.CreateBin(ctx, db.CreateBinParams{
 		Name:        "A1",
-		ContainerID: container,
+		ContainerID: sql.NullInt64{Int64: container, Valid: true},
 		LedIndex:    sql.NullInt64{Int64: 0, Valid: true},
 	})
 	if err != nil {
@@ -64,7 +64,7 @@ func TestOrphanedStock(t *testing.T) {
 
 	// Simulate "Delete Bin"
 	err = q.DeleteBinByLed(ctx, db.DeleteBinByLedParams{
-		ContainerID: container,
+		ContainerID: sql.NullInt64{Int64: container, Valid: true},
 		LedIndex:    sql.NullInt64{Int64: 0, Valid: true}, // Index of Bin A1
 	})
 	if err != nil {

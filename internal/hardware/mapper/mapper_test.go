@@ -26,7 +26,7 @@ func TestCalculateGlobalIndex(t *testing.T) {
 			containers: []db.Container{
 				{ID: 1, Name: "C1", SegmentID: 0, ConfigJson: sql.NullString{String: `{"type":"grid","rows":8,"cols":8}`, Valid: true}},
 			},
-			targetBin:   db.Bin{ContainerID: 1, LedIndex: sql.NullInt64{Int64: 10, Valid: true}},
+			targetBin:   db.Bin{ContainerID: sql.NullInt64{Int64: 1, Valid: true}, LedIndex: sql.NullInt64{Int64: 10, Valid: true}},
 			wantSegment: 0,
 			wantIndex:   10,
 		},
@@ -37,7 +37,7 @@ func TestCalculateGlobalIndex(t *testing.T) {
 				{ID: 1, SegmentID: 0, ConfigJson: sql.NullString{String: `{"type":"grid","rows":8,"cols":8}`, Valid: true}}, // 64
 				{ID: 2, SegmentID: 0, ConfigJson: sql.NullString{String: `{"type":"linear","total":16}`, Valid: true}},      // 16
 			},
-			targetBin:   db.Bin{ContainerID: 2, LedIndex: sql.NullInt64{Int64: 69, Valid: true}},
+			targetBin:   db.Bin{ContainerID: sql.NullInt64{Int64: 2, Valid: true}, LedIndex: sql.NullInt64{Int64: 69, Valid: true}},
 			wantSegment: 0,
 			wantIndex:   69,
 		},
@@ -48,7 +48,7 @@ func TestCalculateGlobalIndex(t *testing.T) {
 				{ID: 1, SegmentID: 0, ConfigJson: sql.NullString{String: `{"type":"grid","rows":8,"cols":8}`, Valid: true}},
 				{ID: 2, SegmentID: 1, ConfigJson: sql.NullString{String: `{"type":"linear","total":16}`, Valid: true}},
 			},
-			targetBin:   db.Bin{ContainerID: 2, LedIndex: sql.NullInt64{Int64: 5, Valid: true}},
+			targetBin:   db.Bin{ContainerID: sql.NullInt64{Int64: 2, Valid: true}, LedIndex: sql.NullInt64{Int64: 5, Valid: true}},
 			wantSegment: 1,
 			wantIndex:   5,
 		},
@@ -60,7 +60,7 @@ func TestCalculateGlobalIndex(t *testing.T) {
 				{ID: 1, SegmentID: 0, ConfigJson: sql.NullString{String: `{"type":"compound","sections":[{"rows":4,"cols":4},{"rows":4,"cols":4}]}`, Valid: true}},
 				{ID: 2, SegmentID: 0, ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true}},
 			},
-			targetBin:   db.Bin{ContainerID: 2, LedIndex: sql.NullInt64{Int64: 32, Valid: true}},
+			targetBin:   db.Bin{ContainerID: sql.NullInt64{Int64: 2, Valid: true}, LedIndex: sql.NullInt64{Int64: 32, Valid: true}},
 			wantSegment: 0,
 			wantIndex:   32,
 		},
@@ -70,7 +70,16 @@ func TestCalculateGlobalIndex(t *testing.T) {
 			containers: []db.Container{
 				{ID: 1, SegmentID: 0},
 			},
-			targetBin: db.Bin{ContainerID: 99, LedIndex: sql.NullInt64{Int64: 0, Valid: true}},
+			targetBin: db.Bin{ContainerID: sql.NullInt64{Int64: 99, Valid: true}, LedIndex: sql.NullInt64{Int64: 0, Valid: true}},
+			wantErr:   true,
+		},
+		{
+			name:  "NULL Container Is Not Container Zero",
+			space: ledspace.Segment,
+			containers: []db.Container{
+				{ID: 0, SegmentID: 0},
+			},
+			targetBin: db.Bin{ContainerID: sql.NullInt64{}, LedIndex: sql.NullInt64{Int64: 0, Valid: true}},
 			wantErr:   true,
 		},
 		{
@@ -79,7 +88,7 @@ func TestCalculateGlobalIndex(t *testing.T) {
 			containers: []db.Container{
 				{ID: 1, Name: "A", SegmentID: 2, LedStart: 10, LedCount: 5},
 			},
-			targetBin:   db.Bin{ContainerID: 1, LedIndex: sql.NullInt64{Int64: 3, Valid: true}},
+			targetBin:   db.Bin{ContainerID: sql.NullInt64{Int64: 1, Valid: true}, LedIndex: sql.NullInt64{Int64: 3, Valid: true}},
 			wantSegment: 2,
 			wantIndex:   13,
 		},
@@ -89,7 +98,7 @@ func TestCalculateGlobalIndex(t *testing.T) {
 			containers: []db.Container{
 				{ID: 1, Name: "A", SegmentID: 0, LedStart: 0, LedCount: 5},
 			},
-			targetBin: db.Bin{ContainerID: 1, LedIndex: sql.NullInt64{Int64: 5, Valid: true}},
+			targetBin: db.Bin{ContainerID: sql.NullInt64{Int64: 1, Valid: true}, LedIndex: sql.NullInt64{Int64: 5, Valid: true}},
 			wantErr:   true,
 		},
 		{
@@ -98,7 +107,7 @@ func TestCalculateGlobalIndex(t *testing.T) {
 			containers: []db.Container{
 				{ID: 1, Name: "A", SegmentID: 0, LedStart: 0, LedCount: 0},
 			},
-			targetBin: db.Bin{ContainerID: 1, LedIndex: sql.NullInt64{Int64: 0, Valid: true}},
+			targetBin: db.Bin{ContainerID: sql.NullInt64{Int64: 1, Valid: true}, LedIndex: sql.NullInt64{Int64: 0, Valid: true}},
 			wantErr:   true,
 		},
 		{
@@ -107,7 +116,7 @@ func TestCalculateGlobalIndex(t *testing.T) {
 			containers: []db.Container{
 				{ID: 1, Name: "A", SegmentID: 0},
 			},
-			targetBin: db.Bin{ContainerID: 1, LedIndex: sql.NullInt64{Int64: -1, Valid: true}},
+			targetBin: db.Bin{ContainerID: sql.NullInt64{Int64: 1, Valid: true}, LedIndex: sql.NullInt64{Int64: -1, Valid: true}},
 			wantErr:   true,
 		},
 		{
@@ -116,7 +125,7 @@ func TestCalculateGlobalIndex(t *testing.T) {
 			containers: []db.Container{
 				{ID: 1, Name: "A", SegmentID: 0},
 			},
-			targetBin: db.Bin{ContainerID: 1, LedIndex: sql.NullInt64{Int64: 0, Valid: true}},
+			targetBin: db.Bin{ContainerID: sql.NullInt64{Int64: 1, Valid: true}, LedIndex: sql.NullInt64{Int64: 0, Valid: true}},
 			wantErr:   true,
 		},
 		{
@@ -125,7 +134,7 @@ func TestCalculateGlobalIndex(t *testing.T) {
 			containers: []db.Container{
 				{ID: 1, Name: "A", SegmentID: 0},
 			},
-			targetBin: db.Bin{ContainerID: 1, LedIndex: sql.NullInt64{Int64: 0, Valid: true}},
+			targetBin: db.Bin{ContainerID: sql.NullInt64{Int64: 1, Valid: true}, LedIndex: sql.NullInt64{Int64: 0, Valid: true}},
 			wantErr:   true,
 		},
 	}
@@ -154,7 +163,7 @@ func TestCalculateGlobalIndex(t *testing.T) {
 func TestCalculateGlobalIndexUnresolvedSentinel(t *testing.T) {
 	_, _, err := mapper.CalculateGlobalIndex(ledspace.Unresolved,
 		[]db.Container{{ID: 1, Name: "A", SegmentID: 0}},
-		db.Bin{ContainerID: 1, LedIndex: sql.NullInt64{Int64: 0, Valid: true}})
+		db.Bin{ContainerID: sql.NullInt64{Int64: 1, Valid: true}, LedIndex: sql.NullInt64{Int64: 0, Valid: true}})
 	if !errors.Is(err, mapper.ErrUnresolvedCoordinateSpace) {
 		t.Fatalf("expected ErrUnresolvedCoordinateSpace, got %v", err)
 	}

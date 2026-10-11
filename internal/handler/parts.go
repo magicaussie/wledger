@@ -405,7 +405,7 @@ func (h *Handler) HandleBinOptions(w http.ResponseWriter, r *http.Request) {
 
 	var allBins []db.Bin
 	for _, c := range containers {
-		bins, err := h.Queries.GetBinsByContainer(r.Context(), c.ID)
+		bins, err := h.Queries.GetBinsByContainer(r.Context(), sql.NullInt64{Int64: c.ID, Valid: true})
 		if err == nil {
 			allBins = append(allBins, bins...)
 		}

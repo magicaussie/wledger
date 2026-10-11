@@ -33,7 +33,7 @@ func createGridBin(t *testing.T, store db.Store, ctx context.Context, contID int
 	t.Helper()
 	id, err := store.CreateBin(ctx, db.CreateBinParams{
 		Name:        name,
-		ContainerID: contID,
+		ContainerID: sql.NullInt64{Int64: contID, Valid: true},
 		LedIndex:    sql.NullInt64{Int64: ledIndex, Valid: true},
 		Width:       sql.NullInt64{Int64: width, Valid: true},
 		GridX:       sql.NullInt64{Int64: x, Valid: true},
@@ -274,7 +274,7 @@ func TestSaveGridUnreconciledUnaffected(t *testing.T) {
 		t.Fatalf("SaveGrid on unreconciled controller: %v", err)
 	}
 
-	bins, err := f.store.GetBinsByContainer(f.ctx, f.containerB)
+	bins, err := f.store.GetBinsByContainer(f.ctx, sql.NullInt64{Int64: f.containerB, Valid: true})
 	if err != nil {
 		t.Fatalf("get bins: %v", err)
 	}

@@ -29,7 +29,7 @@ func TestPartList_StockBreakdown(t *testing.T) {
 	})
 	binID, _ := h.Queries.CreateBin(ctx, db.CreateBinParams{
 		Name:        "Bin A",
-		ContainerID: contID,
+		ContainerID: sql.NullInt64{Int64: contID, Valid: true},
 	})
 
 	// Create Valid Stock (10)

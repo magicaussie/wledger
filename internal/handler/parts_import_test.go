@@ -27,7 +27,7 @@ func TestHandlePartsImport_WithLocation(t *testing.T) {
 		Name: "Test Container", ControllerID: controller.ID, SegmentID: 2,
 	})
 	binID, _ := h.Queries.CreateBin(ctx, db.CreateBinParams{
-		Name: "Bin 5", ContainerID: containerID, LedIndex: sql.NullInt64{Int64: 5, Valid: true},
+		Name: "Bin 5", ContainerID: sql.NullInt64{Int64: containerID, Valid: true}, LedIndex: sql.NullInt64{Int64: 5, Valid: true},
 	})
 
 	// Prepare CSV Content with valid location
@@ -75,7 +75,7 @@ func TestHandlePartsImport_DrawerSpaceLookup(t *testing.T) {
 	})
 	// Drawer-relative index 3 corresponds to segment-relative index 13.
 	binID, _ := h.Queries.CreateBin(ctx, db.CreateBinParams{
-		Name: "Bin 13", ContainerID: containerID, LedIndex: sql.NullInt64{Int64: 3, Valid: true},
+		Name: "Bin 13", ContainerID: sql.NullInt64{Int64: containerID, Valid: true}, LedIndex: sql.NullInt64{Int64: 3, Valid: true},
 	})
 
 	if err := ledspace.Set(ctx, h.Queries, ledspace.Drawer); err != nil {

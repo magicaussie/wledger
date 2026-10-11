@@ -125,7 +125,11 @@ func (h *Handler) locateBin(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "bin not found")
 		return
 	}
-	container, err := h.queries.GetContainer(r.Context(), bin.ContainerID)
+	if !bin.ContainerID.Valid {
+		writeError(w, http.StatusNotFound, "bin container not found")
+		return
+	}
+	container, err := h.queries.GetContainer(r.Context(), bin.ContainerID.Int64)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "bin container not found")
 		return

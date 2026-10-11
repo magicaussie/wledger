@@ -262,8 +262,8 @@ func TestRestore_LegacyBackupEstablishesAllocations(t *testing.T) {
 				ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true}, CreatedAt: now, UpdatedAt: now},
 		},
 		Bins: []db.Bin{
-			{ID: 1, Name: "a1", ContainerID: 1, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
-			{ID: 2, Name: "b1", ContainerID: 2, LedIndex: sql.NullInt64{Int64: 10, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
+			{ID: 1, Name: "a1", ContainerID: sql.NullInt64{Int64: 1, Valid: true}, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
+			{ID: 2, Name: "b1", ContainerID: sql.NullInt64{Int64: 2, Valid: true}, LedIndex: sql.NullInt64{Int64: 10, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
 		},
 	}
 
@@ -286,11 +286,11 @@ func TestRestore_LegacyBackupEstablishesAllocations(t *testing.T) {
 	}
 
 	// The restored bin indices must be untouched (no coordinate conversion).
-	binsA, _ := s.GetBinsByContainer(ctx, 1)
+	binsA, _ := s.GetBinsByContainer(ctx, sql.NullInt64{Int64: 1, Valid: true})
 	if len(binsA) != 1 || !binsA[0].LedIndex.Valid || binsA[0].LedIndex.Int64 != 0 {
 		t.Errorf("container 1 bin index changed: %+v", binsA)
 	}
-	binsB, _ := s.GetBinsByContainer(ctx, 2)
+	binsB, _ := s.GetBinsByContainer(ctx, sql.NullInt64{Int64: 2, Valid: true})
 	if len(binsB) != 1 || !binsB[0].LedIndex.Valid || binsB[0].LedIndex.Int64 != 10 {
 		t.Errorf("container 2 bin index changed: %+v", binsB)
 	}
@@ -324,7 +324,7 @@ func TestRestore_LegacyBackupAmbiguousMappingPreserved(t *testing.T) {
 		},
 		Bins: []db.Bin{
 			// Outside the derived [0,10) allocation: ambiguous, must not be guessed.
-			{ID: 1, Name: "a1", ContainerID: 1, LedIndex: sql.NullInt64{Int64: 15, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
+			{ID: 1, Name: "a1", ContainerID: sql.NullInt64{Int64: 1, Valid: true}, LedIndex: sql.NullInt64{Int64: 15, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
 		},
 	}
 
@@ -340,7 +340,7 @@ func TestRestore_LegacyBackupAmbiguousMappingPreserved(t *testing.T) {
 	if containers[0].LedCount != 0 {
 		t.Errorf("ambiguous drawer should remain unallocated, got count %d", containers[0].LedCount)
 	}
-	bins, _ := s.GetBinsByContainer(ctx, 1)
+	bins, _ := s.GetBinsByContainer(ctx, sql.NullInt64{Int64: 1, Valid: true})
 	if len(bins) != 1 || !bins[0].LedIndex.Valid || bins[0].LedIndex.Int64 != 15 {
 		t.Errorf("restored bin data was altered: %+v", bins)
 	}
@@ -422,7 +422,7 @@ func TestRestore_RejectsModernBackupOutOfRangeBin(t *testing.T) {
 				ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true}, CreatedAt: now, UpdatedAt: now},
 		},
 		Bins: []db.Bin{
-			{ID: 1, Name: "a1", ContainerID: 1, LedIndex: sql.NullInt64{Int64: 15, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
+			{ID: 1, Name: "a1", ContainerID: sql.NullInt64{Int64: 1, Valid: true}, LedIndex: sql.NullInt64{Int64: 15, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
 		},
 	}
 
@@ -485,8 +485,8 @@ func TestRestore_UnmarkedLegacyBackupPreservesBinsAndDoesNotBackfill(t *testing.
 				ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true}, CreatedAt: now, UpdatedAt: now},
 		},
 		Bins: []db.Bin{
-			{ID: 1, Name: "a1", ContainerID: 1, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
-			{ID: 2, Name: "b1", ContainerID: 2, LedIndex: sql.NullInt64{Int64: 10, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
+			{ID: 1, Name: "a1", ContainerID: sql.NullInt64{Int64: 1, Valid: true}, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
+			{ID: 2, Name: "b1", ContainerID: sql.NullInt64{Int64: 2, Valid: true}, LedIndex: sql.NullInt64{Int64: 10, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
 		},
 	}
 
@@ -498,11 +498,11 @@ func TestRestore_UnmarkedLegacyBackupPreservesBinsAndDoesNotBackfill(t *testing.
 	}
 
 	// Bin indices must be preserved exactly.
-	binsA, _ := s.GetBinsByContainer(ctx, 1)
+	binsA, _ := s.GetBinsByContainer(ctx, sql.NullInt64{Int64: 1, Valid: true})
 	if len(binsA) != 1 || !binsA[0].LedIndex.Valid || binsA[0].LedIndex.Int64 != 0 {
 		t.Errorf("container 1 bin changed: %+v", binsA)
 	}
-	binsB, _ := s.GetBinsByContainer(ctx, 2)
+	binsB, _ := s.GetBinsByContainer(ctx, sql.NullInt64{Int64: 2, Valid: true})
 	if len(binsB) != 1 || !binsB[0].LedIndex.Valid || binsB[0].LedIndex.Int64 != 10 {
 		t.Errorf("container 2 bin changed: %+v", binsB)
 	}
@@ -545,7 +545,7 @@ func TestRestore_KnownGoodBackupClearsUnresolvedState(t *testing.T) {
 				ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true}, CreatedAt: now, UpdatedAt: now},
 		},
 		Bins: []db.Bin{
-			{ID: 1, Name: "a1", ContainerID: 1, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
+			{ID: 1, Name: "a1", ContainerID: sql.NullInt64{Int64: 1, Valid: true}, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
 		},
 	}
 	zipBytes := buildRestoreZip(t, unmarked)
@@ -592,7 +592,7 @@ func TestRestore_RejectsUnsupportedBinIndexSpace(t *testing.T) {
 				ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true}, CreatedAt: now, UpdatedAt: now},
 		},
 		Bins: []db.Bin{
-			{ID: 1, Name: "a1", ContainerID: 1, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
+			{ID: 1, Name: "a1", ContainerID: sql.NullInt64{Int64: 1, Valid: true}, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
 		},
 	}
 
@@ -634,7 +634,7 @@ func TestRestore_ModernRoundTripRemainsValid(t *testing.T) {
 		t.Fatalf("create container: %v", err)
 	}
 	if _, err := s.CreateBin(ctx, db.CreateBinParams{
-		Name: "a1", ContainerID: cont, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true},
+		Name: "a1", ContainerID: sql.NullInt64{Int64: cont, Valid: true}, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true},
 	}); err != nil {
 		t.Fatalf("create bin: %v", err)
 	}
@@ -653,7 +653,7 @@ func TestRestore_ModernRoundTripRemainsValid(t *testing.T) {
 	if len(containers) != 1 || containers[0].LedStart != 0 || containers[0].LedCount != 10 {
 		t.Errorf("container not preserved: %+v", containers)
 	}
-	bins, _ := s.GetBinsByContainer(ctx, cont)
+	bins, _ := s.GetBinsByContainer(ctx, sql.NullInt64{Int64: cont, Valid: true})
 	if len(bins) != 1 || !bins[0].LedIndex.Valid || bins[0].LedIndex.Int64 != 0 {
 		t.Errorf("bin not preserved: %+v", bins)
 	}
@@ -708,8 +708,8 @@ func TestRestore_KnownGoodBackupBlocksMigration005(t *testing.T) {
 						ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true}, CreatedAt: now, UpdatedAt: now},
 				},
 				Bins: []db.Bin{
-					{ID: 1, Name: "a1", ContainerID: 1, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
-					{ID: 2, Name: "b1", ContainerID: 2, LedIndex: sql.NullInt64{Int64: 10, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
+					{ID: 1, Name: "a1", ContainerID: sql.NullInt64{Int64: 1, Valid: true}, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
+					{ID: 2, Name: "b1", ContainerID: sql.NullInt64{Int64: 2, Valid: true}, LedIndex: sql.NullInt64{Int64: 10, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
 				},
 			}
 
@@ -726,11 +726,11 @@ func TestRestore_KnownGoodBackupBlocksMigration005(t *testing.T) {
 			if err := hardware.MigrateLegacyLedIndices(ctx, s, logger); err != nil {
 				t.Fatalf("migration: %v", err)
 			}
-			binsA, _ := s.GetBinsByContainer(ctx, 1)
+			binsA, _ := s.GetBinsByContainer(ctx, sql.NullInt64{Int64: 1, Valid: true})
 			if len(binsA) != 1 || !binsA[0].LedIndex.Valid || binsA[0].LedIndex.Int64 != 0 {
 				t.Errorf("container 1 bin changed after restart: %+v", binsA)
 			}
-			binsB, _ := s.GetBinsByContainer(ctx, 2)
+			binsB, _ := s.GetBinsByContainer(ctx, sql.NullInt64{Int64: 2, Valid: true})
 			if len(binsB) != 1 || !binsB[0].LedIndex.Valid || binsB[0].LedIndex.Int64 != 10 {
 				t.Errorf("container 2 bin changed after restart: %+v", binsB)
 			}
@@ -802,8 +802,8 @@ func TestRestore_DrawerBackupRoundTrip(t *testing.T) {
 				ConfigJson: sql.NullString{String: `{"type":"linear","total":4}`, Valid: true}, CreatedAt: now, UpdatedAt: now},
 		},
 		Bins: []db.Bin{
-			{ID: 1, Name: "a1", ContainerID: 1, LedIndex: sql.NullInt64{Int64: 3, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
-			{ID: 2, Name: "b1", ContainerID: 2, LedIndex: sql.NullInt64{Int64: 5, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
+			{ID: 1, Name: "a1", ContainerID: sql.NullInt64{Int64: 1, Valid: true}, LedIndex: sql.NullInt64{Int64: 3, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
+			{ID: 2, Name: "b1", ContainerID: sql.NullInt64{Int64: 2, Valid: true}, LedIndex: sql.NullInt64{Int64: 5, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
 		},
 	}
 
@@ -820,11 +820,11 @@ func TestRestore_DrawerBackupRoundTrip(t *testing.T) {
 		t.Errorf("restored space = %q, want %q", space, ledspace.Drawer)
 	}
 
-	binsA, _ := s.GetBinsByContainer(ctx, 1)
+	binsA, _ := s.GetBinsByContainer(ctx, sql.NullInt64{Int64: 1, Valid: true})
 	if len(binsA) != 1 || !binsA[0].LedIndex.Valid || binsA[0].LedIndex.Int64 != 3 {
 		t.Errorf("drawer-relative bin A changed: %+v", binsA)
 	}
-	binsB, _ := s.GetBinsByContainer(ctx, 2)
+	binsB, _ := s.GetBinsByContainer(ctx, sql.NullInt64{Int64: 2, Valid: true})
 	if len(binsB) != 1 || !binsB[0].LedIndex.Valid || binsB[0].LedIndex.Int64 != 5 {
 		t.Errorf("drawer-relative bin B changed: %+v", binsB)
 	}
@@ -840,7 +840,7 @@ func TestRestore_DrawerBackupRoundTrip(t *testing.T) {
 	if err := hardware.MigrateLegacyLedIndices(ctx, s, logger); err != nil {
 		t.Fatalf("migration: %v", err)
 	}
-	binsB, _ = s.GetBinsByContainer(ctx, 2)
+	binsB, _ = s.GetBinsByContainer(ctx, sql.NullInt64{Int64: 2, Valid: true})
 	if len(binsB) != 1 || binsB[0].LedIndex.Int64 != 5 {
 		t.Errorf("drawer-relative bin was converted by migration 005: %+v", binsB)
 	}
@@ -872,7 +872,7 @@ func TestRestore_RejectsInvalidDrawerBackup(t *testing.T) {
 		},
 		Bins: []db.Bin{
 			// Drawer-relative index 15 is outside the [0,10) allocation.
-			{ID: 1, Name: "a1", ContainerID: 1, LedIndex: sql.NullInt64{Int64: 15, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
+			{ID: 1, Name: "a1", ContainerID: sql.NullInt64{Int64: 1, Valid: true}, LedIndex: sql.NullInt64{Int64: 15, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
 		},
 	}
 
@@ -922,10 +922,10 @@ func TestRestore_UnresolvedBackupRoundTrip(t *testing.T) {
 		Name: "C", ControllerID: ctrl.ID, SegmentID: 0,
 		ConfigJson: sql.NullString{String: `{"type":"linear","total":4}`, Valid: true},
 	})
-	if _, err := s.CreateBin(ctx, db.CreateBinParams{Name: "a1", ContainerID: contA, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}}); err != nil {
+	if _, err := s.CreateBin(ctx, db.CreateBinParams{Name: "a1", ContainerID: sql.NullInt64{Int64: contA, Valid: true}, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}}); err != nil {
 		t.Fatalf("create bin a1: %v", err)
 	}
-	if _, err := s.CreateBin(ctx, db.CreateBinParams{Name: "b1", ContainerID: contB, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}}); err != nil {
+	if _, err := s.CreateBin(ctx, db.CreateBinParams{Name: "b1", ContainerID: sql.NullInt64{Int64: contB, Valid: true}, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}}); err != nil {
 		t.Fatalf("create bin b1: %v", err)
 	}
 	if err := ledspace.Set(ctx, s, ledspace.Unresolved); err != nil {
@@ -961,11 +961,11 @@ func TestRestore_UnresolvedBackupRoundTrip(t *testing.T) {
 	}
 
 	// Bin indices are unchanged.
-	binsA, _ := s.GetBinsByContainer(ctx, contA)
+	binsA, _ := s.GetBinsByContainer(ctx, sql.NullInt64{Int64: contA, Valid: true})
 	if len(binsA) != 1 || !binsA[0].LedIndex.Valid || binsA[0].LedIndex.Int64 != 0 {
 		t.Errorf("bin A changed: %+v", binsA)
 	}
-	binsB, _ := s.GetBinsByContainer(ctx, contB)
+	binsB, _ := s.GetBinsByContainer(ctx, sql.NullInt64{Int64: contB, Valid: true})
 	if len(binsB) != 1 || !binsB[0].LedIndex.Valid || binsB[0].LedIndex.Int64 != 0 {
 		t.Errorf("bin B changed: %+v", binsB)
 	}
@@ -989,7 +989,7 @@ func TestRestore_UnresolvedBackupRoundTrip(t *testing.T) {
 	if err := hardware.MigrateLegacyLedIndices(ctx, s, logger); err != nil {
 		t.Fatalf("migration: %v", err)
 	}
-	binsB, _ = s.GetBinsByContainer(ctx, contB)
+	binsB, _ = s.GetBinsByContainer(ctx, sql.NullInt64{Int64: contB, Valid: true})
 	if len(binsB) != 1 || binsB[0].LedIndex.Int64 != 0 {
 		t.Errorf("migration 005 modified unresolved bins: %+v", binsB)
 	}
@@ -1028,7 +1028,7 @@ func TestRestore_ExplicitUnresolvedMarker(t *testing.T) {
 				ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true}, CreatedAt: now, UpdatedAt: now},
 		},
 		Bins: []db.Bin{
-			{ID: 1, Name: "a1", ContainerID: 1, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
+			{ID: 1, Name: "a1", ContainerID: sql.NullInt64{Int64: 1, Valid: true}, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
 		},
 	}
 
@@ -1073,8 +1073,8 @@ func TestRestore_UnmarkedBackupKeepsMigrationBlocked(t *testing.T) {
 		},
 		Bins: []db.Bin{
 			// Container-relative indices that migration 005 would shift by 10.
-			{ID: 1, Name: "a1", ContainerID: 1, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
-			{ID: 2, Name: "b1", ContainerID: 2, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
+			{ID: 1, Name: "a1", ContainerID: sql.NullInt64{Int64: 1, Valid: true}, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
+			{ID: 2, Name: "b1", ContainerID: sql.NullInt64{Int64: 2, Valid: true}, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
 		},
 	}
 
@@ -1089,7 +1089,7 @@ func TestRestore_UnmarkedBackupKeepsMigrationBlocked(t *testing.T) {
 	if err := hardware.MigrateLegacyLedIndices(ctx, s, logger); err != nil {
 		t.Fatalf("migration: %v", err)
 	}
-	binsB, _ := s.GetBinsByContainer(ctx, 2)
+	binsB, _ := s.GetBinsByContainer(ctx, sql.NullInt64{Int64: 2, Valid: true})
 	if len(binsB) != 1 || !binsB[0].LedIndex.Valid || binsB[0].LedIndex.Int64 != 0 {
 		t.Errorf("unresolved bins were converted by migration 005: %+v", binsB)
 	}

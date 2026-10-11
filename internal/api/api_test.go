@@ -4,9 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/tuxedocurly/wledger/internal/db"
@@ -149,7 +151,7 @@ func TestLocateBin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	binID, err := store.CreateBin(ctx, db.CreateBinParams{Name: "B1", ContainerID: container})
+	binID, err := store.CreateBin(ctx, db.CreateBinParams{Name: "B1", ContainerID: sql.NullInt64{Int64: container, Valid: true}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,6 +161,31 @@ func TestLocateBin(t *testing.T) {
 	}
 	if fw.locatedBin != binID {
 		t.Errorf("expected bin locate %d, got %d", binID, fw.locatedBin)
+	}
+}
+
+// TestLocateBinUnassignedContainer requires an unassigned bin (NULL container_id)
+// to be refused with the existing "bin container not found" response before any
+// WLED access, never coerced to container 0.
+func TestLocateBinUnassignedContainer(t *testing.T) {
+	srv, fw, store := setupAPI(t)
+	ctx := context.Background()
+
+	binID, err := store.CreateBin(ctx, db.CreateBinParams{Name: "Unassigned"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp := doReq(t, srv, "POST", "/bins/"+fmt.Sprintf("%d", binID)+"/locate", true)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("locate unassigned bin: want 404, got %d", resp.StatusCode)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(body), "bin container not found") {
+		t.Errorf("locate unassigned bin body = %q, want the existing bin container not found response", body)
+	}
+	if fw.locatedBin != 0 {
+		t.Errorf("unassigned bin locate must not reach WLED, got locatedBin=%d", fw.locatedBin)
 	}
 }
 

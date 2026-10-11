@@ -228,7 +228,7 @@ func convertToDrawerRelative(ctx context.Context, store db.Store, expectedFinger
 			// Clear the drawer's indices first so the (smaller) drawer-relative
 			// indices can never transiently collide with a not-yet-updated
 			// segment index under UNIQUE(container_id, led_index).
-			if err := q.ClearContainerBinLedIndices(ctx, f.ContainerID); err != nil {
+			if err := q.ClearContainerBinLedIndices(ctx, sql.NullInt64{Int64: f.ContainerID, Valid: true}); err != nil {
 				return fmt.Errorf("failed to clear bin indices for container %d: %w", f.ContainerID, err)
 			}
 			for _, b := range f.Bins {
@@ -299,7 +299,7 @@ func buildConversionReport(ctx context.Context, q db.Querier) (ConversionReport,
 			return report, err
 		}
 		for _, c := range containers {
-			bins, err := q.GetBinsByContainer(ctx, c.ID)
+			bins, err := q.GetBinsByContainer(ctx, sql.NullInt64{Int64: c.ID, Valid: true})
 			if err != nil {
 				return report, err
 			}

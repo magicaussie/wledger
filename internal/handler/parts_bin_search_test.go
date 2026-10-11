@@ -23,8 +23,8 @@ func TestHandlePartsList_BinFilter(t *testing.T) {
 	// Setup
 	ctrl, _ := h.Queries.CreateController(ctx, db.CreateControllerParams{Name: "C1", IpAddress: "1.2.3.4"})
 	cont, _ := h.Queries.CreateContainer(ctx, db.CreateContainerParams{Name: "Cont1", ControllerID: ctrl.ID})
-	binA, _ := h.Queries.CreateBin(ctx, db.CreateBinParams{Name: "Bin A", ContainerID: cont})
-	binB, _ := h.Queries.CreateBin(ctx, db.CreateBinParams{Name: "Bin B", ContainerID: cont})
+	binA, _ := h.Queries.CreateBin(ctx, db.CreateBinParams{Name: "Bin A", ContainerID: sql.NullInt64{Int64: cont, Valid: true}})
+	binB, _ := h.Queries.CreateBin(ctx, db.CreateBinParams{Name: "Bin B", ContainerID: sql.NullInt64{Int64: cont, Valid: true}})
 
 	// Create Parts
 	p1, _ := h.Queries.CreatePart(ctx, db.CreatePartParams{Name: "Part A"})

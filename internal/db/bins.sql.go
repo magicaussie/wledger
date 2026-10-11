@@ -16,7 +16,7 @@ SET led_index = NULL
 WHERE container_id = ?
 `
 
-func (q *Queries) ClearContainerBinLedIndices(ctx context.Context, containerID int64) error {
+func (q *Queries) ClearContainerBinLedIndices(ctx context.Context, containerID sql.NullInt64) error {
 	_, err := q.exec(ctx, q.clearContainerBinLedIndicesStmt, clearContainerBinLedIndices, containerID)
 	return err
 }
@@ -29,7 +29,7 @@ RETURNING id
 
 type CreateBinParams struct {
 	Name        string        `json:"name"`
-	ContainerID int64         `json:"container_id"`
+	ContainerID sql.NullInt64 `json:"container_id"`
 	LedIndex    sql.NullInt64 `json:"led_index"`
 	Width       sql.NullInt64 `json:"width"`
 	GridX       sql.NullInt64 `json:"grid_x"`
@@ -65,7 +65,7 @@ WHERE container_id = ? AND led_index = ?
 `
 
 type DeleteBinByLedParams struct {
-	ContainerID int64         `json:"container_id"`
+	ContainerID sql.NullInt64 `json:"container_id"`
 	LedIndex    sql.NullInt64 `json:"led_index"`
 }
 
@@ -78,7 +78,7 @@ const deleteBinsByContainer = `-- name: DeleteBinsByContainer :exec
 DELETE FROM bins WHERE container_id = ?
 `
 
-func (q *Queries) DeleteBinsByContainer(ctx context.Context, containerID int64) error {
+func (q *Queries) DeleteBinsByContainer(ctx context.Context, containerID sql.NullInt64) error {
 	_, err := q.exec(ctx, q.deleteBinsByContainerStmt, deleteBinsByContainer, containerID)
 	return err
 }
@@ -142,7 +142,7 @@ SELECT id FROM bins WHERE container_id = ? AND led_index = ?
 `
 
 type GetBinByContainerAndLedParams struct {
-	ContainerID int64         `json:"container_id"`
+	ContainerID sql.NullInt64 `json:"container_id"`
 	LedIndex    sql.NullInt64 `json:"led_index"`
 }
 
@@ -225,7 +225,7 @@ WHERE container_id = ?
 ORDER BY led_index ASC
 `
 
-func (q *Queries) GetBinsByContainer(ctx context.Context, containerID int64) ([]Bin, error) {
+func (q *Queries) GetBinsByContainer(ctx context.Context, containerID sql.NullInt64) ([]Bin, error) {
 	rows, err := q.query(ctx, q.getBinsByContainerStmt, getBinsByContainer, containerID)
 	if err != nil {
 		return nil, err
@@ -264,7 +264,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?)
 type RestoreBinParams struct {
 	ID          int64         `json:"id"`
 	Name        string        `json:"name"`
-	ContainerID int64         `json:"container_id"`
+	ContainerID sql.NullInt64 `json:"container_id"`
 	LedIndex    sql.NullInt64 `json:"led_index"`
 	Width       sql.NullInt64 `json:"width"`
 	GridX       sql.NullInt64 `json:"grid_x"`
@@ -339,7 +339,7 @@ ON CONFLICT(container_id, led_index) DO UPDATE SET
 
 type UpsertBinParams struct {
 	Name        string        `json:"name"`
-	ContainerID int64         `json:"container_id"`
+	ContainerID sql.NullInt64 `json:"container_id"`
 	LedIndex    sql.NullInt64 `json:"led_index"`
 	Width       sql.NullInt64 `json:"width"`
 	GridX       sql.NullInt64 `json:"grid_x"`

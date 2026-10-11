@@ -93,7 +93,7 @@ func TestService_FlashError(t *testing.T) {
 	}
 	bin, err := store.CreateBin(ctx, db.CreateBinParams{
 		Name:        "B",
-		ContainerID: cont,
+		ContainerID: sql.NullInt64{Int64: cont, Valid: true},
 		LedIndex:    sql.NullInt64{Int64: 5, Valid: true},
 		Width:       sql.NullInt64{Int64: 2, Valid: true},
 	})

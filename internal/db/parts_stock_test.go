@@ -46,7 +46,7 @@ func TestPartStockBreakdown(t *testing.T) {
 	// Create Bin
 	binID, err := q.CreateBin(ctx, db.CreateBinParams{
 		Name:        "Bin A1",
-		ContainerID: containerID,
+		ContainerID: sql.NullInt64{Int64: containerID, Valid: true},
 		LedIndex:    sql.NullInt64{Int64: 0, Valid: true},
 	})
 	if err != nil {

@@ -350,7 +350,7 @@ func (h *Handler) HandleBinLabels(w http.ResponseWriter, r *http.Request) {
 			}
 			lcBins := make([]pages.BinLabel, 0, len(bins))
 			for _, b := range bins {
-				if b.ContainerID == ct.ID {
+				if b.ContainerID.Valid && b.ContainerID.Int64 == ct.ID {
 					lcBins = append(lcBins, pages.BinLabel{ID: b.ID, Name: b.Name})
 				}
 			}

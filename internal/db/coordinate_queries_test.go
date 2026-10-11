@@ -38,13 +38,13 @@ func TestGetControllerByIPAndGetBinByContainerAndLed(t *testing.T) {
 		t.Fatalf("create container: %v", err)
 	}
 	bin, err := q.CreateBin(ctx, db.CreateBinParams{
-		Name: "b1", ContainerID: cont, LedIndex: sql.NullInt64{Int64: 3, Valid: true},
+		Name: "b1", ContainerID: sql.NullInt64{Int64: cont, Valid: true}, LedIndex: sql.NullInt64{Int64: 3, Valid: true},
 	})
 	if err != nil {
 		t.Fatalf("create bin: %v", err)
 	}
 	gotBin, err := q.GetBinByContainerAndLed(ctx, db.GetBinByContainerAndLedParams{
-		ContainerID: cont, LedIndex: sql.NullInt64{Int64: 3, Valid: true},
+		ContainerID: sql.NullInt64{Int64: cont, Valid: true}, LedIndex: sql.NullInt64{Int64: 3, Valid: true},
 	})
 	if err != nil {
 		t.Fatalf("GetBinByContainerAndLed: %v", err)
@@ -53,7 +53,7 @@ func TestGetControllerByIPAndGetBinByContainerAndLed(t *testing.T) {
 		t.Errorf("GetBinByContainerAndLed id = %d, want %d", gotBin, bin)
 	}
 	if _, err := q.GetBinByContainerAndLed(ctx, db.GetBinByContainerAndLedParams{
-		ContainerID: cont, LedIndex: sql.NullInt64{Int64: 99, Valid: true},
+		ContainerID: sql.NullInt64{Int64: cont, Valid: true}, LedIndex: sql.NullInt64{Int64: 99, Valid: true},
 	}); err == nil {
 		t.Error("expected an error for an unknown bin location")
 	}

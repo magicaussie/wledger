@@ -132,7 +132,7 @@ func (s *service) LocatePart(ctx context.Context, partID int64) error {
 			// Construct db.Bin from assignment row
 			bin := db.Bin{
 				ID:          a.BinID.Int64,
-				ContainerID: a.ContainerID.Int64,
+				ContainerID: a.ContainerID,
 				LedIndex:    a.LedIndex,
 				Width:       a.Width,
 			}

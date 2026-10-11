@@ -31,7 +31,7 @@ func TestNewDashboardViewModel(t *testing.T) {
 
 	b10Row, _ := s.CreateBin(ctx, db.CreateBinParams{
 		Name:        "Bin 10",
-		ContainerID: cont2,
+		ContainerID: sql.NullInt64{Int64: cont2, Valid: true},
 		GridX:       sql.NullInt64{Int64: 1, Valid: true},
 		GridY:       sql.NullInt64{Int64: 1, Valid: true},
 	})
@@ -46,7 +46,7 @@ func TestNewDashboardViewModel(t *testing.T) {
 
 	b1, _ := s.CreateBin(ctx, db.CreateBinParams{
 		Name:        "Bin 1",
-		ContainerID: cont1,
+		ContainerID: sql.NullInt64{Int64: cont1, Valid: true},
 		GridX:       sql.NullInt64{Int64: 0, Valid: true},
 		GridY:       sql.NullInt64{Int64: 0, Valid: true},
 	})
@@ -56,7 +56,7 @@ func TestNewDashboardViewModel(t *testing.T) {
 	// Controller A: Bin (0,1) - Low
 	b2, _ := s.CreateBin(ctx, db.CreateBinParams{
 		Name:        "Bin 2",
-		ContainerID: cont1,
+		ContainerID: sql.NullInt64{Int64: cont1, Valid: true},
 		GridX:       sql.NullInt64{Int64: 0, Valid: true},
 		GridY:       sql.NullInt64{Int64: 1, Valid: true},
 	})

@@ -59,7 +59,7 @@ func wantLED(index, width int) string {
 
 func fetchBinByName(t *testing.T, store db.Store, ctx context.Context, containerID int64, name string) db.Bin {
 	t.Helper()
-	bins, err := store.GetBinsByContainer(ctx, containerID)
+	bins, err := store.GetBinsByContainer(ctx, sql.NullInt64{Int64: containerID, Valid: true})
 	if err != nil {
 		t.Fatalf("get bins: %v", err)
 	}

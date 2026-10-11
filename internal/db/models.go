@@ -24,7 +24,7 @@ type AuditLog struct {
 type Bin struct {
 	ID          int64         `json:"id"`
 	Name        string        `json:"name"`
-	ContainerID int64         `json:"container_id"`
+	ContainerID sql.NullInt64 `json:"container_id"`
 	LedIndex    sql.NullInt64 `json:"led_index"`
 	Width       sql.NullInt64 `json:"width"`
 	GridX       sql.NullInt64 `json:"grid_x"`

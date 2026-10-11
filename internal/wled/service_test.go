@@ -78,7 +78,7 @@ func TestService_Locate(t *testing.T) {
 		}
 
 		b, err := store.CreateBin(ctx, db.CreateBinParams{
-			Name: "B1", ContainerID: cont, LedIndex: sql.NullInt64{Int64: 0, Valid: true},
+			Name: "B1", ContainerID: sql.NullInt64{Int64: cont, Valid: true}, LedIndex: sql.NullInt64{Int64: 0, Valid: true},
 		})
 		if err != nil {
 			t.Fatalf("failed to create bin: %v", err)
@@ -113,7 +113,7 @@ func TestService_Locate(t *testing.T) {
 
 		// Bin at 0-based LED index 685 spanning 15 LEDs (physical LEDs 686-700).
 		b, err := store.CreateBin(ctx, db.CreateBinParams{
-			Name: "B2", ContainerID: cont,
+			Name: "B2", ContainerID: sql.NullInt64{Int64: cont, Valid: true},
 			LedIndex: sql.NullInt64{Int64: 685, Valid: true},
 			Width:    sql.NullInt64{Int64: 15, Valid: true},
 		})
@@ -148,7 +148,7 @@ func TestService_Locate(t *testing.T) {
 
 		// Width 0 / missing should behave as width 1: range end == index+1.
 		b, err := store.CreateBin(ctx, db.CreateBinParams{
-			Name: "B3", ContainerID: cont,
+			Name: "B3", ContainerID: sql.NullInt64{Int64: cont, Valid: true},
 			LedIndex: sql.NullInt64{Int64: 685, Valid: true},
 		})
 		if err != nil {
@@ -385,7 +385,7 @@ func TestService_LocateFailsWhenCoordinateSpaceUnresolved(t *testing.T) {
 		ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true},
 	})
 	bin, _ := store.CreateBin(ctx, db.CreateBinParams{
-		Name: "a1", ContainerID: cont, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true},
+		Name: "a1", ContainerID: sql.NullInt64{Int64: cont, Valid: true}, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true},
 	})
 
 	if err := ledspace.Set(ctx, store, ledspace.Unresolved); err != nil {
@@ -466,7 +466,7 @@ func TestService_LocateBinDrawerSpace(t *testing.T) {
 		ConfigJson: sql.NullString{String: `{"type":"linear","total":5}`, Valid: true},
 	})
 	bin, _ := store.CreateBin(ctx, db.CreateBinParams{
-		Name: "b1", ContainerID: cont, LedIndex: sql.NullInt64{Int64: 3, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true},
+		Name: "b1", ContainerID: sql.NullInt64{Int64: cont, Valid: true}, LedIndex: sql.NullInt64{Int64: 3, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true},
 	})
 	if err := ledspace.Set(ctx, store, ledspace.Drawer); err != nil {
 		t.Fatalf("set drawer: %v", err)
@@ -516,7 +516,7 @@ func TestService_LocateBinDrawerOutOfRange(t *testing.T) {
 		ConfigJson: sql.NullString{String: `{"type":"linear","total":5}`, Valid: true},
 	})
 	bin, _ := store.CreateBin(ctx, db.CreateBinParams{
-		Name: "b1", ContainerID: cont, LedIndex: sql.NullInt64{Int64: 5, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true},
+		Name: "b1", ContainerID: sql.NullInt64{Int64: cont, Valid: true}, LedIndex: sql.NullInt64{Int64: 5, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true},
 	})
 	if err := ledspace.Set(ctx, store, ledspace.Drawer); err != nil {
 		t.Fatalf("set drawer: %v", err)
@@ -558,7 +558,7 @@ func TestService_FlashErrorDrawerSpace(t *testing.T) {
 		ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true},
 	})
 	bin, _ := store.CreateBin(ctx, db.CreateBinParams{
-		Name: "b1", ContainerID: cont, LedIndex: sql.NullInt64{Int64: 4, Valid: true}, Width: sql.NullInt64{Int64: 2, Valid: true},
+		Name: "b1", ContainerID: sql.NullInt64{Int64: cont, Valid: true}, LedIndex: sql.NullInt64{Int64: 4, Valid: true}, Width: sql.NullInt64{Int64: 2, Valid: true},
 	})
 	if err := ledspace.Set(ctx, store, ledspace.Drawer); err != nil {
 		t.Fatalf("set drawer: %v", err)
@@ -617,7 +617,7 @@ func TestService_LocatePartDrawerSpace(t *testing.T) {
 		ConfigJson: sql.NullString{String: `{"type":"linear","total":5}`, Valid: true},
 	})
 	bin, _ := store.CreateBin(ctx, db.CreateBinParams{
-		Name: "b1", ContainerID: cont, LedIndex: sql.NullInt64{Int64: 2, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true},
+		Name: "b1", ContainerID: sql.NullInt64{Int64: cont, Valid: true}, LedIndex: sql.NullInt64{Int64: 2, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true},
 	})
 	partID, err := store.CreatePart(ctx, db.CreatePartParams{Name: "P"})
 	if err != nil {
@@ -674,7 +674,7 @@ func TestService_LocateFailsWhenCoordinateSpaceUnknown(t *testing.T) {
 		ConfigJson: sql.NullString{String: `{"type":"linear","total":10}`, Valid: true},
 	})
 	bin, _ := store.CreateBin(ctx, db.CreateBinParams{
-		Name: "a1", ContainerID: cont, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true},
+		Name: "a1", ContainerID: sql.NullInt64{Int64: cont, Valid: true}, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true},
 	})
 	if err := store.SetFlag(ctx, db.SetFlagParams{Key: ledspace.FlagKey, Value: "bogus"}); err != nil {
 		t.Fatalf("set flag: %v", err)

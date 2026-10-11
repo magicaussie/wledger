@@ -404,8 +404,8 @@ func TestPartStockMove_Move(t *testing.T) {
 	c, _ := h.Queries.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
 	cont, _ := h.Queries.CreateContainer(ctx, db.CreateContainerParams{Name: "Cont", ControllerID: c.ID})
 
-	binA, _ := h.Queries.CreateBin(ctx, db.CreateBinParams{Name: "Bin A", ContainerID: cont})
-	binB, _ := h.Queries.CreateBin(ctx, db.CreateBinParams{Name: "Bin B", ContainerID: cont})
+	binA, _ := h.Queries.CreateBin(ctx, db.CreateBinParams{Name: "Bin A", ContainerID: sql.NullInt64{Int64: cont, Valid: true}})
+	binB, _ := h.Queries.CreateBin(ctx, db.CreateBinParams{Name: "Bin B", ContainerID: sql.NullInt64{Int64: cont, Valid: true}})
 
 	_ = h.Queries.CreatePartAssignment(ctx, db.CreatePartAssignmentParams{
 		PartID: p, BinID: sql.NullInt64{Int64: binA, Valid: true}, Quantity: 10,
@@ -467,8 +467,8 @@ func TestPartStockMove_Merge(t *testing.T) {
 	c, _ := h.Queries.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
 	cont, _ := h.Queries.CreateContainer(ctx, db.CreateContainerParams{Name: "Cont", ControllerID: c.ID})
 
-	binA, _ := h.Queries.CreateBin(ctx, db.CreateBinParams{Name: "Bin A", ContainerID: cont})
-	binB, _ := h.Queries.CreateBin(ctx, db.CreateBinParams{Name: "Bin B", ContainerID: cont})
+	binA, _ := h.Queries.CreateBin(ctx, db.CreateBinParams{Name: "Bin A", ContainerID: sql.NullInt64{Int64: cont, Valid: true}})
+	binB, _ := h.Queries.CreateBin(ctx, db.CreateBinParams{Name: "Bin B", ContainerID: sql.NullInt64{Int64: cont, Valid: true}})
 
 	_ = h.Queries.CreatePartAssignment(ctx, db.CreatePartAssignmentParams{
 		PartID: p, BinID: sql.NullInt64{Int64: binA, Valid: true}, Quantity: 10,
@@ -525,7 +525,7 @@ func TestPartStockMove_Merge_Rollback(t *testing.T) {
 	c, _ := h.Queries.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
 	cont, _ := h.Queries.CreateContainer(ctx, db.CreateContainerParams{Name: "Cont", ControllerID: c.ID})
 
-	binA, _ := h.Queries.CreateBin(ctx, db.CreateBinParams{Name: "Bin A", ContainerID: cont})
+	binA, _ := h.Queries.CreateBin(ctx, db.CreateBinParams{Name: "Bin A", ContainerID: sql.NullInt64{Int64: cont, Valid: true}})
 
 	_ = h.Queries.CreatePartAssignment(ctx, db.CreatePartAssignmentParams{
 		PartID: p, BinID: sql.NullInt64{Int64: binA, Valid: true}, Quantity: 10,

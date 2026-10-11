@@ -95,7 +95,7 @@ func (s *service) ExportConfig(ctx context.Context, controllerID int64) ([]byte,
 	}
 
 	for i, ctID := range containerIDs {
-		bins, err := s.store.GetBinsByContainer(ctx, ctID)
+		bins, err := s.store.GetBinsByContainer(ctx, sql.NullInt64{Int64: ctID, Valid: true})
 		if err != nil {
 			continue
 		}
@@ -287,7 +287,7 @@ func (s *service) ImportConfig(ctx context.Context, name, ip string, port int64,
 			// coordinate space.
 			_, err := q.CreateBin(ctx, db.CreateBinParams{
 				Name:        b.Name,
-				ContainerID: containerIDs[b.ContainerIndex],
+				ContainerID: sql.NullInt64{Int64: containerIDs[b.ContainerIndex], Valid: true},
 				LedIndex:    nullIntFromPtr(b.LedIndex),
 				Width:       sql.NullInt64{Int64: int64(clampWidth(b.Width)), Valid: true},
 				GridX:       sql.NullInt64{Int64: int64(cfg.Bins[i].X), Valid: true},

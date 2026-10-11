@@ -107,7 +107,7 @@ func (f compatFixture) bin(spec compatBinSpec) int64 {
 	f.t.Helper()
 	id, err := f.store.CreateBin(f.ctx, db.CreateBinParams{
 		Name:        spec.Name,
-		ContainerID: spec.Container,
+		ContainerID: sql.NullInt64{Int64: spec.Container, Valid: true},
 		LedIndex:    spec.LedIndex,
 		Width:       spec.Width,
 	})
@@ -343,8 +343,8 @@ func TestCompatibilityBaselineSegmentSnapshot(t *testing.T) {
 	if rawUnmapped.LedIndex.Valid {
 		t.Errorf("raw led_index = %+v for an unmapped bin, want SQL NULL preserved", rawUnmapped.LedIndex)
 	}
-	if rawUnmapped.ContainerID != container {
-		t.Errorf("raw container_id = %d, want %d", rawUnmapped.ContainerID, container)
+	if !rawUnmapped.ContainerID.Valid || rawUnmapped.ContainerID.Int64 != container {
+		t.Errorf("raw container_id = %+v, want %d", rawUnmapped.ContainerID, container)
 	}
 
 	if len(baseline.Raw.Parts) != 1 || baseline.Raw.Parts[0].ID != part || baseline.Raw.Parts[0].Name != "Resistor" {
@@ -652,7 +652,7 @@ func TestCompatibilityBaselineNullAndNegativeIndices(t *testing.T) {
 	}
 
 	// The capture reports invalid data; it never repairs it in the database.
-	stored, err := f.store.GetBinsByContainer(f.ctx, container)
+	stored, err := f.store.GetBinsByContainer(f.ctx, sql.NullInt64{Int64: container, Valid: true})
 	if err != nil {
 		t.Fatalf("read stored bins: %v", err)
 	}
@@ -1128,7 +1128,7 @@ func TestCompatibilityBaselineConcurrentSnapshotIsConsistent(t *testing.T) {
 		}
 		if _, err := f.store.CreateBin(writerCtx, db.CreateBinParams{
 			Name:        "late",
-			ContainerID: container,
+			ContainerID: sql.NullInt64{Int64: container, Valid: true},
 			LedIndex:    validInt64(3),
 			Width:       validInt64(1),
 		}); err != nil {
@@ -1211,6 +1211,31 @@ func TestCompatibilityBaselineDetectsMissingRelationships(t *testing.T) {
 	ghostTarget := compatTarget(t, f.capture(), ghostBin)
 	if ghostTarget.Resolved || ghostTarget.Refusal != CodeContainerMissingController {
 		t.Errorf("ghost target = %+v, want missing-controller refusal", ghostTarget)
+	}
+}
+
+func TestCompatibilityBaselineTreatsNullContainerAsUnassigned(t *testing.T) {
+	f := setupCompatFixture(t, "compat_unassigned_container")
+	ids := compatBaseScenario(f)
+	f.exec(`INSERT INTO containers (id, name, controller_id, segment_id, led_start, led_count) VALUES (0, 'Zero', ?, 0, 0, 5)`, ids.controller)
+	f.exec(`INSERT INTO bins (name, container_id, led_index, width) VALUES ('unassigned', NULL, 0, 1)`)
+
+	baseline := f.capture()
+	unassigned := compatRawBinByName(t, baseline.Raw, "unassigned")
+	target := compatTarget(t, baseline, unassigned.ID)
+	if target.Resolved || target.Refusal != CodeContainerUnassigned {
+		t.Fatalf("unassigned target = %+v, want an unassigned-container refusal", target)
+	}
+	if target.Address != "" || target.ControllerID != 0 {
+		t.Errorf("unassigned target = %+v, want no electrical controller", target)
+	}
+	if !compatHasDiagnosticFor(baseline, CodeContainerUnassigned, unassigned.ID) {
+		t.Errorf("diagnostics = %+v, want %q for bin %d", baseline.Diagnostics, CodeContainerUnassigned, unassigned.ID)
+	}
+	for _, diagnostic := range compatDiagnosticsFor(baseline, CodeContainerUnassigned) {
+		if diagnostic.BinID == unassigned.ID && diagnostic.Severity != CompatibilitySeverityInfo {
+			t.Errorf("unassigned diagnostic severity = %q, want info", diagnostic.Severity)
+		}
 	}
 }
 

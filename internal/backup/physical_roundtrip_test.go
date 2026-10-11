@@ -344,7 +344,7 @@ func physLegacyManifest() Manifest {
 				ConfigJson: sql.NullString{String: `{"type":"linear","total":8}`, Valid: true}, CreatedAt: now, UpdatedAt: now},
 		},
 		Bins: []db.Bin{
-			{ID: 1, Name: "lb1", ContainerID: 1, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
+			{ID: 1, Name: "lb1", ContainerID: sql.NullInt64{Int64: 1, Valid: true}, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
 		},
 	}
 }
@@ -368,8 +368,8 @@ func physBaseStorageManifest() StorageManifest {
 				ConfigJson: sql.NullString{String: `{"type":"linear","total":16}`, Valid: true}, CreatedAt: now, UpdatedAt: now},
 		},
 		Bins: []db.Bin{
-			{ID: 1, Name: "b1", ContainerID: 1, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
-			{ID: 2, Name: "b2", ContainerID: 1, LedIndex: sql.NullInt64{Int64: 2, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
+			{ID: 1, Name: "b1", ContainerID: sql.NullInt64{Int64: 1, Valid: true}, LedIndex: sql.NullInt64{Int64: 0, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
+			{ID: 2, Name: "b2", ContainerID: sql.NullInt64{Int64: 1, Valid: true}, LedIndex: sql.NullInt64{Int64: 2, Valid: true}, Width: sql.NullInt64{Int64: 1, Valid: true}},
 		},
 		Parts: []db.Part{
 			{ID: 1, Name: "P1", CreatedAt: now, UpdatedAt: now},

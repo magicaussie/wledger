@@ -380,14 +380,14 @@ func (s *Service) evaluate(ctx context.Context, q db.Querier, candidates []Attac
 			continue
 		}
 
-		// A configured cabinet claims one electrical controller. The bin's
-		// controller is its legacy container's controller. A draft cabinet with a
-		// NULL controller attaches physical bins without claiming electrical
-		// compatibility, so no controller assumption is made for it.
-		if cabinet.ControllerID.Valid {
-			container, err := q.GetContainer(ctx, bin.ContainerID)
+		// Compare electrical ownership only when the bin retains a legacy
+		// container mapping. A bin without one can be explicitly attached to a
+		// physical drawer without inferring an electrical controller. A draft
+		// cabinet with no controller likewise makes no compatibility claim.
+		if cabinet.ControllerID.Valid && bin.ContainerID.Valid {
+			container, err := q.GetContainer(ctx, bin.ContainerID.Int64)
 			if err != nil {
-				return nil, fmt.Errorf("failed to load container %d for bin %d: %w", bin.ContainerID, c.BinID, err)
+				return nil, fmt.Errorf("failed to load container %d for bin %d: %w", bin.ContainerID.Int64, c.BinID, err)
 			}
 			if container.ControllerID != cabinet.ControllerID.Int64 {
 				e.blocked(ReasonControllerMismatch)

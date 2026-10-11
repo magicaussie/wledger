@@ -53,7 +53,7 @@ func mkBin(t *testing.T, store db.Store, ctx context.Context, contID int64, name
 	t.Helper()
 	_, err := store.CreateBin(ctx, db.CreateBinParams{
 		Name:        name,
-		ContainerID: contID,
+		ContainerID: sql.NullInt64{Int64: contID, Valid: true},
 		LedIndex:    sql.NullInt64{Int64: idx, Valid: true},
 		Width:       sql.NullInt64{Int64: width, Valid: true},
 	})
@@ -269,7 +269,7 @@ func TestBackfillLeavesInconsistentUnallocated(t *testing.T) {
 		t.Errorf("inconsistent drawer should remain unallocated, got count %d", ca.LedCount)
 	}
 	// The bin index must be untouched.
-	bins, _ := store.GetBinsByContainer(ctx, a)
+	bins, _ := store.GetBinsByContainer(ctx, sql.NullInt64{Int64: a, Valid: true})
 	if len(bins) != 1 || bins[0].LedIndex.Int64 != 15 {
 		t.Errorf("bin index was altered: %+v", bins)
 	}
@@ -357,7 +357,7 @@ func TestUnresolvedStatePersistsAcrossStartup(t *testing.T) {
 	if ca.LedCount != 0 {
 		t.Errorf("unresolved data was backfilled across restart: count %d", ca.LedCount)
 	}
-	bins, _ := restarted.GetBinsByContainer(ctx, a)
+	bins, _ := restarted.GetBinsByContainer(ctx, sql.NullInt64{Int64: a, Valid: true})
 	if len(bins) != 1 || !bins[0].LedIndex.Valid || bins[0].LedIndex.Int64 != 0 {
 		t.Errorf("unresolved bins were modified across restart: %+v", bins)
 	}
@@ -492,7 +492,7 @@ func TestSaveGridInvalidSubmissionLeavesDatabaseUnchanged(t *testing.T) {
 			if len(containers) != 1 || containers[0].Name != "A" || containers[0].LedStart != 0 || containers[0].LedCount != 10 {
 				t.Fatalf("containers changed after invalid submission: %+v", containers)
 			}
-			bins, _ := store.GetBinsByContainer(ctx, cont)
+			bins, _ := store.GetBinsByContainer(ctx, sql.NullInt64{Int64: cont, Valid: true})
 			if len(bins) != 1 || bins[0].Name != "a1" || !bins[0].LedIndex.Valid || bins[0].LedIndex.Int64 != 0 {
 				t.Fatalf("bins changed after invalid submission: %+v", bins)
 			}
@@ -645,7 +645,7 @@ func TestSaveGridDrawerSpace(t *testing.T) {
 	if bID == 0 {
 		t.Fatal("drawer B not found")
 	}
-	bins, err := store.GetBinsByContainer(ctx, bID)
+	bins, err := store.GetBinsByContainer(ctx, sql.NullInt64{Int64: bID, Valid: true})
 	if err != nil {
 		t.Fatalf("get bins: %v", err)
 	}
@@ -730,7 +730,7 @@ func TestSaveGridDrawerSpaceRoundTrip(t *testing.T) {
 	if _, err := svc.SaveGrid(ctx, ctrl.ID, gridData, configData2); err != nil {
 		t.Fatalf("second save: %v", err)
 	}
-	bins, err = store.GetBinsByContainer(ctx, containers[0].ID)
+	bins, err = store.GetBinsByContainer(ctx, sql.NullInt64{Int64: containers[0].ID, Valid: true})
 	if err != nil {
 		t.Fatalf("reload 2: %v", err)
 	}
@@ -856,7 +856,7 @@ func TestSaveGridPreservesNullAndZeroRoundTrip(t *testing.T) {
 			}
 			assertBins := func(stage string) {
 				t.Helper()
-				bins, _ := store.GetBinsByContainer(ctx, containers[0].ID)
+				bins, _ := store.GetBinsByContainer(ctx, sql.NullInt64{Int64: containers[0].ID, Valid: true})
 				var zero, unmapped *db.Bin
 				for i := range bins {
 					switch bins[i].Name {

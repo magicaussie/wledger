@@ -76,7 +76,7 @@ func TestDashboardWallIntegrationSyntheticDemo(t *testing.T) {
 	for i, name := range binNames {
 		if _, err := store.CreateBin(ctx, db.CreateBinParams{
 			Name:        name,
-			ContainerID: contA,
+			ContainerID: sql.NullInt64{Int64: contA, Valid: true},
 			Width:       sql.NullInt64{Int64: 1, Valid: true},
 			GridX:       sql.NullInt64{Int64: int64(i % 2), Valid: true},
 			GridY:       sql.NullInt64{Int64: int64(i / 2), Valid: true},
@@ -94,7 +94,7 @@ func TestDashboardWallIntegrationSyntheticDemo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create part: %v", err)
 	}
-	bins, err := store.GetBinsByContainer(ctx, contA)
+	bins, err := store.GetBinsByContainer(ctx, sql.NullInt64{Int64: contA, Valid: true})
 	if err != nil {
 		t.Fatalf("list bins: %v", err)
 	}

@@ -74,7 +74,7 @@ func MigrateLegacyLedIndices(ctx context.Context, store db.Store, logger *slog.L
 				var offset int64 = 0
 				for _, container := range segContainers {
 					if offset > 0 {
-						bins, err := q.GetBinsByContainer(ctx, container.ID)
+						bins, err := q.GetBinsByContainer(ctx, sql.NullInt64{Int64: container.ID, Valid: true})
 						if err != nil {
 							return err
 						}

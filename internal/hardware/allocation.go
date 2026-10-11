@@ -2,6 +2,7 @@ package hardware
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -184,12 +185,12 @@ func ValidateRestoredAllocations(containers []db.Container, bins []db.Bin) (bool
 		byID[c.ID] = c
 	}
 	for _, b := range bins {
-		if !b.LedIndex.Valid {
-			continue // unmapped bin
+		if !b.ContainerID.Valid || !b.LedIndex.Valid {
+			continue // no legacy electrical mapping
 		}
-		c, ok := byID[b.ContainerID]
+		c, ok := byID[b.ContainerID.Int64]
 		if !ok {
-			return true, fmt.Errorf("bin %d references missing container %d", b.ID, b.ContainerID)
+			return true, fmt.Errorf("bin %d references missing container %d", b.ID, b.ContainerID.Int64)
 		}
 		if c.LedCount <= 0 {
 			return true, fmt.Errorf("bin %d in drawer %q is mapped but the drawer has no allocation", b.ID, c.Name)
@@ -226,12 +227,12 @@ func ValidateRestoredDrawerAllocations(containers []db.Container, bins []db.Bin)
 		byID[c.ID] = c
 	}
 	for _, b := range bins {
-		if !b.LedIndex.Valid {
-			continue // unmapped bin
+		if !b.ContainerID.Valid || !b.LedIndex.Valid {
+			continue // no legacy electrical mapping
 		}
-		c, ok := byID[b.ContainerID]
+		c, ok := byID[b.ContainerID.Int64]
 		if !ok {
-			return fmt.Errorf("bin %d references missing container %d", b.ID, b.ContainerID)
+			return fmt.Errorf("bin %d references missing container %d", b.ID, b.ContainerID.Int64)
 		}
 		if c.LedCount <= 0 {
 			return fmt.Errorf("bin %d in drawer %q is drawer-relative but the drawer has no allocation", b.ID, c.Name)
@@ -393,7 +394,7 @@ func PreflightDrawerAllocations(ctx context.Context, q db.Querier) (AllocationRe
 			start := segOffset[c.SegmentID]
 			segOffset[c.SegmentID] = start + length
 
-			bins, err := q.GetBinsByContainer(ctx, c.ID)
+			bins, err := q.GetBinsByContainer(ctx, sql.NullInt64{Int64: c.ID, Valid: true})
 			if err != nil {
 				return report, err
 			}

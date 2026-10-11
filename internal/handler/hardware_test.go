@@ -91,7 +91,7 @@ func TestControllerDeleteCascadesToBins(t *testing.T) {
 	for i := 0; i < 8; i++ {
 		_, err := s.CreateBin(ctx, db.CreateBinParams{
 			Name:        "Bin-" + strconv.Itoa(i),
-			ContainerID: cont,
+			ContainerID: sql.NullInt64{Int64: cont, Valid: true},
 			LedIndex:    sql.NullInt64{Int64: int64(i), Valid: true},
 			Width:       sql.NullInt64{Int64: 1, Valid: true},
 			GridX:       sql.NullInt64{Int64: int64(i), Valid: true},
@@ -103,7 +103,7 @@ func TestControllerDeleteCascadesToBins(t *testing.T) {
 	}
 
 	// Verify Bins exist
-	binsBefore, err := s.GetBinsByContainer(ctx, cont)
+	binsBefore, err := s.GetBinsByContainer(ctx, sql.NullInt64{Int64: cont, Valid: true})
 	if err != nil {
 		t.Fatalf("failed to fetch bins: %v", err)
 	}
@@ -130,7 +130,7 @@ func TestControllerDeleteCascadesToBins(t *testing.T) {
 	// Assertions
 
 	// Check Bins by Container (Should be 0)
-	binsAfter, err := s.GetBinsByContainer(ctx, cont)
+	binsAfter, err := s.GetBinsByContainer(ctx, sql.NullInt64{Int64: cont, Valid: true})
 	if err != nil {
 		t.Fatalf("failed to fetch bins after delete: %v", err)
 	}
@@ -484,7 +484,7 @@ func TestHandleHardwareGridSave_StaleSpaceAfterConversionReturns400(t *testing.T
 	if len(containers) != 1 {
 		t.Fatalf("expected 1 container, got %d", len(containers))
 	}
-	bins, _ := s.GetBinsByContainer(ctx, containers[0].ID)
+	bins, _ := s.GetBinsByContainer(ctx, sql.NullInt64{Int64: containers[0].ID, Valid: true})
 	if len(bins) != 1 || !bins[0].LedIndex.Valid || bins[0].LedIndex.Int64 != 3 {
 		t.Fatalf("stale save changed bins: %+v", bins)
 	}

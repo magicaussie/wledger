@@ -23,7 +23,7 @@ type Querier interface {
 	// ClearCabinets empties the cabinet table. It must run before any legacy
 	// controller deletion, and after the drawers and cabinets it references.
 	ClearCabinets(ctx context.Context) error
-	ClearContainerBinLedIndices(ctx context.Context, containerID int64) error
+	ClearContainerBinLedIndices(ctx context.Context, containerID sql.NullInt64) error
 	ClearContainers(ctx context.Context) error
 	ClearControllers(ctx context.Context) error
 	// ClearDrawers empties the drawer table. It must run before any legacy cabinet
@@ -76,7 +76,7 @@ type Querier interface {
 	DeleteBin(ctx context.Context, id int64) error
 	DeleteBinByLed(ctx context.Context, arg DeleteBinByLedParams) error
 	DeleteBinDrawerAttachment(ctx context.Context, binID int64) (int64, error)
-	DeleteBinsByContainer(ctx context.Context, containerID int64) error
+	DeleteBinsByContainer(ctx context.Context, containerID sql.NullInt64) error
 	DeleteCabinet(ctx context.Context, id int64) (int64, error)
 	DeleteContainer(ctx context.Context, id int64) error
 	DeleteController(ctx context.Context, id int64) error
@@ -138,7 +138,7 @@ type Querier interface {
 	GetBinByLocation(ctx context.Context, arg GetBinByLocationParams) (int64, error)
 	GetBinContents(ctx context.Context, binID sql.NullInt64) ([]GetBinContentsRow, error)
 	GetBinDrawerAttachment(ctx context.Context, binID int64) (BinDrawerAttachment, error)
-	GetBinsByContainer(ctx context.Context, containerID int64) ([]Bin, error)
+	GetBinsByContainer(ctx context.Context, containerID sql.NullInt64) ([]Bin, error)
 	GetCabinet(ctx context.Context, id int64) (Cabinet, error)
 	GetCabinetByController(ctx context.Context, controllerID sql.NullInt64) (Cabinet, error)
 	GetContainer(ctx context.Context, id int64) (Container, error)

@@ -59,7 +59,7 @@ func TestService_GetGrid(t *testing.T) {
 
 	// Create Bin
 	b, _ := store.CreateBin(ctx, db.CreateBinParams{
-		Name: "Bin 1", ContainerID: cont,
+		Name: "Bin 1", ContainerID: sql.NullInt64{Int64: cont, Valid: true},
 		GridX: sql.NullInt64{Int64: 0, Valid: true}, GridY: sql.NullInt64{Int64: 0, Valid: true},
 	})
 	// Create Part
@@ -134,7 +134,7 @@ func TestService_GetGrid_ContainerWithoutMappedBins(t *testing.T) {
 		t.Fatalf("create container: %v", err)
 	}
 	// Unmapped bin: no grid coordinates.
-	if _, err := store.CreateBin(ctx, db.CreateBinParams{Name: "Unmapped", ContainerID: cont}); err != nil {
+	if _, err := store.CreateBin(ctx, db.CreateBinParams{Name: "Unmapped", ContainerID: sql.NullInt64{Int64: cont, Valid: true}}); err != nil {
 		t.Fatalf("create bin: %v", err)
 	}
 
@@ -164,12 +164,12 @@ func TestService_GetGrid_MixedMappedAndUnmapped(t *testing.T) {
 	cont, _ := store.CreateContainer(ctx, db.CreateContainerParams{Name: "Drawer", ControllerID: c.ID, SegmentID: 0})
 
 	if _, err := store.CreateBin(ctx, db.CreateBinParams{
-		Name: "Mapped", ContainerID: cont,
+		Name: "Mapped", ContainerID: sql.NullInt64{Int64: cont, Valid: true},
 		GridX: sql.NullInt64{Int64: 0, Valid: true}, GridY: sql.NullInt64{Int64: 0, Valid: true},
 	}); err != nil {
 		t.Fatalf("create mapped bin: %v", err)
 	}
-	if _, err := store.CreateBin(ctx, db.CreateBinParams{Name: "Unmapped", ContainerID: cont}); err != nil {
+	if _, err := store.CreateBin(ctx, db.CreateBinParams{Name: "Unmapped", ContainerID: sql.NullInt64{Int64: cont, Valid: true}}); err != nil {
 		t.Fatalf("create unmapped bin: %v", err)
 	}
 
@@ -201,7 +201,7 @@ func TestService_GetGrid_MultiPartStatusesAndSort(t *testing.T) {
 
 	// Bin at (1,0) with two parts: one ok, one critical.
 	b10, _ := store.CreateBin(ctx, db.CreateBinParams{
-		Name: "B10", ContainerID: cont,
+		Name: "B10", ContainerID: sql.NullInt64{Int64: cont, Valid: true},
 		GridX: sql.NullInt64{Int64: 1, Valid: true}, GridY: sql.NullInt64{Int64: 0, Valid: true},
 	})
 	okPart, _ := store.CreatePart(ctx, db.CreatePartParams{Name: "OK Part", MinStockThreshold: sql.NullInt64{Int64: 1, Valid: true}})
@@ -211,7 +211,7 @@ func TestService_GetGrid_MultiPartStatusesAndSort(t *testing.T) {
 
 	// Bin at (0,0) with one ok part.
 	b00, _ := store.CreateBin(ctx, db.CreateBinParams{
-		Name: "B00", ContainerID: cont,
+		Name: "B00", ContainerID: sql.NullInt64{Int64: cont, Valid: true},
 		GridX: sql.NullInt64{Int64: 0, Valid: true}, GridY: sql.NullInt64{Int64: 0, Valid: true},
 	})
 	okPart2, _ := store.CreatePart(ctx, db.CreatePartParams{Name: "OK Part 2", MinStockThreshold: sql.NullInt64{Int64: 1, Valid: true}})
@@ -249,7 +249,7 @@ func TestService_GetGrid_ContainerSortBySegment(t *testing.T) {
 	contSeg0, _ := store.CreateContainer(ctx, db.CreateContainerParams{Name: "Seg0", ControllerID: c.ID, SegmentID: 0})
 	for _, cont := range []int64{contSeg1, contSeg0} {
 		if _, err := store.CreateBin(ctx, db.CreateBinParams{
-			Name: "Bin", ContainerID: cont,
+			Name: "Bin", ContainerID: sql.NullInt64{Int64: cont, Valid: true},
 			GridX: sql.NullInt64{Int64: 0, Valid: true}, GridY: sql.NullInt64{Int64: 0, Valid: true},
 		}); err != nil {
 			t.Fatalf("create bin: %v", err)

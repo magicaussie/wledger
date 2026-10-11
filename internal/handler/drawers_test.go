@@ -52,7 +52,7 @@ func TestHandleDrawerDetail(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create container: %v", err)
 	}
-	bin, err := h.Queries.CreateBin(ctx, db.CreateBinParams{Name: "Bin A", ContainerID: cont})
+	bin, err := h.Queries.CreateBin(ctx, db.CreateBinParams{Name: "Bin A", ContainerID: sql.NullInt64{Int64: cont, Valid: true}})
 	if err != nil {
 		t.Fatalf("create bin: %v", err)
 	}

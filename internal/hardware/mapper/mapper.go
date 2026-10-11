@@ -62,18 +62,22 @@ func (c ContainerConfig) Length() int64 {
 // It validates that the resulting index is a valid, non-negative WLED index and
 // that a drawer-relative index lies within its drawer's allocation.
 func CalculateGlobalIndex(space string, containers []db.Container, targetBin db.Bin) (int64, int64, error) {
+	if !targetBin.ContainerID.Valid {
+		return 0, 0, fmt.Errorf("target bin has no container")
+	}
+
 	// Find Target Container
 	var targetContainer db.Container
 	found := false
 	for _, c := range containers {
-		if c.ID == targetBin.ContainerID {
+		if c.ID == targetBin.ContainerID.Int64 {
 			targetContainer = c
 			found = true
 			break
 		}
 	}
 	if !found {
-		return 0, 0, fmt.Errorf("target container %d not found in provided list", targetBin.ContainerID)
+		return 0, 0, fmt.Errorf("target container %d not found in provided list", targetBin.ContainerID.Int64)
 	}
 
 	if !targetBin.LedIndex.Valid {

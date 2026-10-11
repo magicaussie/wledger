@@ -23,8 +23,8 @@ func TestBinPicker_HappyPath(t *testing.T) {
 	c, _ := h.Queries.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "1.1.1.1"})
 	cont, _ := h.Queries.CreateContainer(ctx, db.CreateContainerParams{Name: "Cont", ControllerID: c.ID, SegmentID: 0})
 
-	_, _ = h.Queries.CreateBin(ctx, db.CreateBinParams{Name: "Bin A", ContainerID: cont, GridX: sql.NullInt64{Int64: 1, Valid: true}, GridY: sql.NullInt64{Int64: 1, Valid: true}})
-	_, _ = h.Queries.CreateBin(ctx, db.CreateBinParams{Name: "Bin B", ContainerID: cont, GridX: sql.NullInt64{Int64: 2, Valid: true}, GridY: sql.NullInt64{Int64: 2, Valid: true}})
+	_, _ = h.Queries.CreateBin(ctx, db.CreateBinParams{Name: "Bin A", ContainerID: sql.NullInt64{Int64: cont, Valid: true}, GridX: sql.NullInt64{Int64: 1, Valid: true}, GridY: sql.NullInt64{Int64: 1, Valid: true}})
+	_, _ = h.Queries.CreateBin(ctx, db.CreateBinParams{Name: "Bin B", ContainerID: sql.NullInt64{Int64: cont, Valid: true}, GridX: sql.NullInt64{Int64: 2, Valid: true}, GridY: sql.NullInt64{Int64: 2, Valid: true}})
 
 	// Request: Get Bin Picker for Controller C
 	req := httptest.NewRequest("GET", "/parts/bin_picker?controller_id="+strconv.Itoa(int(c.ID)), nil)
