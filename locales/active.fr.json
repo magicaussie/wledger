@@ -1162,5 +1162,17 @@
   },
   "M6MoveStock": {
     "other": "Déplacer le stock"
+  },
+  "M6Presentation": {
+    "other": "Présentation"
+  },
+  "M6Grid": {
+    "other": "Grille"
+  },
+  "M6List": {
+    "other": "Liste"
+  },
+  "M6ViewBinLayout": {
+    "other": "Voir la disposition des bacs"
   }
 }

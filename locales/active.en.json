@@ -1413,5 +1413,17 @@
   "M6MoveStock": {
     "description": "Action that moves stock to the selected physical bin",
     "other": "Move Stock"
+  },
+  "M6Presentation": {
+    "other": "Presentation"
+  },
+  "M6Grid": {
+    "other": "Grid"
+  },
+  "M6List": {
+    "other": "List"
+  },
+  "M6ViewBinLayout": {
+    "other": "View Bin Layout"
   }
 }

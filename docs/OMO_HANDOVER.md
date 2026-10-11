@@ -9,19 +9,54 @@ updates. Historical handovers are references, not active instructions.
 Current task: Task 045 M6 Physical Browsing, followed by M7 Stable Layout
 Editing.
 
-Status: M1-M5 are committed locally. M6 implementation is present in the
-uncommitted working tree. After two visual reviews returned REVISE, the owner
-resumed work on 2026-10-11; corrections, full Go gates, CSS generation, and
-Templ consistency now pass. Fresh browser captures and independent visual
-acceptance remain pending, so M6 is not committed. M7 remains authorized to
-begin only after M6 passes its gates and is committed separately; M7 has not
-started. M8 and later remain out of scope.
+Status: M1–M5 and the partial M6 checkpoint are published. The active branch
+is now `development/chatgpt-m6-m7`, initially at
+`771849aafe511d0dc74868878dccfc367e6060af`. M6 is NOT complete or visually
+accepted. The current follow-up adds drawer Grid/List presentation and a
+separate View Bin Layout action. Fresh browser acceptance remains pending.
+M7 has not started; M8 and later remain out of scope.
 
-The owner authorized M6/M7 source changes, automated tests, integration and one
-local commit per verified milestone. No push, merge, deployment, production
-access, database changes or hardware operation is authorized. Preserve the
-additive physical-storage architecture: no destructive migrations, automatic
-legacy backfills, inventory remapping, or new Locate behavior.
+The current owner instruction authorizes M6/M7 source changes, isolated tests,
+documentation, commits and pushes ONLY to `development/chatgpt-m6-m7`.
+No merge to main, deployment, production database changes, destructive
+migration, hardware operation or changes to the original archival checkout
+are authorized. Preserve the additive physical-storage architecture: no
+automatic legacy backfills, inventory remapping, or new Locate behavior.
+Older authorization statements below are historical, not the current scope.
+
+## Development-branch M6 presentation checkpoint — 2026-10-11
+
+- Verified origin is `https://github.com/magicaussie/wledger`; initial checkout
+  was clean on `transition/omo`. Fetched origin, verified the requested branch
+  was also at `771849aafe511d0dc74868878dccfc367e6060af`, then switched to a
+  local tracking branch `development/chatgpt-m6-m7`. No divergence was found.
+- Source inspection identified missing Grid/List and View Bin Layout controls,
+  despite the earlier broad M6 progress descriptions. Added both to the drawer
+  page. Inventory cards retain exact per-bin quantities, stable part links and
+  bin-filter links; images are optional and broken images hide without hiding
+  inventory. Bin layout uses only attachment geometry relative to its drawer.
+- Added four presentation strings in all eight locale files. Added a handler
+  regression covering multiple part types in a bin, a part in multiple bins,
+  zero quantities, navigation links and escaped labels. Updated generated templ
+  and minified CSS. No schema, write handlers, stock or electrical changes.
+- Verification: `templ generate`, `npm run build:css:prod`, `npm test` (20
+  behavioural tests), `go test -tags fts5 -count=1 ./...`,
+  `go vet -tags fts5 ./...`, `go build -tags fts5 ./...` and
+  `git diff --check` passed. Go checks use the installed Go 1.25.5 SDK with
+  CGO enabled. CSS reports the existing nonfatal daisyUI `@property
+  --radialprogress` optimization warning. SQLite tests use isolated fixtures.
+- Browser verification is NOT complete. `takeScreenshot` failed with
+  `Failed to discover browser connector server. Please ensure it's running.`
+  Node cannot resolve `playwright` in this checkout. No fresh screenshots,
+  interactive tests, mobile checks or measured contrast acceptance were
+  obtained. Prior REVISE captures remain historical, not acceptance evidence.
+- This is a partial implementation checkpoint, NOT M6 completion. Remaining
+  work includes fresh interactive/visual validation of the new presentation
+  and the existing picker fixes, cabinet physical-layout presentation, and a
+  complete requirements audit. M7 persistence/editor work has not started.
+  Do not treat the passing baseline tests as proof that M6 or M7 is complete.
+- No delegation, production access, server startup, hardware activation,
+  deployment, merge or changes to the archival checkout occurred.
 
 ## Git baseline
 

@@ -1162,5 +1162,17 @@
   },
   "M6MoveStock": {
     "other": "Bestand verschieben"
+  },
+  "M6Presentation": {
+    "other": "Darstellung"
+  },
+  "M6Grid": {
+    "other": "Raster"
+  },
+  "M6List": {
+    "other": "Liste"
+  },
+  "M6ViewBinLayout": {
+    "other": "Behälterlayout anzeigen"
   }
 }

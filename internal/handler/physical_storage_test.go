@@ -126,6 +126,29 @@ func assertContains(t *testing.T, body string, wants ...string) {
 	}
 }
 
+func TestStorageDrawer_PresentationAndLayout(t *testing.T) {
+	f := newStorageFixture(t)
+	f.cabinet(1, "Cabinet", 0, 0)
+	f.drawer(2, 1, "Drawer", 0, 0)
+	f.bin(3, "<Bin>")
+	f.bin(4, "Other bin")
+	f.attach(3, 2, 0)
+	f.attach(4, 2, 1)
+	f.part(5, "<Part>")
+	f.part(6, "Second part")
+	f.assignment(5, 3, 7)
+	f.assignment(6, 3, 0)
+	f.assignment(5, 4, 9)
+	rr := f.get("/storage/drawers/2")
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rr.Code, rr.Body.String())
+	}
+	assertContains(t, rr.Body.String(), "Grid", "List", "View Bin Layout", "aria-pressed", "aspect-ratio:", "/parts/5", "/parts/6", "/parts?bin=3", "/parts?bin=4", "&lt;Part&gt;", "&lt;Bin&gt;", "×7", "×9", "×0")
+	if strings.Contains(rr.Body.String(), "<Part>") || strings.Contains(rr.Body.String(), "<Bin>") {
+		t.Fatal("unescaped inventory labels")
+	}
+}
+
 // TestStorageCabinets_RendersActiveHierarchy proves GET /storage/cabinets
 // renders active cabinets with their drawers in the browsable layout, and that
 // the archived cabinet is excluded from the active listing.

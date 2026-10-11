@@ -185,7 +185,7 @@ templ StorageCabinet(cabinet storage.BrowseCabinet, user auth.User) {
 
 templ StorageDrawer(detail storage.BrowseDrawerDetail, user auth.User) {
 	@layouts.Base(drawerName(detail.Drawer, i18n.T(ctx, "M6Drawer")), user) {
-		<div class="max-w-6xl mx-auto w-full">
+		<div class="max-w-6xl mx-auto w-full" x-data="{ presentation: 'grid', layout: false }">
 			@components.PageHeader(
 				drawerName(detail.Drawer, i18n.T(ctx, "M6Drawer")),
 				i18n.T(ctx, "M6DrawerDetailDescription"),
@@ -215,10 +215,43 @@ templ StorageDrawer(detail storage.BrowseDrawerDetail, user auth.User) {
 				</div>
 			</div>
 
+			<div class="flex flex-wrap gap-2 mb-6" role="group" aria-label={ i18n.T(ctx, "M6Presentation") }>
+				<button type="button" class="btn btn-outline" x-on:click="layout = false; presentation = 'grid'" x-bind:aria-pressed="!layout && presentation === 'grid'">{ i18n.T(ctx, "M6Grid") }</button>
+				<button type="button" class="btn btn-outline" x-on:click="layout = false; presentation = 'list'" x-bind:aria-pressed="!layout && presentation === 'list'">{ i18n.T(ctx, "M6List") }</button>
+				<button type="button" class="btn btn-outline" x-on:click="layout = !layout" x-bind:aria-pressed="layout">{ i18n.T(ctx, "M6ViewBinLayout") }</button>
+			</div>
+			<div x-show="!layout">
+				if len(detail.Bins) > 0 && drawerPartLocations(detail.Bins) == 0 {
+					@components.PhysicalStorageEmptyState(i18n.T(ctx, "NoPartsFound"), i18n.T(ctx, "M6ViewBinLayout"))
+				}
+				<div x-bind:class="presentation === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6' : 'flex flex-col gap-4 mb-6'">
+					for _, bin := range detail.Bins {
+						for _, part := range bin.Contents {
+							<article class="card bg-base-200 border border-base-300">
+								<div class="card-body p-4">
+									if part.ImagePath.Valid && part.ImagePath.String != "" {
+										<img src={ part.ImagePath.String } alt="" class="w-20 h-20 object-contain" loading="lazy" onerror="this.hidden = true"/>
+									}
+									<a href={ templ.SafeURL(fmt.Sprintf("/parts/%d", part.PartID)) } class="link font-bold break-words">{ part.Name }</a>
+									<a href={ templ.SafeURL(fmt.Sprintf("/parts?bin=%d", bin.BinID)) } class="link">{ bin.Name } · #{ fmt.Sprintf("%d", bin.BinID) }</a>
+									<span class="font-mono">×{ fmt.Sprintf("%d", part.Quantity) }</span>
+								</div>
+							</article>
+						}
+					}
+				</div>
+			</div>
+			<div x-show="layout" x-cloak>
+				<div class="relative bg-base-200 border border-base-300 rounded-lg mb-6" style={ templ.SafeCSS(fmt.Sprintf("aspect-ratio: %g / %g", detail.Drawer.Width, detail.Drawer.Height)) }>
+					for _, bin := range detail.Bins {
+						<a href={ templ.SafeURL(fmt.Sprintf("/parts?bin=%d", bin.BinID)) } class="absolute border border-base-content bg-base-100 text-base-content overflow-auto p-2 focus-visible:outline-2 focus-visible:outline-primary" style={ templ.SafeCSS(fmt.Sprintf("left:%g%%;top:%g%%;width:%g%%;height:%g%%", 100*bin.X/detail.Drawer.Width, 100*bin.Y/detail.Drawer.Height, 100*bin.Width/detail.Drawer.Width, 100*bin.Height/detail.Drawer.Height)) }>{ bin.Name } · #{ fmt.Sprintf("%d", bin.BinID) }</a>
+					}
+				</div>
+			</div>
 			if len(detail.Bins) == 0 {
 				@components.PhysicalStorageEmptyState(i18n.T(ctx, "M6NoBinsInDrawer"), i18n.T(ctx, "M6NoBinsInDrawerDescription"))
 			} else {
-				<div class="grid grid-cols-1 md:grid-cols-2 gap-4 pb-12 items-start">
+				<div x-show="layout" x-cloak class="grid grid-cols-1 md:grid-cols-2 gap-4 pb-12 items-start">
 					for _, bin := range detail.Bins {
 						<div class="card bg-base-200 shadow-md border border-base-300">
 							<div class="card-body p-4">
@@ -277,6 +310,14 @@ func drawerName(drawer storage.BrowseDrawer, fallback string) string {
 		return drawer.Label
 	}
 	return fmt.Sprintf("%s #%d", fallback, drawer.ID)
+}
+
+func drawerPartLocations(bins []storage.BrowseBin) int {
+	count := 0
+	for _, bin := range bins {
+		count += len(bin.Contents)
+	}
+	return count
 }
 
 // totalUnits sums the recorded quantities across every bin's contents so a

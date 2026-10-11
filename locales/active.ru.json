@@ -1162,5 +1162,17 @@
   },
   "M6MoveStock": {
     "other": "Переместить запас"
+  },
+  "M6Presentation": {
+    "other": "Представление"
+  },
+  "M6Grid": {
+    "other": "Сетка"
+  },
+  "M6List": {
+    "other": "Список"
+  },
+  "M6ViewBinLayout": {
+    "other": "Показать расположение ячеек"
   }
 }

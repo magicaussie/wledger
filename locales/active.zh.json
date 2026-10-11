@@ -1162,5 +1162,17 @@
   },
   "M6MoveStock": {
     "other": "移动库存"
+  },
+  "M6Presentation": {
+    "other": "显示方式"
+  },
+  "M6Grid": {
+    "other": "网格"
+  },
+  "M6List": {
+    "other": "列表"
+  },
+  "M6ViewBinLayout": {
+    "other": "查看料盒布局"
   }
 }

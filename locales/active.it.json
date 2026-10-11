@@ -1162,5 +1162,17 @@
   },
   "M6MoveStock": {
     "other": "Sposta Stock"
+  },
+  "M6Presentation": {
+    "other": "Visualizzazione"
+  },
+  "M6Grid": {
+    "other": "Griglia"
+  },
+  "M6List": {
+    "other": "Elenco"
+  },
+  "M6ViewBinLayout": {
+    "other": "Visualizza disposizione contenitori"
   }
 }
