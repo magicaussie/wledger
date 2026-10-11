@@ -3,6 +3,13 @@ function physicalLayoutEditor() {
     state: {},
     lastStateJSON: '',
     bins: [],
+    controller: null,
+    controllerError: '',
+    ledDrafts: {},
+    ledDraftKey: '',
+    ledDraftSaved: false,
+    ledDraftError: '',
+    ledDraftLoadNotice: '',
     mode: 'cabinet',
     tool: 'select',
     selection: { kind: '', key: '' },
@@ -27,6 +34,8 @@ function physicalLayoutEditor() {
       this.error = new URLSearchParams(window.location.search).get('layout_error') || '';
       const data = JSON.parse(document.getElementById('layout-editor-data').textContent);
       const cabinet = data.Cabinet;
+      this.controller = data.Controller || null;
+      this.controllerError = data.ControllerError || '';
       let decorations = [];
       try { decorations = JSON.parse(cabinet.layout_decorations_json || '[]'); } catch { decorations = []; }
       this.state = {
@@ -62,12 +71,16 @@ function physicalLayoutEditor() {
         })),
       };
       this.bins = (data.UnattachedBins || []).map(bin => ({ id: bin.id, name: bin.name }));
+      this.ledDraftKey = `wledger-led-allocation-draft-cab-${cabinet.id}`;
+      for (const drawer of this.state.drawers) this.ledDrafts[drawer.key] = { start: '', count: '' };
+      this.loadLedDrafts();
       this.draftKey = `wledger-layout-draft-${cabinet.id}`;
       if (this.error) this.restoreDraft();
       this.selection = { kind: this.state.uiSelectionKind || '', key: this.state.uiSelectionKey || '' };
       this.lastStateJSON = this.layoutFingerprint();
       this.pushHistoryBase();
-      this.$watch('state', () => {
+      this.$watch('ledDrafts', () => { this.ledDraftSaved = false; this.ledDraftError = ''; }, { deep: true });
+            this.$watch('state', () => {
         const current = this.layoutFingerprint();
         if (!this.saving && current !== this.lastStateJSON) {
           this.dirty = true;
@@ -362,6 +375,83 @@ function physicalLayoutEditor() {
     selectedDrawer() { return this.entity('drawer', this.selection.key) || (this.emptyDrawer ||= { id:0,key:'',label:'',display_order:0,x:0,y:0,width:1,height:1,bins:[] }); },
     selectedBin() { return this.entity('bin', this.selection.key) || (this.emptyBin ||= { id:0,key:'',name:'',display_order:0,x:0,y:0,width:1,height:1 }); },
     selectedDecoration() { return this.entity('decoration', this.selection.key) || (this.emptyDecoration ||= { key:'',kind:'label',text:'',x:0,y:0,width:0,height:0 }); },
+    loadLedDrafts() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(this.ledDraftKey) || 'null');
+        const controllerID = this.controller ? Number(this.controller.id) : null;
+        if (!saved) return;
+        if (saved.controllerId !== controllerID) { this.ledDraftLoadNotice = 'A saved draft belongs to a different controller configuration and was not loaded.'; return; }
+        for (const drawer of this.state.drawers) {
+          if (!drawer.id) continue;
+          const entry = saved.allocations?.[String(drawer.id)];
+          if (entry) this.ledDrafts[drawer.key] = { start: entry.start ?? '', count: entry.count ?? '' };
+        }
+      } catch { this.ledDraftLoadNotice = 'The saved LED draft could not be read.'; }
+    },
+    ledDraftFor(drawer) {
+      if (!drawer) return this.emptyLedDraft ||= { start: '', count: '' };
+      if (!this.ledDrafts[drawer.key]) this.ledDrafts[drawer.key] = { start: '', count: '' };
+      return this.ledDrafts[drawer.key];
+    },
+    ledDraftStatus(drawer) {
+      const draft = this.ledDraftFor(drawer);
+      const startText = String(draft.start ?? '').trim();
+      const countText = String(draft.count ?? '').trim();
+      if (!startText && !countText) return { error: '', message: 'Unconfigured. No LED draft values are stored.' };
+      if (!startText || !countText) return { error: 'Enter both LED Start and LED Count, or leave both blank.' };
+      const start = Number(startText); const count = Number(countText);
+      if (!Number.isSafeInteger(start) || start < 0) return { error: 'LED Start must be a non-negative whole number.' };
+      if (!Number.isSafeInteger(count) || count <= 0) return { error: 'LED Count must be a positive whole number.' };
+      const end = start + count;
+      if (!Number.isSafeInteger(end)) return { error: 'LED range exceeds the supported numeric range.' };
+      for (const other of this.state.drawers) {
+        if (other.key === drawer?.key || !other.id) continue;
+        const otherDraft = this.ledDraftFor(other);
+        const otherStart = Number(otherDraft.start); const otherCount = Number(otherDraft.count);
+        if (!String(otherDraft.start ?? '').trim() || !String(otherDraft.count ?? '').trim() || !Number.isSafeInteger(otherStart) || !Number.isSafeInteger(otherCount) || otherCount <= 0) continue;
+        if (start < otherStart + otherCount && otherStart < end) return { error: `This draft overlaps ${other.label}. Segment assignment is unknown, so overlap is checked conservatively across this cabinet.` };
+      }
+      if (this.controllerError) return { error: this.controllerError + ' Drafts cannot be validated against a controller.' };
+            if (!this.controller) return { error: '', message: 'Valid local draft only. No cabinet controller is assigned; the range cannot be checked against a controller.' };
+      const capacity = Number(this.controller.led_count);
+      if (!Number.isSafeInteger(capacity) || capacity <= 0) return { error: 'The assigned controller has no valid LED capacity.' };
+      if (end > capacity) return { error: `LED range ends at ${end}, beyond controller #${this.controller.id} capacity (${capacity}).` };
+      return { error: '', message: `Draft range [${start}, ${end}) fits controller #${this.controller.id} (${capacity} LEDs). No electrical segment is assigned; this remains a local draft.` };
+    },
+    controllerSummary() {
+      if (this.controllerError) return this.controllerError;
+      if (!this.controller) return 'LED Controller: none assigned to this cabinet.';
+      return `LED Controller: ${this.controller.name} (#${this.controller.id}), ${this.controller.led_count} LEDs (read-only).`;
+    },
+    saveLedDraft(drawer) {
+      this.ledDraftError = '';
+      if (!drawer?.id) { this.ledDraftError = 'Save this physical drawer first so the draft can use its stable ID.'; return; }
+      const status = this.ledDraftStatus(drawer);
+      if (status.error) { this.ledDraftError = status.error; return; }
+      const allocations = {};
+      for (const item of this.state.drawers) {
+        if (!item.id) continue;
+        const value = this.ledDraftFor(item);
+        if (String(value.start ?? '').trim() || String(value.count ?? '').trim()) allocations[String(item.id)] = { start: String(value.start ?? ''), count: String(value.count ?? '') };
+      }
+      const controllerId = this.controller ? Number(this.controller.id) : null;
+      try { localStorage.setItem(this.ledDraftKey, JSON.stringify({ controllerId, allocations })); this.ledDraftSaved = true; }
+      catch { this.ledDraftError = 'This browser cannot store the local LED draft.'; }
+    },
+    clearLedDraft(drawer) {
+      if (!drawer?.id) return;
+      this.ledDraftError = '';
+      this.ledDraftFor(drawer).start = '';
+      this.ledDraftFor(drawer).count = '';
+      const saved = {};
+      for (const item of this.state.drawers) {
+        if (!item.id || item.id === drawer.id) continue;
+        const value = this.ledDraftFor(item);
+        if (String(value.start ?? '').trim() || String(value.count ?? '').trim()) saved[String(item.id)] = { start:String(value.start ?? ''), count:String(value.count ?? '') };
+      }
+      try { localStorage.setItem(this.ledDraftKey, JSON.stringify({ controllerId:this.controller ? Number(this.controller.id) : null, allocations:saved })); this.ledDraftSaved = true; }
+      catch { this.ledDraftError = 'This browser cannot update the local LED draft.'; }
+    },
     activeDrawer() { return this.state.drawers.find(item => item.key === this.activeDrawerKey) || (this.selection.kind === 'drawer' ? this.selectedDrawer() : null); },
     openDrawer(drawer) { if (!drawer) return; this.activeDrawerKey = drawer.key; this.mode = 'bins'; this.tool = 'select'; this.setSelection('', ''); this.resetView(); this.renderCanvas(); },
     closeDrawer() { this.mode = 'cabinet'; this.tool = 'select'; this.setSelection('drawer', this.activeDrawerKey); this.resetView(); this.renderCanvas(); },

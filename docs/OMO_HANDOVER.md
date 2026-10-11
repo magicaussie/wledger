@@ -10,12 +10,13 @@ Current task: Task 045 M6 Physical Browsing, followed by M7 Stable Layout
 Editing.
 
 Status: M1–M5 and the evolving M6/M7 implementation are published on
-`development/chatgpt-m6-m7`. The M7 interface is now a three-panel interactive
-SVG cabinet/bin designer with persisted decorative Paint objects. Headless
-Chromium covers drawing, selection, move/resize, snap/grid, zoom/pan, numeric
-properties, undo/redo, bin placement, error retention, safe lifecycle actions,
-and inventory/electrical preservation. Continue treating full product
-acceptance as pending owner review; M8 and later remain out of scope.
+`development/chatgpt-m6-m7`. The M7 interface is a three-panel interactive SVG
+cabinet/bin designer with persisted decorative Paint objects. LED Start/Count
+sidebar controls are browser-local drafts only: current M7 authorization does
+not permit changing live electrical mappings, and no physical drawer-to-segment
+assignment exists. Headless Chromium covers visual editing, draft validation/
+reload, lifecycle safety, and stock/electrical preservation. Full product
+acceptance remains subject to owner review; M8 and later remain out of scope.
 
 The current owner instruction authorizes M6/M7 source changes, isolated tests,
 documentation, commits and pushes ONLY to `development/chatgpt-m6-m7`.
@@ -24,6 +25,64 @@ migration, hardware operation or changes to the original archival checkout
 are authorized. Preserve the additive physical-storage architecture: no
 automatic legacy backfills, inventory remapping, or new Locate behavior.
 Older authorization statements below are historical, not the current scope.
+
+## M7 LED sidebar authorization boundary — 2026-10-12
+
+- Source audit: migration 010 stores `led_start`/`led_count` on `containers`.
+  The active architecture and prior authorization classify containers as
+  electrical strings/segments, not physical drawer records. Existing hardware
+  allocation services validate/update those electrical rows. `ROADMAP.md`
+  describes drawer-to-segment `drawer_led_range` conceptually, but no such
+  physical drawer relationship exists in the current schema. M7 authorization
+  requires physical edits not to modify electrical mappings; M8/electrical
+  topology remains unauthorized. Therefore this task does not write the legacy
+  fields or invent a physical drawer-to-segment mapping.
+- The selected-drawer sidebar displays numeric LED Start and LED Count inputs,
+  plus the cabinet's assigned controller/total LED capacity read-only. Values
+  are explicitly labelled **browser-local draft only** and persist under a
+  cabinet/drawer-stable-key localStorage record after “Save LED draft”. They are
+  never included in the physical layout POST, never written to SQLite, and do
+  not activate WLED. New drawers must first be saved to obtain a stable ID.
+- Draft validation rejects partial pairs, negative/fractional starts, nonpositive
+  or fractional counts, integer overflow, controller-capacity overflow and
+  overlapping draft ranges. Because segment identity is not associated with
+  physical drawers, overlap validation is intentionally conservative and
+  cabinet-wide; UI text identifies the missing segment mapping. With no
+  controller, the draft remains local and reports that range validation is
+  incomplete. Broken controller foreign-key references are shown as errors.
+- Browser coverage verifies blank defaults, negative/out-of-range/overlap
+  feedback, valid draft local save/reload, unchanged physical save payload and
+  unchanged electrical container `(id, controller_id, led_start, led_count)`.
+  This keeps M7 safe; an authorized electrical mapping workflow is still needed
+  before any draft can become a live allocation.
+
+## LED Start/Count authorization and draft workflow — 2026-10-12
+
+- Reviewed migration 010, `internal/hardware/allocation.go`, controller and
+  container queries, backup validation/restore and current roadmap architecture.
+  Existing `led_start`/`led_count` fields and validators describe electrical
+  container/segment allocations; `containers` are not physical drawers. The
+  roadmap's `drawer_led_range` is a future conceptual model, not implemented
+  persistence. M7 physical layout authorization requires not changing electrical
+  mappings; M8/electrical topology remains unauthorized. Therefore no writer to
+  `containers.led_start` or `containers.led_count` was added or invoked.
+- Drawer properties now show numeric LED Start/Count and the cabinet's
+  controller name, ID and total LED count read-only. Values are explicitly
+  labelled browser-local drafts and are stored in localStorage only after
+  **Save LED draft**. They are not included in the physical layout POST and do
+  not persist to SQLite, backups, hardware, or active mappings. A newly drawn
+  drawer must first be physically saved to acquire a stable drawer ID.
+- Draft checks reject partial pairs, negative/fractional starts, nonpositive or
+  fractional counts, overflow, controller-total overflow, missing controller
+  references, and overlapping drafts. Without a controller, the UI explains
+  that the range cannot be bounded. Without a drawer-to-segment identity, overlap
+  checks are conservative across the cabinet and the UI explicitly says the
+  segment is not assigned; draft values cannot be promoted to live allocations
+  without separate authorization and a reviewed mapping workflow.
+- Browser test coverage verifies blank defaults; negative, out-of-range and
+  overlap errors; save/reload of browser-local drafts; absence of LED fields in
+  the physical layout request; and unchanged controller/container allocation
+  rows. A deliberately corrupted controller foreign key is reported inline.
 
 ## M7 Visual Cabinet Designer — 2026-10-11
 

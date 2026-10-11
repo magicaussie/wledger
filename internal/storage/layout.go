@@ -25,9 +25,11 @@ type LayoutService struct{ store db.Store }
 func NewLayoutService(store db.Store) *LayoutService { return &LayoutService{store: store} }
 
 type CabinetLayout struct {
-	Cabinet        db.Cabinet
-	Drawers        []DrawerLayout
-	UnattachedBins []db.ListUnattachedBinsRow
+	Cabinet         db.Cabinet
+	Controller      *db.Controller
+	ControllerError string
+	Drawers         []DrawerLayout
+	UnattachedBins  []db.ListUnattachedBinsRow
 }
 type DrawerLayout struct {
 	Drawer db.Drawer
@@ -89,6 +91,16 @@ func (s *LayoutService) Get(ctx context.Context, cabinetID int64) (CabinetLayout
 			return err
 		}
 		out.Cabinet = cabinet
+		if cabinet.ControllerID.Valid {
+			controller, controllerErr := q.GetController(ctx, cabinet.ControllerID.Int64)
+			if errors.Is(controllerErr, sql.ErrNoRows) {
+				out.ControllerError = fmt.Sprintf("Cabinet references missing LED controller #%d.", cabinet.ControllerID.Int64)
+			} else if controllerErr != nil {
+				return controllerErr
+			} else {
+				out.Controller = &controller
+			}
+		}
 		drawers, err := q.ListDrawersByCabinetIncludingArchived(ctx, cabinetID)
 		if err != nil {
 			return err

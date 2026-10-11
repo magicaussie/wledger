@@ -21,6 +21,35 @@ func newLayoutStore(t *testing.T) db.Store {
 	return db.NewStore(conn)
 }
 
+func TestLayoutGetReportsMissingControllerReference(t *testing.T) {
+	t.Helper()
+	conn, err := db.Open("file:" + t.TempDir() + "/orphan-controller.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	conn.SetMaxOpenConns(1)
+	if err := db.Migrate(conn); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := conn.Exec(`PRAGMA foreign_keys = OFF`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := conn.Exec(`INSERT INTO cabinets(id,name,controller_id,coordinate_system,layout_width,layout_height) VALUES(1,'Cabinet',999,'grid',10,10)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := conn.Exec(`PRAGMA foreign_keys = ON`); err != nil {
+		t.Fatal(err)
+	}
+	layout, err := NewLayoutService(db.NewStore(conn)).Get(context.Background(), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if layout.Controller != nil || layout.ControllerError != "Cabinet references missing LED controller #999." {
+		t.Fatalf("controller reference state: %#v", layout)
+	}
+}
+
 func seedLayout(t *testing.T) *LayoutService {
 	t.Helper()
 	store := newLayoutStore(t)
