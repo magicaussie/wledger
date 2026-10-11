@@ -182,8 +182,12 @@ func main() {
 	// Router Setup
 	r := router.New(mw, sessionManager, h)
 
-	// Start Server
-	port := "8080"
+	// Start Server. WLEDGER_PORT allows isolated local/test instances to avoid
+	// colliding with another WLEDger process; production default remains 8080.
+	port := os.Getenv("WLEDGER_PORT")
+	if port == "" {
+		port = "8080"
+	}
 	log.Info("Server listening", "url", "http://localhost:"+port)
 
 	srv := &http.Server{

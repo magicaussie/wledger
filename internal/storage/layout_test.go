@@ -52,6 +52,22 @@ func layoutInput() LayoutInput {
 	return LayoutInput{ID: 1, Revision: 0, Name: "Renamed", CoordinateSystem: "grid", Width: 20, Height: 20, Drawers: []DrawerInput{{ID: 1, Label: "Renumbered", DisplayOrder: 3, X: 1, Y: 1, Width: 10, Height: 10, Bins: []BinInput{{ID: 1, DisplayOrder: 2, X: 3, Y: 3, Width: 2, Height: 2}}}}}
 }
 
+func TestEmptyLayoutUsesNonNilJSONCollections(t *testing.T) {
+	store := newLayoutStore(t)
+	ctx := context.Background()
+	id, err := NewLayoutService(store).CreateCabinet(ctx, "Empty", 0, 10, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	layout, err := NewLayoutService(store).Get(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if layout.Drawers == nil || layout.UnattachedBins == nil {
+		t.Fatalf("editor collections must serialize as []: %#v", layout)
+	}
+}
+
 func TestLayoutSavePreservesStableIdentities(t *testing.T) {
 	s := seedLayout(t)
 	if err := s.Save(context.Background(), layoutInput()); err != nil {
@@ -75,6 +91,15 @@ func TestLayoutSaveRejectsStaleAndOverlapWithoutWrites(t *testing.T) {
 	layout, _ := s.Get(context.Background(), 1)
 	if layout.Cabinet.Name != "Cabinet" || layout.Cabinet.LayoutRevision != 0 {
 		t.Fatalf("invalid save persisted: %#v", layout.Cabinet)
+	}
+	outside := layoutInput()
+	outside.Drawers[0].X = 15
+	if err := s.Save(context.Background(), outside); !errors.Is(err, ErrLayoutInvalid) {
+		t.Fatalf("out-of-bounds error=%v", err)
+	}
+	layout, _ = s.Get(context.Background(), 1)
+	if layout.Cabinet.Name != "Cabinet" || layout.Cabinet.LayoutRevision != 0 {
+		t.Fatalf("out-of-bounds save persisted: %#v", layout.Cabinet)
 	}
 	stale := layoutInput()
 	stale.Revision = 7

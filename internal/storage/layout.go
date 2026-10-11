@@ -63,7 +63,8 @@ type BinInput struct {
 }
 
 func (s *LayoutService) Get(ctx context.Context, cabinetID int64) (CabinetLayout, error) {
-	var out CabinetLayout
+	// JSON editor consumers require arrays, never null, for an empty cabinet.
+	var out = CabinetLayout{Drawers: make([]DrawerLayout, 0), UnattachedBins: make([]db.ListUnattachedBinsRow, 0)}
 	err := s.store.ExecTx(ctx, func(q db.Querier) error {
 		cabinet, err := q.GetCabinet(ctx, cabinetID)
 		if errors.Is(err, sql.ErrNoRows) {
@@ -82,13 +83,18 @@ func (s *LayoutService) Get(ctx context.Context, cabinetID int64) (CabinetLayout
 			if err != nil {
 				return err
 			}
+			if bins == nil {
+				bins = make([]db.BinDrawerAttachment, 0)
+			}
 			out.Drawers = append(out.Drawers, DrawerLayout{Drawer: drawer, Bins: bins})
 		}
 		unattached, err := q.ListUnattachedBins(ctx)
 		if err != nil {
 			return err
 		}
-		out.UnattachedBins = unattached
+		if unattached != nil {
+			out.UnattachedBins = unattached
+		}
 		return nil
 	})
 	return out, err

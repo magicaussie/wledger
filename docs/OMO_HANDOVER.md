@@ -9,12 +9,13 @@ updates. Historical handovers are references, not active instructions.
 Current task: Task 045 M6 Physical Browsing, followed by M7 Stable Layout
 Editing.
 
-Status: M1–M5 and the partial M6 checkpoint are published. The active branch
-is now `development/chatgpt-m6-m7`, initially at
-`771849aafe511d0dc74868878dccfc367e6060af`. M6 is NOT complete or visually
-accepted. The current follow-up adds drawer Grid/List presentation and a
-separate View Bin Layout action. Fresh browser acceptance remains pending.
-M7 has not started; M8 and later remain out of scope.
+Status: M1–M5 and the M6/M7 implementation are published on
+`development/chatgpt-m6-m7`. Recent Chromium acceptance found and fixed the
+editor's JSON null-collection initialization failure that prevented Add Drawer
+and Save Layout. The new disposable Playwright workflow now passes create, edit,
+save/reload, bin association/detachment, Grid/List, View Bin Layout, validation,
+archive and safe-delete checks. Continue treating full product acceptance as
+pending owner review; M8 and later remain out of scope.
 
 The current owner instruction authorizes M6/M7 source changes, isolated tests,
 documentation, commits and pushes ONLY to `development/chatgpt-m6-m7`.
@@ -23,6 +24,40 @@ migration, hardware operation or changes to the original archival checkout
 are authorized. Preserve the additive physical-storage architecture: no
 automatic legacy backfills, inventory remapping, or new Locate behavior.
 Older authorization statements below are historical, not the current scope.
+
+## Browser-confirmed Add Drawer / Save Layout correction — 2026-10-11
+
+- Headless Chromium reproduction against an isolated SQLite database exposed
+  `Cannot read properties of null (reading 'map')` during Alpine initialization.
+  Empty `ListDrawersByCabinetIncludingArchived` and attachment queries returned
+  nil slices; Go JSON encoded those as `null`, while the component calls `.map()`.
+  Initialization failure left the hidden `layout` input blank, and the handler
+  consequently rejected the POST as `invalid layout data`.
+- `LayoutService.Get` now initializes `Drawers` and `UnattachedBins` as empty
+  arrays and normalizes each drawer's `Bins` slice. Add Drawer and Save Layout
+  then initialize and persist correctly. Invalid JSON and layout-save errors
+  redirect to the editor with a readable `layout_error` rather than rendering a
+  raw HTTP error page.
+- Added `web/tests/layout_editor.browser.test.js` and Playwright as a dev-only
+  dependency. `npm run test:layout-browser` builds and launches the app against
+  a fresh temporary directory/database, chooses an available local port through
+  `WLEDGER_PORT`, creates a test admin, and seeds one synthetic bin+part. It
+  drives the actual Alpine UI and inspects the real POST body/CSRF values. The
+  observed browser run passed cabinet create; Add Drawer; drawer edit; valid
+  JSON submission; save/reload; cabinet grid dimensions/styles; Grid/List;
+  View Bin Layout; explicit bin attach/detach; malformed JSON and overlap
+  feedback; blocked cabinet deletion; successful empty drawer/cabinet deletion;
+  drawer/cabinet archive; and numeric lifecycle URLs. No JS page errors or
+  runtime console errors occurred. One Chromium-generated warning about a
+  blocked `beforeunload` prompt occurred during automated navigation while
+  unsaved test edits were present; it is filtered separately from runtime errors.
+- Empty-cabinet and lifecycle/storage unit tests additionally verify non-nil
+  JSON collections, out-of-bounds rejection, rollback, stable identities,
+  stale revisions and inventory preservation. No production database or LED
+  mapping was accessed.
+- The app accepts optional `WLEDGER_PORT`; its default remains `8080`. The
+  browser harness uses a disposable random port to avoid interacting with any
+  pre-existing server.
 
 ## Development-branch M6 presentation checkpoint — 2026-10-11
 

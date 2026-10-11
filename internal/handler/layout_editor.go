@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -38,28 +39,21 @@ func (h *Handler) HandleLayoutSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err = r.ParseForm(); err != nil {
-		http.Error(w, "invalid form", 400)
+		layoutMutationError(w, r, id, fmt.Errorf("invalid form: %w", err))
 		return
 	}
 	var input storage.LayoutInput
 	if err = json.Unmarshal([]byte(r.FormValue("layout")), &input); err != nil {
-		http.Error(w, "invalid layout data", 400)
+		layoutMutationError(w, r, id, fmt.Errorf("invalid layout data: %w", err))
 		return
 	}
 	if input.ID != id {
-		http.Error(w, "cabinet id mismatch", 400)
+		layoutMutationError(w, r, id, errors.New("cabinet id mismatch"))
 		return
 	}
 	err = h.layoutService().Save(r.Context(), input)
 	if err != nil {
-		status := 400
-		if errors.Is(err, storage.ErrLayoutStale) {
-			status = 409
-		}
-		if errors.Is(err, storage.ErrLayoutNotFound) {
-			status = 404
-		}
-		http.Error(w, err.Error(), status)
+		layoutMutationError(w, r, id, err)
 		return
 	}
 	http.Redirect(w, r, "/storage/cabinets/"+strconv.FormatInt(id, 10), http.StatusSeeOther)
