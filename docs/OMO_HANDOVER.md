@@ -92,6 +92,26 @@ Older authorization statements below are historical, not the current scope.
   outstanding verification category; all code paths were verified with
   isolated SQLite fixtures and application test suites.
 
+## Independent M6/M7 verification follow-up — 2026-10-11
+
+- Verified branch `development/chatgpt-m6-m7` at
+  `2191fbffcbfb90a24dd042c35e9bb4788b9efc5f`, clean and synchronized with
+  `origin/development/chatgpt-m6-m7` before this review.
+- Independent persistence review found that an edited drawer could omit an
+  existing attached bin. Because omitted attachments were retained, a drawer
+  resize could leave a bin outside its saved bounds. Fixed this by requiring
+  every existing attachment to be present in the submitted layout. Omission is
+  now rejected with `ErrUnsafeLayout`, transactionally preserving the prior
+  geometry. Added regression coverage.
+- Verified full test, vet, build, templ generation, CSS build and JS suite
+  after the correction. A disposable startup applied migrations 001–013 to a
+  fresh database successfully. It then could not bind `:8080` because another
+  local process already owns the port; no production resource was accessed.
+- Zed browser tooling still reports no connector server. `playwright` cannot
+  be resolved from this checkout. Browser interaction/visual acceptance is
+  therefore NOT TESTED and must be completed manually or in a browser-enabled
+  environment. Do not report it as passed.
+
 ## Git baseline
 
 | Item | Baseline |

@@ -82,6 +82,22 @@ func TestLayoutSaveRejectsStaleAndOverlapWithoutWrites(t *testing.T) {
 		t.Fatalf("stale error=%v", err)
 	}
 }
+func TestLayoutSaveRejectsOmittedAttachedBin(t *testing.T) {
+	s := seedLayout(t)
+	in := layoutInput()
+	in.Drawers[0].Bins = nil
+	if err := s.Save(context.Background(), in); !errors.Is(err, ErrUnsafeLayout) {
+		t.Fatalf("omitted bin error = %v", err)
+	}
+	layout, err := s.Get(context.Background(), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(layout.Drawers[0].Bins) != 1 || layout.Drawers[0].Bins[0].BinID != 1 {
+		t.Fatalf("attached bin was changed: %#v", layout.Drawers[0].Bins)
+	}
+}
+
 func TestLayoutSaveAssociatesExistingUnattachedBin(t *testing.T) {
 	s := seedLayout(t)
 	ctx := context.Background()

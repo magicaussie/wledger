@@ -186,6 +186,7 @@ func (s *LayoutService) Save(ctx context.Context, in LayoutInput) error {
 				attached[b.BinID] = b
 			}
 		}
+		providedBins := map[int64]bool{}
 		for _, d := range in.Drawers {
 			if d.ID != 0 {
 				if _, ok := byID[d.ID]; !ok {
@@ -193,10 +194,18 @@ func (s *LayoutService) Save(ctx context.Context, in LayoutInput) error {
 				}
 				provided[d.ID] = true
 			}
+			for _, b := range d.Bins {
+				providedBins[b.ID] = true
+			}
 		}
 		for _, d := range existing {
 			if !provided[d.ID] {
 				return fmt.Errorf("%w: drawer %q cannot be removed; archive it only after its bins are safely moved", ErrUnsafeLayout, d.Label)
+			}
+		}
+		for binID := range attached {
+			if !providedBins[binID] {
+				return fmt.Errorf("%w: attached bin %d cannot be omitted; explicitly preserve or relocate it", ErrUnsafeLayout, binID)
 			}
 		}
 		if _, err = q.UpdateCabinetLayoutSettings(ctx, db.UpdateCabinetLayoutSettingsParams{Name: strings.TrimSpace(in.Name), CoordinateSystem: strings.TrimSpace(in.CoordinateSystem), DisplayOrder: in.DisplayOrder, LayoutWidth: in.Width, LayoutHeight: in.Height, ID: in.ID}); err != nil {
