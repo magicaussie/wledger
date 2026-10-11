@@ -6,21 +6,25 @@ This is the single active development handover document. `AGENTS.md` defines
 development policy; the root `ROADMAP.md` records product requirements and design
 updates. Historical handovers are references, not active instructions.
 
-Current task: Task 045, M1 - Read-only Compatibility Baseline.
+Current task: Task 045, coordinated M2-M4 development.
 
-Status: M1 accepted by the owner after the corrections, Sol review and passing
-automated checks. The owner authorized staging only the three approved files
-and the local commit `feat: add read-only compatibility baseline`.
-M2 scope preparation is authorized; M2 implementation remains unauthorized.
+Status: M1 committed locally as `030e94c0f5aeb453fd079bfddf84b0dc3af1942a`.
+The owner authorized coordinated M2-M4 implementation, automated progression and
+local milestone commits after successful integration and tests. M5 is unauthorized.
+The owner selected the original finalized Task 045 scope: M2 backup envelope
+guards; M3 physical schema and complete backup; M4 reviewed reconciliation and
+legacy identity guards. Electrical topology belongs to the later M8 milestone,
+not this batch. Shared foundation work used isolated, nonconflicting worktrees.
 
-The user approved changes only to `internal/hardware/compatibility.go`,
-`internal/hardware/compatibility_test.go` and this handover document. The helper
+M1 changed only `internal/hardware/compatibility.go`,
+`internal/hardware/compatibility_test.go` and this handover document. Its helper
 must not change existing runtime behavior or write to databases, audit logs,
 files, the network or hardware. Isolated regression tests may initialize the
-existing schema in temporary fixtures. No new SQL migrations or schema changes,
-other file changes, application startup, deployment, production access, WLED
-access, pushes or merges are authorized. The accepted M1 local commit is the
-only current commit authorization.
+existing schema in temporary fixtures. No application startup, deployment,
+production access, WLED access, pushes or merges
+are authorized. M2-M4 may add schema, queries, generated models, services and tests
+within the approved additive architecture. No destructive migration, automatic
+legacy backfill or activation of new Locate behavior is authorized.
 
 ## Git baseline
 
@@ -333,5 +337,40 @@ Planning only; no M2 implementation or migration execution is authorized.
   geometry/electrical independence and range validation; generated-code
   consistency, full tests, vet and build. Fixtures only, no production or hardware.
 
-Next boundary: owner authorization of M2 scope and its permitted files. No
-additional M1 audit cycle, push, merge, deployment or hardware action is requested.
+## Coordinated development checkpoint
+
+The current assignment authorizes M2-M4 and local milestone commits. DeepSeek
+implemented independent physical-schema, migration-test and backup-envelope
+tracks in isolated worktrees; integration used patches, not Git merges.
+
+- Shared physical foundation is integrated: migration 011 adds empty cabinets,
+  drawers and existing-bin attachment tables, restrictive foreign keys and an
+  empty-only rollback guard. Existing model structs and legacy records are unchanged.
+- Backup envelope guards reject unsupported/missing versions, duplicate/mixed
+  manifests, duplicate/unknown top-level JSON fields and invalid coordinate
+  markers before cleanup or mutation. Valid legacy version 1.0 remains supported.
+- Seven physical migration tests passed with exact M1 fingerprint/raw-row/flag
+  preservation, populated-rollback refusal and occupied-storage deletion guards.
+- Integrated verification passed: race-enabled preservation/compatibility tests,
+  the full Go suite (40 test-bearing packages), vet, build, whitespace checks and
+  sqlc generation consistency.
+- No new Locate behavior, electrical DDL, production access, deployment, hardware
+  operation, milestone commit, push or merge has occurred.
+
+The owner resolved milestone framing in favor of the finalized Task 045 plan:
+M2 backup guards, M3 physical schema/backup, M4 reconciliation/legacy guards.
+The additive-schema-first proposal above is historical and does not rename the
+approved milestones. M2's commit includes only backup guard source/tests and this
+handover; the additive physical foundation is being integrated for M3.
+
+Addressing is resolved for future DDL: legacy containers store WLED segment IDs,
+not physical outputs/strings. WLED individual LED indices are segment-based and
+grouping, spacing, reversal and mirroring affect physical targeting. Distinct
+physical pixels `(string_id, pixel_index)` and explicit segment-address mappings
+are required; unverified or unsupported profiles must not translate or activate
+new Locate. No legacy offset or physical correspondence is inferred.
+Reference: https://kno.wled.ge/interfaces/json-api/#per-segment-individual-led-control
+
+Next: verify and commit the M2-only tree, complete physical backup round-trip in
+M3, then integrate reviewed reconciliation and legacy identity protection in M4.
+M5 and electrical-topology implementation remain unauthorized.

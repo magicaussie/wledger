@@ -426,36 +426,19 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 	s.restoreMu.Lock()
 	defer s.restoreMu.Unlock()
 
-	s.cleanAbandonedStagingDirs()
-
 	zr, err := zip.NewReader(zipReader, size)
 	if err != nil {
 		return fmt.Errorf("invalid ZIP file: %w", err)
 	}
 
-	// Validation: Find & Parse JSON Manifest
-	var manifest Manifest
-	var manifestFound bool
-
-	for _, f := range zr.File {
-		if f.Name == "restore_data.json" {
-			s.logger.Debug("found restore_data.json in backup")
-			rc, err := f.Open()
-			if err != nil {
-				return fmt.Errorf("failed to open restore_data.json: %w", err)
-			}
-			if err := json.NewDecoder(rc).Decode(&manifest); err != nil {
-				rc.Close()
-				return fmt.Errorf("failed to parse backup JSON: %w", err)
-			}
-			rc.Close()
-			manifestFound = true
-			break
-		}
-	}
-
-	if !manifestFound {
-		return errors.New("invalid Backup: restore_data.json missing")
+	// Validate the archive envelope before any state is changed: exactly one
+	// supported manifest must be present and its JSON must be well-formed. This
+	// runs before uploads/staging cleanup and before any database work, so an
+	// unsupported, duplicate, ambiguous or malformed backup leaves the
+	// installation untouched.
+	manifest, err := readRestoreEnvelope(zr)
+	if err != nil {
+		return err
 	}
 
 	// Resolve the coordinate system of the backup's bin LED indices. An
@@ -487,6 +470,12 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 			return fmt.Errorf("invalid backup: %w", err)
 		}
 	}
+
+	// Every pre-extraction validation has passed; only now clean up staging left
+	// behind by a previous, interrupted restore. Running this after the whole
+	// manifest validation (envelope, coordinate space and allocations) means no
+	// rejected backup ever destroys leftover staging evidence.
+	s.cleanAbandonedStagingDirs()
 
 	// Extract uploads to temp directory
 	timestamp := time.Now().UnixNano()
