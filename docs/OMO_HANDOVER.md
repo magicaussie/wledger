@@ -6,51 +6,54 @@ This is the single active development handover document. `AGENTS.md` defines
 development policy; the root `ROADMAP.md` records product requirements and design
 updates. Historical handovers are references, not active instructions.
 
-Current task: Task 050 — Migration 019 Safety Corrections.
+Current task: Task 051 — Cabinet Wiring Preview Correction.
 
 Baseline: branch `development/chatgpt-m6-m7` at
-`49d47c38d54f9d04d1746e0a9444444ea1214c97`, aligned with
+`60198881a10ba9be6a066cc4579d6135ada78fda`, aligned with
 `origin/development/chatgpt-m6-m7`; the worktree was clean. The owner authorizes
-only the two audited migration preflight corrections, bounded disposable-SQLite
-regression coverage, this handover update, verification and publication to the
-authorized development branch. Do not access production data, apply migrations
-to a live installation, alter Locate timeout logic, or contact physical WLED
-controllers. Do not merge, deploy or begin another task after publication.
+only the browser wiring-preview and confirmation correction, related regression
+tests, this handover update, requested verification and publication to the
+authorized development branch. Do not modify migration 019, backend Locate
+logic, backup/restore, production data, or physical WLED hardware. Do not merge,
+deploy or begin another task after publication.
 
-### Task 050 status — verified; publication authorized
+### Task 051 status — implemented and verified; publication authorized
 
-The focused migration corrections and regression coverage are implemented.
-Migration 019 now validates every membership and rejects negative capacities,
-allocations on zero-capacity controllers, local out-of-range ranges, cabinet
-capacity SUM overflow and overlapping translated cabinet-wide ranges before
-persistent DDL/data changes. A zero-capacity controller with no allocation is
-accepted. Refused preflight and unsafe-downgrade tests compare persistent schema,
-Goose migration records, relevant rows, sequence values and foreign-key state.
-The Task 048 compatibility test exercises actual restore and rejects an
-ambiguous local allocation without changing target database or uploads.
+`splitRange()` now reports controller-local starts while retaining cabinet-wide
+allocation storage and string-local destination labels. Destination previews
+reject partial/out-of-capacity splits as invalid rather than presenting an
+incomplete range as a valid destination. Controller-order and wiring saves block
+invalid previews before the confirmation flag can authorize submission. The
+browser regression checks exact values for cabinet pixels 225–234 (controller 2
+local 25–34), cabinet pixels 195–210 across two controllers and strings, and
+before/after previews for controller reorder, controller-capacity/string-length
+changes, string order and path edits. It also verifies unconfirmed saves are
+blocked, edits reset confirmation, invalid previews cannot be confirmed, and a
+stale electrical revision leaves the saved order unchanged.
 
-Verification passed on disposable SQLite fixtures:
-- `CGO_ENABLED=1 /home/spetchal/gotoolchain/go/bin/go test -tags fts5 -count=1 ./internal/db ./internal/backup`
+The server remains authoritative: existing handlers and storage services check
+electrical revisions and require explicit mapping-impact confirmation; they were
+reviewed and not modified. Only a disposable SQLite database and local mock WLED
+server were used for browser tests. No production data or physical controller
+was accessed.
+
+Verification passed:
+- `node --check web/static/js/physical_layout_editor.js`
+- `node --check web/tests/layout_editor.browser.test.js`
+- `npm test` (20 JavaScript behavior tests)
+- `GO_BIN=/home/spetchal/gotoolchain/go/bin/go npm run test:layout-browser` (PASS; zero page errors and zero runtime console errors)
 - `CGO_ENABLED=1 /home/spetchal/gotoolchain/go/bin/go test -tags fts5 -count=1 ./...`
 - `CGO_ENABLED=1 /home/spetchal/gotoolchain/go/bin/go vet -tags fts5 ./...`
 - `CGO_ENABLED=1 /home/spetchal/gotoolchain/go/bin/go build -tags fts5 ./...`
 - `git diff --check`
 
-The migration fixtures cover one through five controllers, non-ID slot order,
-allocation metadata preservation, overlap/membership/capacity refusals, zero and
-extreme capacity boundaries, SQLite SUM overflow, safe multi-controller rollback
-and unsafe downgrade refusal. No production database, live migration, physical
-WLED controller or Locate timeout code was accessed or changed. No unresolved
-implementation concerns were found in this scope. Task publication commit and
-parent SHA are recorded in the completion report; this task does not authorize
-merge, deployment or follow-on work.
-
-Changed files: `sql/schema/019_cabinet_wiring_global_pixels.sql`,
-`internal/db/cabinet_wiring_migration_test.go`,
-`internal/backup/cabinet_wiring_backup_test.go`, and this handover document.
+Changed task files: `web/static/js/physical_layout_editor.js`,
+`web/tests/layout_editor.browser.test.js`, and this handover document. Independent
+GitHub source review remains pending after publication; stop after publication
+and do not merge, deploy or start follow-on work.
 
 The Task 049 cleanup outcome and Task 048 architecture sections below are
-historical handover evidence and do not authorize changes outside Task 050.
+historical handover evidence and do not expand Task 051 authorization.
 
 Task 048 currently stores drawer ranges in one controller's local 1-based space,
 with controller membership order and a one-controller-per-drawer invariant. This

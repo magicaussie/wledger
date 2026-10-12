@@ -597,28 +597,39 @@ function physicalLayoutEditor() {
           else for (const string of stringRows) {
             const localStart = stringOffset + 1, localEnd = stringOffset + Number(string.pixel_count);
             const stringLeft = Math.max(left - span.start + 1, localStart), stringRight = Math.min(right - span.start + 1, localEnd);
-            if (stringLeft <= stringRight) pieces.push({ controller_id: span.controller_id, start: span.start + stringLeft - 1, count: stringRight - stringLeft + 1, string_id: string.id || string.key, string_start: stringLeft - localStart + 1 });
+            if (stringLeft <= stringRight) pieces.push({ controller_id: span.controller_id, start: stringLeft, count: stringRight - stringLeft + 1, string_id: string.id || string.key, string_start: stringLeft - localStart + 1 });
             stringOffset += Number(string.pixel_count);
           }
         }
       }
-      return pieces;
+      return pieces.reduce((total, piece) => total + piece.count, 0) === count ? pieces : [];
     },
-    allocationDestinations(range, order = this.controllerDraft, strings = this.wiringStrings, configuredIDs = this.configuredControllerIDs) {
-      return this.splitRange(range.start_pixel, range.pixel_count, order, strings, configuredIDs).map(piece => {
+    allocationDestinationPreview(range, order = this.controllerDraft, strings = this.wiringStrings, configuredIDs = this.configuredControllerIDs) {
+      const start = Number(range?.start_pixel), count = Number(range?.pixel_count), end = start + count - 1;
+      const pieces = this.splitRange(start, count, order, strings, configuredIDs);
+      const capacity = this.controllerSpans(order, strings, configuredIDs).reduce((sum, span) => sum + span.pixels, 0);
+      const valid = Number.isSafeInteger(start) && start >= 1 && Number.isSafeInteger(count) && count >= 1 && Number.isSafeInteger(end) && end <= capacity && pieces.reduce((sum, piece) => sum + piece.count, 0) === count;
+      const destinations = valid ? pieces.map(piece => {
         const controller = this.controllers.find(item => Number(item.id) === piece.controller_id);
         const string = this.stringRows(piece.controller_id, strings).find(item => String(item.id || item.key) === String(piece.string_id));
-        const end = piece.start + piece.count - 1;
-        return `${controller?.name || `Controller #${piece.controller_id}`} local ${piece.start}–${end}${string ? ` · ${string.name} pixels ${piece.string_start}–${piece.string_start + piece.count - 1}` : ''}`;
-      });
+        const pieceEnd = piece.start + piece.count - 1;
+        return `${controller?.name || `Controller #${piece.controller_id}`} local ${piece.start}–${pieceEnd}${string ? ` · ${string.name} pixels ${piece.string_start}–${piece.string_start + piece.count - 1}` : ''}`;
+      }) : ['Invalid or incomplete destination'];
+      return { valid, destinations };
+    },
+    allocationDestinations(range, order = this.controllerDraft, strings = this.wiringStrings, configuredIDs = this.configuredControllerIDs) {
+      return this.allocationDestinationPreview(range, order, strings, configuredIDs).destinations;
     },
     changedMappingPreview(oldOrder, oldStrings, oldConfigured, newOrder, newStrings, newConfigured) {
       const changes = [];
       for (const drawer of this.state.drawers) for (const range of this.ledRangesFor(drawer)) {
-        if (!String(range.start_pixel ?? '').trim() || !String(range.pixel_count ?? '').trim()) continue;
-        const before = this.allocationDestinations(range, oldOrder, oldStrings, oldConfigured);
-        const after = this.allocationDestinations(range, newOrder, newStrings, newConfigured);
-        if (JSON.stringify(before) !== JSON.stringify(after)) changes.push({ drawer: drawer.label, start: range.start_pixel, count: range.pixel_count, before, after });
+        if (!String(range.start_pixel ?? '').trim() && !String(range.pixel_count ?? '').trim()) continue;
+        const beforePreview = this.allocationDestinationPreview(range, oldOrder, oldStrings, oldConfigured);
+        const afterPreview = this.allocationDestinationPreview(range, newOrder, newStrings, newConfigured);
+        const before = beforePreview.destinations, after = afterPreview.destinations;
+        if (!beforePreview.valid || !afterPreview.valid || JSON.stringify(before) !== JSON.stringify(after)) {
+          changes.push({ drawer: drawer.label, start: range.start_pixel, count: range.pixel_count, before, after, valid: beforePreview.valid && afterPreview.valid });
+        }
       }
       return changes;
     },
@@ -694,11 +705,15 @@ function physicalLayoutEditor() {
       try { previousStrings = JSON.parse(this.persistedWiringJSON || '[]'); } catch { previousStrings = []; }
       const changes = this.changedMappingPreview(order, previousStrings, configured, order, this.wiringStrings, this.configuredControllerIDs);
       if (changes.length || !this.wiringStructureChanged()) return changes;
-      const structural = this.state.drawers.flatMap(drawer => this.ledRangesFor(drawer).filter(range => String(range.start_pixel ?? '').trim() && String(range.pixel_count ?? '').trim()).map(range => ({
-        drawer: drawer.label, start: range.start_pixel, count: range.pixel_count,
-        before: [...this.allocationDestinations(range, order, previousStrings, configured), 'existing physical path'],
-        after: [...this.allocationDestinations(range, order, this.wiringStrings, this.configuredControllerIDs), 'draft physical path'],
-      })));
+      const structural = this.state.drawers.flatMap(drawer => this.ledRangesFor(drawer).filter(range => String(range.start_pixel ?? '').trim() || String(range.pixel_count ?? '').trim()).map(range => {
+        const before = this.allocationDestinationPreview(range, order, previousStrings, configured);
+        const after = this.allocationDestinationPreview(range, order, this.wiringStrings, this.configuredControllerIDs);
+        return {
+          drawer: drawer.label, start: range.start_pixel, count: range.pixel_count,
+          before: [...before.destinations, 'existing physical path'],
+          after: [...after.destinations, 'draft physical path'], valid: before.valid && after.valid,
+        };
+      }));
       return structural;
     },
     async discoverPhysicalOutputs(controllerID) {
@@ -800,6 +815,7 @@ function physicalLayoutEditor() {
       if (this.controllerCapacityChanged() || this.wiringChanged() || this.hasUnsavedLedRangesExcept()) { this.controllerSaveError = 'Save or cancel string, capacity and LED-range edits before changing controller assignments.'; return; }
       if (this.controllerDraft.length > 5 || new Set(this.controllerDraft).size !== this.controllerDraft.length) { this.controllerSaveError = 'Select no more than five distinct controllers.'; return; }
       const preview = this.controllerMappingPreview();
+      if (preview.some(change => !change.valid)) { this.controllerSaveError = 'Correct invalid or incomplete drawer destinations before changing controller order.'; return; }
       if (preview.length && !this.controllerMappingImpactConfirmed) { this.controllerSaveError = 'Review the before/after mapping preview and check the explicit confirmation before saving controller order.'; return; }
       const form = document.createElement('form'); form.method = 'post'; form.action = `/storage/cabinets/${this.state.id}/controller`;
       const fields = [['csrf_token', this.$refs.csrf.value], ['electrical_revision', this.electricalRevision]];
@@ -818,6 +834,7 @@ function physicalLayoutEditor() {
         if (string.layout_complete && this.wiringPathPixelTotal(string) !== pixels) { this.wiringSaveError = `${string.name} path sections account for ${this.wiringPathPixelTotal(string)} of ${pixels} pixels.`; return; }
       }
       const preview = this.wiringMappingPreview();
+      if (preview.some(change => !change.valid)) { this.wiringSaveError = 'Correct invalid or incomplete drawer destinations before saving wiring changes.'; return; }
       if (preview.length && !this.wiringMappingImpactConfirmed) { this.wiringSaveError = 'Review the before/after drawer pixel destinations and confirm this wiring change.'; return; }
       const wiring = { configured_controller_ids: this.configuredControllerIDs.map(Number), strings: this.wiringStrings.map(string => ({
         id: Number(string.id) || 0, controller_id: Number(string.controller_id), name: string.name, display_order: Number(string.display_order),
