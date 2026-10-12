@@ -113,6 +113,153 @@ func (s *retryDeadlineStore) GetController(ctx context.Context, id int64) (db.Co
 	return s.Store.GetController(ctx, id)
 }
 
+func awaitBoundedRecoveryTimeout(t *testing.T, service *PhysicalLocateService, blockedStore *retryDeadlineStore, controllerID int64, retryBudget, controllerTimeout time.Duration) *physicalSessionState {
+	t.Helper()
+	select {
+	case <-blockedStore.lookupStarted:
+	case <-time.After(time.Second):
+		t.Fatal("automatic recovery cleanup did not begin controller lookup")
+	}
+	startedAt := time.Now()
+	select {
+	case <-blockedStore.lookupCanceled:
+	case <-time.After(controllerTimeout + time.Second):
+		t.Fatal("automatic recovery cleanup did not honor its retry deadline")
+	}
+	if elapsed := time.Since(startedAt); elapsed > retryBudget+100*time.Millisecond {
+		t.Fatalf("automatic recovery cleanup exceeded its overall deadline: elapsed=%v budget=%v", elapsed, retryBudget)
+	}
+
+	physicalLocateCoordinator.Lock()
+	service.retryMu.Lock()
+	pending := service.getSession(controllerID)
+	if pending == nil || pending.timer == nil || pending.LastOperation != "cleanup withheld because session ownership was not confirmed" {
+		service.retryMu.Unlock()
+		physicalLocateCoordinator.Unlock()
+		t.Fatalf("timed-out recovery cleanup did not schedule another retry: %+v", pending)
+	}
+	pending.timer.Stop()
+	pending.timer = nil
+	service.retryMu.Unlock()
+	physicalLocateCoordinator.Unlock()
+	return pending
+}
+
+func TestPhysicalLocateRestartRecoveryCleanupUsesBoundedRetry(t *testing.T) {
+	previousLocateTimeout := locateSessionTimeout
+	previousControllerTimeout := physicalLocateControllerTimeout
+	previousRetryTimeout := physicalLocateCleanupRetryTimeout
+	previousRetryDelay := physicalLocateCleanupRetryDelay
+	locateSessionTimeout = time.Minute
+	physicalLocateControllerTimeout = 750 * time.Millisecond
+	retryBudget := 125 * time.Millisecond
+	physicalLocateCleanupRetryTimeout = retryBudget
+	physicalLocateCleanupRetryDelay = time.Hour
+	defer func() {
+		locateSessionTimeout = previousLocateTimeout
+		physicalLocateControllerTimeout = previousControllerTimeout
+		physicalLocateCleanupRetryTimeout = previousRetryTimeout
+		physicalLocateCleanupRetryDelay = previousRetryDelay
+	}()
+
+	f := newPhysicalFixture(t)
+	ctx := context.Background()
+	session, err := f.service.LocateInventoryBin(ctx, f.partID, f.bin2, 7)
+	if err != nil {
+		t.Fatalf("activate Locate before restart: %v", err)
+	}
+	physicalLocateCoordinator.Lock()
+	f.service.retryMu.Lock()
+	if active := f.service.getSession(f.controller); active != nil && active.timer != nil {
+		active.timer.Stop()
+		active.timer = nil
+	}
+	f.service.retryMu.Unlock()
+	physicalLocateCoordinator.Unlock()
+
+	locateSessionTimeout = time.Millisecond
+	time.Sleep(5 * time.Millisecond)
+	blockedStore := &retryDeadlineStore{
+		Store: f.store, lookupStarted: make(chan struct{}, 1), lookupCanceled: make(chan struct{}, 1),
+	}
+	blockedStore.blockNextLookup.Store(true)
+	restarted := NewPhysicalLocateService(blockedStore, NewClient())
+	awaitBoundedRecoveryTimeout(t, restarted, blockedStore, f.controller, retryBudget, physicalLocateControllerTimeout)
+	targets := durablePhysicalTargets(t, f, session.ID)
+	if targets[f.controller].MayHaveReceived != 1 {
+		t.Fatalf("restart-recovery timeout lost durable target ownership: %+v", targets[f.controller])
+	}
+	if got := len(f.mock.posts()); got != 1 {
+		t.Fatalf("timed-out restart recovery sent cleanup without database verification: posts=%d", got)
+	}
+
+	locateSessionTimeout = previousLocateTimeout
+	restarted.store = f.store
+	if err := restarted.StopDrawer(ctx, f.drawer2, 7); err != nil {
+		t.Fatalf("complete cleanup after bounded restart recovery: %v", err)
+	}
+	if got := len(f.mock.posts()); got != 2 {
+		t.Fatalf("restart recovery retry sent %d total writes, want activation plus cleanup", got)
+	}
+}
+
+func TestPhysicalLocateSessionExpiryUsesBoundedRetry(t *testing.T) {
+	previousLocateTimeout := locateSessionTimeout
+	previousControllerTimeout := physicalLocateControllerTimeout
+	previousRetryTimeout := physicalLocateCleanupRetryTimeout
+	previousRetryDelay := physicalLocateCleanupRetryDelay
+	locateSessionTimeout = time.Hour
+	physicalLocateControllerTimeout = 750 * time.Millisecond
+	retryBudget := 125 * time.Millisecond
+	physicalLocateCleanupRetryTimeout = retryBudget
+	physicalLocateCleanupRetryDelay = time.Hour
+	defer func() {
+		locateSessionTimeout = previousLocateTimeout
+		physicalLocateControllerTimeout = previousControllerTimeout
+		physicalLocateCleanupRetryTimeout = previousRetryTimeout
+		physicalLocateCleanupRetryDelay = previousRetryDelay
+	}()
+
+	f := newPhysicalFixture(t)
+	ctx := context.Background()
+	session, err := f.service.LocateInventoryBin(ctx, f.partID, f.bin2, 7)
+	if err != nil {
+		t.Fatalf("activate Locate before expiry: %v", err)
+	}
+	blockedStore := &retryDeadlineStore{
+		Store: f.store, lookupStarted: make(chan struct{}, 1), lookupCanceled: make(chan struct{}, 1),
+	}
+	blockedStore.blockNextLookup.Store(true)
+	f.service.store = blockedStore
+	physicalLocateCoordinator.Lock()
+	f.service.retryMu.Lock()
+	active := f.service.getSession(f.controller)
+	if active == nil || active.timer == nil || !active.timer.Reset(time.Millisecond) {
+		f.service.retryMu.Unlock()
+		physicalLocateCoordinator.Unlock()
+		t.Fatal("could not accelerate the normal session-expiry callback")
+	}
+	f.service.retryMu.Unlock()
+	physicalLocateCoordinator.Unlock()
+	awaitBoundedRecoveryTimeout(t, f.service, blockedStore, f.controller, retryBudget, physicalLocateControllerTimeout)
+	targets := durablePhysicalTargets(t, f, session.ID)
+	if targets[f.controller].MayHaveReceived != 1 {
+		t.Fatalf("session-expiry timeout lost durable target ownership: %+v", targets[f.controller])
+	}
+	if got := len(f.mock.posts()); got != 1 {
+		t.Fatalf("timed-out expiry sent cleanup without database verification: posts=%d", got)
+	}
+
+	locateSessionTimeout = previousLocateTimeout
+	f.service.store = f.store
+	if err := f.service.StopDrawer(ctx, f.drawer2, 7); err != nil {
+		t.Fatalf("complete cleanup after bounded expiry callback: %v", err)
+	}
+	if got := len(f.mock.posts()); got != 2 {
+		t.Fatalf("expiry retry sent %d total writes, want activation plus cleanup", got)
+	}
+}
+
 func TestPhysicalLocateAutomaticRetryDeadlineAndSerialization(t *testing.T) {
 	previousControllerTimeout := physicalLocateControllerTimeout
 	previousRetryTimeout := physicalLocateCleanupRetryTimeout

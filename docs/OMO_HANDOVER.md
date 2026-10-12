@@ -6,34 +6,34 @@ This is the single active development handover document. `AGENTS.md` defines
 development policy; the root `ROADMAP.md` records product requirements and design
 updates. Historical handovers are references, not active instructions.
 
-Current task: Task 049 — Bound Automatic Cleanup Retries.
+Current task: Task 049 follow-up — Bound restart-recovery cleanup.
 
-Baseline for this task: branch `development/chatgpt-m6-m7` at
-`7aa06008401a16b983ec81642deb77cfc22443bb`, aligned with
+Baseline for this follow-up: branch `development/chatgpt-m6-m7` at
+`67dbbacc7914606c4604920b0711cf15f943e41f`, aligned with
 `origin/development/chatgpt-m6-m7`; the worktree was clean. The owner authorizes
-this focused retry-budget change, regression tests, independent review, and
+this focused callback correction, regression tests, independent review, and
 commit/push to the authorized development branch. Do not merge, deploy, access
 production data, or contact physical WLED controllers.
 
-### Active task status — bounded cleanup retries
+### Active task status — bounded automatic cleanup callbacks
 
-Implemented and verified. The accepted per-controller timeout isolation is
-unchanged. Automatic retries now have a one-minute overall deadline: five
-controllers times independent five-second verification and cleanup budgets,
-plus ten seconds of persistence headroom. Retry lock acquisition is cancellable;
-a timeout retains durable `MayHaveReceived` ownership and schedules another
-bounded retry. Existing mapping/identity/fingerprint checks and range-targeted
-off commands remain intact; no GlobalOff is used.
+Implemented and verified. Restart-recovered session timers and normal
+session-expiry timers now use the existing one-minute bounded retry runner,
+without changing their initial delays or explicit user Stop behavior. Timeout
+retains durable `MayHaveReceived` ownership and schedules a further bounded
+retry. Mapping/fingerprint checks and targeted range-off remain unchanged; no
+GlobalOff is used.
 
 Verification passed:
+- Focused WLED package tests.
+- Restart-recovery and session-expiry regressions with `-count=3`.
 - `CGO_ENABLED=1 go test -tags fts5 -count=1 ./...`
 - `CGO_ENABLED=1 go vet -tags fts5 ./...`
 - `CGO_ENABLED=1 go build -tags fts5 ./...`
-- Focused WLED tests; automatic-retry regressions repeated with `-count=3`.
 - `CGO_ENABLED=1 go test -race -tags fts5 -count=1 ./internal/wled`
 - `git diff --check`.
 
-Only mock WLED servers and disposable test databases were used.
+Only mock WLED controllers and disposable test databases were used.
 
 Task 048 currently stores drawer ranges in one controller's local 1-based space,
 with controller membership order and a one-controller-per-drawer invariant. This

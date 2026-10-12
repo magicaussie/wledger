@@ -328,7 +328,7 @@ func (s *PhysicalLocateService) locate(ctx context.Context, expectedDrawerID, bi
 	}
 	s.retryMu.Lock()
 	session.timer = time.AfterFunc(locateSessionTimeout, func() {
-		_ = s.stopControllerSession(context.Background(), session.ControllerID, ownerID, session.ID, 0)
+		_ = s.runScheduledCleanupRetry(session.ControllerID, ownerID, session.ID)
 	})
 	s.retryMu.Unlock()
 	return session.PhysicalLocateSession, nil
@@ -1107,7 +1107,7 @@ func (s *PhysicalLocateService) ensureLoaded(ctx context.Context) error {
 			}
 			controllerID, ownerID, sessionID := id, session.OwnerID, session.ID
 			session.timer = time.AfterFunc(remaining, func() {
-				_ = s.stopControllerSession(context.Background(), controllerID, ownerID, sessionID, 0)
+				_ = s.runScheduledCleanupRetry(controllerID, ownerID, sessionID)
 			})
 		}
 		s.retryMu.Unlock()
