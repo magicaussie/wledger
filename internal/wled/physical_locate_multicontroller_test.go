@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -78,6 +79,204 @@ func durablePhysicalTargets(t *testing.T, f *physicalFixture, sessionID string) 
 		byController[target.ControllerID] = target
 	}
 	return byController
+}
+
+type retryDeadlineStore struct {
+	db.Store
+	blockNextLookup atomic.Bool
+	activeLookups   atomic.Int32
+	maxLookups      atomic.Int32
+	lookupStarted   chan struct{}
+	lookupCanceled  chan struct{}
+}
+
+func (s *retryDeadlineStore) GetController(ctx context.Context, id int64) (db.Controller, error) {
+	active := s.activeLookups.Add(1)
+	defer s.activeLookups.Add(-1)
+	for max := s.maxLookups.Load(); active > max; max = s.maxLookups.Load() {
+		if s.maxLookups.CompareAndSwap(max, active) {
+			break
+		}
+	}
+	if s.blockNextLookup.CompareAndSwap(true, false) {
+		select {
+		case s.lookupStarted <- struct{}{}:
+		default:
+		}
+		<-ctx.Done()
+		select {
+		case s.lookupCanceled <- struct{}{}:
+		default:
+		}
+		return db.Controller{}, ctx.Err()
+	}
+	return s.Store.GetController(ctx, id)
+}
+
+func TestPhysicalLocateAutomaticRetryDeadlineAndSerialization(t *testing.T) {
+	previousControllerTimeout := physicalLocateControllerTimeout
+	previousRetryTimeout := physicalLocateCleanupRetryTimeout
+	previousRetryDelay := physicalLocateCleanupRetryDelay
+	physicalLocateControllerTimeout = time.Second
+	retryBudget := 150 * time.Millisecond
+	physicalLocateCleanupRetryTimeout = retryBudget
+	physicalLocateCleanupRetryDelay = 250 * time.Millisecond
+	defer func() {
+		physicalLocateControllerTimeout = previousControllerTimeout
+		physicalLocateCleanupRetryTimeout = previousRetryTimeout
+		physicalLocateCleanupRetryDelay = previousRetryDelay
+	}()
+
+	f := newPhysicalFixture(t)
+	ctx := context.Background()
+	secondaryID, _ := addSecondaryPhysicalTarget(t, f, "bounded retry secondary")
+	drawer, bin := makeCrossControllerDrawer(t, f)
+	if err := f.service.SaveControllerMappingVerification(ctx, secondaryID, true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.service.LocateDrawerBin(ctx, drawer, bin, 7); err != nil {
+		t.Fatalf("activate cross-controller Locate: %v", err)
+	}
+
+	blockedStore := &retryDeadlineStore{
+		Store: f.store, lookupStarted: make(chan struct{}, 1), lookupCanceled: make(chan struct{}, 1),
+	}
+	blockedStore.blockNextLookup.Store(true)
+	f.service.store = blockedStore
+	session := f.service.getSession(f.controller)
+	f.service.scheduleCleanupRetry(session)
+	select {
+	case <-blockedStore.lookupStarted:
+	case <-time.After(time.Second):
+		t.Fatal("automatic cleanup retry did not begin controller lookup")
+	}
+	startedAt := time.Now()
+
+	// Give the competing attempt a shorter budget so it expires while waiting on
+	// the existing coordinator lock rather than entering a second lookup.
+	physicalLocateCleanupRetryTimeout = 25 * time.Millisecond
+	secondDone := make(chan error, 1)
+	go func() {
+		secondDone <- f.service.runScheduledCleanupRetry(f.controller, 7, session.ID)
+	}()
+
+	select {
+	case <-blockedStore.lookupCanceled:
+	case <-time.After(time.Second):
+		t.Fatal("automatic retry did not cancel the stalled database lookup")
+	}
+	if err := <-secondDone; !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("serialized second retry = %v, want its overall deadline", err)
+	}
+	if elapsed := time.Since(startedAt); elapsed > retryBudget+100*time.Millisecond {
+		t.Fatalf("automatic retry exceeded its overall deadline: elapsed=%v budget=%v", elapsed, retryBudget)
+	}
+	if got := blockedStore.maxLookups.Load(); got != 1 {
+		t.Fatalf("concurrent controller lookups=%d, want retries serialized at one", got)
+	}
+
+	physicalLocateCoordinator.Lock()
+	f.service.retryMu.Lock()
+	pending := f.service.getSession(f.controller)
+	if pending == nil || pending.timer == nil || pending.LastOperation != "cleanup withheld because session ownership was not confirmed" {
+		f.service.retryMu.Unlock()
+		physicalLocateCoordinator.Unlock()
+		t.Fatalf("timed-out retry did not retain a scheduled retry: %+v", pending)
+	}
+	pending.timer.Stop()
+	pending.timer = nil
+	f.service.retryMu.Unlock()
+	physicalLocateCoordinator.Unlock()
+	targets := durablePhysicalTargets(t, f, session.ID)
+	if targets[f.controller].MayHaveReceived != 1 || targets[secondaryID].MayHaveReceived != 1 {
+		t.Fatalf("timeout lost durable target ownership: primary=%+v secondary=%+v", targets[f.controller], targets[secondaryID])
+	}
+
+	// Recovery from the durable active session after a process restart can safely
+	// complete the cleanup once the database responds again.
+	restarted := NewPhysicalLocateService(f.store, NewClient())
+	if err := restarted.StopDrawer(ctx, drawer, 7); err != nil {
+		t.Fatalf("cleanup after restart following timed-out retry: %v", err)
+	}
+	recoveredTargets := durablePhysicalTargets(t, f, session.ID)
+	if recoveredTargets[f.controller].MayHaveReceived != 0 || recoveredTargets[secondaryID].MayHaveReceived != 0 {
+		t.Fatalf("restart did not persist cleanup resolution: primary=%+v secondary=%+v", recoveredTargets[f.controller], recoveredTargets[secondaryID])
+	}
+}
+
+func TestPhysicalLocateAutomaticRetryCleansHealthyTargetWithinBudget(t *testing.T) {
+	previousControllerTimeout := physicalLocateControllerTimeout
+	previousRetryTimeout := physicalLocateCleanupRetryTimeout
+	previousRetryDelay := physicalLocateCleanupRetryDelay
+	physicalLocateControllerTimeout = 150 * time.Millisecond
+	physicalLocateCleanupRetryTimeout = 2 * time.Second
+	physicalLocateCleanupRetryDelay = time.Second
+	defer func() {
+		physicalLocateControllerTimeout = previousControllerTimeout
+		physicalLocateCleanupRetryTimeout = previousRetryTimeout
+		physicalLocateCleanupRetryDelay = previousRetryDelay
+	}()
+
+	f := newPhysicalFixture(t)
+	ctx := context.Background()
+	secondaryID, secondary := addSecondaryPhysicalTarget(t, f, "healthy automatic retry target")
+	drawer, bin := makeCrossControllerDrawer(t, f)
+	if err := f.service.SaveControllerMappingVerification(ctx, secondaryID, true); err != nil {
+		t.Fatal(err)
+	}
+	session, err := f.service.LocateDrawerBin(ctx, drawer, bin, 7)
+	if err != nil || session.State != "active" {
+		t.Fatalf("activate cross-controller Locate: session=%+v err=%v", session, err)
+	}
+	f.client.httpClient.Timeout = 2 * time.Second
+	f.mock.mu.Lock()
+	f.mock.stallMethod = http.MethodGet
+	f.mock.stallPath = "/json/info"
+	f.mock.stallFor = time.Second
+	f.mock.mu.Unlock()
+
+	active := f.service.getSession(session.ControllerID)
+	f.service.scheduleCleanupRetry(active)
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if len(secondary.posts()) == 2 {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if got := len(secondary.posts()); got != 2 {
+		t.Fatalf("healthy target was not cleaned during automatic retry: posts=%d want=2", got)
+	}
+	if got := len(f.mock.posts()); got != 1 {
+		t.Fatalf("stalled target received cleanup without verification: posts=%d want=1", got)
+	}
+	targets := durablePhysicalTargets(t, f, session.ID)
+	if targets[f.controller].MayHaveReceived != 1 || targets[f.controller].LastError == "" {
+		t.Errorf("stalled controller ownership/error not retained: %+v", targets[f.controller])
+	}
+	if targets[secondaryID].MayHaveReceived != 0 || targets[secondaryID].LastError != "" {
+		t.Errorf("healthy controller was not durably resolved: %+v", targets[secondaryID])
+	}
+
+	physicalLocateCoordinator.Lock()
+	f.service.retryMu.Lock()
+	if current := f.service.getSession(session.ControllerID); current != nil && current.timer != nil {
+		current.timer.Stop()
+		current.timer = nil
+	}
+	f.service.retryMu.Unlock()
+	physicalLocateCoordinator.Unlock()
+	f.mock.mu.Lock()
+	f.mock.stallMethod = ""
+	f.mock.stallPath = ""
+	f.mock.mu.Unlock()
+	restarted := NewPhysicalLocateService(f.store, NewClient())
+	if err := restarted.StopDrawer(ctx, drawer, 7); err != nil {
+		t.Fatalf("restart cleanup for unresolved automatic-retry target: %v", err)
+	}
+	if len(f.mock.posts()) != 2 || len(secondary.posts()) != 2 {
+		t.Fatalf("restart did not target only unresolved controller: primary=%d secondary=%d", len(f.mock.posts()), len(secondary.posts()))
+	}
 }
 
 func TestPhysicalLocateCrossesControllersInOneDurableSession(t *testing.T) {

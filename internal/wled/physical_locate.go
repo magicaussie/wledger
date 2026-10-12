@@ -33,10 +33,18 @@ var (
 
 const locateBrightness = 128
 
+const (
+	physicalLocateMaximumControllers        = 5
+	physicalLocateRetryPersistenceAllowance = 10 * time.Second
+)
+
 var (
 	locateSessionTimeout            = 2 * time.Minute
 	physicalLocateControllerTimeout = 5 * time.Second
-	physicalLocateCoordinator       sync.Mutex
+	// Five targets get independent verification and cleanup budgets plus persistence headroom.
+	physicalLocateCleanupRetryTimeout = time.Duration(physicalLocateMaximumControllers)*2*physicalLocateControllerTimeout + physicalLocateRetryPersistenceAllowance
+	physicalLocateCleanupRetryDelay   = 15 * time.Second
+	physicalLocateCoordinator         sync.Mutex
 )
 
 // ControllerRange carries a 1-based logical pixel span. Public session Ranges
@@ -115,6 +123,7 @@ type PhysicalLocateService struct {
 	loadMu   sync.Mutex
 	loadErr  error
 	mu       sync.Mutex
+	retryMu  sync.Mutex
 	locks    map[int64]*sync.Mutex
 	sessions map[int64]*physicalSessionState
 }
@@ -317,9 +326,11 @@ func (s *PhysicalLocateService) locate(ctx context.Context, expectedDrawerID, bi
 		}
 		return PhysicalLocateSession{}, fmt.Errorf("activation was cleaned up because the final session update failed: %w", err)
 	}
+	s.retryMu.Lock()
 	session.timer = time.AfterFunc(locateSessionTimeout, func() {
 		_ = s.stopControllerSession(context.Background(), session.ControllerID, ownerID, session.ID, 0)
 	})
+	s.retryMu.Unlock()
 	return session.PhysicalLocateSession, nil
 }
 
@@ -611,12 +622,42 @@ func (s *PhysicalLocateService) StopDrawer(ctx context.Context, drawerID, ownerI
 }
 
 func (s *PhysicalLocateService) stopControllerSession(ctx context.Context, controllerID, ownerID int64, expectedSessionID string, expectedDrawerID int64) error {
-	physicalLocateCoordinator.Lock()
+	if err := lockPhysicalLocateCoordinator(ctx); err != nil {
+		if ctx.Err() != nil && expectedSessionID != "" {
+			if session := s.getSession(controllerID); session != nil && session.ID == expectedSessionID {
+				s.scheduleCleanupRetry(session)
+			}
+		}
+		return fmt.Errorf("wait for physical Locate cleanup lock: %w", err)
+	}
 	defer physicalLocateCoordinator.Unlock()
 	if err := s.ensureLoaded(ctx); err != nil {
+		if ctx.Err() != nil {
+			if session := s.getSession(controllerID); session != nil && session.ID == expectedSessionID && isActivePhysicalSession(session.State) {
+				s.scheduleCleanupRetry(session)
+			}
+		}
 		return fmt.Errorf("load prior Locate cleanup state: %w", err)
 	}
 	return s.stopControllerSessionLocked(ctx, controllerID, ownerID, expectedSessionID, expectedDrawerID)
+}
+
+func lockPhysicalLocateCoordinator(ctx context.Context) error {
+	poll := time.NewTicker(5 * time.Millisecond)
+	defer poll.Stop()
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if physicalLocateCoordinator.TryLock() {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-poll.C:
+		}
+	}
 }
 
 func (s *PhysicalLocateService) stopControllerSessionLocked(ctx context.Context, controllerID, ownerID int64, expectedSessionID string, expectedDrawerID int64) error {
@@ -639,10 +680,12 @@ func (s *PhysicalLocateService) stopControllerSessionLocked(ctx context.Context,
 }
 
 func (s *PhysicalLocateService) restoreSession(ctx context.Context, session *physicalSessionState) error {
+	s.retryMu.Lock()
 	if session.timer != nil {
 		session.timer.Stop()
 		session.timer = nil
 	}
+	s.retryMu.Unlock()
 	if len(session.targets) == 0 { // compatibility with a pre-target in-memory session
 		session.targets = []physicalControllerTarget{{
 			ControllerID: session.ControllerID, ControllerAddress: session.ControllerAddress,
@@ -784,7 +827,7 @@ func (s *PhysicalLocateService) restoreSession(ctx context.Context, session *phy
 		session.LastError = joinCleanupErrors(cleanupErrors)
 		session.LastOperation = "cleanup attempted on every safely verified target; unresolved cleanup targets retained for retry"
 		session.LastOperationAt = time.Now().UTC()
-		_ = s.persistSession(context.Background(), session)
+		_ = s.persistSession(ctx, session)
 		s.scheduleCleanupRetry(session)
 		return fmt.Errorf("targeted cleanup not confirmed for every affected controller: %w", errors.Join(cleanupErrors...))
 	}
@@ -817,13 +860,21 @@ func joinCleanupErrors(errs []error) string {
 }
 
 func (s *PhysicalLocateService) scheduleCleanupRetry(session *physicalSessionState) {
+	s.retryMu.Lock()
+	defer s.retryMu.Unlock()
 	if session.timer != nil {
 		session.timer.Stop()
 	}
 	controllerID, ownerID, sessionID := session.ControllerID, session.OwnerID, session.ID
-	session.timer = time.AfterFunc(15*time.Second, func() {
-		_ = s.stopControllerSession(context.Background(), controllerID, ownerID, sessionID, 0)
+	session.timer = time.AfterFunc(physicalLocateCleanupRetryDelay, func() {
+		_ = s.runScheduledCleanupRetry(controllerID, ownerID, sessionID)
 	})
+}
+
+func (s *PhysicalLocateService) runScheduledCleanupRetry(controllerID, ownerID int64, sessionID string) error {
+	retryCtx, cancel := context.WithTimeout(context.Background(), physicalLocateCleanupRetryTimeout)
+	defer cancel()
+	return s.stopControllerSession(retryCtx, controllerID, ownerID, sessionID, 0)
 }
 
 func (s *PhysicalLocateService) SessionForDrawer(drawerID int64) (PhysicalLocateSession, bool) {
@@ -1017,9 +1068,11 @@ func (s *PhysicalLocateService) ensureLoaded(ctx context.Context) error {
 	s.mu.Unlock()
 	for id, old := range previous {
 		fresh := loaded[id]
+		s.retryMu.Lock()
 		if old != nil && old.timer != nil && (fresh == nil || fresh.ID != old.ID) {
 			old.timer.Stop()
 		}
+		s.retryMu.Unlock()
 		if fresh == nil && old != nil {
 			setSessionReservations(old, false)
 		}
@@ -1033,6 +1086,9 @@ func (s *PhysicalLocateService) ensureLoaded(ctx context.Context) error {
 				session.LastOperation = old.LastOperation
 				session.LastOperationAt = old.LastOperationAt
 			}
+		}
+		s.retryMu.Lock()
+		if old != nil && old.ID == session.ID {
 			session.timer = old.timer
 		}
 		if !isActivePhysicalSession(session.State) {
@@ -1040,6 +1096,7 @@ func (s *PhysicalLocateService) ensureLoaded(ctx context.Context) error {
 				session.timer.Stop()
 				session.timer = nil
 			}
+			s.retryMu.Unlock()
 			setSessionReservations(session, false)
 			continue
 		}
@@ -1053,6 +1110,7 @@ func (s *PhysicalLocateService) ensureLoaded(ctx context.Context) error {
 				_ = s.stopControllerSession(context.Background(), controllerID, ownerID, sessionID, 0)
 			})
 		}
+		s.retryMu.Unlock()
 		setSessionReservations(session, true)
 	}
 	return nil

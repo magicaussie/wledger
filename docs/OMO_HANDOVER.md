@@ -6,33 +6,34 @@ This is the single active development handover document. `AGENTS.md` defines
 development policy; the root `ROADMAP.md` records product requirements and design
 updates. Historical handovers are references, not active instructions.
 
-Current task: Multi-controller physical Locate cleanup timeout isolation.
+Current task: Task 049 — Bound Automatic Cleanup Retries.
 
 Baseline for this task: branch `development/chatgpt-m6-m7` at
-`2b937531facb49835421c6a3428a4a42fae49aa4`, aligned with
+`7aa06008401a16b983ec81642deb77cfc22443bb`, aligned with
 `origin/development/chatgpt-m6-m7`; the worktree was clean. The owner authorizes
-the focused cleanup fix, tests, independent review, and commit/push to the
-authorized development branch. Do not merge, deploy, access production data, or
-contact physical WLED controllers.
+this focused retry-budget change, regression tests, independent review, and
+commit/push to the authorized development branch. Do not merge, deploy, access
+production data, or contact physical WLED controllers.
 
-### Active task status — cleanup timeout isolation
+### Active task status — bounded cleanup retries
 
-The cleanup fix is implemented and locally verified. Each affected controller
-receives a bounded verification context and a separate bounded targeted-cleanup
-context. Caller cancellation remains authoritative; durable `MayHaveReceived`
-ownership is kept until range-off acknowledgement and persistence. Verification
-still checks the controller endpoint, mapping attestation, live output topology,
-and recorded commands before targeted range-off. Regression coverage includes
-stalled verification and cleanup requests in both controller orders,
-cancellation, partial cleanup and restart recovery. No GlobalOff is used.
+Implemented and verified. The accepted per-controller timeout isolation is
+unchanged. Automatic retries now have a one-minute overall deadline: five
+controllers times independent five-second verification and cleanup budgets,
+plus ten seconds of persistence headroom. Retry lock acquisition is cancellable;
+a timeout retains durable `MayHaveReceived` ownership and schedules another
+bounded retry. Existing mapping/identity/fingerprint checks and range-targeted
+off commands remain intact; no GlobalOff is used.
 
 Verification passed:
 - `CGO_ENABLED=1 go test -tags fts5 -count=1 ./...`
 - `CGO_ENABLED=1 go vet -tags fts5 ./...`
 - `CGO_ENABLED=1 go build -tags fts5 ./...`
-- Focused `internal/wled` package tests and `git diff --check`.
+- Focused WLED tests; automatic-retry regressions repeated with `-count=3`.
+- `CGO_ENABLED=1 go test -race -tags fts5 -count=1 ./internal/wled`
+- `git diff --check`.
 
-No production data or physical WLED hardware was accessed.
+Only mock WLED servers and disposable test databases were used.
 
 Task 048 currently stores drawer ranges in one controller's local 1-based space,
 with controller membership order and a one-controller-per-drawer invariant. This
