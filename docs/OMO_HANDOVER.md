@@ -57,9 +57,13 @@ response in `internal/wled/physical_locate_test.go`,
 acceptance gaps remain within Task 053's requested scenarios; the previously
 documented process-local Locate lease limitation remains outside this test task.
 
-Publication and commit metadata will be recorded after the verified test-only
-changes are committed and pushed. Independent GitHub source review remains
-required; stop after publication and do not merge, deploy or begin another task.
+Publication verified: test-only task commit
+`21052c7b595f237a30e33b30daf186edd7f12e53`, parent
+`97cc97b3271c4fe557bd2f03c25039b35a17c64e`; the pushed remote ref
+`origin/development/chatgpt-m6-m7` resolves to this commit. This handover
+publication record follows in a documentation-only commit. Independent GitHub
+source review remains required; stop after publication and do not merge, deploy
+or begin another task.
 
 ### Task 051 outcome at Task 053 baseline — historical
 
