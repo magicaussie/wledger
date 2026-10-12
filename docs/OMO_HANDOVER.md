@@ -6,60 +6,69 @@ This is the single active development handover document. `AGENTS.md` defines
 development policy; the root `ROADMAP.md` records product requirements and design
 updates. Historical handovers are references, not active instructions.
 
-Current task: Task 051 — Cabinet Wiring Preview Correction.
+Current task: Task 053 — Complete Functional Acceptance Coverage.
 
 Baseline: branch `development/chatgpt-m6-m7` at
-`60198881a10ba9be6a066cc4579d6135ada78fda`, aligned with
+`97cc97b3271c4fe557bd2f03c25039b35a17c64e`, aligned with
 `origin/development/chatgpt-m6-m7`; the worktree was clean. The owner authorizes
-only the browser wiring-preview and confirmation correction, related regression
-tests, this handover update, requested verification and publication to the
-authorized development branch. Do not modify migration 019, backend Locate
-logic, backup/restore, production data, or physical WLED hardware. Do not merge,
-deploy or begin another task after publication.
+only the missing automated acceptance tests, this handover update, requested
+verification and publication to the authorized development branch. Do not change
+production logic unless a reproducible defect is found; in that case stop for
+owner authorization. Do not modify production databases, access physical WLED
+hardware, merge or deploy.
 
-### Task 051 status — implemented and verified; publication authorized
+### Task 053 status — implementation verified; publication pending
 
-`splitRange()` now reports controller-local starts while retaining cabinet-wide
-allocation storage and string-local destination labels. Destination previews
-reject partial/out-of-capacity splits as invalid rather than presenting an
-incomplete range as a valid destination. Controller-order and wiring saves block
-invalid previews before the confirmation flag can authorize submission. The
-browser regression checks exact values for cabinet pixels 225–234 (controller 2
-local 25–34), cabinet pixels 195–210 across two controllers and strings, and
-before/after previews for controller reorder, controller-capacity/string-length
-changes, string order and path edits. It also verifies unconfirmed saves are
-blocked, edits reset confirmation, invalid previews cannot be confirmed, and a
-stale electrical revision leaves the saved order unchanged.
+Test-only coverage now exercises the exact five-controller reference topology
+(capacities 200/250/150/300/100) with multiple explicit strings and alternating
+serpentine path sections. It checks cabinet ranges 25–34, 195–210, 225–234,
+445–460 and 895–910 at controller-local and string-local coordinates; the
+browser previews those destinations and five local mock WLED controllers record
+and assert the Locate payloads.
 
-The server remains authoritative: existing handlers and storage services check
-electrical revisions and require explicit mapping-impact confirmation; they were
-reviewed and not modified. Only a disposable SQLite database and local mock WLED
-server were used for browser tests. No production data or physical controller
-was accessed.
+File-backed SQLite handler tests submit controller reassignment, wiring and
+allocation changes during both durable `active` and unresolved `partial` Locate
+sessions. Each HTTP handler rejects the request, and snapshots prove cabinet,
+membership, wiring, allocation and session records remain unchanged. Browser
+coverage also adds and removes a controller on an existing wired cabinet with a
+saved allocation, checking before/after destinations, explicit confirmation,
+stale electrical revision rejection and persistent non-mutation.
+
+No production application logic changed and no reproducible application defect
+was found. Browser automation used only a disposable application database and
+five local mock WLED endpoints; no production database, physical controller or
+deployment was accessed.
 
 Verification passed:
-- `node --check web/static/js/physical_layout_editor.js`
-- `node --check web/tests/layout_editor.browser.test.js`
 - `npm test` (20 JavaScript behavior tests)
+- `node --check web/tests/layout_editor.browser.test.js`
+- `node --check web/static/js/physical_layout_editor.js`
 - `GO_BIN=/home/spetchal/gotoolchain/go/bin/go npm run test:layout-browser` (PASS; zero page errors and zero runtime console errors)
+- Focused handler and five-controller Locate Go acceptance tests
 - `CGO_ENABLED=1 /home/spetchal/gotoolchain/go/bin/go test -tags fts5 -count=1 ./...`
 - `CGO_ENABLED=1 /home/spetchal/gotoolchain/go/bin/go vet -tags fts5 ./...`
 - `CGO_ENABLED=1 /home/spetchal/gotoolchain/go/bin/go build -tags fts5 ./...`
 - `git diff --check`
 
-Changed task files: `web/static/js/physical_layout_editor.js`,
-`web/tests/layout_editor.browser.test.js`, and this handover document.
+Changed task files: `internal/handler/layout_active_locate_test.go`,
+`internal/wled/physical_locate_reference_config_test.go`, the configurable mock
+response in `internal/wled/physical_locate_test.go`,
+`web/tests/layout_editor.browser.test.js`, and this handover document. No
+acceptance gaps remain within Task 053's requested scenarios; the previously
+documented process-local Locate lease limitation remains outside this test task.
 
-Publication verified: implementation commit
-`ffcd23c4155a675d605fac3630cf62c30971811e`, parent
-`60198881a10ba9be6a066cc4579d6135ada78fda`; the remote ref
-`origin/development/chatgpt-m6-m7` resolves to the implementation commit. This
-handover publication record is committed separately. Independent GitHub source
-review remains pending; stop after publication and do not merge, deploy or start
-follow-on work.
+Publication and commit metadata will be recorded after the verified test-only
+changes are committed and pushed. Independent GitHub source review remains
+required; stop after publication and do not merge, deploy or begin another task.
 
-The Task 049 cleanup outcome and Task 048 architecture sections below are
-historical handover evidence and do not expand Task 051 authorization.
+### Task 051 outcome at Task 053 baseline — historical
+
+Task 051 added browser preview/confirmation correction coverage and was published
+as `ffcd23c4155a675d605fac3630cf62c30971811e`, parent
+`60198881a10ba9be6a066cc4579d6135ada78fda`. Its local/remote publication was
+verified and independent GitHub review remained pending. The Task 049 cleanup
+outcome and Task 048 architecture sections below are historical evidence and do
+not expand Task 053 authorization.
 
 Task 048 currently stores drawer ranges in one controller's local 1-based space,
 with controller membership order and a one-controller-per-drawer invariant. This

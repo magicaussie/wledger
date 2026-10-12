@@ -23,6 +23,7 @@ import (
 
 type physicalMock struct {
 	mu             sync.Mutex
+	count          int
 	state          string
 	config         string
 	offline        bool
@@ -61,13 +62,17 @@ func (m *physicalMock) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case r.Method == http.MethodGet && r.URL.Path == "/json/info":
 		m.mu.Lock()
 		offline := m.offline
+		count := m.count
 		m.mu.Unlock()
 		if offline {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			fmt.Fprint(w, `{"error":"offline"}`)
 			return
 		}
-		fmt.Fprint(w, `{"leds":{"count":200}}`)
+		if count == 0 {
+			count = 200
+		}
+		fmt.Fprintf(w, `{"leds":{"count":%d}}`, count)
 	case r.Method == http.MethodGet && r.URL.Path == "/json/cfg":
 		m.mu.Lock()
 		config := m.config

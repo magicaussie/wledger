@@ -17,6 +17,8 @@ const executablePath = process.env.CHROMIUM_PATH || '/bin/chromium';
   if (process.env.WLEDGER_START_SERVER === '0') throw new Error('physical Locate acceptance requires the disposable app database and local mock WLED server; external controllers are not supported');
   let server;
   let mockController;
+  const referenceMockControllers = [];
+  const referenceControllerWrites = [];
   let mockHost;
   let mockPort;
   let scratchDir;
@@ -651,6 +653,184 @@ assert.equal(Number(await drawerX.inputValue()), 10);
     assert.equal(mockControllerWrites.length, writesBeforeInvalid, 'invalid physical location must not write to WLED');
     assert.equal(mockControllerRequests.filter(path => path.startsWith('POST ')).length, 10, 'mock should receive only scoped multi-controller activation and stop commands');
 
+    const referenceCapacities = [200, 250, 150, 300, 100];
+    const referenceControllerIDs = [99103, 99104, 99105, 99106, 99107];
+    const referencePorts = [];
+    for (let index = 0; index < referenceCapacities.length; index++) {
+      const capacity = referenceCapacities[index];
+      const half = capacity / 2;
+      const controllerMock = http.createServer(async (request, response) => {
+        response.setHeader('Content-Type', 'application/json');
+        if (request.method === 'GET' && request.url === '/json/info') {
+          response.end(JSON.stringify({ mac: `02:00:00:01:00:${String(index + 1).padStart(2, '0')}`, leds: { count: capacity, rgbw: false } }));
+          return;
+        }
+        if (request.method === 'GET' && request.url === '/json/cfg') {
+          response.end(JSON.stringify({ hw: { led: { ins: [
+            { start: 0, len: half, rev: false, skip: 0, type: 22, pin: [2, -1, -1] },
+            { start: half, len: half, rev: false, skip: 0, type: 22, pin: [4, -1, -1] },
+          ] } } }));
+          return;
+        }
+        if (request.method === 'GET' && request.url === '/json/state') {
+          response.end(JSON.stringify({ on: true, seg: [
+            { id: 10, start: 0, stop: half, on: true, fx: 0, grp: 1, spc: 0, rev: false, mi: false, of: 0 },
+            { id: 20, start: half, stop: capacity, on: true, fx: 0, grp: 1, spc: 0, rev: false, mi: false, of: 0 },
+          ] }));
+          return;
+        }
+        if (request.method === 'POST' && request.url === '/json/state') {
+          let body = '';
+          for await (const chunk of request) body += chunk;
+          referenceControllerWrites.push({ controller: index + 1, payload: JSON.parse(body) });
+          response.end(JSON.stringify({ success: true }));
+          return;
+        }
+        response.statusCode = 404;
+        response.end(JSON.stringify({ error: 'not found' }));
+      });
+      await new Promise((resolve, reject) => controllerMock.once('error', reject).listen(0, '127.0.0.1', resolve));
+      referenceMockControllers.push(controllerMock);
+      referencePorts.push(controllerMock.address().port);
+    }
+    const referenceSeed = spawnSync('python3', ['-c', `import json,sqlite3,sys; c=sqlite3.connect(sys.argv[1]); c.execute("PRAGMA foreign_keys=ON"); configs=json.loads(sys.argv[2]); capacities=[200,250,150,300,100]; lengths=[[120,80],[125,125],[75,75],[150,150],[40,60]]; starts=[25,195,225,445,895]; counts=[10,16,10,16,16];
+for i,(cfg,capacity) in enumerate(zip(configs,capacities)): c.execute("INSERT INTO controllers(id,name,ip_address,port,led_count) VALUES(?,?,?,?,?)", (cfg['id'],f'Reference Controller {i+1}', '127.0.0.1',cfg['port'],capacity));
+c.execute("INSERT INTO cabinets(id,name,controller_id,coordinate_system,layout_revision,electrical_revision,display_order,archived,layout_width,layout_height) VALUES(99100,'Five-controller reference',99103,'grid',0,0,1,0,100,100)");
+for i,(cfg,capacity) in enumerate(zip(configs,capacities)):
+ c.execute("INSERT INTO cabinet_controllers(cabinet_id,controller_id,slot,strings_configured) VALUES(99100,?,?,1)", (cfg['id'],i));
+ for j,length in enumerate(lengths[i]):
+  name=f'Reference C{i+1} string {chr(65+j)}'; cur=c.execute("INSERT INTO cabinet_led_strings(cabinet_id,controller_id,name,display_order,pixel_count,layout_complete) VALUES(99100,?,?,?,?,1)", (cfg['id'],name,j,length)); sid=cur.lastrowid; first=length//2;
+  for section,section_length in enumerate([first,length-first]):
+   points='[{"x":5,"y":5},{"x":95,"y":5}]' if section==0 else '[{"x":95,"y":10},{"x":5,"y":10}]'; c.execute("INSERT INTO cabinet_led_path_sections(string_id,display_order,pixel_count,points_json) VALUES(?,?,?,?)", (sid,section,section_length,points));
+ drawer=99111+i; bin_id=99121+i; c.execute("INSERT INTO drawers(id,cabinet_id,label,display_order,x,y,width,height,archived) VALUES(?,99100,?,?,?,0,10,10,0)", (drawer,f'Reference drawer {starts[i]}-{starts[i]+counts[i]-1}',i,i*15)); c.execute("INSERT INTO bins(id,name,container_id,led_index,width) VALUES(?,?,NULL,NULL,1)", (bin_id,f'Reference bin {i+1}')); c.execute("INSERT INTO bin_drawer_attachments(bin_id,drawer_id,x,y,width,height,display_order) VALUES(?,?,1,1,5,5,0)", (bin_id,drawer)); c.execute("INSERT INTO drawer_led_allocations(cabinet_id,drawer_id,start_pixel,pixel_count,display_order) VALUES(99100,?,?,?,0)", (drawer,starts[i],counts[i])); c.execute("INSERT INTO part_assignments(part_id,bin_id,quantity) VALUES(99002,?,1)", (bin_id,));
+c.commit(); c.close()`, databasePath, JSON.stringify(referenceControllerIDs.map((id, index) => ({ id, port: referencePorts[index] })))], { encoding: 'utf8' });
+    assert.equal(referenceSeed.status, 0, referenceSeed.stderr);
+
+    await page.goto(`${baseURL}/storage/cabinets/99100/edit`);
+    const referenceDestinations = [
+      ['Reference drawer 25-34', 'Reference Controller 1 local 25–34 · Reference C1 string A pixels 25–34'],
+      ['Reference drawer 195-210', 'Reference Controller 1 local 195–200 · Reference C1 string B pixels 75–80 → Reference Controller 2 local 1–10 · Reference C2 string A pixels 1–10'],
+      ['Reference drawer 225-234', 'Reference Controller 2 local 25–34 · Reference C2 string A pixels 25–34'],
+      ['Reference drawer 445-460', 'Reference Controller 2 local 245–250 · Reference C2 string B pixels 120–125 → Reference Controller 3 local 1–10 · Reference C3 string A pixels 1–10'],
+      ['Reference drawer 895-910', 'Reference Controller 4 local 295–300 · Reference C4 string B pixels 145–150 → Reference Controller 5 local 1–10 · Reference C5 string A pixels 1–10'],
+    ];
+    for (const [drawerLabel, destination] of referenceDestinations) {
+      await page.locator('aside button').filter({ hasText: drawerLabel }).first().click();
+      assert.ok(await page.getByText(destination, { exact: false }).count(), `browser allocation preview missing ${destination}`);
+    }
+
+    const referenceDrawerIDs = [99111, 99112, 99113, 99114, 99115];
+    const referenceBinIDs = [99121, 99122, 99123, 99124, 99125];
+    for (let index = 0; index < referenceControllerIDs.length; index++) {
+      await page.goto(`${baseURL}/hardware/${referenceControllerIDs[index]}/grid`);
+      await page.locator('input[name="locate_mapping_verified"]').check();
+      await page.locator('input[name="locate_ranges_reserved"]').check();
+      await page.getByRole('button', { name: 'Save Locate safety setting' }).click();
+      await page.waitForURL(`${baseURL}/hardware/${referenceControllerIDs[index]}/grid`);
+      assert.match(await page.locator('body').innerText(), /Output configuration snapshot saved/);
+    }
+
+    const referenceExpectedCommands = [
+      [[1, 10, 24, 34]],
+      [[1, 20, 94, 100], [2, 10, 0, 10]],
+      [[2, 10, 24, 34]],
+      [[2, 20, 119, 125], [3, 10, 0, 10]],
+      [[4, 20, 144, 150], [5, 10, 0, 10]],
+    ];
+    for (let index = 0; index < referenceBinIDs.length; index++) {
+      await page.goto(`${baseURL}/parts/99002`);
+      const form = page.locator('form[action="/parts/99002/locate-bin"]').filter({ has: page.locator(`input[name="bin_id"][value="${referenceBinIDs[index]}"]`) });
+      const writeStart = referenceControllerWrites.length;
+      await form.locator('button[title="Locate this inventory location"]').click();
+      await page.waitForURL(`${baseURL}/storage/drawers/${referenceDrawerIDs[index]}?bin_id=${referenceBinIDs[index]}`);
+      const activationWrites = referenceControllerWrites.slice(writeStart).map(({ controller, payload }) => {
+        const segment = payload.seg[0];
+        return [controller, segment.id, segment.i[0], segment.i[1], segment.i[2]];
+      });
+      assert.deepEqual(activationWrites, referenceExpectedCommands[index].map(([controller, segment, start, stop]) => [controller, segment, start, stop, [0, 0, 128]]), `mock WLED payloads for reference allocation ${index + 1}`);
+      await page.getByRole('button', { name: 'Stop Locate / Turn Off Allocated LEDs' }).click();
+      await page.waitForURL(`${baseURL}/storage/drawers/${referenceDrawerIDs[index]}?stopped=1`);
+    }
+    assert.equal(referenceControllerWrites.length, 16, 'five Locate activations and their scoped Stops should be recorded by local mock WLED controllers');
+
+    const lifecycleSeed = spawnSync('python3', ['-c', `import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); c.execute("PRAGMA foreign_keys=ON"); controllers=[(99201,'Lifecycle Controller 1',100),(99202,'Lifecycle Controller 2',100),(99203,'Lifecycle Controller 3',50)];
+for cid,name,capacity in controllers: c.execute("INSERT INTO controllers(id,name,ip_address,port,led_count) VALUES(?,?, '127.0.0.1',80,?)", (cid,name,capacity));
+c.execute("INSERT INTO cabinets(id,name,controller_id,coordinate_system,electrical_revision,display_order,layout_width,layout_height) VALUES(99200,'Controller lifecycle cabinet',99201,'grid',5,2,100,100)");
+for slot,cid in enumerate([99201,99202]):
+ c.execute("INSERT INTO cabinet_controllers(cabinet_id,controller_id,slot,strings_configured) VALUES(99200,?,?,1)", (cid,slot)); cur=c.execute("INSERT INTO cabinet_led_strings(cabinet_id,controller_id,name,display_order,pixel_count,layout_complete) VALUES(99200,?,?,0,100,1)", (cid,f'Lifecycle string {slot+1}')); sid=cur.lastrowid;
+ for section,length,points in [(0,50,'[{"x":5,"y":5},{"x":95,"y":5}]'),(1,50,'[{"x":95,"y":10},{"x":5,"y":10}]')]: c.execute("INSERT INTO cabinet_led_path_sections(string_id,display_order,pixel_count,points_json) VALUES(?,?,?,?)", (sid,section,length,points));
+c.execute("INSERT INTO drawers(id,cabinet_id,label,display_order,x,y,width,height) VALUES(99210,99200,'Lifecycle drawer',0,0,0,10,10)"); c.execute("INSERT INTO drawer_led_allocations(cabinet_id,drawer_id,start_pixel,pixel_count,display_order) VALUES(99200,99210,95,11,0)"); c.commit(); c.close()`, databasePath], { encoding: 'utf8' });
+    assert.equal(lifecycleSeed.status, 0, lifecycleSeed.stderr);
+    const lifecycleSnapshot = () => {
+      const result = spawnSync('python3', ['-c', 'import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); print("revision="+str(c.execute("SELECT electrical_revision FROM cabinets WHERE id=99200").fetchone()[0])); print("members="+repr(c.execute("SELECT controller_id,slot,strings_configured FROM cabinet_controllers WHERE cabinet_id=99200 ORDER BY slot").fetchall())); print("strings="+repr(c.execute("SELECT controller_id,name,display_order,pixel_count FROM cabinet_led_strings WHERE cabinet_id=99200 ORDER BY controller_id,display_order").fetchall())); print("allocations="+repr(c.execute("SELECT drawer_id,start_pixel,pixel_count,display_order FROM drawer_led_allocations WHERE cabinet_id=99200 ORDER BY drawer_id,display_order").fetchall())); c.close()', databasePath], { encoding: 'utf8' });
+      assert.equal(result.status, 0, result.stderr);
+      return result.stdout.trim();
+    };
+    const lifecycleBefore = lifecycleSnapshot();
+    const lifecyclePostStart = controllerAssignmentPosts.length;
+    await page.goto(`${baseURL}/storage/cabinets/99200/edit`);
+    const selectLifecycleController = async () => page.locator('label').filter({ hasText: 'Lifecycle Controller 3 (#99203)' }).locator('input[type="checkbox"]');
+    await (await selectLifecycleController()).check();
+    await page.getByRole('button', { name: 'Move controller up' }).nth(2).click();
+    await page.locator('svg[aria-label="Interactive physical layout canvas"]')
+      .evaluate(svg => svg.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+    await page.waitForFunction(() => window.Alpine.$data(document.querySelector('[x-data="physicalLayoutEditor()"]')).state.uiSelectionKind === '');
+    const lifecyclePreview = await page.locator('[x-data="physicalLayoutEditor()"]')
+      .evaluate(element => window.Alpine.$data(element).controllerMappingPreview());
+    assert.deepEqual(lifecyclePreview, [{
+      drawer: 'Lifecycle drawer', start: '95', count: '11', valid: true,
+      before: ['Lifecycle Controller 1 local 95–100 · Lifecycle string 1 pixels 95–100', 'Lifecycle Controller 2 local 1–5 · Lifecycle string 2 pixels 1–5'],
+      after: ['Lifecycle Controller 1 local 95–100 · Lifecycle string 1 pixels 95–100', 'Lifecycle Controller 3 local 1–5'],
+    }]);
+    assert.equal(await page.locator('input[x-model="controllerMappingImpactConfirmed"]').count(), 1, 'the visible before/after preview must provide an explicit impact confirmation');
+    await page.getByRole('button', { name: 'Save controller order' }).click();
+    assert.match(await page.locator('p[role=alert]').filter({ hasText: /explicit confirmation/ }).innerText(), /explicit confirmation/);
+    assert.equal(controllerAssignmentPosts.length, lifecyclePostStart, 'addition with saved allocations must not submit before confirmation');
+    assert.equal(lifecycleSnapshot(), lifecycleBefore, 'unconfirmed controller addition must preserve all persistent rows');
+    await page.locator('input[x-model="controllerMappingImpactConfirmed"]').check();
+    await page.locator('[x-data="physicalLayoutEditor()"]').evaluate(element => window.Alpine.$data(element).electricalRevision = 0);
+    await page.getByRole('button', { name: 'Save controller order' }).click();
+    await page.waitForURL(/controller_error=/);
+    assert.match(await page.locator('p[role=alert]').filter({ hasText: /reload before saving/ }).innerText(), /reload before saving/);
+    assert.equal(lifecycleSnapshot(), lifecycleBefore, 'stale-revision controller addition must preserve membership, wiring, allocations and revision');
+
+    await page.goto(`${baseURL}/storage/cabinets/99200/edit`);
+    await (await selectLifecycleController()).check();
+    await page.getByRole('button', { name: 'Move controller up' }).nth(2).click();
+    await page.locator('input[x-model="controllerMappingImpactConfirmed"]').check();
+    await page.getByRole('button', { name: 'Save controller order' }).click();
+    await page.waitForURL(/controller_saved=1/);
+    const afterLifecycleAddition = lifecycleSnapshot();
+    assert.match(afterLifecycleAddition, /revision=6/);
+    assert.match(afterLifecycleAddition, /members=\[\(99201, 0, 1\), \(99203, 1, 0\), \(99202, 2, 1\)\]/);
+    assert.match(afterLifecycleAddition, /allocations=\[\(99210, 95, 11, 0\)\]/);
+
+    await page.getByRole('button', { name: 'Move controller down' }).nth(1).click();
+    await (await selectLifecycleController()).uncheck();
+    const removalPreview = await page.locator('[x-data="physicalLayoutEditor()"]')
+      .evaluate(element => window.Alpine.$data(element).controllerMappingPreview());
+    assert.deepEqual(removalPreview, [{
+      drawer: 'Lifecycle drawer', start: '95', count: '11', valid: true,
+      before: ['Lifecycle Controller 1 local 95–100 · Lifecycle string 1 pixels 95–100', 'Lifecycle Controller 3 local 1–5'],
+      after: ['Lifecycle Controller 1 local 95–100 · Lifecycle string 1 pixels 95–100', 'Lifecycle Controller 2 local 1–5 · Lifecycle string 2 pixels 1–5'],
+    }]);
+    const removePostStart = controllerAssignmentPosts.length;
+    await page.getByRole('button', { name: 'Save controller order' }).click();
+    assert.match(await page.locator('p[role=alert]').filter({ hasText: /explicit confirmation/ }).innerText(), /explicit confirmation/);
+    assert.equal(controllerAssignmentPosts.length, removePostStart, 'removal with saved allocations must not submit before confirmation');
+    assert.equal(lifecycleSnapshot(), afterLifecycleAddition, 'unconfirmed controller removal must preserve all persistent rows');
+    await page.locator('input[x-model="controllerMappingImpactConfirmed"]').check();
+    await page.getByRole('button', { name: 'Save controller order' }).click();
+    await page.waitForURL(/controller_saved=1/);
+    const afterLifecycleRemoval = lifecycleSnapshot();
+    assert.match(afterLifecycleRemoval, /revision=7/);
+    assert.match(afterLifecycleRemoval, /members=\[\(99201, 0, 1\), \(99202, 1, 1\)\]/);
+    assert.match(afterLifecycleRemoval, /strings=\[\(99201, 'Lifecycle string 1', 0, 100\), \(99202, 'Lifecycle string 2', 0, 100\)\]/);
+    assert.match(afterLifecycleRemoval, /allocations=\[\(99210, 95, 11, 0\)\]/);
+    const restoredLifecycleDestinations = await page.locator('[x-data="physicalLayoutEditor()"]')
+      .evaluate(element => window.Alpine.$data(element).allocationDestinations({ start_pixel: '95', pixel_count: '11' }));
+    assert.deepEqual(restoredLifecycleDestinations, ['Lifecycle Controller 1 local 95–100 · Lifecycle string 1 pixels 95–100', 'Lifecycle Controller 2 local 1–5 · Lifecycle string 2 pixels 1–5']);
+
     assert.ok(layoutPosts.length >= 4);
     assert.ok(layoutPosts.every(post => new URLSearchParams(post.body).get('csrf_token')));
     assert.ok(lifecyclePaths.every(url => !url.includes('undefined')));
@@ -659,12 +839,13 @@ assert.equal(Number(await drawerX.inputValue()), 10);
     assert.ok(validationResponseErrors.length <= 1, 'only the expected unassociated-bin HTTP 409 may be logged');
     const runtimeConsoleErrors = consoleErrors.filter(message => !message.includes("Blocked attempt to show a 'beforeunload' confirmation panel") && !message.includes('409 (Conflict)'));
     assert.deepEqual(runtimeConsoleErrors, []);
-    assert.equal(hardwareRequests.length, 5, 'only the expected Locate/Stop actions should reach hardware routes');
+    assert.equal(hardwareRequests.length, 15, 'only the expected Locate/Stop actions should reach hardware routes');
     console.log(JSON.stringify({ result: 'PASS', cabinetID, emptyID, archiveID, layoutSaves: layoutPosts.length, LEDMappingSaves: ledMappingPosts.length, hardwareRequests, lifecyclePaths, pageErrors, runtimeConsoleErrors, browserWarnings: consoleErrors.length - runtimeConsoleErrors.length }));
   } finally {
     if (browser) await browser.close();
     if (server) { server.kill('SIGTERM'); await new Promise(resolve => server.once('exit', resolve)); }
     if (mockController) await new Promise(resolve => mockController.close(resolve));
+    for (const controller of referenceMockControllers) await new Promise(resolve => controller.close(resolve));
     if (scratchDir) fs.rmSync(scratchDir, { recursive: true, force: true });
   }
 })().catch(error => { console.error(error); process.exit(1); });
