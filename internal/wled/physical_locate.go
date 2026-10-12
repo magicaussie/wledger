@@ -34,8 +34,9 @@ var (
 const locateBrightness = 128
 
 var (
-	locateSessionTimeout      = 2 * time.Minute
-	physicalLocateCoordinator sync.Mutex
+	locateSessionTimeout            = 2 * time.Minute
+	physicalLocateControllerTimeout = 5 * time.Second
+	physicalLocateCoordinator       sync.Mutex
 )
 
 // ControllerRange carries a 1-based logical pixel span. Public session Ranges
@@ -287,9 +288,7 @@ func (s *PhysicalLocateService) locate(ctx context.Context, expectedDrawerID, bi
 		session.LastOperation = "multi-controller Locate partially failed; targeted cleanup requested"
 		session.LastOperationAt = time.Now().UTC()
 		_ = s.persistSession(context.Background(), session)
-		cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		cleanupErr := s.restoreSession(cleanupCtx, session)
-		cancel()
+		cleanupErr := s.restoreSession(context.Background(), session)
 		if cleanupErr != nil {
 			session.State = "partial"
 			session.LastError = fmt.Sprintf("%v; cleanup not confirmed on every affected controller: %v", activationErr, cleanupErr)
@@ -312,18 +311,14 @@ func (s *PhysicalLocateService) locate(ctx context.Context, expectedDrawerID, bi
 		session.State = "partial"
 		session.LastError = fmt.Sprintf("all activations may have completed but the final session update failed: %v", err)
 		_ = s.persistSession(context.Background(), session)
-		cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		cleanupErr := s.restoreSession(cleanupCtx, session)
-		cancel()
+		cleanupErr := s.restoreSession(context.Background(), session)
 		if cleanupErr != nil {
 			return session.PhysicalLocateSession, fmt.Errorf("Locate state could not be persisted and cleanup was not confirmed: %w", cleanupErr)
 		}
 		return PhysicalLocateSession{}, fmt.Errorf("activation was cleaned up because the final session update failed: %w", err)
 	}
 	session.timer = time.AfterFunc(locateSessionTimeout, func() {
-		stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		_ = s.stopControllerSession(stopCtx, session.ControllerID, ownerID, session.ID, 0)
+		_ = s.stopControllerSession(context.Background(), session.ControllerID, ownerID, session.ID, 0)
 	})
 	return session.PhysicalLocateSession, nil
 }
@@ -674,41 +669,51 @@ func (s *PhysicalLocateService) restoreSession(ctx context.Context, session *phy
 			continue
 		}
 		target.LastError = ""
-		controller, err := s.store.GetController(ctx, target.ControllerID)
+		verifyCtx, cancel := context.WithTimeout(ctx, physicalLocateControllerTimeout)
+		controller, err := s.store.GetController(verifyCtx, target.ControllerID)
 		if err != nil {
 			recordTargetError(target, fmt.Errorf("controller #%d is unavailable: %w", target.ControllerID, err))
+			cancel()
 			continue
 		}
 		if controller.IpAddress != target.ControllerAddress || controllerPort(controller) != target.ControllerPort {
 			recordTargetError(target, fmt.Errorf("%w: controller #%d address or port changed", ErrLocateSessionStale, target.ControllerID))
+			cancel()
 			continue
 		}
 		if !controller.LocateMappingVerified || strings.TrimSpace(controller.LocateMappingFingerprint) == "" {
 			recordTargetError(target, fmt.Errorf("controller #%d mapping verification is no longer valid", target.ControllerID))
+			cancel()
 			continue
 		}
 		if len(target.Commands) == 0 {
 			recordTargetError(target, fmt.Errorf("%w: controller #%d has no recorded targeted cleanup commands", ErrLocateSessionStale, target.ControllerID))
+			cancel()
 			continue
 		}
-		info, cfg, state, mappingFingerprint, err := s.client.inspectPhysicalController(ctx, controller, controller.LedCount)
+		info, cfg, state, mappingFingerprint, err := s.client.inspectPhysicalController(verifyCtx, controller, controller.LedCount)
 		if err != nil {
 			recordTargetError(target, fmt.Errorf("cannot verify controller #%d before cleanup: %w", target.ControllerID, err))
+			cancel()
 			continue
 		}
 		if mappingFingerprint != controller.LocateMappingFingerprint {
 			recordTargetError(target, fmt.Errorf("%w: controller #%d output configuration changed", ErrLocateSessionStale, target.ControllerID))
+			cancel()
 			continue
 		}
 		expectedCommands, fingerprint, err := mapPhysicalRanges(target.Ranges, controller, controller.LedCount, info, cfg, state, session.Color, session.Brightness)
 		if err != nil {
 			recordTargetError(target, fmt.Errorf("cannot verify controller #%d cleanup mapping: %w", target.ControllerID, err))
+			cancel()
 			continue
 		}
 		if fingerprint != target.Fingerprint || !reflect.DeepEqual(expectedCommands, target.Commands) {
 			recordTargetError(target, fmt.Errorf("%w: controller #%d WLED target state changed", ErrLocateSessionStale, target.ControllerID))
+			cancel()
 			continue
 		}
+		cancel()
 		controllers[i] = controller
 		verified[i] = true
 	}
@@ -731,35 +736,47 @@ func (s *PhysicalLocateService) restoreSession(ctx context.Context, session *phy
 		if !target.MayHaveReceived || !verified[targetIndex] {
 			continue
 		}
+		if err := ctx.Err(); err != nil {
+			recordTargetError(target, fmt.Errorf("controller #%d cleanup canceled: %w", target.ControllerID, err))
+			continue
+		}
+		cleanupCtx, cancel := context.WithTimeout(ctx, physicalLocateControllerTimeout)
 		targetCleanupConfirmed := true
 		for _, command := range target.Commands {
-			if err := s.client.setPhysicalPixels(ctx, controllers[targetIndex], command.SegmentID, command.Start, command.Stop, []int{0, 0, 0}); err != nil {
+			if err := s.client.setPhysicalPixels(cleanupCtx, controllers[targetIndex], command.SegmentID, command.Start, command.Stop, []int{0, 0, 0}); err != nil {
 				targetCleanupConfirmed = false
 				recordTargetError(target, fmt.Errorf("controller #%d targeted cleanup failed for segment %d pixels %d-%d: %w", target.ControllerID, command.SegmentID, command.Start, command.Stop, err))
+				if cleanupCtx.Err() != nil {
+					break
+				}
 				continue
 			}
 			session.LastSuccessfulOperation = fmt.Sprintf("controller #%d acknowledged targeted range-off", target.ControllerID)
 			session.LastSuccessfulAt = time.Now().UTC().Format(time.RFC3339Nano)
 			session.LastOperation = session.LastSuccessfulOperation
 			session.LastOperationAt = time.Now().UTC()
-			if err := s.persistSession(context.Background(), session); err != nil {
+			if err := s.persistSession(cleanupCtx, session); err != nil {
 				targetCleanupConfirmed = false
 				recordTargetError(target, fmt.Errorf("controller #%d cleanup acknowledgement could not be persisted: %w", target.ControllerID, err))
+				if cleanupCtx.Err() != nil {
+					break
+				}
 			}
 		}
 		if !targetCleanupConfirmed {
+			cancel()
 			continue
 		}
 
-		// Clear this target only after every targeted range-off was acknowledged
-		// and the resolved state can be durably recorded. Other targets remain
-		// independently retryable if this persistence fails.
+		// Clear ownership only after all targeted writes were acknowledged and
+		// the controller's resolved state was durably recorded.
 		target.MayHaveReceived = false
 		target.LastError = ""
-		if err := s.persistSession(context.Background(), session); err != nil {
+		if err := s.persistSession(cleanupCtx, session); err != nil {
 			target.MayHaveReceived = true
 			recordTargetError(target, fmt.Errorf("controller #%d cleanup was acknowledged but its resolution could not be persisted: %w", target.ControllerID, err))
 		}
+		cancel()
 	}
 
 	if len(cleanupErrors) != 0 {
@@ -805,9 +822,7 @@ func (s *PhysicalLocateService) scheduleCleanupRetry(session *physicalSessionSta
 	}
 	controllerID, ownerID, sessionID := session.ControllerID, session.OwnerID, session.ID
 	session.timer = time.AfterFunc(15*time.Second, func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		_ = s.stopControllerSession(ctx, controllerID, ownerID, sessionID, 0)
+		_ = s.stopControllerSession(context.Background(), controllerID, ownerID, sessionID, 0)
 	})
 }
 
@@ -1035,9 +1050,7 @@ func (s *PhysicalLocateService) ensureLoaded(ctx context.Context) error {
 			}
 			controllerID, ownerID, sessionID := id, session.OwnerID, session.ID
 			session.timer = time.AfterFunc(remaining, func() {
-				stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				defer cancel()
-				_ = s.stopControllerSession(stopCtx, controllerID, ownerID, sessionID, 0)
+				_ = s.stopControllerSession(context.Background(), controllerID, ownerID, sessionID, 0)
 			})
 		}
 		setSessionReservations(session, true)

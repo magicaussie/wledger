@@ -6,10 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/tuxedocurly/wledger/internal/db"
 )
@@ -210,6 +212,166 @@ func TestPhysicalLocateCleansHealthySecondControllerWhenFirstIsUnreachable(t *te
 	if len(secondary.posts()) != 2 {
 		t.Fatalf("retry resent cleanup to the already-resolved second controller: %d writes", len(secondary.posts()))
 	}
+}
+
+func TestPhysicalLocateCleanupTimeoutIsIsolatedPerController(t *testing.T) {
+	previousTimeout := physicalLocateControllerTimeout
+	physicalLocateControllerTimeout = 200 * time.Millisecond
+	defer func() { physicalLocateControllerTimeout = previousTimeout }()
+
+	for _, test := range []struct {
+		name           string
+		stallPath      string
+		stallMethod    string
+		reverseTargets bool
+	}{
+		{name: "verification-first", stallPath: "/json/info", stallMethod: http.MethodGet},
+		{name: "verification-reversed", stallPath: "/json/info", stallMethod: http.MethodGet, reverseTargets: true},
+		{name: "cleanup-first", stallPath: "/json/state", stallMethod: http.MethodPost},
+		{name: "cleanup-reversed", stallPath: "/json/state", stallMethod: http.MethodPost, reverseTargets: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			f := newPhysicalFixture(t)
+			ctx := context.Background()
+			secondaryID, secondary := addSecondaryPhysicalTarget(t, f, "timeout isolation secondary")
+			drawer, bin := makeCrossControllerDrawer(t, f)
+			if err := f.service.SaveControllerMappingVerification(ctx, secondaryID, true); err != nil {
+				t.Fatal(err)
+			}
+			session, err := f.service.LocateDrawerBin(ctx, drawer, bin, 7)
+			if err != nil || session.State != "active" {
+				t.Fatalf("activate cross-controller Locate: session=%+v err=%v", session, err)
+			}
+
+			active := f.service.getSession(session.ControllerID)
+			if test.reverseTargets {
+				active.targets[0], active.targets[1] = active.targets[1], active.targets[0]
+				if err := f.service.persistSession(ctx, active); err != nil {
+					t.Fatalf("persist reversed test target order: %v", err)
+				}
+			}
+			stalledID := active.targets[0].ControllerID
+			stalledMock := f.mock
+			healthyMock := secondary
+			if stalledID == secondaryID {
+				stalledMock, healthyMock = secondary, f.mock
+			}
+			stalledMock.mu.Lock()
+			stalledMock.stallMethod = test.stallMethod
+			stalledMock.stallPath = test.stallPath
+			stalledMock.stallFor = time.Second
+			stalledMock.mu.Unlock()
+			f.client.httpClient.Timeout = 2 * time.Second
+
+			healthyID := f.controller
+			if stalledID == f.controller {
+				healthyID = secondaryID
+			}
+			var healthyCommand physicalPixelCommand
+			for _, target := range active.targets {
+				if target.ControllerID == healthyID {
+					healthyCommand = target.Commands[0]
+					break
+				}
+			}
+			beforeHealthyPosts := len(healthyMock.posts())
+			if err := f.service.StopDrawer(ctx, drawer, 7); err == nil {
+				t.Fatal("Stop should retain the stalled controller as unresolved")
+			}
+			status, ok, err := f.service.SessionStatusForDrawer(ctx, drawer)
+			if err != nil || !ok || status.State != "partial" {
+				t.Fatalf("stalled-controller cleanup status=%+v found=%v err=%v", status, ok, err)
+			}
+			if got := len(healthyMock.posts()); got != beforeHealthyPosts+1 {
+				t.Fatalf("healthy controller did not receive targeted cleanup after the stalled target: posts=%d want=%d", got, beforeHealthyPosts+1)
+			}
+			assertPixelCommand(t, healthyMock.posts()[beforeHealthyPosts], healthyCommand.SegmentID, int(healthyCommand.Start), int(healthyCommand.Stop), []any{float64(0), float64(0), float64(0)})
+			targets := durablePhysicalTargets(t, f, session.ID)
+			if targets[stalledID].MayHaveReceived != 1 || targets[stalledID].LastError == "" {
+				t.Errorf("stalled target ownership/error was not retained: %+v", targets[stalledID])
+			}
+			if targets[healthyID].MayHaveReceived != 0 || targets[healthyID].LastError != "" {
+				t.Errorf("healthy target was not durably resolved: %+v", targets[healthyID])
+			}
+
+			stalledMock.mu.Lock()
+			stalledMock.stallMethod = ""
+			stalledMock.stallPath = ""
+			stalledMock.mu.Unlock()
+			restarted := NewPhysicalLocateService(f.store, NewClient())
+			if err := restarted.StopDrawer(ctx, drawer, 7); err != nil {
+				t.Fatalf("restart cleanup for unresolved controller: %v", err)
+			}
+			if got := len(healthyMock.posts()); got != beforeHealthyPosts+1 {
+				t.Errorf("restart retried an already-resolved healthy target: posts=%d", got)
+			}
+			if got := len(stalledMock.posts()); got != 2 {
+				t.Errorf("restart did not retry only the stalled target: posts=%d want=2", got)
+			}
+		})
+	}
+}
+
+func TestPhysicalLocateCleanupCancellationPreservesOwnership(t *testing.T) {
+	previousTimeout := physicalLocateControllerTimeout
+	physicalLocateControllerTimeout = time.Second
+	defer func() { physicalLocateControllerTimeout = previousTimeout }()
+
+	f := newPhysicalFixture(t)
+	ctx := context.Background()
+	secondaryID, secondary := addSecondaryPhysicalTarget(t, f, "cancel cleanup secondary")
+	drawer, bin := makeCrossControllerDrawer(t, f)
+	if err := f.service.SaveControllerMappingVerification(ctx, secondaryID, true); err != nil {
+		t.Fatal(err)
+	}
+	session, err := f.service.LocateDrawerBin(ctx, drawer, bin, 7)
+	if err != nil || session.State != "active" {
+		t.Fatalf("activate cross-controller Locate: session=%+v err=%v", session, err)
+	}
+	f.mock.mu.Lock()
+	f.mock.stallMethod = http.MethodGet
+	f.mock.stallPath = "/json/info"
+	f.mock.stallFor = time.Second
+	f.mock.mu.Unlock()
+
+	cancelCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	startRequest := f.mock.requestCount()
+	stopDone := make(chan error, 1)
+	go func() { stopDone <- f.service.StopDrawer(cancelCtx, drawer, 7) }()
+	deadline := time.Now().Add(time.Second)
+	reachedStall := false
+	for time.Now().Before(deadline) {
+		if containsString(f.mock.requestsSince(startRequest), "GET /json/info") {
+			cancel()
+			reachedStall = true
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if !reachedStall {
+		cancel()
+		t.Fatal("cleanup verification did not reach the stalled controller")
+	}
+	if err := <-stopDone; err == nil {
+		t.Fatal("canceled Stop should return an error")
+	}
+	if len(f.mock.posts()) != 1 || len(secondary.posts()) != 1 {
+		t.Fatalf("cancellation sent a range-off command: primary posts=%d secondary posts=%d", len(f.mock.posts()), len(secondary.posts()))
+	}
+	targets := durablePhysicalTargets(t, f, session.ID)
+	if targets[f.controller].MayHaveReceived != 1 || targets[secondaryID].MayHaveReceived != 1 {
+		t.Fatalf("canceled cleanup lost durable ownership: primary=%+v secondary=%+v", targets[f.controller], targets[secondaryID])
+	}
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
 
 func TestPhysicalLocateCleansFirstControllerWhenSecondIsUnverifiable(t *testing.T) {

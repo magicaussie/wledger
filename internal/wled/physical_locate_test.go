@@ -26,6 +26,9 @@ type physicalMock struct {
 	state          string
 	config         string
 	offline        bool
+	stallMethod    string
+	stallPath      string
+	stallFor       time.Duration
 	postBodies     []map[string]any
 	failPostNumber int
 	postCount      int
@@ -42,7 +45,18 @@ func (m *physicalMock) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	m.mu.Lock()
 	m.requestLog = append(m.requestLog, r.Method+" "+r.URL.Path)
+	stall := m.stallMethod == r.Method && m.stallPath == r.URL.Path
+	stallFor := m.stallFor
 	m.mu.Unlock()
+	if stall {
+		timer := time.NewTimer(stallFor)
+		defer timer.Stop()
+		select {
+		case <-r.Context().Done():
+			return
+		case <-timer.C:
+		}
+	}
 	switch {
 	case r.Method == http.MethodGet && r.URL.Path == "/json/info":
 		m.mu.Lock()

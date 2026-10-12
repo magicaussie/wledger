@@ -6,16 +6,33 @@ This is the single active development handover document. `AGENTS.md` defines
 development policy; the root `ROADMAP.md` records product requirements and design
 updates. Historical handovers are references, not active instructions.
 
-Current task: Simplified Cabinet Hardware and Cabinet-wide LED Mapping follow-up
-to Task 048.
+Current task: Multi-controller physical Locate cleanup timeout isolation.
 
-Baseline: branch `development/chatgpt-m6-m7` at
-`c35b944d73ec9f055fd0e6abcaa04ccb06175b57`, parent
-`c9c64aa716a6c40d6f7ae9f7876b5b67ca56b4ed`; local branch and remote were aligned
-at task start. The pre-existing `AGENTS.md` modification is unrelated and must
-remain byte-for-byte unchanged and unstaged. The owner authorizes implementation
-and disposable SQLite/mock-WLED verification only. Do not commit or push; do not
-merge, deploy, access production data, or contact physical WLED controllers.
+Baseline for this task: branch `development/chatgpt-m6-m7` at
+`2b937531facb49835421c6a3428a4a42fae49aa4`, aligned with
+`origin/development/chatgpt-m6-m7`; the worktree was clean. The owner authorizes
+the focused cleanup fix, tests, independent review, and commit/push to the
+authorized development branch. Do not merge, deploy, access production data, or
+contact physical WLED controllers.
+
+### Active task status — cleanup timeout isolation
+
+The cleanup fix is implemented and locally verified. Each affected controller
+receives a bounded verification context and a separate bounded targeted-cleanup
+context. Caller cancellation remains authoritative; durable `MayHaveReceived`
+ownership is kept until range-off acknowledgement and persistence. Verification
+still checks the controller endpoint, mapping attestation, live output topology,
+and recorded commands before targeted range-off. Regression coverage includes
+stalled verification and cleanup requests in both controller orders,
+cancellation, partial cleanup and restart recovery. No GlobalOff is used.
+
+Verification passed:
+- `CGO_ENABLED=1 go test -tags fts5 -count=1 ./...`
+- `CGO_ENABLED=1 go vet -tags fts5 ./...`
+- `CGO_ENABLED=1 go build -tags fts5 ./...`
+- Focused `internal/wled` package tests and `git diff --check`.
+
+No production data or physical WLED hardware was accessed.
 
 Task 048 currently stores drawer ranges in one controller's local 1-based space,
 with controller membership order and a one-controller-per-drawer invariant. This
