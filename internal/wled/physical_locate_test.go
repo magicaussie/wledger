@@ -34,6 +34,8 @@ type physicalMock struct {
 	failPostNumber int
 	postCount      int
 	requestLog     []string
+	postEntered    chan struct{}
+	postRelease    chan struct{}
 }
 
 func int64Pointer(value int64) *int64 { return &value }
@@ -84,6 +86,18 @@ func (m *physicalMock) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		m.mu.Unlock()
 		fmt.Fprint(w, state)
 	case r.Method == http.MethodPost && r.URL.Path == "/json/state":
+		m.mu.Lock()
+		entered, release := m.postEntered, m.postRelease
+		m.postEntered, m.postRelease = nil, nil
+		m.mu.Unlock()
+		if entered != nil {
+			close(entered)
+			select {
+			case <-release:
+			case <-r.Context().Done():
+				return
+			}
+		}
 		var body map[string]any
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -174,6 +188,13 @@ func (q failingFinalSessionQuerier) SavePhysicalLocateSession(ctx context.Contex
 		return 0, errors.New("simulated final session save failure")
 	}
 	return q.Querier.SavePhysicalLocateSession(ctx, arg)
+}
+
+func (q failingFinalSessionQuerier) UpdatePhysicalLocateSessionCAS(ctx context.Context, arg db.UpdatePhysicalLocateSessionCASParams) (int64, error) {
+	if q.failFinal && arg.State == "stopped" {
+		return 0, errors.New("simulated final session save failure")
+	}
+	return q.Querier.UpdatePhysicalLocateSessionCAS(ctx, arg)
 }
 
 func newPhysicalFixture(t *testing.T) *physicalFixture {
@@ -327,7 +348,7 @@ func TestPhysicalLocateBlocksLegacyWritersUntilConfirmedStop(t *testing.T) {
 		"FlashError":           func() error { return legacy.FlashError(ctx, f.controller, legacyBin) },
 		"GlobalOff":            func() error { return legacy.GlobalOff(ctx) },
 		"raw state update from another Client": func() error {
-			return NewClient().SetState(ctx, f.server.Listener.Addr().String(), map[string]any{"on": false})
+			return NewClient(f.store).SetState(ctx, f.server.Listener.Addr().String(), map[string]any{"on": false})
 		},
 		"controller record with changed address and port": func() error {
 			controller, err := f.store.GetController(ctx, f.controller)
@@ -337,7 +358,7 @@ func TestPhysicalLocateBlocksLegacyWritersUntilConfirmedStop(t *testing.T) {
 			controller.IpAddress = "127.0.0.1"
 			controller.Port.Int64++
 			controller.Port.Valid = true
-			return NewClient().ApplyController(ctx, controller, 10, 0, 1, State{Color: "#00FF00", Mode: ModeSolid})
+			return NewClient(f.store).ApplyController(ctx, controller, 10, 0, 1, State{Color: "#00FF00", Mode: ModeSolid})
 		},
 	} {
 		if err := action(); !errors.Is(err, ErrHardwareBusy) {

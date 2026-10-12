@@ -45,7 +45,14 @@ func (s *LayoutService) SaveCabinetControllersConfirmed(ctx context.Context, cab
 		}
 		desired[id] = true
 	}
-	return s.store.ExecImmediateTx(ctx, func(q db.Querier) error {
+	return db.WithOperationClaim(ctx, s.store, func(q db.Querier) error {
+		owned, err := db.HasPhysicalLocateOwnership(ctx, q)
+		if err != nil {
+			return err
+		}
+		if owned {
+			return db.ErrPhysicalLocateActive
+		}
 		cabinet, err := q.GetCabinet(ctx, cabinetID)
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrLayoutNotFound

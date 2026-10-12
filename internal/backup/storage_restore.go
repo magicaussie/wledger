@@ -118,17 +118,11 @@ func secondaryCabinetMembershipsExist(ctx context.Context, q db.Querier) (bool, 
 }
 
 func activePhysicalLocateSessionExists(ctx context.Context, q db.Querier) (bool, error) {
-	sessions, err := q.ListPhysicalLocateSessions(ctx)
+	owned, err := db.HasPhysicalLocateOwnership(ctx, q)
 	if err != nil {
-		return false, fmt.Errorf("failed to read durable physical Locate sessions: %w", err)
+		return false, fmt.Errorf("failed to read durable physical Locate ownership: %w", err)
 	}
-	for _, session := range sessions {
-		switch session.State {
-		case "activating", "active", "partial", "stopping":
-			return true, nil
-		}
-	}
-	return false, nil
+	return owned, nil
 }
 
 func cabinetWiringExists(ctx context.Context, q db.Querier) (bool, error) {

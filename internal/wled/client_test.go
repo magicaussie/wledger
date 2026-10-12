@@ -16,6 +16,20 @@ import (
 	"github.com/tuxedocurly/wledger/internal/db"
 )
 
+func newClientTestClient(t *testing.T) *Client {
+	t.Helper()
+	conn, err := db.Open("file:client-" + strings.ReplaceAll(t.Name(), "/", "-") + "?mode=memory&cache=shared")
+	if err != nil {
+		t.Fatalf("open coordination database: %v", err)
+	}
+	if err := db.Migrate(conn); err != nil {
+		conn.Close()
+		t.Fatalf("migrate coordination database: %v", err)
+	}
+	t.Cleanup(func() { _ = conn.Close() })
+	return NewClient(db.NewStore(conn))
+}
+
 func TestClient_ApplySolid(t *testing.T) {
 	var mu sync.Mutex
 	var body string
@@ -29,7 +43,7 @@ func TestClient_ApplySolid(t *testing.T) {
 	defer server.Close()
 	ip := server.URL[7:]
 
-	c := NewClient()
+	c := newClientTestClient(t)
 	if err := c.Apply(context.Background(), ip, 0, 3, 4, State{Color: "#112233", Mode: ModeSolid}); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
@@ -153,7 +167,7 @@ func TestClient_ClearPayload(t *testing.T) {
 	defer server.Close()
 	ip := server.URL[7:]
 
-	if err := NewClient().Clear(context.Background(), ip); err != nil {
+	if err := newClientTestClient(t).Clear(context.Background(), ip); err != nil {
 		t.Fatalf("Clear: %v", err)
 	}
 
@@ -206,7 +220,7 @@ func TestClient_ClearNoSegmentDiscovery(t *testing.T) {
 	defer server.Close()
 	ip := server.URL[7:]
 
-	if err := NewClient().Clear(context.Background(), ip); err != nil {
+	if err := newClientTestClient(t).Clear(context.Background(), ip); err != nil {
 		t.Fatalf("Clear: %v", err)
 	}
 
@@ -226,7 +240,7 @@ func TestClient_ClearHTTPError(t *testing.T) {
 	defer server.Close()
 	ip := server.URL[7:]
 
-	if err := NewClient().Clear(context.Background(), ip); err == nil {
+	if err := newClientTestClient(t).Clear(context.Background(), ip); err == nil {
 		t.Fatal("Clear should return an error on HTTP 500")
 	}
 }
@@ -238,7 +252,7 @@ func TestClient_ClearUnavailableController(t *testing.T) {
 	ip := server.URL[7:]
 	server.Close() // now unreachable
 
-	if err := NewClient().Clear(context.Background(), ip); err == nil {
+	if err := newClientTestClient(t).Clear(context.Background(), ip); err == nil {
 		t.Fatal("Clear should return an error when the controller is unreachable")
 	}
 }
@@ -273,7 +287,7 @@ func TestClient_ApplyDoesNotPowerOff(t *testing.T) {
 	defer server.Close()
 	ip := server.URL[7:]
 
-	if err := NewClient().Apply(context.Background(), ip, 2, 10, 5, State{Color: "#00FF00", Mode: ModeSolid}); err != nil {
+	if err := newClientTestClient(t).Apply(context.Background(), ip, 2, 10, 5, State{Color: "#00FF00", Mode: ModeSolid}); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
 

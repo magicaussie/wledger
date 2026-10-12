@@ -27,3 +27,16 @@ WHERE physical_locate_sessions.session_id = excluded.session_id
 
 -- name: ListPhysicalLocateSessions :many
 SELECT * FROM physical_locate_sessions ORDER BY controller_id;
+
+
+-- name: UpdatePhysicalLocateSessionCAS :execrows
+UPDATE physical_locate_sessions
+SET state = ?, ranges_json = ?, commands_json = ?, fingerprint = ?, color = ?, brightness = ?,
+    last_operation = ?, last_operation_at = ?, last_successful_operation = ?,
+    last_successful_at = ?, last_error = ?
+WHERE controller_id = ? AND session_id = ? AND state = ?;
+
+-- name: UpdatePhysicalLocateSessionTargetOwnership :execrows
+UPDATE physical_locate_session_targets
+SET may_have_received = ?, last_error = ?
+WHERE session_id = ? AND controller_id = ? AND may_have_received = ?;

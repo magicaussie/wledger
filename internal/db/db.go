@@ -750,6 +750,7 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.togglePartFavoriteStmt, err = db.PrepareContext(ctx, togglePartFavorite); err != nil {
 		return nil, fmt.Errorf("error preparing query TogglePartFavorite: %w", err)
 	}
+
 	if q.unarchiveCabinetStmt, err = db.PrepareContext(ctx, unarchiveCabinet); err != nil {
 		return nil, fmt.Errorf("error preparing query UnarchiveCabinet: %w", err)
 	}
@@ -842,6 +843,12 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.updatePartLinkStmt, err = db.PrepareContext(ctx, updatePartLink); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdatePartLink: %w", err)
+	}
+	if q.updatePhysicalLocateSessionCASStmt, err = db.PrepareContext(ctx, updatePhysicalLocateSessionCAS); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdatePhysicalLocateSessionCAS: %w", err)
+	}
+	if q.updatePhysicalLocateSessionTargetOwnershipStmt, err = db.PrepareContext(ctx, updatePhysicalLocateSessionTargetOwnership); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdatePhysicalLocateSessionTargetOwnership: %w", err)
 	}
 	if q.updateSupplierCredentialTokenStmt, err = db.PrepareContext(ctx, updateSupplierCredentialToken); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateSupplierCredentialToken: %w", err)
@@ -2082,6 +2089,7 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing togglePartFavoriteStmt: %w", cerr)
 		}
 	}
+
 	if q.unarchiveCabinetStmt != nil {
 		if cerr := q.unarchiveCabinetStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing unarchiveCabinetStmt: %w", cerr)
@@ -2235,6 +2243,16 @@ func (q *Queries) Close() error {
 	if q.updatePartLinkStmt != nil {
 		if cerr := q.updatePartLinkStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing updatePartLinkStmt: %w", cerr)
+		}
+	}
+	if q.updatePhysicalLocateSessionCASStmt != nil {
+		if cerr := q.updatePhysicalLocateSessionCASStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updatePhysicalLocateSessionCASStmt: %w", cerr)
+		}
+	}
+	if q.updatePhysicalLocateSessionTargetOwnershipStmt != nil {
+		if cerr := q.updatePhysicalLocateSessionTargetOwnershipStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updatePhysicalLocateSessionTargetOwnershipStmt: %w", cerr)
 		}
 	}
 	if q.updateSupplierCredentialTokenStmt != nil {
@@ -2589,6 +2607,8 @@ type Queries struct {
 	updatePartAssignmentQuantityStmt                          *sql.Stmt
 	updatePartAssignmentQuantityByIDStmt                      *sql.Stmt
 	updatePartLinkStmt                                        *sql.Stmt
+	updatePhysicalLocateSessionCASStmt                        *sql.Stmt
+	updatePhysicalLocateSessionTargetOwnershipStmt            *sql.Stmt
 	updateSupplierCredentialTokenStmt                         *sql.Stmt
 	updateSupplierSettingsStmt                                *sql.Stmt
 	updateUserPasswordStmt                                    *sql.Stmt
@@ -2876,6 +2896,8 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		updatePartAssignmentQuantityStmt:              q.updatePartAssignmentQuantityStmt,
 		updatePartAssignmentQuantityByIDStmt:          q.updatePartAssignmentQuantityByIDStmt,
 		updatePartLinkStmt:                            q.updatePartLinkStmt,
+		updatePhysicalLocateSessionCASStmt:            q.updatePhysicalLocateSessionCASStmt,
+		updatePhysicalLocateSessionTargetOwnershipStmt: q.updatePhysicalLocateSessionTargetOwnershipStmt,
 		updateSupplierCredentialTokenStmt:             q.updateSupplierCredentialTokenStmt,
 		updateSupplierSettingsStmt:                    q.updateSupplierSettingsStmt,
 		updateUserPasswordStmt:                        q.updateUserPasswordStmt,

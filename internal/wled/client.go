@@ -21,6 +21,7 @@ const CacheDuration = 5 * time.Second
 type Client struct {
 	httpClient *http.Client
 	cache      sync.Map
+	store      db.Store
 }
 
 type controllerWriteGate struct {
@@ -135,12 +136,41 @@ type cachedResult struct {
 	timestamp time.Time
 }
 
-func NewClient() *Client {
-	return &Client{
+func NewClient(stores ...db.Store) *Client {
+	client := &Client{
 		httpClient: &http.Client{
 			Timeout: 2 * time.Second,
 		},
 	}
+	if len(stores) != 0 {
+		client.store = stores[0]
+	}
+	return client
+}
+
+// SetOperationStore binds the client to the SQLite database used for WLEDger
+// operation coordination. A client without a store fails closed on every write.
+func (c *Client) SetOperationStore(store db.Store) {
+	c.store = store
+}
+
+func (c *Client) withOperationClaim(ctx context.Context, action func() error) error {
+	if c.store == nil {
+		return db.ErrOperationClaimRequired
+	}
+	return db.WithOperationClaim(ctx, c.store, func(q db.Querier) error {
+		owned, err := db.HasPhysicalLocateOwnership(ctx, q)
+		if err != nil {
+			return fmt.Errorf("check durable physical Locate ownership: %w", err)
+		}
+		if owned {
+			return ErrHardwareBusy
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		return action()
+	})
 }
 
 // Ping checks if a controller is online
@@ -182,13 +212,17 @@ func (c *Client) SetState(ctx context.Context, ip string, payload map[string]any
 
 func (c *Client) setStateAt(ctx context.Context, address string, port int64, payload map[string]any) error {
 	return withLegacyWrite(address, port, func() error {
-		return c.postStateAt(ctx, address, port, payload)
+		return c.withOperationClaim(ctx, func() error {
+			return c.postStateAt(ctx, address, port, payload)
+		})
 	})
 }
 
 func (c *Client) setControllerState(ctx context.Context, controller db.Controller, payload map[string]any) error {
 	return withLegacyController(controller, func() error {
-		return c.postStateAt(ctx, controller.IpAddress, controllerPort(controller), payload)
+		return c.withOperationClaim(ctx, func() error {
+			return c.postStateAt(ctx, controller.IpAddress, controllerPort(controller), payload)
+		})
 	})
 }
 
@@ -298,13 +332,17 @@ func (c *Client) Apply(ctx context.Context, ip string, segmentID, index, count i
 
 func (c *Client) ApplyController(ctx context.Context, controller db.Controller, segmentID, index, count int, state State) error {
 	return withLegacyController(controller, func() error {
-		return c.applyUnlocked(ctx, controller.IpAddress, controllerPort(controller), segmentID, index, count, state)
+		return c.withOperationClaim(ctx, func() error {
+			return c.applyUnlocked(ctx, controller.IpAddress, controllerPort(controller), segmentID, index, count, state)
+		})
 	})
 }
 
 func (c *Client) applyAt(ctx context.Context, address string, port int64, segmentID, index, count int, state State) error {
 	return withLegacyWrite(address, port, func() error {
-		return c.applyUnlocked(ctx, address, port, segmentID, index, count, state)
+		return c.withOperationClaim(ctx, func() error {
+			return c.applyUnlocked(ctx, address, port, segmentID, index, count, state)
+		})
 	})
 }
 
@@ -317,7 +355,9 @@ func (c *Client) applyUnlocked(ctx context.Context, address string, port int64, 
 
 func (c *Client) lightUpController(ctx context.Context, controller db.Controller, segmentID, index, count int, color string) error {
 	return withLegacyController(controller, func() error {
-		return c.lightUpUnlocked(ctx, controller.IpAddress, controllerPort(controller), segmentID, index, count, color)
+		return c.withOperationClaim(ctx, func() error {
+			return c.lightUpUnlocked(ctx, controller.IpAddress, controllerPort(controller), segmentID, index, count, color)
+		})
 	})
 }
 

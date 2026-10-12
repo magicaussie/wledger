@@ -57,7 +57,14 @@ func (s *LayoutService) SaveCabinetWiring(ctx context.Context, cabinetID int64, 
 	if cabinetID <= 0 {
 		return ErrLayoutInvalid
 	}
-	return s.store.ExecImmediateTx(ctx, func(q db.Querier) error {
+	return db.WithOperationClaim(ctx, s.store, func(q db.Querier) error {
+		owned, err := db.HasPhysicalLocateOwnership(ctx, q)
+		if err != nil {
+			return err
+		}
+		if owned {
+			return db.ErrPhysicalLocateActive
+		}
 		cabinet, err := q.GetCabinet(ctx, cabinetID)
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrLayoutNotFound

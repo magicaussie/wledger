@@ -131,3 +131,80 @@ func (q *Queries) SavePhysicalLocateSession(ctx context.Context, arg SavePhysica
 	}
 	return result.RowsAffected()
 }
+
+
+const updatePhysicalLocateSessionCAS = `-- name: UpdatePhysicalLocateSessionCAS :execrows
+UPDATE physical_locate_sessions
+SET state = ?, ranges_json = ?, commands_json = ?, fingerprint = ?, color = ?, brightness = ?,
+    last_operation = ?, last_operation_at = ?, last_successful_operation = ?,
+    last_successful_at = ?, last_error = ?
+WHERE controller_id = ? AND session_id = ? AND state = ?
+`
+
+type UpdatePhysicalLocateSessionCASParams struct {
+	State                   string    `json:"state"`
+	RangesJson              string    `json:"ranges_json"`
+	CommandsJson            string    `json:"commands_json"`
+	Fingerprint             string    `json:"fingerprint"`
+	Color                   string    `json:"color"`
+	Brightness              int64     `json:"brightness"`
+	LastOperation           string    `json:"last_operation"`
+	LastOperationAt         time.Time `json:"last_operation_at"`
+	LastSuccessfulOperation string    `json:"last_successful_operation"`
+	LastSuccessfulAt        string    `json:"last_successful_at"`
+	LastError               string    `json:"last_error"`
+	ControllerID            int64     `json:"controller_id"`
+	SessionID               string    `json:"session_id"`
+	State_2                 string    `json:"state_2"`
+}
+
+func (q *Queries) UpdatePhysicalLocateSessionCAS(ctx context.Context, arg UpdatePhysicalLocateSessionCASParams) (int64, error) {
+	result, err := q.exec(ctx, q.updatePhysicalLocateSessionCASStmt, updatePhysicalLocateSessionCAS,
+		arg.State,
+		arg.RangesJson,
+		arg.CommandsJson,
+		arg.Fingerprint,
+		arg.Color,
+		arg.Brightness,
+		arg.LastOperation,
+		arg.LastOperationAt,
+		arg.LastSuccessfulOperation,
+		arg.LastSuccessfulAt,
+		arg.LastError,
+		arg.ControllerID,
+		arg.SessionID,
+		arg.State_2,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const updatePhysicalLocateSessionTargetOwnership = `-- name: UpdatePhysicalLocateSessionTargetOwnership :execrows
+UPDATE physical_locate_session_targets
+SET may_have_received = ?, last_error = ?
+WHERE session_id = ? AND controller_id = ? AND may_have_received = ?
+`
+
+type UpdatePhysicalLocateSessionTargetOwnershipParams struct {
+	MayHaveReceived   int64  `json:"may_have_received"`
+	LastError         string `json:"last_error"`
+	SessionID         string `json:"session_id"`
+	ControllerID      int64  `json:"controller_id"`
+	MayHaveReceived_2 int64  `json:"may_have_received_2"`
+}
+
+func (q *Queries) UpdatePhysicalLocateSessionTargetOwnership(ctx context.Context, arg UpdatePhysicalLocateSessionTargetOwnershipParams) (int64, error) {
+	result, err := q.exec(ctx, q.updatePhysicalLocateSessionTargetOwnershipStmt, updatePhysicalLocateSessionTargetOwnership,
+		arg.MayHaveReceived,
+		arg.LastError,
+		arg.SessionID,
+		arg.ControllerID,
+		arg.MayHaveReceived_2,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}

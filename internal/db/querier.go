@@ -326,6 +326,8 @@ type Querier interface {
 	// keyed variant above silently updates zero rows for orphaned assignments.
 	UpdatePartAssignmentQuantityByID(ctx context.Context, arg UpdatePartAssignmentQuantityByIDParams) error
 	UpdatePartLink(ctx context.Context, arg UpdatePartLinkParams) error
+	UpdatePhysicalLocateSessionCAS(ctx context.Context, arg UpdatePhysicalLocateSessionCASParams) (int64, error)
+	UpdatePhysicalLocateSessionTargetOwnership(ctx context.Context, arg UpdatePhysicalLocateSessionTargetOwnershipParams) (int64, error)
 	UpdateSupplierCredentialToken(ctx context.Context, arg UpdateSupplierCredentialTokenParams) error
 	UpdateSupplierSettings(ctx context.Context, arg UpdateSupplierSettingsParams) error
 	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error

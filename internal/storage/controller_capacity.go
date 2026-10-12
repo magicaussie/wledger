@@ -26,7 +26,14 @@ func (s *LayoutService) SaveControllerLEDCapacityConfirmed(ctx context.Context, 
 	if controllerID <= 0 || expectedCapacity < 0 || capacity < 1 {
 		return ErrLEDControllerCapacityInvalid
 	}
-	return s.store.ExecImmediateTx(ctx, func(q db.Querier) error {
+	return db.WithOperationClaim(ctx, s.store, func(q db.Querier) error {
+		owned, err := db.HasPhysicalLocateOwnership(ctx, q)
+		if err != nil {
+			return err
+		}
+		if owned {
+			return db.ErrPhysicalLocateActive
+		}
 		controller, err := q.GetController(ctx, controllerID)
 		if errors.Is(err, sql.ErrNoRows) {
 			return fmt.Errorf("%w: controller #%d does not exist", ErrLEDControllerConfiguration, controllerID)

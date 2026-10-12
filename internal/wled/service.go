@@ -34,6 +34,7 @@ type service struct {
 }
 
 func NewService(store db.Store, client *Client, logger *slog.Logger) Service {
+	client.SetOperationStore(store)
 	return &service{
 		store:  store,
 		client: client,

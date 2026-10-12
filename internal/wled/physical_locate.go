@@ -25,7 +25,7 @@ var (
 	ErrPhysicalBinMissing      = errors.New("inventory bin has no physical drawer association")
 	ErrNoDrawerLEDAllocation   = errors.New("physical drawer has no saved LED ranges")
 	ErrLocateSessionOwned      = errors.New("active Locate session belongs to another user")
-	ErrLocateSessionActive     = errors.New("stop the active drawer Locate before changing mapping verification")
+	ErrLocateSessionActive     = db.ErrPhysicalLocateActive
 	ErrLocateTopology          = errors.New("WLED segment or output topology is not safe for physical Locate")
 	ErrLocateSessionStale      = errors.New("WLED configuration changed during the Locate session; cleanup was withheld to avoid writing to a different mapping")
 	ErrHardwareBusy            = errors.New("controller is reserved by an active physical Locate session")
@@ -129,6 +129,7 @@ type PhysicalLocateService struct {
 }
 
 func NewPhysicalLocateService(store db.Store, client *Client) *PhysicalLocateService {
+	client.SetOperationStore(store)
 	s := &PhysicalLocateService{
 		store:    store,
 		client:   client,
@@ -182,85 +183,95 @@ func (s *PhysicalLocateService) locate(ctx context.Context, expectedDrawerID, bi
 	if err := s.ensureLoaded(ctx); err != nil {
 		return PhysicalLocateSession{}, fmt.Errorf("load prior Locate cleanup state: %w", err)
 	}
-	location, err := s.resolve(ctx, expectedDrawerID, binID)
-	if err != nil {
-		return PhysicalLocateSession{}, err
-	}
-	if len(location.targets) == 0 || len(location.ranges) == 0 {
-		return PhysicalLocateSession{}, ErrNoDrawerLEDAllocation
-	}
 	if _, old := s.activeSession(); old != nil {
 		if old.OwnerID != ownerID {
 			return PhysicalLocateSession{}, ErrLocateSessionOwned
 		}
 		unlock := s.lockSessionTargets(old)
-		if current := s.getSession(old.ControllerID); current != nil && isActivePhysicalSession(current.State) {
-			if err := s.restoreSession(ctx, current); err != nil {
-				unlock()
+		current := s.getSession(old.ControllerID)
+		if current != nil && current.ID == old.ID && isActivePhysicalSession(current.State) {
+			err := s.restoreSession(ctx, current)
+			unlock()
+			if err != nil {
 				return PhysicalLocateSession{}, fmt.Errorf("could not safely stop the previous drawer Locate: %w", err)
 			}
+		} else {
+			unlock()
 		}
-		unlock()
-	}
-	locks := make([]int64, 0, len(location.targets))
-	for _, target := range location.targets {
-		locks = append(locks, target.controller.ID)
-	}
-	unlock := s.lockControllers(locks)
-	defer unlock()
-
-	prepared := make([]physicalControllerTarget, 0, len(location.targets))
-	controllersByID := make(map[int64]db.Controller, len(location.targets))
-	for _, target := range location.targets {
-		controller := target.controller
-		if !controller.LocateMappingVerified || strings.TrimSpace(controller.LocateMappingFingerprint) == "" {
-			return PhysicalLocateSession{}, fmt.Errorf("controller #%d: %w", controller.ID, ErrLocateMappingUnverified)
-		}
-		info, cfg, state, mappingFingerprint, err := s.client.inspectPhysicalController(ctx, controller, controller.LedCount)
-		if err != nil {
-			return PhysicalLocateSession{}, fmt.Errorf("validate controller #%d before multi-controller Locate: %w", controller.ID, err)
-		}
-		if mappingFingerprint != controller.LocateMappingFingerprint {
-			return PhysicalLocateSession{}, fmt.Errorf("controller #%d: %w", controller.ID, ErrLocateMappingUnverified)
-		}
-		commands, fingerprint, err := mapPhysicalRanges(target.ranges, controller, controller.LedCount, info, cfg, state, location.color, locateBrightness)
-		if err != nil {
-			return PhysicalLocateSession{}, fmt.Errorf("map controller #%d pixels before activation: %w", controller.ID, err)
-		}
-		prepared = append(prepared, physicalControllerTarget{
-			ControllerID: controller.ID, ControllerAddress: controller.IpAddress, ControllerPort: controllerPort(controller),
-			Ranges: append([]ControllerRange(nil), target.ranges...), Commands: commands, Fingerprint: fingerprint,
-		})
-		controllersByID[controller.ID] = controller
 	}
 
-	id, err := newLocateSessionID()
+	var location resolvedPhysicalLocation
+	var session *physicalSessionState
+	controllersByID := make(map[int64]db.Controller)
+	err := db.WithOperationClaim(ctx, s.store, func(q db.Querier) error {
+		owned, err := db.HasPhysicalLocateOwnership(ctx, q)
+		if err != nil {
+			return fmt.Errorf("check durable Locate ownership before reservation: %w", err)
+		}
+		if owned {
+			return ErrLocateSessionActive
+		}
+		location, err = s.resolveWithQuerier(ctx, q, expectedDrawerID, binID)
+		if err != nil {
+			return err
+		}
+		if len(location.targets) == 0 || len(location.ranges) == 0 {
+			return ErrNoDrawerLEDAllocation
+		}
+		prepared := make([]physicalControllerTarget, 0, len(location.targets))
+		for _, resolved := range location.targets {
+			controller := resolved.controller
+			if !controller.LocateMappingVerified || strings.TrimSpace(controller.LocateMappingFingerprint) == "" {
+				return fmt.Errorf("controller #%d: %w", controller.ID, ErrLocateMappingUnverified)
+			}
+			info, cfg, state, mappingFingerprint, err := s.client.inspectPhysicalController(ctx, controller, controller.LedCount)
+			if err != nil {
+				return fmt.Errorf("validate controller #%d before multi-controller Locate: %w", controller.ID, err)
+			}
+			if mappingFingerprint != controller.LocateMappingFingerprint {
+				return fmt.Errorf("controller #%d: %w", controller.ID, ErrLocateMappingUnverified)
+			}
+			commands, fingerprint, err := mapPhysicalRanges(resolved.ranges, controller, controller.LedCount, info, cfg, state, location.color, locateBrightness)
+			if err != nil {
+				return fmt.Errorf("map controller #%d pixels before activation: %w", controller.ID, err)
+			}
+			prepared = append(prepared, physicalControllerTarget{
+				ControllerID: controller.ID, ControllerAddress: controller.IpAddress, ControllerPort: controllerPort(controller),
+				Ranges: append([]ControllerRange(nil), resolved.ranges...), Commands: commands, Fingerprint: fingerprint,
+			})
+			controllersByID[controller.ID] = controller
+		}
+		id, err := newLocateSessionID()
+		if err != nil {
+			return fmt.Errorf("create Locate session: %w", err)
+		}
+		now := time.Now().UTC()
+		primary := prepared[0]
+		affected := make([]int64, 0, len(prepared))
+		for _, target := range prepared {
+			affected = append(affected, target.ControllerID)
+		}
+		session = &physicalSessionState{
+			PhysicalLocateSession: PhysicalLocateSession{
+				ID: id, ControllerID: primary.ControllerID, ControllerAddress: primary.ControllerAddress,
+				ControllerPort: primary.ControllerPort, DrawerID: location.drawer.ID, BinID: binID,
+				CabinetName: location.cabinet.Name, DrawerName: location.drawer.Label, OwnerID: ownerID,
+				State: "activating", Ranges: append([]ControllerRange(nil), location.ranges...),
+				AffectedControllerIDs: affected, Color: location.color, Brightness: locateBrightness,
+				LastOperation: "multi-controller Locate requested", LastOperationAt: now,
+			},
+			fingerprint: primary.Fingerprint, commands: append([]physicalPixelCommand(nil), primary.Commands...), targets: prepared,
+		}
+		return s.insertSessionWithQuerier(ctx, q, session)
+	})
 	if err != nil {
-		return PhysicalLocateSession{}, fmt.Errorf("create Locate session: %w", err)
+		return PhysicalLocateSession{}, fmt.Errorf("reserve multi-controller Locate session: %w", err)
 	}
-	now := time.Now().UTC()
-	primary := prepared[0]
-	affected := make([]int64, 0, len(prepared))
-	for _, target := range prepared {
-		affected = append(affected, target.ControllerID)
-	}
-	session := &physicalSessionState{
-		PhysicalLocateSession: PhysicalLocateSession{
-			ID: id, ControllerID: primary.ControllerID, ControllerAddress: primary.ControllerAddress,
-			ControllerPort: primary.ControllerPort, DrawerID: location.drawer.ID, BinID: binID,
-			CabinetName: location.cabinet.Name, DrawerName: location.drawer.Label, OwnerID: ownerID,
-			State: "activating", Ranges: append([]ControllerRange(nil), location.ranges...),
-			AffectedControllerIDs: affected, Color: location.color, Brightness: locateBrightness,
-			LastOperation: "multi-controller Locate requested", LastOperationAt: now,
-		},
-		fingerprint: primary.Fingerprint,
-		commands:    append([]physicalPixelCommand(nil), primary.Commands...),
-		targets:     prepared,
-	}
-	if err := s.persistSession(ctx, session); err != nil {
-		return PhysicalLocateSession{}, fmt.Errorf("record multi-controller Locate session before hardware requests: %w", err)
+	if session == nil {
+		return PhysicalLocateSession{}, errors.New("Locate reservation completed without a session")
 	}
 	s.setSession(session.ControllerID, session)
+	setSessionReservations(session, true)
 
 	var activationErr error
 	for targetIndex := range session.targets {
@@ -272,20 +283,20 @@ func (s *PhysicalLocateService) locate(ctx context.Context, expectedDrawerID, bi
 			break
 		}
 		controller := controllersByID[target.ControllerID]
-		for _, command := range target.Commands {
-			if err := s.client.setPhysicalPixels(ctx, controller, command.SegmentID, command.Start, command.Stop, scaleRGB(colorRGB(location.color), locateBrightness)); err != nil {
-				target.LastError = err.Error()
-				activationErr = fmt.Errorf("controller #%d activation failed: %w", target.ControllerID, err)
-				break
-			}
-			session.LastOperation = fmt.Sprintf("drawer pixel range acknowledged by controller #%d", target.ControllerID)
-			session.LastOperationAt = time.Now().UTC()
-			session.LastSuccessfulOperation = session.LastOperation
-			session.LastSuccessfulAt = session.LastOperationAt.Format(time.RFC3339Nano)
-			if err := s.persistSession(ctx, session); err != nil {
-				activationErr = fmt.Errorf("controller #%d activation was acknowledged but durable session update failed: %w", target.ControllerID, err)
-				break
-			}
+		commandCtx, cancel := context.WithTimeout(ctx, physicalLocateControllerTimeout)
+		_, commandErr := s.withPhysicalCommandClaim(commandCtx, session.ID, target, []string{"activating"}, controller, scaleRGB(colorRGB(location.color), locateBrightness), false)
+		cancel()
+		if commandErr != nil {
+			target.LastError = commandErr.Error()
+			activationErr = fmt.Errorf("controller #%d activation failed: %w", target.ControllerID, commandErr)
+			break
+		}
+		session.LastOperation = fmt.Sprintf("drawer pixel ranges acknowledged by controller #%d", target.ControllerID)
+		session.LastOperationAt = time.Now().UTC()
+		session.LastSuccessfulOperation = session.LastOperation
+		session.LastSuccessfulAt = session.LastOperationAt.Format(time.RFC3339Nano)
+		if err := s.persistSession(ctx, session); err != nil {
+			activationErr = fmt.Errorf("controller #%d activation was acknowledged but durable session update failed: %w", target.ControllerID, err)
 		}
 		if activationErr != nil {
 			break
@@ -376,16 +387,25 @@ func (s *PhysicalLocateService) SaveControllerMappingVerification(ctx context.Co
 		}
 		fingerprint = verifiedFingerprint
 	}
-	rows, err := s.store.UpdateControllerLocateMappingVerification(ctx, db.UpdateControllerLocateMappingVerificationParams{
-		LocateMappingVerified: verified, LocateMappingFingerprint: fingerprint, ID: controllerID,
+	return db.WithOperationClaim(ctx, s.store, func(q db.Querier) error {
+		owned, err := db.HasPhysicalLocateOwnership(ctx, q)
+		if err != nil {
+			return err
+		}
+		if owned {
+			return ErrLocateSessionActive
+		}
+		rows, err := q.UpdateControllerLocateMappingVerification(ctx, db.UpdateControllerLocateMappingVerificationParams{
+			LocateMappingVerified: verified, LocateMappingFingerprint: fingerprint, ID: controllerID,
+		})
+		if err != nil {
+			return err
+		}
+		if rows != 1 {
+			return sql.ErrNoRows
+		}
+		return nil
 	})
-	if err != nil {
-		return err
-	}
-	if rows != 1 {
-		return sql.ErrNoRows
-	}
-	return nil
 }
 
 // PhysicalOutput describes one explicitly configured WLED hardware output as
@@ -499,85 +519,86 @@ func activeOutputPins(output physicalOutput) ([]int64, error) {
 func (s *PhysicalLocateService) resolve(ctx context.Context, expectedDrawerID, binID int64) (resolvedPhysicalLocation, error) {
 	var result resolvedPhysicalLocation
 	err := s.store.ExecTx(ctx, func(q db.Querier) error {
-		attachment, err := q.GetBinDrawerAttachment(ctx, binID)
-		if errors.Is(err, sql.ErrNoRows) {
-			return fmt.Errorf("%w: bin %d", ErrPhysicalBinMissing, binID)
+		var err error
+		result, err = s.resolveWithQuerier(ctx, q, expectedDrawerID, binID)
+		return err
+	})
+	return result, err
+}
+
+func (s *PhysicalLocateService) resolveWithQuerier(ctx context.Context, q db.Querier, expectedDrawerID, binID int64) (resolvedPhysicalLocation, error) {
+	attachment, err := q.GetBinDrawerAttachment(ctx, binID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return resolvedPhysicalLocation{}, fmt.Errorf("%w: bin %d", ErrPhysicalBinMissing, binID)
+	}
+	if err != nil {
+		return resolvedPhysicalLocation{}, fmt.Errorf("resolve physical bin attachment: %w", err)
+	}
+	if expectedDrawerID != 0 && attachment.DrawerID != expectedDrawerID {
+		return resolvedPhysicalLocation{}, fmt.Errorf("bin %d is not physically attached to drawer %d", binID, expectedDrawerID)
+	}
+	drawer, err := q.GetDrawer(ctx, attachment.DrawerID)
+	if err != nil {
+		return resolvedPhysicalLocation{}, fmt.Errorf("physical drawer not found: %w", err)
+	}
+	if drawer.Archived != 0 {
+		return resolvedPhysicalLocation{}, fmt.Errorf("physical drawer %d is archived", drawer.ID)
+	}
+	cabinet, err := q.GetCabinet(ctx, drawer.CabinetID)
+	if err != nil {
+		return resolvedPhysicalLocation{}, fmt.Errorf("physical cabinet not found: %w", err)
+	}
+	if cabinet.Archived != 0 {
+		return resolvedPhysicalLocation{}, fmt.Errorf("physical cabinet %d is archived", cabinet.ID)
+	}
+	allocations, err := q.ListDrawerLEDAllocationsByDrawer(ctx, drawer.ID)
+	if err != nil {
+		return resolvedPhysicalLocation{}, fmt.Errorf("read saved drawer LED ranges: %w", err)
+	}
+	if len(allocations) == 0 {
+		return resolvedPhysicalLocation{}, ErrNoDrawerLEDAllocation
+	}
+	topology, err := cabinetpixels.Load(ctx, q, cabinet.ID)
+	if err != nil {
+		return resolvedPhysicalLocation{}, fmt.Errorf("resolve cabinet-wide LED numbering: %w", err)
+	}
+	globalRanges := make([]ControllerRange, 0, len(allocations))
+	localRanges := make(map[int64][]ControllerRange)
+	for _, allocation := range allocations {
+		if allocation.CabinetID != cabinet.ID || allocation.DrawerID != drawer.ID {
+			return resolvedPhysicalLocation{}, fmt.Errorf("saved LED range %d has stale cabinet/drawer ownership", allocation.ID)
 		}
+		pieces, err := cabinetpixels.SplitTopologyRange(topology, allocation.StartPixel, allocation.PixelCount)
 		if err != nil {
-			return fmt.Errorf("resolve physical bin attachment: %w", err)
+			return resolvedPhysicalLocation{}, fmt.Errorf("saved cabinet pixel range %d–%d is outside the configured topology: %w", allocation.StartPixel, allocation.StartPixel+allocation.PixelCount-1, err)
 		}
-		if expectedDrawerID != 0 && attachment.DrawerID != expectedDrawerID {
-			return fmt.Errorf("bin %d is not physically attached to drawer %d", binID, expectedDrawerID)
+		globalRanges = append(globalRanges, ControllerRange{Start: allocation.StartPixel, Count: allocation.PixelCount})
+		for _, piece := range pieces {
+			localRanges[piece.ControllerID] = append(localRanges[piece.ControllerID], ControllerRange{Start: piece.LocalStart, Count: piece.Count})
 		}
-		drawer, err := q.GetDrawer(ctx, attachment.DrawerID)
-		if err != nil {
-			return fmt.Errorf("physical drawer not found: %w", err)
-		}
-		if drawer.Archived != 0 {
-			return fmt.Errorf("physical drawer %d is archived", drawer.ID)
-		}
-		cabinet, err := q.GetCabinet(ctx, drawer.CabinetID)
-		if err != nil {
-			return fmt.Errorf("physical cabinet not found: %w", err)
-		}
-		if cabinet.Archived != 0 {
-			return fmt.Errorf("physical cabinet %d is archived", cabinet.ID)
-		}
-		allocations, err := q.ListDrawerLEDAllocationsByDrawer(ctx, drawer.ID)
-		if err != nil {
-			return fmt.Errorf("read saved drawer LED ranges: %w", err)
-		}
-		if len(allocations) == 0 {
-			return ErrNoDrawerLEDAllocation
-		}
-		topology, err := cabinetpixels.Load(ctx, q, cabinet.ID)
-		if err != nil {
-			return fmt.Errorf("resolve cabinet-wide LED numbering: %w", err)
-		}
-		globalRanges := make([]ControllerRange, 0, len(allocations))
-		localRanges := make(map[int64][]ControllerRange)
-		for _, allocation := range allocations {
-			if allocation.CabinetID != cabinet.ID || allocation.DrawerID != drawer.ID {
-				return fmt.Errorf("saved LED range %d has stale cabinet/drawer ownership", allocation.ID)
-			}
-			pieces, err := cabinetpixels.SplitTopologyRange(topology, allocation.StartPixel, allocation.PixelCount)
-			if err != nil {
-				return fmt.Errorf("saved cabinet pixel range %d–%d is outside the configured topology: %w", allocation.StartPixel, allocation.StartPixel+allocation.PixelCount-1, err)
-			}
-			globalRanges = append(globalRanges, ControllerRange{Start: allocation.StartPixel, Count: allocation.PixelCount})
-			for _, piece := range pieces {
-				localRanges[piece.ControllerID] = append(localRanges[piece.ControllerID], ControllerRange{Start: piece.LocalStart, Count: piece.Count})
-			}
-		}
-		targets := make([]resolvedControllerTarget, 0, len(localRanges))
-		for _, controller := range topology.Controllers {
-			ranges, ok := localRanges[controller.Record.ID]
-			if !ok {
-				continue
-			}
+	}
+	targets := make([]resolvedControllerTarget, 0, len(localRanges))
+	for _, controller := range topology.Controllers {
+		ranges, ok := localRanges[controller.Record.ID]
+		if ok {
 			targets = append(targets, resolvedControllerTarget{controller: controller.Record, ranges: mergeControllerRanges(ranges)})
 		}
-		if len(targets) == 0 {
-			return ErrNoDrawerLEDAllocation
-		}
-		settings, err := q.GetSettings(ctx)
-		if err != nil {
-			return fmt.Errorf("read Locate color setting: %w", err)
-		}
-		color := strings.TrimSpace(settings.ColorLocate.String)
-		if color == "" {
-			color = "#0000FF"
-		}
-		if _, err := HexToRGB(color); err != nil {
-			return fmt.Errorf("invalid configured Locate color: %w", err)
-		}
-		result = resolvedPhysicalLocation{controller: targets[0].controller, drawer: drawer, cabinet: cabinet, ranges: globalRanges, targets: targets, color: color}
-		return nil
-	})
-	if err != nil {
-		return resolvedPhysicalLocation{}, err
 	}
-	return result, nil
+	if len(targets) == 0 {
+		return resolvedPhysicalLocation{}, ErrNoDrawerLEDAllocation
+	}
+	settings, err := q.GetSettings(ctx)
+	if err != nil {
+		return resolvedPhysicalLocation{}, fmt.Errorf("read Locate color setting: %w", err)
+	}
+	color := strings.TrimSpace(settings.ColorLocate.String)
+	if color == "" {
+		color = "#0000FF"
+	}
+	if _, err := HexToRGB(color); err != nil {
+		return resolvedPhysicalLocation{}, fmt.Errorf("invalid configured Locate color: %w", err)
+	}
+	return resolvedPhysicalLocation{controller: targets[0].controller, drawer: drawer, cabinet: cabinet, ranges: globalRanges, targets: targets, color: color}, nil
 }
 
 func mergeControllerRanges(ranges []ControllerRange) []ControllerRange {
@@ -785,26 +806,19 @@ func (s *PhysicalLocateService) restoreSession(ctx context.Context, session *phy
 		}
 		cleanupCtx, cancel := context.WithTimeout(ctx, physicalLocateControllerTimeout)
 		targetCleanupConfirmed := true
-		for _, command := range target.Commands {
-			if err := s.client.setPhysicalPixels(cleanupCtx, controllers[targetIndex], command.SegmentID, command.Start, command.Stop, []int{0, 0, 0}); err != nil {
-				targetCleanupConfirmed = false
-				recordTargetError(target, fmt.Errorf("controller #%d targeted cleanup failed for segment %d pixels %d-%d: %w", target.ControllerID, command.SegmentID, command.Start, command.Stop, err))
-				if cleanupCtx.Err() != nil {
-					break
-				}
-				continue
-			}
+		cleared, commandErr := s.withPhysicalCommandClaim(cleanupCtx, session.ID, target, []string{"stopping", "partial"}, controllers[targetIndex], []int{0, 0, 0}, true)
+		if commandErr != nil {
+			targetCleanupConfirmed = false
+			recordTargetError(target, fmt.Errorf("controller #%d targeted cleanup failed: %w", target.ControllerID, commandErr))
+		}
+		if !cleared && commandErr == nil {
+			target.MayHaveReceived = false
+		}
+		if targetCleanupConfirmed && cleared {
 			session.LastSuccessfulOperation = fmt.Sprintf("controller #%d acknowledged targeted range-off", target.ControllerID)
 			session.LastSuccessfulAt = time.Now().UTC().Format(time.RFC3339Nano)
 			session.LastOperation = session.LastSuccessfulOperation
 			session.LastOperationAt = time.Now().UTC()
-			if err := s.persistSession(cleanupCtx, session); err != nil {
-				targetCleanupConfirmed = false
-				recordTargetError(target, fmt.Errorf("controller #%d cleanup acknowledgement could not be persisted: %w", target.ControllerID, err))
-				if cleanupCtx.Err() != nil {
-					break
-				}
-			}
 		}
 		if !targetCleanupConfirmed {
 			cancel()
@@ -846,6 +860,109 @@ func (s *PhysicalLocateService) restoreSession(ctx context.Context, session *phy
 		return fmt.Errorf("WLED acknowledged cleanup but session state could not be saved: %w", err)
 	}
 	return nil
+}
+
+// withPhysicalCommandClaim fences each bounded physical command batch with a
+// fresh durable session/target read. The target attempt marker is committed
+// before activation; cleanup clears it in the same transaction as the last
+// acknowledged targeted range-off command.
+func (s *PhysicalLocateService) withPhysicalCommandClaim(ctx context.Context, sessionID string, target *physicalControllerTarget, allowedStates []string, controller db.Controller, rgb []int, resolveOwnership bool) (bool, error) {
+	if target == nil || sessionID == "" {
+		return false, errors.New("physical Locate session and target are required")
+	}
+	cleared := false
+	err := db.WithOperationClaim(ctx, s.store, func(q db.Querier) error {
+		sessions, err := q.ListPhysicalLocateSessions(ctx)
+		if err != nil {
+			return fmt.Errorf("reload durable Locate session before WLED command: %w", err)
+		}
+		var current *db.PhysicalLocateSession
+		for i := range sessions {
+			if sessions[i].SessionID == sessionID {
+				current = &sessions[i]
+				break
+			}
+		}
+		if current == nil {
+			return errors.New("physical Locate session was superseded before WLED command")
+		}
+		stateAllowed := false
+		for _, state := range allowedStates {
+			if current.State == state {
+				stateAllowed = true
+				break
+			}
+		}
+		if !stateAllowed {
+			if resolveOwnership && (current.State == "stopped" || current.State == "failed") {
+				return nil
+			}
+			return fmt.Errorf("physical Locate session state %q does not authorize WLED command", current.State)
+		}
+		targets, err := q.ListPhysicalLocateSessionTargets(ctx, sessionID)
+		if err != nil {
+			return fmt.Errorf("reload durable Locate target before WLED command: %w", err)
+		}
+		var saved *db.PhysicalLocateSessionTarget
+		for i := range targets {
+			if targets[i].ControllerID == target.ControllerID {
+				saved = &targets[i]
+				break
+			}
+		}
+		if saved == nil {
+			return errors.New("physical Locate target was superseded before WLED command")
+		}
+		if saved.ControllerAddress != target.ControllerAddress || saved.ControllerPort != target.ControllerPort || saved.Fingerprint != target.Fingerprint {
+			return errors.New("durable physical Locate target no longer matches the command snapshot")
+		}
+		var savedRanges []ControllerRange
+		if err := json.Unmarshal([]byte(saved.RangesJson), &savedRanges); err != nil {
+			return fmt.Errorf("decode durable physical Locate ranges: %w", err)
+		}
+		if !reflect.DeepEqual(savedRanges, target.Ranges) {
+			return errors.New("durable physical Locate ranges changed before WLED command")
+		}
+		var savedCommands []physicalPixelCommand
+		if err := json.Unmarshal([]byte(saved.CommandsJson), &savedCommands); err != nil {
+			return fmt.Errorf("decode durable physical Locate commands: %w", err)
+		}
+		if !reflect.DeepEqual(savedCommands, target.Commands) {
+			return errors.New("durable physical Locate commands changed before WLED command")
+		}
+		if saved.MayHaveReceived == 0 {
+			if resolveOwnership {
+				return nil
+			}
+			return errors.New("activation target has no durable may-have-received marker")
+		}
+		if controller.IpAddress != saved.ControllerAddress || controllerPort(controller) != saved.ControllerPort {
+			return fmt.Errorf("controller #%d endpoint changed before WLED command", target.ControllerID)
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		for _, command := range savedCommands {
+			if err := s.client.setPhysicalPixels(ctx, controller, command.SegmentID, command.Start, command.Stop, rgb); err != nil {
+				return fmt.Errorf("controller #%d segment %d pixels %d-%d: %w", target.ControllerID, command.SegmentID, command.Start, command.Stop, err)
+			}
+		}
+		if resolveOwnership {
+			rows, err := q.UpdatePhysicalLocateSessionTargetOwnership(ctx, db.UpdatePhysicalLocateSessionTargetOwnershipParams{
+				MayHaveReceived: 0, LastError: "", SessionID: sessionID,
+				ControllerID: target.ControllerID, MayHaveReceived_2: 1,
+			})
+			if err != nil {
+				return fmt.Errorf("persist targeted cleanup resolution: %w", err)
+			}
+			if rows != 1 {
+				return errors.New("physical Locate target ownership changed while cleanup claim was held")
+			}
+			cleared = true
+		}
+		return nil
+	})
+	return cleared, err
 }
 
 func joinCleanupErrors(errs []error) string {
@@ -1116,6 +1233,62 @@ func (s *PhysicalLocateService) ensureLoaded(ctx context.Context) error {
 	return nil
 }
 
+func (s *PhysicalLocateService) insertSessionWithQuerier(ctx context.Context, q db.Querier, session *physicalSessionState) error {
+	if len(session.targets) == 0 {
+		return errors.New("a durable Locate reservation requires at least one target")
+	}
+	primary := &session.targets[0]
+	for i := range session.targets {
+		if session.targets[i].ControllerID == session.ControllerID {
+			primary = &session.targets[i]
+			break
+		}
+	}
+	ranges, err := json.Marshal(session.Ranges)
+	if err != nil {
+		return err
+	}
+	commands, err := json.Marshal(primary.Commands)
+	if err != nil {
+		return err
+	}
+	if err := q.ClearPhysicalLocateSessionTargetsForPrimaryController(ctx, session.ControllerID); err != nil {
+		return err
+	}
+	rows, err := q.SavePhysicalLocateSession(ctx, db.SavePhysicalLocateSessionParams{
+		ControllerID: session.ControllerID, ControllerAddress: session.ControllerAddress, ControllerPort: session.ControllerPort,
+		SessionID: session.ID, DrawerID: session.DrawerID, BinID: session.BinID, OwnerID: session.OwnerID,
+		State: session.State, RangesJson: string(ranges), CommandsJson: string(commands), Fingerprint: primary.Fingerprint,
+		Color: session.Color, Brightness: int64(session.Brightness), LastOperation: session.LastOperation,
+		LastOperationAt: session.LastOperationAt, LastSuccessfulOperation: session.LastSuccessfulOperation,
+		LastSuccessfulAt: session.LastSuccessfulAt, LastError: session.LastError,
+	})
+	if err != nil {
+		return err
+	}
+	if rows != 1 {
+		return errors.New("another durable Locate session owns the controller")
+	}
+	for _, target := range session.targets {
+		targetRanges, err := json.Marshal(target.Ranges)
+		if err != nil {
+			return err
+		}
+		targetCommands, err := json.Marshal(target.Commands)
+		if err != nil {
+			return err
+		}
+		if err := q.SavePhysicalLocateSessionTarget(ctx, db.SavePhysicalLocateSessionTargetParams{
+			SessionID: session.ID, ControllerID: target.ControllerID, ControllerAddress: target.ControllerAddress,
+			ControllerPort: target.ControllerPort, RangesJson: string(targetRanges), CommandsJson: string(targetCommands),
+			Fingerprint: target.Fingerprint, MayHaveReceived: boolToInt64(target.MayHaveReceived), LastError: target.LastError,
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *PhysicalLocateService) persistSession(ctx context.Context, session *physicalSessionState) error {
 	if len(session.targets) == 0 {
 		session.targets = []physicalControllerTarget{{
@@ -1160,38 +1333,130 @@ func (s *PhysicalLocateService) persistSession(ctx context.Context, session *phy
 		LastOperationAt: session.LastOperationAt, LastSuccessfulOperation: session.LastSuccessfulOperation,
 		LastSuccessfulAt: session.LastSuccessfulAt, LastError: session.LastError,
 	}
-	err = s.store.ExecImmediateTx(ctx, func(q db.Querier) error {
-		// A stopped/failed row may be reused for this primary controller. Delete
-		// its child targets before the parent session_id is replaced, all within
-		// the same write transaction.
-		if err := q.ClearPhysicalLocateSessionTargetsForPrimaryController(ctx, session.ControllerID); err != nil {
-			return err
-		}
-		rows, err := q.SavePhysicalLocateSession(ctx, args)
+	err = db.WithOperationClaim(ctx, s.store, func(q db.Querier) error {
+		rows, err := q.ListPhysicalLocateSessions(ctx)
 		if err != nil {
 			return err
 		}
-		if rows != 1 {
-			return errors.New("another Locate session owns this controller")
+		var current *db.PhysicalLocateSession
+		for i := range rows {
+			if rows[i].ControllerID == session.ControllerID {
+				current = &rows[i]
+				break
+			}
 		}
-		if err := q.ClearPhysicalLocateSessionTargets(ctx, session.ID); err != nil {
+		newSession := current == nil || current.SessionID != session.ID
+		if newSession {
+			if current != nil && current.State != "stopped" && current.State != "failed" {
+				return errors.New("another Locate session owns this controller")
+			}
+			if err := q.ClearPhysicalLocateSessionTargetsForPrimaryController(ctx, session.ControllerID); err != nil {
+				return err
+			}
+			rowsAffected, err := q.SavePhysicalLocateSession(ctx, args)
+			if err != nil {
+				return err
+			}
+			if rowsAffected != 1 {
+				return errors.New("another Locate session owns this controller")
+			}
+			if err := q.ClearPhysicalLocateSessionTargets(ctx, session.ID); err != nil {
+				return err
+			}
+			for _, target := range session.targets {
+				targetRanges, err := json.Marshal(target.Ranges)
+				if err != nil {
+					return err
+				}
+				targetCommands, err := json.Marshal(target.Commands)
+				if err != nil {
+					return err
+				}
+				if err := q.SavePhysicalLocateSessionTarget(ctx, db.SavePhysicalLocateSessionTargetParams{
+					SessionID: session.ID, ControllerID: target.ControllerID, ControllerAddress: target.ControllerAddress,
+					ControllerPort: target.ControllerPort, RangesJson: string(targetRanges), CommandsJson: string(targetCommands),
+					Fingerprint: target.Fingerprint, MayHaveReceived: boolToInt64(target.MayHaveReceived), LastError: target.LastError,
+				}); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+
+		if !physicalLocateTransitionAllowed(current.State, session.State) {
+			return fmt.Errorf("refusing stale physical Locate transition %q to %q", current.State, session.State)
+		}
+		rowsJson, err := json.Marshal(session.Ranges)
+		if err != nil {
 			return err
 		}
+		commandsJson, err := json.Marshal(primary.Commands)
+		if err != nil {
+			return err
+		}
+		updated, err := q.UpdatePhysicalLocateSessionCAS(ctx, db.UpdatePhysicalLocateSessionCASParams{
+			State: session.State, RangesJson: string(rowsJson), CommandsJson: string(commandsJson), Fingerprint: primary.Fingerprint,
+			Color: session.Color, Brightness: int64(session.Brightness), LastOperation: session.LastOperation,
+			LastOperationAt: session.LastOperationAt, LastSuccessfulOperation: session.LastSuccessfulOperation,
+			LastSuccessfulAt: session.LastSuccessfulAt, LastError: session.LastError,
+			ControllerID: session.ControllerID, SessionID: session.ID, State_2: current.State,
+		})
+		if err != nil {
+			return err
+		}
+		if updated != 1 {
+			return errors.New("physical Locate session changed before compare-and-set update")
+		}
+		persistedTargets, err := q.ListPhysicalLocateSessionTargets(ctx, session.ID)
+		if err != nil {
+			return err
+		}
+		persistedByID := make(map[int64]db.PhysicalLocateSessionTarget, len(persistedTargets))
+		for _, target := range persistedTargets {
+			persistedByID[target.ControllerID] = target
+		}
 		for _, target := range session.targets {
-			targetRanges, err := json.Marshal(target.Ranges)
-			if err != nil {
-				return err
+			persisted, ok := persistedByID[target.ControllerID]
+			if !ok || persisted.ControllerAddress != target.ControllerAddress || persisted.ControllerPort != target.ControllerPort || persisted.Fingerprint != target.Fingerprint {
+				return errors.New("physical Locate target snapshot changed during compare-and-set update")
 			}
-			targetCommands, err := json.Marshal(target.Commands)
-			if err != nil {
-				return err
+			var savedRanges []ControllerRange
+			if err := json.Unmarshal([]byte(persisted.RangesJson), &savedRanges); err != nil || !reflect.DeepEqual(savedRanges, target.Ranges) {
+				return errors.New("physical Locate target ranges changed during compare-and-set update")
 			}
-			if err := q.SavePhysicalLocateSessionTarget(ctx, db.SavePhysicalLocateSessionTargetParams{
-				SessionID: session.ID, ControllerID: target.ControllerID, ControllerAddress: target.ControllerAddress,
-				ControllerPort: target.ControllerPort, RangesJson: string(targetRanges), CommandsJson: string(targetCommands),
-				Fingerprint: target.Fingerprint, MayHaveReceived: boolToInt64(target.MayHaveReceived), LastError: target.LastError,
-			}); err != nil {
-				return err
+			var savedCommands []physicalPixelCommand
+			if err := json.Unmarshal([]byte(persisted.CommandsJson), &savedCommands); err != nil || !reflect.DeepEqual(savedCommands, target.Commands) {
+				return errors.New("physical Locate command snapshot changed during compare-and-set update")
+			}
+			desired := boolToInt64(target.MayHaveReceived)
+			if persisted.MayHaveReceived != desired {
+				if persisted.MayHaveReceived == 1 && desired == 0 {
+					return errors.New("target ownership can only be cleared by acknowledged targeted cleanup")
+				}
+				if current.State != "activating" || session.State != "activating" {
+					return errors.New("refusing to reacquire resolved physical Locate target ownership")
+				}
+				changed, err := q.UpdatePhysicalLocateSessionTargetOwnership(ctx, db.UpdatePhysicalLocateSessionTargetOwnershipParams{
+					MayHaveReceived: desired, LastError: target.LastError, SessionID: session.ID,
+					ControllerID: target.ControllerID, MayHaveReceived_2: persisted.MayHaveReceived,
+				})
+				if err != nil {
+					return err
+				}
+				if changed != 1 {
+					return errors.New("physical Locate target ownership changed before compare-and-set update")
+				}
+			} else if persisted.LastError != target.LastError {
+				changed, err := q.UpdatePhysicalLocateSessionTargetOwnership(ctx, db.UpdatePhysicalLocateSessionTargetOwnershipParams{
+					MayHaveReceived: desired, LastError: target.LastError, SessionID: session.ID,
+					ControllerID: target.ControllerID, MayHaveReceived_2: persisted.MayHaveReceived,
+				})
+				if err != nil {
+					return err
+				}
+				if changed != 1 {
+					return errors.New("physical Locate target changed before compare-and-set update")
+				}
 			}
 		}
 		return nil
@@ -1201,6 +1466,26 @@ func (s *PhysicalLocateService) persistSession(ctx context.Context, session *phy
 	}
 	setSessionReservations(session, isActivePhysicalSession(session.State))
 	return nil
+}
+
+func physicalLocateTransitionAllowed(from, to string) bool {
+	if from == to {
+		return true
+	}
+	switch from {
+	case "activating":
+		return to == "active" || to == "stopping" || to == "partial" || to == "failed"
+	case "active":
+		return to == "stopping" || to == "partial"
+	case "stopping":
+		return to == "partial" || to == "stopped" || to == "failed"
+	case "partial":
+		return to == "stopping" || to == "stopped"
+	case "stopped":
+		return to == "failed"
+	default:
+		return false
+	}
 }
 
 func setSessionReservations(session *physicalSessionState, reserved bool) {

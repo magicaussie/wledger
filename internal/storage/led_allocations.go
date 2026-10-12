@@ -50,7 +50,14 @@ func (s *LayoutService) SaveDrawerLEDAllocations(ctx context.Context, cabinetID,
 	if cabinetID <= 0 || drawerID <= 0 {
 		return ErrLEDAllocationInvalid
 	}
-	return s.store.ExecImmediateTx(ctx, func(q db.Querier) error {
+	return db.WithOperationClaim(ctx, s.store, func(q db.Querier) error {
+		owned, err := db.HasPhysicalLocateOwnership(ctx, q)
+		if err != nil {
+			return err
+		}
+		if owned {
+			return db.ErrPhysicalLocateActive
+		}
 		cab, err := q.GetCabinet(ctx, cabinetID)
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrLayoutNotFound

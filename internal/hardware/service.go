@@ -41,6 +41,7 @@ type service struct {
 }
 
 func NewService(store db.Store, wledClient *wled.Client, logger *slog.Logger) Service {
+	wledClient.SetOperationStore(store)
 	return &service{
 		store:  store,
 		wled:   wledClient,
