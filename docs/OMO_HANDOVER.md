@@ -48,9 +48,15 @@ Verification passed:
 - `git diff --check`
 
 Changed task files: `web/static/js/physical_layout_editor.js`,
-`web/tests/layout_editor.browser.test.js`, and this handover document. Independent
-GitHub source review remains pending after publication; stop after publication
-and do not merge, deploy or start follow-on work.
+`web/tests/layout_editor.browser.test.js`, and this handover document.
+
+Publication verified: implementation commit
+`ffcd23c4155a675d605fac3630cf62c30971811e`, parent
+`60198881a10ba9be6a066cc4579d6135ada78fda`; the remote ref
+`origin/development/chatgpt-m6-m7` resolves to the implementation commit. This
+handover publication record is committed separately. Independent GitHub source
+review remains pending; stop after publication and do not merge, deploy or start
+follow-on work.
 
 The Task 049 cleanup outcome and Task 048 architecture sections below are
 historical handover evidence and do not expand Task 051 authorization.
