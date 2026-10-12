@@ -1,7 +1,7 @@
 # WLEDger — Product Roadmap
 
 Last updated: 2026-10-12
-Status: Living design document — requirements discussion, not implementation authorization
+Status: Living product requirements and implementation record
 Owner: WLEDger project
 Working branch: `development/chatgpt-m6-m7`
 
@@ -19,7 +19,7 @@ Hierarchy:
 
 ```text
 Dashboard
-  └── Cabinet (one assigned WLED controller; one or more strings)
+  └── Cabinet (up to five independently assigned WLED controllers)
         └── Drawer (position/size in cabinet; one or more LED ranges)
               └── Bin (position/size in drawer; no individual LEDs required)
                     └── Part inventory (multiple part types per bin)
@@ -49,11 +49,11 @@ A part type may be stocked in multiple bins, with quantities tracked per locatio
 
 ### 3. Configure a cabinet
 
-- Assign **one WLED controller per cabinet**.
-- A cabinet can use **any number of strings** from that controller.
+- Assign up to **five WLED controllers per physical cabinet**; each controller belongs to at most one cabinet.
+- Each controller can drive any number of physical LED outputs/strings allowed by its WLED hardware and firmware.
 - Design the physical cabinet face with drawers of different sizes and positions.
 - Grid-based editor with placement and resizing; match the real-world layout.
-- Associate each drawer with **one or more LED ranges**, potentially non-contiguous and across strings on the cabinet's controller.
+- Associate each drawer with one selected cabinet controller and **one or more non-contiguous ranges** in that controller's continuous 1-based LED space; ranges may cross that controller's physical outputs.
 - Visual repositioning must **not silently rewrite hardware mappings**.
 
 ### 4. Configure a drawer
@@ -65,9 +65,9 @@ A part type may be stocked in multiple bins, with quantities tracked per locatio
 
 ## Data model direction — Proposed, not yet finalized
 
-- `cabinet`: name, display order, assigned WLED controller, layout settings.
+- `cabinet`: name, display order, layout settings; controller ownership is a separate ordered membership relation (maximum five).
 - `drawer`: cabinet reference, label, geometry and ordering.
-- `drawer_led_range`: drawer reference, string/segment identifier, start/end LED indices; multiple rows per drawer.
+- `drawer_led_allocation`: drawer, cabinet, and controller references plus 1-based controller-wide start/count and order; multiple rows per drawer, all on one controller.
 - `bin`: drawer reference, label, geometry and ordering.
 - `part`: existing part catalogue record.
 - `part_location` / inventory assignment: part reference, bin reference, quantity, and existing inventory metadata.
@@ -91,7 +91,7 @@ A part type may be stocked in multiple bins, with quantities tracked per locatio
 - [ ] Write acceptance criteria and tests for each phase.
 
 ### Phase 1 — Cabinet model and dashboard
-- [ ] Create/associate cabinets with one WLED controller and multiple strings.
+- [ ] Create/associate cabinets with up to five WLED controllers and controller-specific physical outputs.
 - [ ] Dashboard cabinet picker.
 - [ ] Cabinet page with visual drawer layout (read-only first).
 - [ ] Navigation and breadcrumbs.
@@ -125,7 +125,7 @@ A part type may be stocked in multiple bins, with quantities tracked per locatio
 
 ## Open design questions
 
-1. What exactly are the **69** physical units (drawers, existing bins, or another count), and how do the two existing strings map to them?
+1. What exactly are the **69** physical units (drawers, existing bins, or another count), and how do the existing physical outputs map to them? Physical outputs must not be conflated with WLED segments.
 2. Should cabinet/drawer layout editing be available only to administrators?
 3. How should overlapping LED ranges across drawers be handled: disallow, warn, or explicitly allow?
 4. How should the Locate popup behave for a part stocked in more than one bin?
@@ -145,6 +145,7 @@ A part type may be stocked in multiple bins, with quantities tracked per locatio
 ## Change log
 
 - **2026-10-11 — v0.1:** Captured confirmed Cabinet → Drawer → Bin → Parts model; cabinet and drawer editors; drawer parts Grid/List default; separate bin layout; part-details Locate with drawer LEDs and highlighted bin; multi-range LED support; initial phased plan and unresolved questions.
+
 
 ## How to maintain this roadmap
 
@@ -221,7 +222,7 @@ A part type may be stocked in multiple bins, with quantities tracked per locatio
 **Database architecture requirements:**
 - Arbitrary numbers of cabinets, drawers per cabinet, bins per drawer, and parts per bin, subject only to reasonable resource/validation limits.
 - Independently configurable drawer and bin geometry (positions, dimensions, layout coordinate system); no fixed 69 rows, fixed columns, or predetermined drawer counts.
-- One controller per cabinet in the current product concept; multiple electrical strings/segments and multiple disjoint LED assignments per drawer, represented as child records rather than fixed LED-range columns.
+- Up to five exclusive WLED controller memberships per cabinet. Each physical drawer selects exactly one of its cabinet's controllers and may have multiple non-contiguous ranges on that controller.
 - Flexible per-string routing/topology and per-LED physical placement as needed; allow different wiring patterns and mounting types across installations.
 - Stable IDs separate from editable drawer/bin labels, numbering, ordering, geometry and LED mapping.
 - Editable at any time, with safe stock relocation/archive workflows and transactional validation; no destructive cascading of inventory as a side effect of layout edits.
@@ -241,11 +242,7 @@ A part type may be stocked in multiple bins, with quantities tracked per locatio
   one valid 97–104 allocation, even though it crosses the physical-string edge.
 - Multiple non-contiguous ranges per drawer are supported and deterministically
   ordered. Ranges overlap neither other drawers nor another range on that drawer.
-- Capacity is checked against the assigned controller's positive total LED
-  capacity, which must be explicitly configured as the total across physical
-  strings when absent or incorrect. Physical strings/outputs, WLED segments
-  and legacy containers remain distinct concepts; saved global indices are not
-  automatically converted to a segment-relative WLED request.
+- Capacity and overlap are checked independently per assigned controller. Each controller has its own 1-based continuous pixel space; numbering restarts at 1 for every controller. A drawer's multiple ranges all target one selected controller and may cross that controller's physical-output boundaries. Physical outputs/strings, WLED segments and legacy containers remain distinct; no output-to-segment identity is inferred.
 - Physical drawer layout saves and electrical allocation saves are separate
   transactions. A drawer needs a stable persisted ID before allocation. Moving
   or resizing the physical drawer does not rewrite its mapping.
@@ -257,10 +254,11 @@ A part type may be stocked in multiple bins, with quantities tracked per locatio
 
 **Architecture note:** Existing `containers` rows carry `segment_id` and legacy
 segment-scoped allocations, but do not identify physical strings/outputs or
-controller-wide output offsets. Those records cannot establish physical-string
-versus-WLED-segment correspondence. Future Locate integration must add and
-review an explicit controller-global-pixel → WLED segment/output conversion;
-it must not infer this relationship from container names or IDs.
+controller-wide output offsets. Those records cannot establish physical-output
+versus-WLED-segment correspondence. Locate requires explicit per-controller
+output discovery and topology attestation; physical output boundaries are not
+WLED segment boundaries, and neither containers nor output order may be used to
+infer segment identity.
 
 **Roadmap changelog:** v0.6 — confirmed persistent controller-wide drawer
 allocation coordinates, cross-string range behavior, and separation from legacy
@@ -340,3 +338,15 @@ not authorize production operation.
   `templ generate`, and `git diff --check` pass. No real WLED hardware was
   contacted. Independent published-source review remains required before
   acceptance; production activation is still unauthorized.
+
+  ## Implementation update — 2026-10-12: multi-controller cabinet architecture
+
+  **Status:** Implemented on `development/chatgpt-m6-m7`; mock-only verification is recorded in `docs/OMO_HANDOVER.md`. This does not authorize production migration, controller activation, or deployment.
+
+  - Migration `018_cabinet_controllers.sql` adds ordered cabinet/controller memberships (slots 0–4), backfills one slot-0 membership from every existing non-NULL `cabinets.controller_id`, and leaves that legacy primary pointer and all drawer/bin/inventory identities intact. It rebuilds only `drawer_led_allocations` to reference membership pairs while preserving row IDs, ranges, order, timestamps and AUTOINCREMENT high-water mark. Schema constraints enforce exclusive controller ownership, at most five memberships, one controller per drawer, and non-overlap within each controller's global pixel space.
+  - The Designer assigns up to five controllers, sets capacity per controller, selects one assigned controller per drawer, and saves that drawer's disjoint controller-wide ranges separately from physical layout. Config edits do not activate hardware. Read-only discovery explicitly fetches `/json/info` and `/json/cfg` for an assigned controller and visualizes output order/start/length/GPIO, continuous 1-based numbering, and range intersections; it neither reads segments nor writes WLED state.
+  - Locate resolves the controller from the drawer's saved allocations rather than the cabinet's single legacy pointer. A session remains bound to that controller across Locate and Stop. Configuration writes and backup restore serialize against active physical sessions; changed or unsafe topology continues to fail closed. Physical outputs are never assumed to be WLED segments.
+  - New backups declare memberships. Older v2 archives without the membership list retain single-controller meaning by deriving only the existing `cabinets.controller_id`; restore is refused if that would discard a secondary membership. No legacy container or bin LED index is converted.
+  - Remaining hardware limitation: Locate is available only for explicitly attested WLED configurations whose output layout passes the current safe linear-topology checks. Real hardware topology was not probed. Cross-process/external WLED writer arbitration remains outside the process-local lease.
+
+  **Roadmap changelog:** v0.7 — five-controller cabinet membership, per-controller drawer ranges, explicit output discovery and multi-controller Locate routing.

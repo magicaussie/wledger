@@ -322,6 +322,114 @@ func (s *PhysicalLocateService) SaveControllerMappingVerification(ctx context.Co
 	return nil
 }
 
+// PhysicalOutput describes one explicitly configured WLED hardware output as
+// reported by read-only discovery. It never represents a WLED segment.
+type PhysicalOutput struct {
+	// Order is the zero-based position of the output in the controller's explicit
+	// output list; it is the physical order in which the controller drives LEDs.
+	Order int64 `json:"order"`
+	// Start is the zero-based controller-wide index of the output's first LED,
+	// taken from explicit WLED geometry and never inferred.
+	Start int64 `json:"start"`
+	// Length is the number of LEDs driven by this output.
+	Length int64 `json:"length"`
+	// Pins are the active GPIO pins assigned to this output, in WLED order.
+	Pins []int64 `json:"pins"`
+	// FirstIndex is the 1-based inclusive controller-wide number of the first LED.
+	FirstIndex int64 `json:"first_index"`
+	// LastIndex is the 1-based inclusive controller-wide number of the last LED.
+	LastIndex int64 `json:"last_index"`
+}
+
+// PhysicalOutputLayout is the verified, read-only view of a controller's
+// explicit hardware output geometry. Discovery reads only /json/info and
+// /json/cfg; it never reads /json/state and never writes to the controller.
+type PhysicalOutputLayout struct {
+	ControllerID int64            `json:"controller_id"`
+	Capacity     int64            `json:"capacity"`
+	MAC          string           `json:"mac"`
+	Fingerprint  string           `json:"fingerprint"`
+	Outputs      []PhysicalOutput `json:"outputs"`
+}
+
+// DiscoverPhysicalOutputs reads a controller's explicit WLED output geometry
+// using GET /json/info and GET /json/cfg only. It validates controller
+// capacity and identity together with a complete, contiguous, non-reversed and
+// non-skipped output layout using the same safety logic as mapping
+// verification, then reports each output's order, zero-based controller-wide
+// start, length, active GPIO pins and the corresponding 1-based inclusive
+// controller-wide numbering. Missing starts are rejected rather than inferred,
+// and outputs are never conflated with WLED segments.
+func (s *PhysicalLocateService) DiscoverPhysicalOutputs(ctx context.Context, controllerID int64) (PhysicalOutputLayout, error) {
+	if controllerID <= 0 {
+		return PhysicalOutputLayout{}, errors.New("controller id is required for physical output discovery")
+	}
+	controller, err := s.store.GetController(ctx, controllerID)
+	if err != nil {
+		return PhysicalOutputLayout{}, fmt.Errorf("controller not found: %w", err)
+	}
+	if controller.LedCount <= 0 {
+		return PhysicalOutputLayout{}, errors.New("controller capacity must be configured before physical output discovery")
+	}
+	var info physicalInfo
+	var cfg physicalConfig
+	if err := s.client.getControllerJSON(ctx, controller, "/json/info", &info); err != nil {
+		return PhysicalOutputLayout{}, fmt.Errorf("read WLED info: %w", err)
+	}
+	if err := s.client.getControllerJSON(ctx, controller, "/json/cfg", &cfg); err != nil {
+		return PhysicalOutputLayout{}, fmt.Errorf("read WLED LED output configuration: %w", err)
+	}
+	fingerprint, err := physicalMappingFingerprint(controller, info, cfg, controller.LedCount)
+	if err != nil {
+		return PhysicalOutputLayout{}, err
+	}
+	outputs := make([]PhysicalOutput, 0, len(cfg.Hardware.LED.Inputs))
+	for order, output := range cfg.Hardware.LED.Inputs {
+		pins, err := activeOutputPins(output)
+		if err != nil {
+			return PhysicalOutputLayout{}, err
+		}
+		// physicalMappingFingerprint has already rejected outputs without an
+		// explicit start, so the dereference below cannot infer a missing start.
+		start := *output.Start
+		outputs = append(outputs, PhysicalOutput{
+			Order:      int64(order),
+			Start:      start,
+			Length:     output.Length,
+			Pins:       pins,
+			FirstIndex: start + 1,
+			LastIndex:  start + output.Length,
+		})
+	}
+	return PhysicalOutputLayout{
+		ControllerID: controller.ID,
+		Capacity:     controller.LedCount,
+		MAC:          info.MAC,
+		Fingerprint:  fingerprint,
+		Outputs:      outputs,
+	}, nil
+}
+
+// activeOutputPins returns the active (non-negative) GPIO pins of one explicit
+// WLED output. It fails closed when the pin configuration is missing or has no
+// active pin, matching the safety rules used for mapping verification.
+func activeOutputPins(output physicalOutput) ([]int64, error) {
+	var pins []int64
+	if len(output.Pins) == 0 || json.Unmarshal(output.Pins, &pins) != nil {
+		return nil, fmt.Errorf("%w: output pin configuration is missing or unsupported", ErrLocateTopology)
+	}
+	active := make([]int64, 0, len(pins))
+	for _, pin := range pins {
+		if pin >= 0 {
+			active = append(active, pin)
+		}
+	}
+	if len(active) == 0 {
+		return nil, fmt.Errorf("%w: output has no active pin", ErrLocateTopology)
+	}
+	return active, nil
+}
+
 func (s *PhysicalLocateService) resolve(ctx context.Context, expectedDrawerID, binID int64) (resolvedPhysicalLocation, error) {
 	var result resolvedPhysicalLocation
 	err := s.store.ExecTx(ctx, func(q db.Querier) error {
@@ -349,10 +457,29 @@ func (s *PhysicalLocateService) resolve(ctx context.Context, expectedDrawerID, b
 		if cabinet.Archived != 0 {
 			return fmt.Errorf("physical cabinet %d is archived", cabinet.ID)
 		}
-		if !cabinet.ControllerID.Valid {
-			return fmt.Errorf("cabinet %q has no assigned WLED controller", cabinet.Name)
+		allocations, err := q.ListDrawerLEDAllocationsByDrawer(ctx, drawer.ID)
+		if err != nil {
+			return fmt.Errorf("read saved drawer LED ranges: %w", err)
 		}
-		controller, err := q.GetController(ctx, cabinet.ControllerID.Int64)
+		if len(allocations) == 0 {
+			return ErrNoDrawerLEDAllocation
+		}
+		controllerID := allocations[0].ControllerID
+		members, err := q.ListCabinetControllers(ctx, cabinet.ID)
+		if err != nil {
+			return fmt.Errorf("read assigned cabinet controllers: %w", err)
+		}
+		assigned := false
+		for _, member := range members {
+			if member.ControllerID == controllerID {
+				assigned = true
+				break
+			}
+		}
+		if !assigned {
+			return fmt.Errorf("saved drawer controller #%d is no longer assigned to cabinet %q", controllerID, cabinet.Name)
+		}
+		controller, err := q.GetController(ctx, controllerID)
 		if err != nil {
 			return fmt.Errorf("assigned WLED controller not found: %w", err)
 		}
@@ -362,16 +489,12 @@ func (s *PhysicalLocateService) resolve(ctx context.Context, expectedDrawerID, b
 		if controller.LedCount <= 0 {
 			return fmt.Errorf("controller %q has no configured LED capacity", controller.Name)
 		}
-		allocations, err := q.ListDrawerLEDAllocationsByDrawer(ctx, drawer.ID)
-		if err != nil {
-			return fmt.Errorf("read saved drawer LED ranges: %w", err)
-		}
 		ranges := make([]ControllerRange, 0, len(allocations))
 		for _, allocation := range allocations {
 			if allocation.CabinetID != cabinet.ID || allocation.ControllerID != controller.ID || allocation.DrawerID != drawer.ID {
-				return fmt.Errorf("saved LED range %d has stale cabinet/controller ownership", allocation.ID)
+				return fmt.Errorf("saved LED range %d has stale cabinet/controller ownership or crosses controller boundaries", allocation.ID)
 			}
-			if allocation.StartPixel < 1 || allocation.PixelCount < 1 || allocation.StartPixel-1 > controller.LedCount-allocation.PixelCount {
+			if allocation.StartPixel < 1 || allocation.PixelCount < 1 || allocation.PixelCount > controller.LedCount || allocation.StartPixel-1 > controller.LedCount-allocation.PixelCount {
 				return fmt.Errorf("saved LED range %d is outside the current controller capacity", allocation.ID)
 			}
 			ranges = append(ranges, ControllerRange{Start: allocation.StartPixel, Count: allocation.PixelCount})
@@ -594,6 +717,25 @@ func (s *PhysicalLocateService) SessionStatusForDrawer(ctx context.Context, draw
 		lock.Unlock()
 	}
 	return PhysicalLocateSession{}, false, nil
+}
+
+// WithoutActiveSession serializes a configuration write against Locate start,
+// Stop and recovery. Electrical mapping or capacity changes are rejected while
+// any durable physical session may still own pixels, preventing a stale session
+// from being remapped underneath its cleanup commands.
+func (s *PhysicalLocateService) WithoutActiveSession(ctx context.Context, write func() error) error {
+	if write == nil {
+		return errors.New("configuration write callback is required")
+	}
+	physicalLocateCoordinator.Lock()
+	defer physicalLocateCoordinator.Unlock()
+	if err := s.ensureLoaded(ctx); err != nil {
+		return fmt.Errorf("load prior Locate cleanup state: %w", err)
+	}
+	if _, session := s.activeSession(); session != nil {
+		return ErrLocateSessionActive
+	}
+	return write()
 }
 
 func (s *PhysicalLocateService) activeSession() (int64, *physicalSessionState) {

@@ -8,6 +8,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"time"
 )
 
 const advanceCabinetElectricalRevision = `-- name: AdvanceCabinetElectricalRevision :execrows
@@ -87,6 +88,15 @@ func (q *Queries) ClearBinDrawerAttachments(ctx context.Context) error {
 	return err
 }
 
+const clearCabinetControllers = `-- name: ClearCabinetControllers :exec
+DELETE FROM cabinet_controllers
+`
+
+func (q *Queries) ClearCabinetControllers(ctx context.Context) error {
+	_, err := q.exec(ctx, q.clearCabinetControllersStmt, clearCabinetControllers)
+	return err
+}
+
 const clearCabinets = `-- name: ClearCabinets :exec
 DELETE FROM cabinets
 `
@@ -162,6 +172,22 @@ func (q *Queries) CreateCabinet(ctx context.Context, arg CreateCabinetParams) (i
 	return id, err
 }
 
+const createCabinetController = `-- name: CreateCabinetController :exec
+INSERT INTO cabinet_controllers (cabinet_id, controller_id, slot)
+VALUES (?, ?, ?)
+`
+
+type CreateCabinetControllerParams struct {
+	CabinetID    int64 `json:"cabinet_id"`
+	ControllerID int64 `json:"controller_id"`
+	Slot         int64 `json:"slot"`
+}
+
+func (q *Queries) CreateCabinetController(ctx context.Context, arg CreateCabinetControllerParams) error {
+	_, err := q.exec(ctx, q.createCabinetControllerStmt, createCabinetController, arg.CabinetID, arg.ControllerID, arg.Slot)
+	return err
+}
+
 const createDrawer = `-- name: CreateDrawer :one
 INSERT INTO drawers (cabinet_id, label, display_order, x, y, width, height)
 VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -217,6 +243,23 @@ func (q *Queries) DeleteCabinet(ctx context.Context, id int64) (int64, error) {
 	return result.RowsAffected()
 }
 
+const deleteCabinetController = `-- name: DeleteCabinetController :execrows
+DELETE FROM cabinet_controllers WHERE cabinet_id = ? AND controller_id = ?
+`
+
+type DeleteCabinetControllerParams struct {
+	CabinetID    int64 `json:"cabinet_id"`
+	ControllerID int64 `json:"controller_id"`
+}
+
+func (q *Queries) DeleteCabinetController(ctx context.Context, arg DeleteCabinetControllerParams) (int64, error) {
+	result, err := q.exec(ctx, q.deleteCabinetControllerStmt, deleteCabinetController, arg.CabinetID, arg.ControllerID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const deleteDrawer = `-- name: DeleteDrawer :execrows
 DELETE FROM drawers WHERE id = ?
 `
@@ -256,6 +299,33 @@ SELECT id, name, controller_id, coordinate_system, layout_revision, electrical_r
 
 func (q *Queries) GetCabinet(ctx context.Context, id int64) (Cabinet, error) {
 	row := q.queryRow(ctx, q.getCabinetStmt, getCabinet, id)
+	var i Cabinet
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.ControllerID,
+		&i.CoordinateSystem,
+		&i.LayoutRevision,
+		&i.ElectricalRevision,
+		&i.DisplayOrder,
+		&i.Archived,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.LayoutWidth,
+		&i.LayoutHeight,
+		&i.LayoutDecorationsJson,
+	)
+	return i, err
+}
+
+const getCabinetByAssignedController = `-- name: GetCabinetByAssignedController :one
+SELECT c.id, c.name, c.controller_id, c.coordinate_system, c.layout_revision, c.electrical_revision, c.display_order, c.archived, c.created_at, c.updated_at, c.layout_width, c.layout_height, c.layout_decorations_json FROM cabinets c
+JOIN cabinet_controllers cc ON cc.cabinet_id = c.id
+WHERE cc.controller_id = ?
+`
+
+func (q *Queries) GetCabinetByAssignedController(ctx context.Context, controllerID int64) (Cabinet, error) {
+	row := q.queryRow(ctx, q.getCabinetByAssignedControllerStmt, getCabinetByAssignedController, controllerID)
 	var i Cabinet
 	err := row.Scan(
 		&i.ID,
@@ -321,6 +391,40 @@ func (q *Queries) GetDrawer(ctx context.Context, id int64) (Drawer, error) {
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const listAllCabinetControllers = `-- name: ListAllCabinetControllers :many
+SELECT cabinet_id, controller_id, slot, created_at, updated_at FROM cabinet_controllers
+ORDER BY cabinet_id ASC, slot ASC
+`
+
+func (q *Queries) ListAllCabinetControllers(ctx context.Context) ([]CabinetController, error) {
+	rows, err := q.query(ctx, q.listAllCabinetControllersStmt, listAllCabinetControllers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CabinetController
+	for rows.Next() {
+		var i CabinetController
+		if err := rows.Scan(
+			&i.CabinetID,
+			&i.ControllerID,
+			&i.Slot,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listAllDrawers = `-- name: ListAllDrawers :many
@@ -427,6 +531,41 @@ func (q *Queries) ListBinDrawerAttachmentsByDrawer(ctx context.Context, drawerID
 			&i.Width,
 			&i.Height,
 			&i.DisplayOrder,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listCabinetControllers = `-- name: ListCabinetControllers :many
+SELECT cabinet_id, controller_id, slot, created_at, updated_at FROM cabinet_controllers
+WHERE cabinet_id = ?
+ORDER BY slot ASC
+`
+
+func (q *Queries) ListCabinetControllers(ctx context.Context, cabinetID int64) ([]CabinetController, error) {
+	rows, err := q.query(ctx, q.listCabinetControllersStmt, listCabinetControllers, cabinetID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CabinetController
+	for rows.Next() {
+		var i CabinetController
+		if err := rows.Scan(
+			&i.CabinetID,
+			&i.ControllerID,
+			&i.Slot,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -716,6 +855,30 @@ func (q *Queries) RestoreCabinet(ctx context.Context, arg RestoreCabinetParams) 
 		arg.LayoutWidth,
 		arg.LayoutHeight,
 		arg.LayoutDecorationsJson,
+	)
+	return err
+}
+
+const restoreCabinetController = `-- name: RestoreCabinetController :exec
+INSERT INTO cabinet_controllers (cabinet_id, controller_id, slot, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?)
+`
+
+type RestoreCabinetControllerParams struct {
+	CabinetID    int64     `json:"cabinet_id"`
+	ControllerID int64     `json:"controller_id"`
+	Slot         int64     `json:"slot"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+func (q *Queries) RestoreCabinetController(ctx context.Context, arg RestoreCabinetControllerParams) error {
+	_, err := q.exec(ctx, q.restoreCabinetControllerStmt, restoreCabinetController,
+		arg.CabinetID,
+		arg.ControllerID,
+		arg.Slot,
+		arg.CreatedAt,
+		arg.UpdatedAt,
 	)
 	return err
 }

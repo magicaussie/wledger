@@ -54,6 +54,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.clearBinsStmt, err = db.PrepareContext(ctx, clearBins); err != nil {
 		return nil, fmt.Errorf("error preparing query ClearBins: %w", err)
 	}
+	if q.clearCabinetControllersStmt, err = db.PrepareContext(ctx, clearCabinetControllers); err != nil {
+		return nil, fmt.Errorf("error preparing query ClearCabinetControllers: %w", err)
+	}
 	if q.clearCabinetsStmt, err = db.PrepareContext(ctx, clearCabinets); err != nil {
 		return nil, fmt.Errorf("error preparing query ClearCabinets: %w", err)
 	}
@@ -138,6 +141,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.createCabinetStmt, err = db.PrepareContext(ctx, createCabinet); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateCabinet: %w", err)
 	}
+	if q.createCabinetControllerStmt, err = db.PrepareContext(ctx, createCabinetController); err != nil {
+		return nil, fmt.Errorf("error preparing query CreateCabinetController: %w", err)
+	}
 	if q.createContainerStmt, err = db.PrepareContext(ctx, createContainer); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateContainer: %w", err)
 	}
@@ -209,6 +215,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.deleteCabinetStmt, err = db.PrepareContext(ctx, deleteCabinet); err != nil {
 		return nil, fmt.Errorf("error preparing query DeleteCabinet: %w", err)
+	}
+	if q.deleteCabinetControllerStmt, err = db.PrepareContext(ctx, deleteCabinetController); err != nil {
+		return nil, fmt.Errorf("error preparing query DeleteCabinetController: %w", err)
 	}
 	if q.deleteContainerStmt, err = db.PrepareContext(ctx, deleteContainer); err != nil {
 		return nil, fmt.Errorf("error preparing query DeleteContainer: %w", err)
@@ -375,6 +384,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.getCabinetStmt, err = db.PrepareContext(ctx, getCabinet); err != nil {
 		return nil, fmt.Errorf("error preparing query GetCabinet: %w", err)
 	}
+	if q.getCabinetByAssignedControllerStmt, err = db.PrepareContext(ctx, getCabinetByAssignedController); err != nil {
+		return nil, fmt.Errorf("error preparing query GetCabinetByAssignedController: %w", err)
+	}
 	if q.getCabinetByControllerStmt, err = db.PrepareContext(ctx, getCabinetByController); err != nil {
 		return nil, fmt.Errorf("error preparing query GetCabinetByController: %w", err)
 	}
@@ -510,6 +522,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.initSettingsStmt, err = db.PrepareContext(ctx, initSettings); err != nil {
 		return nil, fmt.Errorf("error preparing query InitSettings: %w", err)
 	}
+	if q.listAllCabinetControllersStmt, err = db.PrepareContext(ctx, listAllCabinetControllers); err != nil {
+		return nil, fmt.Errorf("error preparing query ListAllCabinetControllers: %w", err)
+	}
 	if q.listAllDrawerLEDAllocationsStmt, err = db.PrepareContext(ctx, listAllDrawerLEDAllocations); err != nil {
 		return nil, fmt.Errorf("error preparing query ListAllDrawerLEDAllocations: %w", err)
 	}
@@ -527,6 +542,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.listBinDrawerAttachmentsByDrawerStmt, err = db.PrepareContext(ctx, listBinDrawerAttachmentsByDrawer); err != nil {
 		return nil, fmt.Errorf("error preparing query ListBinDrawerAttachmentsByDrawer: %w", err)
+	}
+	if q.listCabinetControllersStmt, err = db.PrepareContext(ctx, listCabinetControllers); err != nil {
+		return nil, fmt.Errorf("error preparing query ListCabinetControllers: %w", err)
 	}
 	if q.listCabinetsStmt, err = db.PrepareContext(ctx, listCabinets); err != nil {
 		return nil, fmt.Errorf("error preparing query ListCabinets: %w", err)
@@ -587,6 +605,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.restoreCabinetStmt, err = db.PrepareContext(ctx, restoreCabinet); err != nil {
 		return nil, fmt.Errorf("error preparing query RestoreCabinet: %w", err)
+	}
+	if q.restoreCabinetControllerStmt, err = db.PrepareContext(ctx, restoreCabinetController); err != nil {
+		return nil, fmt.Errorf("error preparing query RestoreCabinetController: %w", err)
 	}
 	if q.restoreContainerStmt, err = db.PrepareContext(ctx, restoreContainer); err != nil {
 		return nil, fmt.Errorf("error preparing query RestoreContainer: %w", err)
@@ -829,6 +850,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing clearBinsStmt: %w", cerr)
 		}
 	}
+	if q.clearCabinetControllersStmt != nil {
+		if cerr := q.clearCabinetControllersStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing clearCabinetControllersStmt: %w", cerr)
+		}
+	}
 	if q.clearCabinetsStmt != nil {
 		if cerr := q.clearCabinetsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing clearCabinetsStmt: %w", cerr)
@@ -969,6 +995,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing createCabinetStmt: %w", cerr)
 		}
 	}
+	if q.createCabinetControllerStmt != nil {
+		if cerr := q.createCabinetControllerStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing createCabinetControllerStmt: %w", cerr)
+		}
+	}
 	if q.createContainerStmt != nil {
 		if cerr := q.createContainerStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing createContainerStmt: %w", cerr)
@@ -1087,6 +1118,11 @@ func (q *Queries) Close() error {
 	if q.deleteCabinetStmt != nil {
 		if cerr := q.deleteCabinetStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing deleteCabinetStmt: %w", cerr)
+		}
+	}
+	if q.deleteCabinetControllerStmt != nil {
+		if cerr := q.deleteCabinetControllerStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing deleteCabinetControllerStmt: %w", cerr)
 		}
 	}
 	if q.deleteContainerStmt != nil {
@@ -1364,6 +1400,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing getCabinetStmt: %w", cerr)
 		}
 	}
+	if q.getCabinetByAssignedControllerStmt != nil {
+		if cerr := q.getCabinetByAssignedControllerStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getCabinetByAssignedControllerStmt: %w", cerr)
+		}
+	}
 	if q.getCabinetByControllerStmt != nil {
 		if cerr := q.getCabinetByControllerStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getCabinetByControllerStmt: %w", cerr)
@@ -1589,6 +1630,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing initSettingsStmt: %w", cerr)
 		}
 	}
+	if q.listAllCabinetControllersStmt != nil {
+		if cerr := q.listAllCabinetControllersStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listAllCabinetControllersStmt: %w", cerr)
+		}
+	}
 	if q.listAllDrawerLEDAllocationsStmt != nil {
 		if cerr := q.listAllDrawerLEDAllocationsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing listAllDrawerLEDAllocationsStmt: %w", cerr)
@@ -1617,6 +1663,11 @@ func (q *Queries) Close() error {
 	if q.listBinDrawerAttachmentsByDrawerStmt != nil {
 		if cerr := q.listBinDrawerAttachmentsByDrawerStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing listBinDrawerAttachmentsByDrawerStmt: %w", cerr)
+		}
+	}
+	if q.listCabinetControllersStmt != nil {
+		if cerr := q.listCabinetControllersStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listCabinetControllersStmt: %w", cerr)
 		}
 	}
 	if q.listCabinetsStmt != nil {
@@ -1717,6 +1768,11 @@ func (q *Queries) Close() error {
 	if q.restoreCabinetStmt != nil {
 		if cerr := q.restoreCabinetStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing restoreCabinetStmt: %w", cerr)
+		}
+	}
+	if q.restoreCabinetControllerStmt != nil {
+		if cerr := q.restoreCabinetControllerStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing restoreCabinetControllerStmt: %w", cerr)
 		}
 	}
 	if q.restoreContainerStmt != nil {
@@ -2078,6 +2134,7 @@ type Queries struct {
 	clearAuditLogsStmt                            *sql.Stmt
 	clearBinDrawerAttachmentsStmt                 *sql.Stmt
 	clearBinsStmt                                 *sql.Stmt
+	clearCabinetControllersStmt                   *sql.Stmt
 	clearCabinetsStmt                             *sql.Stmt
 	clearContainerBinLedIndicesStmt               *sql.Stmt
 	clearContainersStmt                           *sql.Stmt
@@ -2106,6 +2163,7 @@ type Queries struct {
 	createBinStmt                                 *sql.Stmt
 	createBinDrawerAttachmentStmt                 *sql.Stmt
 	createCabinetStmt                             *sql.Stmt
+	createCabinetControllerStmt                   *sql.Stmt
 	createContainerStmt                           *sql.Stmt
 	createControllerStmt                          *sql.Stmt
 	createDrawerStmt                              *sql.Stmt
@@ -2130,6 +2188,7 @@ type Queries struct {
 	deleteBinDrawerAttachmentStmt                 *sql.Stmt
 	deleteBinsByContainerStmt                     *sql.Stmt
 	deleteCabinetStmt                             *sql.Stmt
+	deleteCabinetControllerStmt                   *sql.Stmt
 	deleteContainerStmt                           *sql.Stmt
 	deleteControllerStmt                          *sql.Stmt
 	deleteDrawerStmt                              *sql.Stmt
@@ -2185,6 +2244,7 @@ type Queries struct {
 	getBinDrawerAttachmentStmt                    *sql.Stmt
 	getBinsByContainerStmt                        *sql.Stmt
 	getCabinetStmt                                *sql.Stmt
+	getCabinetByAssignedControllerStmt            *sql.Stmt
 	getCabinetByControllerStmt                    *sql.Stmt
 	getContainerStmt                              *sql.Stmt
 	getContainersByControllerStmt                 *sql.Stmt
@@ -2230,12 +2290,14 @@ type Queries struct {
 	getWallContainerBinsStmt                      *sql.Stmt
 	getWallsStmt                                  *sql.Stmt
 	initSettingsStmt                              *sql.Stmt
+	listAllCabinetControllersStmt                 *sql.Stmt
 	listAllDrawerLEDAllocationsStmt               *sql.Stmt
 	listAllDrawersStmt                            *sql.Stmt
 	listAllTagsStmt                               *sql.Stmt
 	listAuditLogsStmt                             *sql.Stmt
 	listBinDrawerAttachmentsStmt                  *sql.Stmt
 	listBinDrawerAttachmentsByDrawerStmt          *sql.Stmt
+	listCabinetControllersStmt                    *sql.Stmt
 	listCabinetsStmt                              *sql.Stmt
 	listCabinetsIncludingArchivedStmt             *sql.Stmt
 	listDrawerLEDAllocationsByCabinetStmt         *sql.Stmt
@@ -2256,6 +2318,7 @@ type Queries struct {
 	restoreBinStmt                                *sql.Stmt
 	restoreBinDrawerAttachmentStmt                *sql.Stmt
 	restoreCabinetStmt                            *sql.Stmt
+	restoreCabinetControllerStmt                  *sql.Stmt
 	restoreContainerStmt                          *sql.Stmt
 	restoreControllerStmt                         *sql.Stmt
 	restoreDrawerStmt                             *sql.Stmt
@@ -2334,6 +2397,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		clearAuditLogsStmt:                            q.clearAuditLogsStmt,
 		clearBinDrawerAttachmentsStmt:                 q.clearBinDrawerAttachmentsStmt,
 		clearBinsStmt:                                 q.clearBinsStmt,
+		clearCabinetControllersStmt:                   q.clearCabinetControllersStmt,
 		clearCabinetsStmt:                             q.clearCabinetsStmt,
 		clearContainerBinLedIndicesStmt:               q.clearContainerBinLedIndicesStmt,
 		clearContainersStmt:                           q.clearContainersStmt,
@@ -2362,6 +2426,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		createBinStmt:                                 q.createBinStmt,
 		createBinDrawerAttachmentStmt:                 q.createBinDrawerAttachmentStmt,
 		createCabinetStmt:                             q.createCabinetStmt,
+		createCabinetControllerStmt:                   q.createCabinetControllerStmt,
 		createContainerStmt:                           q.createContainerStmt,
 		createControllerStmt:                          q.createControllerStmt,
 		createDrawerStmt:                              q.createDrawerStmt,
@@ -2386,6 +2451,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		deleteBinDrawerAttachmentStmt:                 q.deleteBinDrawerAttachmentStmt,
 		deleteBinsByContainerStmt:                     q.deleteBinsByContainerStmt,
 		deleteCabinetStmt:                             q.deleteCabinetStmt,
+		deleteCabinetControllerStmt:                   q.deleteCabinetControllerStmt,
 		deleteContainerStmt:                           q.deleteContainerStmt,
 		deleteControllerStmt:                          q.deleteControllerStmt,
 		deleteDrawerStmt:                              q.deleteDrawerStmt,
@@ -2441,6 +2507,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		getBinDrawerAttachmentStmt:                    q.getBinDrawerAttachmentStmt,
 		getBinsByContainerStmt:                        q.getBinsByContainerStmt,
 		getCabinetStmt:                                q.getCabinetStmt,
+		getCabinetByAssignedControllerStmt:            q.getCabinetByAssignedControllerStmt,
 		getCabinetByControllerStmt:                    q.getCabinetByControllerStmt,
 		getContainerStmt:                              q.getContainerStmt,
 		getContainersByControllerStmt:                 q.getContainersByControllerStmt,
@@ -2486,12 +2553,14 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		getWallContainerBinsStmt:                      q.getWallContainerBinsStmt,
 		getWallsStmt:                                  q.getWallsStmt,
 		initSettingsStmt:                              q.initSettingsStmt,
+		listAllCabinetControllersStmt:                 q.listAllCabinetControllersStmt,
 		listAllDrawerLEDAllocationsStmt:               q.listAllDrawerLEDAllocationsStmt,
 		listAllDrawersStmt:                            q.listAllDrawersStmt,
 		listAllTagsStmt:                               q.listAllTagsStmt,
 		listAuditLogsStmt:                             q.listAuditLogsStmt,
 		listBinDrawerAttachmentsStmt:                  q.listBinDrawerAttachmentsStmt,
 		listBinDrawerAttachmentsByDrawerStmt:          q.listBinDrawerAttachmentsByDrawerStmt,
+		listCabinetControllersStmt:                    q.listCabinetControllersStmt,
 		listCabinetsStmt:                              q.listCabinetsStmt,
 		listCabinetsIncludingArchivedStmt:             q.listCabinetsIncludingArchivedStmt,
 		listDrawerLEDAllocationsByCabinetStmt:         q.listDrawerLEDAllocationsByCabinetStmt,
@@ -2512,6 +2581,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		restoreBinStmt:                                q.restoreBinStmt,
 		restoreBinDrawerAttachmentStmt:                q.restoreBinDrawerAttachmentStmt,
 		restoreCabinetStmt:                            q.restoreCabinetStmt,
+		restoreCabinetControllerStmt:                  q.restoreCabinetControllerStmt,
 		restoreContainerStmt:                          q.restoreContainerStmt,
 		restoreControllerStmt:                         q.restoreControllerStmt,
 		restoreDrawerStmt:                             q.restoreDrawerStmt,

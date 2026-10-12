@@ -59,6 +59,14 @@ type Cabinet struct {
 	LayoutDecorationsJson string        `json:"layout_decorations_json"`
 }
 
+type CabinetController struct {
+	CabinetID    int64     `json:"cabinet_id"`
+	ControllerID int64     `json:"controller_id"`
+	Slot         int64     `json:"slot"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
 type Container struct {
 	ID            int64          `json:"id"`
 	Name          string         `json:"name"`

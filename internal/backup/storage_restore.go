@@ -32,6 +32,18 @@ func (e *DrawerLEDAllocationConflictError) Error() string {
 	return "restore refused: " + e.Reason
 }
 
+// CabinetControllerConflictError prevents an older v2.0 archive that predates the
+// cabinet controller membership table from silently erasing secondary controller
+// assignments it cannot reproduce. It is the preservation analogue of
+// DrawerLEDAllocationConflictError for the electrical membership graph.
+type CabinetControllerConflictError struct {
+	Reason string
+}
+
+func (e *CabinetControllerConflictError) Error() string {
+	return "restore refused: " + e.Reason
+}
+
 // physicalGraphPopulated reports whether the installation holds any cabinet,
 // drawer or bin attachment. Every table is read so a partially populated graph is
 // still detected rather than assumed impossible.
@@ -57,6 +69,38 @@ func physicalGraphPopulated(ctx context.Context, q db.Querier) (bool, error) {
 	return len(attachments) > 0, nil
 }
 
+// secondaryCabinetMembershipsExist reports whether the installation holds any
+// cabinet controller membership that is not the legacy primary pointer
+// (cabinet_id, cabinets.controller_id). Such a membership is a secondary
+// controller assignment: an older archive that carries no membership list can
+// only reproduce each cabinet's own configured controller as slot 0, so restoring
+// it would discard every other membership.
+func secondaryCabinetMembershipsExist(ctx context.Context, q db.Querier) (bool, error) {
+	memberships, err := q.ListAllCabinetControllers(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to read cabinet controllers: %w", err)
+	}
+	if len(memberships) == 0 {
+		return false, nil
+	}
+	cabinets, err := q.ListCabinetsIncludingArchived(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to read cabinets: %w", err)
+	}
+	primary := make(map[[2]int64]struct{}, len(cabinets))
+	for _, c := range cabinets {
+		if c.ControllerID.Valid {
+			primary[[2]int64{c.ID, c.ControllerID.Int64}] = struct{}{}
+		}
+	}
+	for _, m := range memberships {
+		if _, ok := primary[[2]int64{m.CabinetID, m.ControllerID}]; !ok {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // clearPhysicalStorage empties the physical storage tables. It must run before
 // the legacy bin and controller clears: bin attachments reference bins and
 // drawers, drawers reference cabinets and cabinets reference controllers, so the
@@ -70,6 +114,12 @@ func clearPhysicalStorage(ctx context.Context, q db.Querier) error {
 	}
 	if err := q.ClearDrawers(ctx); err != nil {
 		return fmt.Errorf("failed to clear drawers: %w", err)
+	}
+	// Memberships reference cabinets and reference every controller an allocation
+	// may use, so they are cleared after the allocations that depend on them and
+	// before the cabinets they belong to.
+	if err := q.ClearCabinetControllers(ctx); err != nil {
+		return fmt.Errorf("failed to clear cabinet controllers: %w", err)
 	}
 	if err := q.ClearCabinets(ctx); err != nil {
 		return fmt.Errorf("failed to clear cabinets: %w", err)
@@ -93,6 +143,15 @@ func restorePhysicalStorage(ctx context.Context, q db.Querier, snap PhysicalStor
 		}
 		if err := q.RestoreCabinet(ctx, db.RestoreCabinetParams{ID: c.ID, Name: c.Name, ControllerID: c.ControllerID, CoordinateSystem: c.CoordinateSystem, LayoutRevision: c.LayoutRevision, ElectricalRevision: c.ElectricalRevision, DisplayOrder: c.DisplayOrder, Archived: c.Archived, CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt, LayoutWidth: width, LayoutHeight: height, LayoutDecorationsJson: decorations}); err != nil {
 			return fmt.Errorf("cabinet restore: %w", err)
+		}
+	}
+	// Cabinet controller memberships are written after their cabinets and the
+	// legacy controllers they reference, and before the allocations keyed on them.
+	// A declared snapshot is restored exactly; an older archive that predates the
+	// membership table derives each cabinet's configured controller as slot 0.
+	for _, m := range resolveCabinetControllers(snap) {
+		if err := q.RestoreCabinetController(ctx, db.RestoreCabinetControllerParams(m)); err != nil {
+			return fmt.Errorf("cabinet controller restore: %w", err)
 		}
 	}
 	for _, d := range snap.Drawers {

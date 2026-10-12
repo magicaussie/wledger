@@ -42,15 +42,22 @@ type StorageManifest struct {
 }
 
 // PhysicalStorageSnapshot is the complete physical storage graph: every cabinet
-// and drawer, including archived rows, and every bin attachment. An empty graph
-// is captured as empty lists so the current format always declares its physical
+// and drawer, including archived rows, every bin attachment, every cabinet
+// controller membership and every drawer LED allocation. An empty graph is
+// captured as empty lists so the current format always declares its physical
 // storage explicitly rather than leaving it unknown.
 type PhysicalStorageSnapshot struct {
 	Cabinets               []db.Cabinet             `json:"cabinets"`
 	Drawers                []db.Drawer              `json:"drawers"`
 	BinAttachments         []db.BinDrawerAttachment `json:"bin_attachments"`
+	CabinetControllers     []db.CabinetController   `json:"cabinet_controllers"`
 	LEDAllocations         []db.DrawerLedAllocation `json:"drawer_led_allocations"`
 	LEDAllocationsDeclared bool                     `json:"-"`
+	// CabinetControllersDeclared distinguishes an explicit (possibly empty)
+	// membership list from the field being absent. An older current-format archive
+	// predates the membership table, so its absence is read with legacy
+	// single-controller semantics rather than as an empty membership set.
+	CabinetControllersDeclared bool `json:"-"`
 }
 
 // storageManifestTopLevelFields returns the set of top-level JSON member names
@@ -73,13 +80,15 @@ func physicalStorageTopLevelFields() map[string]struct{} {
 }
 
 // physicalStorageRequiredFields returns the member names the physical storage
-// section requires: all three lists must be present, so an omitted list can never
+// section requires: the core lists must be present, so an omitted list can never
 // be read as an empty one.
 func physicalStorageRequiredFields() map[string]struct{} {
 	fields := requiredTopLevelJSONFields(reflect.TypeOf(PhysicalStorageSnapshot{}))
-	// The LED list was added additively to v2.0. New exports always include it,
-	// but older current-format archives remain readable when the field is absent.
+	// The LED list and the cabinet controller membership list were added additively
+	// to v2.0. New exports always include them, but older current-format archives
+	// remain readable when the fields are absent.
 	delete(fields, "drawer_led_allocations")
+	delete(fields, "cabinet_controllers")
 	return fields
 }
 
@@ -178,6 +187,11 @@ func decodeCurrentStorageManifest(f *zip.File) (StorageManifest, error) {
 			return StorageManifest{}, err
 		}
 	}
+	if raw, ok := physicalMembers["cabinet_controllers"]; ok {
+		if err := requireJSONArray(raw, storageManifestPhysicalField+".cabinet_controllers"); err != nil {
+			return StorageManifest{}, err
+		}
+	}
 	if err := requireJSONArray(members[storageManifestSystemFlagsField], storageManifestSystemFlagsField); err != nil {
 		return StorageManifest{}, err
 	}
@@ -187,6 +201,7 @@ func decodeCurrentStorageManifest(f *zip.File) (StorageManifest, error) {
 		return StorageManifest{}, malformedManifest("failed to parse backup JSON: " + err.Error())
 	}
 	_, env.PhysicalStorage.LEDAllocationsDeclared = physicalMembers["drawer_led_allocations"]
+	_, env.PhysicalStorage.CabinetControllersDeclared = physicalMembers["cabinet_controllers"]
 
 	if env.Version != supportedCurrentManifestVersion {
 		return StorageManifest{}, &BackupFormatError{
@@ -346,6 +361,48 @@ func validateStorageGraph(legacy Manifest, snap PhysicalStorageSnapshot, flags [
 		}
 	}
 
+	// Cabinet controller memberships. A current snapshot either declares its
+	// membership rows explicitly or is an older current archive that predates the
+	// membership table; the latter is interpreted with legacy single-controller
+	// semantics. Identity is (cabinet_id, controller_id): a controller is owned by
+	// at most one cabinet, and a cabinet holds at most five memberships in slots
+	// 0..4. No membership is invented beyond what the archive declares or, for an
+	// older archive, each cabinet's own configured controller as slot 0.
+	memberships := resolveCabinetControllers(snap)
+	membershipByPair := make(map[[2]int64]db.CabinetController, len(memberships))
+	ownedMembers := make(map[int64]int64, len(memberships))
+	memberSlots := make(map[int64]map[int64]struct{}, len(memberships))
+	memberCount := make(map[int64]int, len(memberships))
+	for _, m := range memberships {
+		if _, ok := cabinets[m.CabinetID]; !ok {
+			return invalid("cabinet controller membership references cabinet %d, which the backup does not contain", m.CabinetID)
+		}
+		if _, ok := controllers[m.ControllerID]; !ok {
+			return invalid("cabinet controller membership for cabinet %d references controller %d, which the backup does not contain", m.CabinetID, m.ControllerID)
+		}
+		if m.Slot < 0 || m.Slot > 4 {
+			return invalid("cabinet %d controller %d has an invalid slot %d (slots are 0..4)", m.CabinetID, m.ControllerID, m.Slot)
+		}
+		if owner, taken := ownedMembers[m.ControllerID]; taken {
+			return invalid("controller %d is a member of cabinets %d and %d", m.ControllerID, owner, m.CabinetID)
+		}
+		ownedMembers[m.ControllerID] = m.CabinetID
+		slots := memberSlots[m.CabinetID]
+		if slots == nil {
+			slots = make(map[int64]struct{})
+			memberSlots[m.CabinetID] = slots
+		}
+		if _, dup := slots[m.Slot]; dup {
+			return invalid("cabinet %d has more than one controller in slot %d", m.CabinetID, m.Slot)
+		}
+		slots[m.Slot] = struct{}{}
+		memberCount[m.CabinetID]++
+		if memberCount[m.CabinetID] > 5 {
+			return invalid("cabinet %d has more than five controllers", m.CabinetID)
+		}
+		membershipByPair[[2]int64{m.CabinetID, m.ControllerID}] = m
+	}
+
 	attached := make(map[int64]struct{}, len(snap.BinAttachments))
 	for _, a := range snap.BinAttachments {
 		if a.BinID <= 0 {
@@ -374,10 +431,9 @@ func validateStorageGraph(legacy Manifest, snap PhysicalStorageSnapshot, flags [
 	for _, drawer := range snap.Drawers {
 		cabinetByDrawer[drawer.ID] = drawer.CabinetID
 	}
-	cabinetByID := make(map[int64]db.Cabinet, len(snap.Cabinets))
-	for _, cabinet := range snap.Cabinets {
-		cabinetByID[cabinet.ID] = cabinet
-	}
+	// A drawer is assigned to exactly one controller: every one of its saved
+	// ranges must sit on the same member controller.
+	drawerController := make(map[int64]int64, len(snap.Drawers))
 	for _, allocation := range snap.LEDAllocations {
 		if allocation.ID <= 0 {
 			return invalid("drawer LED allocation has a non-positive id %d", allocation.ID)
@@ -390,10 +446,19 @@ func validateStorageGraph(legacy Manifest, snap PhysicalStorageSnapshot, flags [
 		if !drawerExists || cabinetID != allocation.CabinetID {
 			return invalid("drawer LED allocation %d references drawer %d outside cabinet %d", allocation.ID, allocation.DrawerID, allocation.CabinetID)
 		}
-		cabinet, cabinetExists := cabinetByID[allocation.CabinetID]
+		// The allocation's controller must be a member of its own cabinet. This is
+		// the electrical ownership the restored foreign key will enforce; it is not
+		// assumed to be the cabinet's primary controller.
+		if _, member := membershipByPair[[2]int64{allocation.CabinetID, allocation.ControllerID}]; !member {
+			return invalid("drawer LED allocation %d references controller %d, which is not a member of cabinet %d", allocation.ID, allocation.ControllerID, allocation.CabinetID)
+		}
+		if prev, ok := drawerController[allocation.DrawerID]; ok && prev != allocation.ControllerID {
+			return invalid("drawer %d has LED allocations on more than one controller (%d and %d)", allocation.DrawerID, prev, allocation.ControllerID)
+		}
+		drawerController[allocation.DrawerID] = allocation.ControllerID
 		controller, controllerExists := controllers[allocation.ControllerID]
-		if !cabinetExists || !cabinet.ControllerID.Valid || cabinet.ControllerID.Int64 != allocation.ControllerID || !controllerExists {
-			return invalid("drawer LED allocation %d does not match its cabinet's configured controller", allocation.ID)
+		if !controllerExists {
+			return invalid("drawer LED allocation %d references controller %d, which the backup does not contain", allocation.ID, allocation.ControllerID)
 		}
 		if allocation.DisplayOrder < 0 || allocation.StartPixel < 1 || allocation.PixelCount < 1 || allocation.PixelCount > math.MaxInt64-allocation.StartPixel+1 {
 			return invalid("drawer LED allocation %d has an invalid start, count, order or overflowing end", allocation.ID)
@@ -421,6 +486,32 @@ func validateStorageGraph(legacy Manifest, snap PhysicalStorageSnapshot, flags [
 		flagKeys[f.Key] = struct{}{}
 	}
 	return nil
+}
+
+// resolveCabinetControllers returns the cabinet controller memberships a snapshot
+// carries. A snapshot that declares its membership list uses it verbatim. An older
+// current-format archive that predates the membership table declares none, so it
+// is read with legacy single-controller semantics: each cabinet's own configured
+// controller becomes slot 0, and nothing else is inferred. A cabinet with a NULL
+// controller stays unassigned.
+func resolveCabinetControllers(snap PhysicalStorageSnapshot) []db.CabinetController {
+	if snap.CabinetControllersDeclared {
+		return snap.CabinetControllers
+	}
+	derived := make([]db.CabinetController, 0, len(snap.Cabinets))
+	for _, c := range snap.Cabinets {
+		if !c.ControllerID.Valid {
+			continue
+		}
+		derived = append(derived, db.CabinetController{
+			CabinetID:    c.ID,
+			ControllerID: c.ControllerID.Int64,
+			Slot:         0,
+			CreatedAt:    c.CreatedAt.Time,
+			UpdatedAt:    c.UpdatedAt.Time,
+		})
+	}
+	return derived
 }
 
 // invalidGeometry reports why a rectangular placement is unusable, or "" when it

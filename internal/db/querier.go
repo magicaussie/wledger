@@ -22,6 +22,7 @@ type Querier interface {
 	// before any legacy bin or drawer deletion: attachments reference both.
 	ClearBinDrawerAttachments(ctx context.Context) error
 	ClearBins(ctx context.Context) error
+	ClearCabinetControllers(ctx context.Context) error
 	// ClearCabinets empties the cabinet table. It must run before any legacy
 	// controller deletion, and after the drawers and cabinets it references.
 	ClearCabinets(ctx context.Context) error
@@ -54,6 +55,7 @@ type Querier interface {
 	CreateBin(ctx context.Context, arg CreateBinParams) (int64, error)
 	CreateBinDrawerAttachment(ctx context.Context, arg CreateBinDrawerAttachmentParams) error
 	CreateCabinet(ctx context.Context, arg CreateCabinetParams) (int64, error)
+	CreateCabinetController(ctx context.Context, arg CreateCabinetControllerParams) error
 	CreateContainer(ctx context.Context, arg CreateContainerParams) (int64, error)
 	CreateController(ctx context.Context, arg CreateControllerParams) (CreateControllerRow, error)
 	CreateDrawer(ctx context.Context, arg CreateDrawerParams) (int64, error)
@@ -82,6 +84,7 @@ type Querier interface {
 	DeleteBinDrawerAttachment(ctx context.Context, binID int64) (int64, error)
 	DeleteBinsByContainer(ctx context.Context, containerID sql.NullInt64) error
 	DeleteCabinet(ctx context.Context, id int64) (int64, error)
+	DeleteCabinetController(ctx context.Context, arg DeleteCabinetControllerParams) (int64, error)
 	DeleteContainer(ctx context.Context, id int64) error
 	DeleteController(ctx context.Context, id int64) error
 	DeleteDrawer(ctx context.Context, id int64) (int64, error)
@@ -145,6 +148,7 @@ type Querier interface {
 	GetBinDrawerAttachment(ctx context.Context, binID int64) (BinDrawerAttachment, error)
 	GetBinsByContainer(ctx context.Context, containerID sql.NullInt64) ([]Bin, error)
 	GetCabinet(ctx context.Context, id int64) (Cabinet, error)
+	GetCabinetByAssignedController(ctx context.Context, controllerID int64) (Cabinet, error)
 	GetCabinetByController(ctx context.Context, controllerID sql.NullInt64) (Cabinet, error)
 	GetContainer(ctx context.Context, id int64) (Container, error)
 	GetContainersByController(ctx context.Context, controllerID int64) ([]Container, error)
@@ -198,6 +202,7 @@ type Querier interface {
 	GetWallContainerBins(ctx context.Context, wallID int64) ([]GetWallContainerBinsRow, error)
 	GetWalls(ctx context.Context) ([]Wall, error)
 	InitSettings(ctx context.Context) error
+	ListAllCabinetControllers(ctx context.Context) ([]CabinetController, error)
 	ListAllDrawerLEDAllocations(ctx context.Context) ([]DrawerLedAllocation, error)
 	// ListAllDrawers returns every drawer, including archived rows and every
 	// cabinet, in a deterministic order so an exported snapshot is stable and
@@ -207,6 +212,7 @@ type Querier interface {
 	ListAuditLogs(ctx context.Context, arg ListAuditLogsParams) ([]ListAuditLogsRow, error)
 	ListBinDrawerAttachments(ctx context.Context) ([]BinDrawerAttachment, error)
 	ListBinDrawerAttachmentsByDrawer(ctx context.Context, drawerID int64) ([]BinDrawerAttachment, error)
+	ListCabinetControllers(ctx context.Context, cabinetID int64) ([]CabinetController, error)
 	ListCabinets(ctx context.Context) ([]Cabinet, error)
 	ListCabinetsIncludingArchived(ctx context.Context) ([]Cabinet, error)
 	ListDrawerLEDAllocationsByCabinet(ctx context.Context, cabinetID int64) ([]DrawerLedAllocation, error)
@@ -234,6 +240,7 @@ type Querier interface {
 	// RestoreCabinet re-inserts a captured cabinet with its exact id, revisions,
 	// archived state and timestamps.
 	RestoreCabinet(ctx context.Context, arg RestoreCabinetParams) error
+	RestoreCabinetController(ctx context.Context, arg RestoreCabinetControllerParams) error
 	RestoreContainer(ctx context.Context, arg RestoreContainerParams) error
 	RestoreController(ctx context.Context, arg RestoreControllerParams) error
 	// RestoreDrawer re-inserts a captured drawer with its exact id, geometry,

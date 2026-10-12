@@ -6,24 +6,120 @@ This is the single active development handover document. `AGENTS.md` defines
 development policy; the root `ROADMAP.md` records product requirements and design
 updates. Historical handovers are references, not active instructions.
 
-Current task: Task 047 — Drawer LED Locate and Hardware Control.
+Current task: Task 048 — Multi-Controller Cabinet Architecture.
 
 Baseline: branch `development/chatgpt-m6-m7` at
-`8e078fa509bb960b5cd80285cc614e0a9ba4ddad` (the Task 046 allocation commit),
-with a clean working tree and no observed ahead/behind status against its
-tracking ref. The owner authorizes feature implementation and tests using mock
-WLED HTTP servers, plus a local commit and push ONLY to
-`development/chatgpt-m6-m7`. This does not authorize contacting real
-controllers, activating production LEDs, deploying, production migrations or
-restores, merging to main, or modifying the archival checkout.
+`c9c64aa716a6c40d6f7ae9f7876b5b67ca56b4ed`, with no ahead/behind divergence at
+task start. The owner authorizes implementation, disposable SQLite and mock WLED
+tests, all Go/JavaScript/generation/Chromium gates, and commit/push ONLY to
+`origin/development/chatgpt-m6-m7` after all gates pass. The owner explicitly
+clarifies that publication is authorized with exactly the verified Task 048
+implementation staged, while unrelated unstaged working-tree changes remain
+preserved. `AGENTS.md` must remain exactly as it exists and excluded from staging
+and the commit. No real controller, production database, deployment, production
+restore/migration, merge, or push to `main` is authorized. The branch target is
+exactly `development/chatgpt-m6-m7`.
 
-Task 047 consumes the saved physical-drawer ranges without repurposing legacy
-containers or bin indices. Hardware activation stays disabled until an admin
-explicitly attests the controller-wide output mapping; every activation then
-re-reads WLED configuration and fails closed on unsupported topology. No real
-controller was contacted during implementation. Verification and publication
-status are recorded in the Task 047 entry below; older authorization statements
-below are historical.
+Task 048 extends the saved physical-drawer allocation and safe Locate contracts.
+Legacy `containers`, `segment_id`, `bins.led_index`, drawer IDs, attachments,
+and inventory identities/quantities remain untouched. Cabinet ownership is now
+up to five exclusive controller memberships; each drawer's saved ranges all
+belong to one selected membership, with independent 1-based numbering/capacity
+and overlap per controller. Physical WLED outputs are read-only discovery data,
+not WLED segments. Locate resolves its controller from the saved drawer ranges;
+Stop uses the durable session's original controller and ranges. Electrical
+configuration writes and backup restore are serialized against active Locate
+sessions. No real controller was contacted.
+
+An unrelated working-tree modification to `AGENTS.md` appeared after the
+initial baseline and is preserved unchanged; it is not part of this task's
+change set. The owner explicitly authorized Task 048 publication to
+`origin/development/chatgpt-m6-m7` with the exact verified implementation staged,
+while this unrelated modification remains unstaged. Task 048 test and publication
+evidence is recorded in the entry below; older authorization notes remain
+historical.
+
+## Task 048 — Multi-Controller Cabinet Architecture — 2026-10-12
+
+- **Migration `018_cabinet_controllers.sql`:** creates `cabinet_controllers` with
+  ordered slots 0–4, a unique controller owner, and foreign keys to existing
+  cabinets/controllers. It backfills exactly one slot-0 membership for each
+  existing non-NULL `cabinets.controller_id`; NULL/unassigned cabinets remain
+  unassigned, and the legacy primary pointer remains unchanged. It rebuilds only
+  `drawer_led_allocations` to reference the membership pair, copying allocation
+  IDs, controller/cabinet/drawer IDs, 1-based starts, counts, display order,
+  timestamps and AUTOINCREMENT high-water mark. It does not modify drawers,
+  attachments, bins, inventory, legacy containers or bin LED indices. Database
+  constraints also reject more than five controllers, shared controller
+  ownership, multiple controllers on one drawer, and overlapping ranges within a
+  controller. Down refuses to discard secondary memberships or any saved ranges.
+- **Designer workflow:** admins check up to five cabinet controllers and save
+  the assignment separately; each controller has independent capacity. In the
+  drawer properties panel, select one assigned controller, add one or more
+  disjoint ranges, and save the controller ID with the mapping. Same pixel
+  numbers may be reused on another controller. Clearing a drawer's existing
+  ranges is required before changing that drawer's controller. Physical layout
+  and electrical saves remain separate and do not activate hardware.
+- **Output discovery/visualization:** explicit user action GETs only `/json/info`
+  and `/json/cfg` for a controller assigned to that cabinet. It shows output
+  list order, explicit controller-wide start, length, active GPIO pins and
+  corresponding 1-based inclusive LED numbers, plus range overlays on the
+  physical output bar. Missing/gapped starts, unsupported pins or unsafe
+  topology fail closed. Discovery does not GET `/json/state`, write WLED, or
+  equate a physical output with a WLED segment.
+- **Locate/safety:** drawer Locate validates every saved range has the same
+  assigned controller and capacity, maps only within that controller's attested
+  WLED segment topology, and persists the selected controller and ranges in its
+  durable session. Drawer Stop resolves the active durable session by drawer and
+  stops against the controller captured when it started, not a subsequently
+  changed cabinet primary pointer. Capacity, assignment, allocation and backup
+  restore writes serialize against the process-wide physical Locate coordinator
+  and are refused while any session may still own pixels. Mapping attestation
+  remains per-controller and existing topology fingerprint checks remain
+  fail-closed.
+- **Backup/compatibility:** new current-format exports declare exact controller
+  memberships. Old current-format archives without that additive list derive
+  only their legacy `cabinets.controller_id` membership at slot 0. Restore over
+  an installation with secondary memberships is refused rather than erasing
+  those assignments. Current archives validate controller exclusivity, slot
+  range, allocation ownership/capacity/overlap, and one controller per drawer.
+- **Verification:** `sqlc generate`, `templ generate`, `npm run build:css:prod`,
+  `npm test` (20 tests), JavaScript syntax checks, `GO_BIN=/home/spetchal/gotoolchain/go/bin/go npm run test:layout-browser`,
+  `CGO_ENABLED=1 go test -tags fts5 -count=1 ./...`, `CGO_ENABLED=1 go vet
+  -tags fts5 ./...`, `CGO_ENABLED=1 go build -tags fts5 ./...`, and
+  `git diff --check` passed. The browser test uses a disposable SQLite database
+  and a local mock WLED HTTP server, verifies five assignments and the sixth
+  controller cap, separate capacity saves, cross-output read-only discovery,
+  same-index allocation on two controller IDs, controller-specific overlap
+  rejection, and Locate/Stop plus a secondary-controller allocation. It reports
+  no page/runtime errors and one expected warning for the deliberately exercised
+  HTTP 409. The CSS optimizer reports the existing nonfatal daisyUI
+  `@property --radialprogress` warning. The Go tools were invoked from
+  `/home/spetchal/gotoolchain/go/bin` because Go is not on the shell `PATH`.
+  Migration and backup tests use disposable SQLite databases; Locate and output
+  discovery tests use mock HTTP servers. No real WLED or production operation
+  was performed.
+- **Review:** inspected migration up/down and FK/trigger contracts, allocation
+  service/validation, secondary-controller Locate selection and durable Stop,
+  output discovery's GET-only route, old/current backup handling and active
+  session configuration-write serialization. The regression suite includes
+  single-controller preservation, five-controller/exclusive membership rules,
+  per-controller numbering/overlap/capacity, and secondary controller routing.
+- **Publication authorization:** the owner explicitly authorized commit/push
+  only to `origin/development/chatgpt-m6-m7`, superseding the previous Task 048
+  clean-working-tree requirement. Publication requires exactly these 31 verified
+  Task 048 files staged, with `AGENTS.md` excluded and preserved unchanged;
+  unrelated working-tree changes may remain unstaged. No merge, deployment,
+  production operation, real WLED contact, or push to `main` is authorized.
+- **Publication status:** pending staged-diff verification, commit, and fast-forward
+  push to the authorized development branch.
+- **Remaining limitations:** discovered output geometry is not persisted and
+  hardware support is limited to configurations accepted by the current safe
+  linear mapping rules. No real WLED topology was inspected. The Locate write
+  lease remains process-local and external WLED writers can interfere; only one
+  active physical session is permitted globally.
+
+## Task 046 — Permanent Drawer LED Allocation — 2026-10-12
 
 ## Task 046 — Permanent Drawer LED Allocation — 2026-10-12
 

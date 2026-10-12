@@ -41,12 +41,28 @@ func ledAllocationEnd(start, count int64) (int64, error) {
 	return start + count - 1, nil
 }
 
-// SaveDrawerLEDAllocations atomically replaces one drawer's range list. Cabinet
-// controller ownership is inherited from cabinets.controller_id and also
-// enforced by composite foreign keys. Ranges use controller-wide 1-based pixel
-// numbers; they are not WLED segment-relative and may cross physical string
-// boundaries.
+// SaveDrawerLEDAllocations preserves the previous single-controller API and
+// routes writes to the cabinet's legacy primary controller.
 func (s *LayoutService) SaveDrawerLEDAllocations(ctx context.Context, cabinetID, drawerID, revision int64, inputs []LEDAllocationInput) error {
+	cabinet, err := s.store.GetCabinet(ctx, cabinetID)
+	if err != nil {
+		return err
+	}
+	controllerID := int64(0)
+	if cabinet.ControllerID.Valid {
+		controllerID = cabinet.ControllerID.Int64
+	}
+	return s.SaveDrawerLEDAllocationsForController(ctx, cabinetID, drawerID, revision, controllerID, inputs)
+}
+
+// SaveDrawerLEDAllocationsForController atomically replaces one drawer's range
+// list. Every range for a drawer belongs to exactly one controller; ranges use
+// that controller's 1-based controller-wide pixel space and may cross physical
+// output boundaries. Physical outputs are not WLED segments.
+func (s *LayoutService) SaveDrawerLEDAllocationsForController(ctx context.Context, cabinetID, drawerID, revision, controllerID int64, inputs []LEDAllocationInput) error {
+	if controllerID < 0 {
+		return ErrLEDControllerConfiguration
+	}
 	return s.store.ExecImmediateTx(ctx, func(q db.Querier) error {
 		cab, err := q.GetCabinet(ctx, cabinetID)
 		if errors.Is(err, sql.ErrNoRows) {
@@ -58,8 +74,13 @@ func (s *LayoutService) SaveDrawerLEDAllocations(ctx context.Context, cabinetID,
 		if cab.ElectricalRevision != revision {
 			return ErrLEDAllocationStale
 		}
-		if !cab.ControllerID.Valid || cab.ControllerID.Int64 <= 0 {
-			return fmt.Errorf("%w: assign a controller to this cabinet before saving drawer LED ranges", ErrLEDControllerConfiguration)
+		members, err := q.ListCabinetControllers(ctx, cabinetID)
+		if err != nil {
+			return err
+		}
+		memberIDs := make(map[int64]bool, len(members))
+		for _, member := range members {
+			memberIDs[member.ControllerID] = true
 		}
 		drawer, err := q.GetDrawer(ctx, drawerID)
 		if errors.Is(err, sql.ErrNoRows) {
@@ -71,15 +92,38 @@ func (s *LayoutService) SaveDrawerLEDAllocations(ctx context.Context, cabinetID,
 		if drawer.CabinetID != cabinetID {
 			return fmt.Errorf("%w: drawer does not belong to this cabinet", ErrLEDAllocationInvalid)
 		}
-		controller, err := q.GetController(ctx, cab.ControllerID.Int64)
-		if errors.Is(err, sql.ErrNoRows) {
-			return fmt.Errorf("%w: cabinet references missing controller #%d", ErrLEDControllerConfiguration, cab.ControllerID.Int64)
-		}
+		drawerAllocations, err := q.ListDrawerLEDAllocationsByDrawer(ctx, drawerID)
 		if err != nil {
 			return err
 		}
+		existingControllerID := int64(0)
+		for _, allocation := range drawerAllocations {
+			if existingControllerID == 0 {
+				existingControllerID = allocation.ControllerID
+			} else if existingControllerID != allocation.ControllerID {
+				return fmt.Errorf("%w: drawer #%d already contains ranges from multiple controllers", ErrLEDControllerConfiguration, drawerID)
+			}
+		}
+		if len(inputs) > 0 {
+			if controllerID == 0 || !memberIDs[controllerID] {
+				return fmt.Errorf("%w: select a controller assigned to this cabinet before saving drawer LED ranges", ErrLEDControllerConfiguration)
+			}
+			if existingControllerID != 0 && existingControllerID != controllerID {
+				return fmt.Errorf("%w: clear this drawer's saved LED ranges before changing its controller", ErrUnsafeLayout)
+			}
+		}
+		var controller db.Controller
+		if controllerID > 0 {
+			controller, err = q.GetController(ctx, controllerID)
+			if errors.Is(err, sql.ErrNoRows) {
+				return fmt.Errorf("%w: cabinet references missing controller #%d", ErrLEDControllerConfiguration, controllerID)
+			}
+			if err != nil {
+				return err
+			}
+		}
 		capacity := controller.LedCount
-		if capacity < 1 {
+		if len(inputs) > 0 && capacity < 1 {
 			return fmt.Errorf("%w: controller #%d has no valid positive LED capacity", ErrLEDControllerConfiguration, controller.ID)
 		}
 
@@ -119,12 +163,15 @@ func (s *LayoutService) SaveDrawerLEDAllocations(ctx context.Context, cabinetID,
 				return ledAllocationError("range %d ends at pixel %d, beyond controller #%d capacity (%d)", i+1, end, controller.ID, capacity)
 			}
 			for _, other := range others {
+				if other.ControllerID != controller.ID {
+					continue
+				}
 				otherEnd, rangeErr := ledAllocationEnd(other.StartPixel, other.PixelCount)
-				if rangeErr != nil || other.ControllerID != controller.ID {
-					return fmt.Errorf("%w: existing drawer LED configuration is invalid; review controller assignments and ranges", ErrLEDControllerConfiguration)
+				if rangeErr != nil {
+					return fmt.Errorf("%w: existing controller #%d allocation is invalid", ErrLEDControllerConfiguration, controller.ID)
 				}
 				if input.StartPixel <= otherEnd && other.StartPixel <= end {
-					return ledAllocationError("range %d (pixels %d–%d) overlaps drawer #%d (pixels %d–%d)", i+1, input.StartPixel, end, other.DrawerID, other.StartPixel, otherEnd)
+					return ledAllocationError("range %d (pixels %d–%d) overlaps drawer #%d on controller #%d (pixels %d–%d)", i+1, input.StartPixel, end, other.DrawerID, controller.ID, other.StartPixel, otherEnd)
 				}
 			}
 			for j := 0; j < i; j++ {

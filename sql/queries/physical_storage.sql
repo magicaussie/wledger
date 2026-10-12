@@ -9,6 +9,34 @@ SELECT * FROM cabinets WHERE id = ?;
 -- name: GetCabinetByController :one
 SELECT * FROM cabinets WHERE controller_id = ?;
 
+-- name: GetCabinetByAssignedController :one
+SELECT c.* FROM cabinets c
+JOIN cabinet_controllers cc ON cc.cabinet_id = c.id
+WHERE cc.controller_id = ?;
+
+-- name: ListCabinetControllers :many
+SELECT * FROM cabinet_controllers
+WHERE cabinet_id = ?
+ORDER BY slot ASC;
+
+-- name: ListAllCabinetControllers :many
+SELECT * FROM cabinet_controllers
+ORDER BY cabinet_id ASC, slot ASC;
+
+-- name: CreateCabinetController :exec
+INSERT INTO cabinet_controllers (cabinet_id, controller_id, slot)
+VALUES (?, ?, ?);
+
+-- name: DeleteCabinetController :execrows
+DELETE FROM cabinet_controllers WHERE cabinet_id = ? AND controller_id = ?;
+
+-- name: ClearCabinetControllers :exec
+DELETE FROM cabinet_controllers;
+
+-- name: RestoreCabinetController :exec
+INSERT INTO cabinet_controllers (cabinet_id, controller_id, slot, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?);
+
 -- name: ListCabinets :many
 SELECT * FROM cabinets
 WHERE archived = 0

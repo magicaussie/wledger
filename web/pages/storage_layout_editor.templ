@@ -95,15 +95,39 @@ templ StorageLayoutEditor(layout storage.CabinetLayout, user auth.User) {
 									<h3 class="font-bold text-sm">Saved LED allocation ranges</h3>
 									<p class="text-xs">Controller-wide, 1-based pixel numbers. A range may cross physical string boundaries; strings are not treated as WLED segments. Saving this mapping does not send requests to WLED.</p>
 									<p class="text-xs" x-text="controllerSummary()"></p>
-									if user.IsAdmin() && layout.Controller != nil {
+									<label class="form-control"><span class="label-text text-xs">Controller for this drawer</span><select class="select select-bordered select-sm" x-model="drawerControllers[selectedDrawer().key]" x-on:change="physicalOutputLayout = null; outputDiscoveryError = ''"><option value="0">Unassigned</option><template x-for="assigned in assignedControllers" :key="assigned.Controller.id"><option x-bind:value="String(assigned.Controller.id)" x-text="assigned.Controller.name + ' (#' + assigned.Controller.id + ') — ' + assigned.Controller.led_count + ' pixels'"></option></template></select></label>
+									<p class="text-xs">A physical drawer uses exactly one controller. Every saved range below restarts numbering at 1 on that controller.</p>
+									if user.IsAdmin() {
 										<div class="rounded bg-base-300/50 p-2 space-y-2">
-											<label class="form-control"><span class="label-text text-xs">Total controller pixels across all physical strings</span><input class="input input-bordered input-sm" type="number" min="0" step="1" x-model="capacityDraft"/></label>
-											<p class="text-xs">This capacity defines the controller-wide 1-based index space; it does not configure WLED segments or activate hardware.</p>
-											<button type="button" class="btn btn-xs btn-outline" x-on:click="saveControllerCapacity()">Save controller capacity</button>
-											<p class="text-xs text-success" role="status" x-show="capacitySaveNotice" x-text="capacitySaveNotice"></p>
-											<p class="text-xs text-error" role="alert" x-show="capacitySaveError" x-text="capacitySaveError"></p>
-										</div>
-									}
+											<h4 class="font-semibold text-xs">Read-only WLED physical outputs</h4>
+											<button type="button" class="btn btn-xs btn-outline" x-on:click="discoverPhysicalOutputs(selectedDrawer())" x-bind:disabled="!Number(drawerControllers[selectedDrawer().key])">Discover assigned controller outputs</button>
+											<p class="text-xs text-error" role="alert" x-show="outputDiscoveryError" x-text="outputDiscoveryError"></p>
+											<template x-if="physicalOutputLayout && Number(drawerControllers[selectedDrawer().key]) === physicalOutputLayout.controller_id">
+												<div class="space-y-2" aria-label="Physical LED output map">
+													<div class="relative flex h-14 w-full overflow-hidden rounded border border-base-content/30 bg-base-100">
+														<template x-for="output in physicalOutputLayout.outputs" :key="output.order">
+															<div class="relative flex h-full min-w-0 items-center justify-center border-r border-base-content/40 bg-info/20 text-[10px]" x-bind:style="'flex-basis:' + (output.length / physicalOutputLayout.capacity * 100) + '%'"><span class="truncate text-center" x-text="'Output ' + (output.order + 1) + ' · ' + output.first_index + '–' + output.last_index + ' · GPIO ' + output.pins.join(',')"></span><template x-for="mark in outputAllocationMarkers(output, selectedDrawer())" :key="mark.key"><span class="absolute inset-y-0 bg-primary/60 ring-1 ring-primary" x-bind:style="'left:' + mark.left + '%;width:' + mark.width + '%'" x-bind:title="'Drawer range ' + mark.start + '–' + mark.end"></span></template></div>
+													</template>
+												</div>
+												<p class="text-[10px] opacity-75" x-text="'Controller #' + physicalOutputLayout.controller_id + ': controller-wide 1-based pixels, total ' + physicalOutputLayout.capacity + '. Output order is physical output order; WLED segments are separate.'"></p>
+												<p class="text-[10px]">Purple overlays indicate the selected drawer's saved ranges.</p>
+												<div class="space-y-1"><template x-for="output in physicalOutputLayout.outputs" :key="'details-' + output.order"><p class="text-[10px] font-mono" x-text="'Output ' + (output.order + 1) + ' (order ' + (output.order + 1) + '): WLED start ' + output.start + ', length ' + output.length + ', GPIO ' + output.pins.join(', ') + ', controller-wide LEDs ' + output.first_index + '–' + output.last_index"></p></template></div>
+												</div>
+											</template>
+									</div>
+									<div class="rounded bg-base-300/50 p-2 space-y-2" x-show="assignedControllers.length">
+										<h4 class="font-semibold text-xs">Controller capacities</h4>
+										<template x-for="assigned in assignedControllers" :key="'capacity-' + assigned.Controller.id">
+											<div class="space-y-1 border-b border-base-content/10 pb-2">
+												<label class="form-control"><span class="label-text text-xs" x-text="assigned.Controller.name + ' (#' + assigned.Controller.id + ') total pixels across outputs'"></span><input class="input input-bordered input-sm" type="number" min="0" step="1" x-model="capacityDrafts[assigned.Controller.id]"/></label>
+												<button type="button" class="btn btn-xs btn-outline" x-on:click="saveControllerCapacity(assigned.Controller.id)">Save capacity</button>
+											</div>
+										</template>
+										<p class="text-xs">Capacity defines this controller's 1-based numbering. It does not configure outputs, WLED segments or activate hardware.</p>
+										<p class="text-xs text-success" role="status" x-show="capacitySaveNotice" x-text="capacitySaveNotice"></p>
+										<p class="text-xs text-error" role="alert" x-show="capacitySaveError" x-text="capacitySaveError"></p>
+									</div>
+								}
 									<template x-for="(range,index) in ledRangesFor(selectedDrawer())" :key="range.id || ('new-' + index)">
 										<div class="rounded border border-base-300 p-2 space-y-2">
 											<div class="flex items-center justify-between"><strong class="text-xs" x-text="'Range ' + (index + 1)"></strong><button type="button" class="btn btn-xs btn-ghost text-error" x-on:click="removeLedRange(selectedDrawer(), index)">Remove range</button></div>
@@ -136,9 +160,11 @@ templ StorageLayoutEditor(layout storage.CabinetLayout, user auth.User) {
 							<section class="space-y-3" x-show="!state.uiSelectionKind">
 								if user.IsAdmin() {
 									<div class="rounded border border-base-300 p-3 space-y-2">
-										<label class="form-control"><span class="label-text text-xs">Assigned WLED controller</span><select class="select select-bordered select-sm" x-model="controllerDraft"><option value="0">Unassigned</option><template x-for="controller in controllers" :key="controller.id"><option x-bind:value="String(controller.id)" x-text="controller.name + ' (#' + controller.id + ') — ' + controller.led_count + ' pixels'"></option></template></select></label>
-										<p class="text-xs">A controller can belong to only one cabinet. Clear saved drawer ranges before changing or removing this assignment.</p>
-										<button type="button" class="btn btn-xs btn-outline" x-on:click="saveCabinetController()">Save controller assignment</button>
+										<h3 class="font-semibold text-sm">Cabinet WLED controllers (maximum 5)</h3>
+										<p class="text-xs">Each controller may belong to at most one physical cabinet. Remove a controller only after its saved drawer ranges are cleared. A drawer still uses one controller.</p>
+										<div class="max-h-56 space-y-1 overflow-auto"><template x-for="controller in controllers" :key="controller.id"><label class="flex cursor-pointer items-center gap-2 rounded p-1 hover:bg-base-300"><input class="checkbox checkbox-sm" type="checkbox" x-bind:checked="controllerSelected(controller.id)" x-on:change="toggleController(controller.id, $event.target.checked)"/><span class="text-xs" x-text="controller.name + ' (#' + controller.id + ') — ' + controller.led_count + ' pixels'"></span></label></template></div>
+										<p class="text-xs" x-text="controllerDraft.length + ' of 5 assigned'"></p>
+										<button type="button" class="btn btn-xs btn-outline" x-on:click="saveCabinetController()">Save controller assignments</button>
 										<p class="text-xs text-success" role="status" x-show="controllerSaveNotice" x-text="controllerSaveNotice"></p>
 										<p class="text-xs text-error" role="alert" x-show="controllerSaveError" x-text="controllerSaveError"></p>
 									</div>

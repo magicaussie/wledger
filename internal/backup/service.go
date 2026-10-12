@@ -303,6 +303,10 @@ func (s *service) snapshotStorageManifest(ctx context.Context) (StorageManifest,
 		if err != nil {
 			return fmt.Errorf("failed to fetch drawer LED allocations: %w", err)
 		}
+		cabinetControllers, err := q.ListAllCabinetControllers(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to fetch cabinet controllers: %w", err)
+		}
 		flags, err := q.GetAllSystemFlags(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to fetch system flags: %w", err)
@@ -322,6 +326,9 @@ func (s *service) snapshotStorageManifest(ctx context.Context) (StorageManifest,
 		if ledAllocations == nil {
 			ledAllocations = []db.DrawerLedAllocation{}
 		}
+		if cabinetControllers == nil {
+			cabinetControllers = []db.CabinetController{}
+		}
 		if flags == nil {
 			flags = []db.SystemFlag{}
 		}
@@ -331,11 +338,13 @@ func (s *service) snapshotStorageManifest(ctx context.Context) (StorageManifest,
 			ExportedAt: m.ExportedAt,
 			Legacy:     m,
 			PhysicalStorage: PhysicalStorageSnapshot{
-				Cabinets:               cabinets,
-				Drawers:                drawers,
-				BinAttachments:         attachments,
-				LEDAllocations:         ledAllocations,
-				LEDAllocationsDeclared: true,
+				Cabinets:                   cabinets,
+				Drawers:                    drawers,
+				BinAttachments:             attachments,
+				CabinetControllers:         cabinetControllers,
+				LEDAllocations:             ledAllocations,
+				LEDAllocationsDeclared:     true,
+				CabinetControllersDeclared: true,
 			},
 			SystemFlags: flags,
 		}
@@ -568,6 +577,19 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 			return &DrawerLEDAllocationConflictError{Reason: "this older current-format backup does not contain drawer LED allocations, but this installation has saved mappings; export a new backup before restoring"}
 		}
 	}
+	// A current archive that predates the membership table carries no secondary
+	// controller assignments, so it can only reproduce each cabinet's own primary
+	// controller. Refuse it over an installation that holds any other membership,
+	// before the uploads staging cleanup and before any database mutation.
+	if envelope.Current != nil && !envelope.Current.PhysicalStorage.CabinetControllersDeclared {
+		secondary, err := secondaryCabinetMembershipsExist(ctx, s.store)
+		if err != nil {
+			return err
+		}
+		if secondary {
+			return &CabinetControllerConflictError{Reason: "this older current-format backup does not contain cabinet controller memberships, but this installation has secondary controller assignments; export a new backup before restoring"}
+		}
+	}
 
 	// Every pre-extraction validation has passed; only now clean up staging left
 	// behind by a previous, interrupted restore. Running this after the whole
@@ -655,6 +677,15 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 			}
 			if len(allocations) != 0 {
 				return &DrawerLEDAllocationConflictError{Reason: "this older current-format backup does not contain drawer LED allocations, but this installation has saved mappings; export a new backup before restoring"}
+			}
+		}
+		if envelope.Current != nil && !envelope.Current.PhysicalStorage.CabinetControllersDeclared {
+			secondary, err := secondaryCabinetMembershipsExist(ctx, qtx)
+			if err != nil {
+				return err
+			}
+			if secondary {
+				return &CabinetControllerConflictError{Reason: "this older current-format backup does not contain cabinet controller memberships, but this installation has secondary controller assignments; export a new backup before restoring"}
 			}
 		}
 		s.logger.Debug("clearing existing database records")

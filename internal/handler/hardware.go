@@ -79,21 +79,30 @@ func (h *Handler) HandleHardwareCapacitySave(w http.ResponseWriter, r *http.Requ
 		http.Error(w, "invalid controller capacity request", http.StatusBadRequest)
 		return
 	}
-	if err := h.layoutService().SaveControllerLEDCapacity(r.Context(), controllerID, expectedCapacity, capacity, electricalRevision); err != nil {
+	save := func() error {
+		return h.layoutService().SaveControllerLEDCapacity(r.Context(), controllerID, expectedCapacity, capacity, electricalRevision)
+	}
+	var saveErr error
+	if h.Locator != nil {
+		saveErr = h.Locator.WithoutActiveSession(r.Context(), save)
+	} else {
+		saveErr = save()
+	}
+	if saveErr != nil {
 		status := http.StatusBadRequest
-		if errors.Is(err, storage.ErrLEDControllerCapacityStale) || errors.Is(err, storage.ErrLEDAllocationStale) {
+		if errors.Is(saveErr, storage.ErrLEDControllerCapacityStale) || errors.Is(saveErr, storage.ErrLEDAllocationStale) || errors.Is(saveErr, wled.ErrLocateSessionActive) {
 			status = http.StatusConflict
 		}
-		cabinet, cabinetErr := h.Queries.GetCabinetByController(r.Context(), sql.NullInt64{Int64: controllerID, Valid: true})
+		cabinet, cabinetErr := h.Queries.GetCabinetByAssignedController(r.Context(), controllerID)
 		if cabinetErr == nil {
-			target := fmt.Sprintf("/storage/cabinets/%d/edit?capacity_error=%s", cabinet.ID, url.QueryEscape(err.Error()))
+			target := fmt.Sprintf("/storage/cabinets/%d/edit?capacity_error=%s", cabinet.ID, url.QueryEscape(saveErr.Error()))
 			http.Redirect(w, r, target, http.StatusSeeOther)
 			return
 		}
-		h.UIError.Respond(w, r, err, "Controller LED capacity was not saved", status)
+		h.UIError.Respond(w, r, saveErr, "Controller LED capacity was not saved", status)
 		return
 	}
-	cabinet, err := h.Queries.GetCabinetByController(r.Context(), sql.NullInt64{Int64: controllerID, Valid: true})
+	cabinet, err := h.Queries.GetCabinetByAssignedController(r.Context(), controllerID)
 	if err == nil {
 		http.Redirect(w, r, fmt.Sprintf("/storage/cabinets/%d/edit?capacity_saved=1", cabinet.ID), http.StatusSeeOther)
 		return

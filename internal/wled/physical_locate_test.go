@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -28,6 +29,7 @@ type physicalMock struct {
 	postBodies     []map[string]any
 	failPostNumber int
 	postCount      int
+	requestLog     []string
 }
 
 func int64Pointer(value int64) *int64 { return &value }
@@ -38,6 +40,9 @@ func newPhysicalMock() *physicalMock {
 
 func (m *physicalMock) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+	m.mu.Lock()
+	m.requestLog = append(m.requestLog, r.Method+" "+r.URL.Path)
+	m.mu.Unlock()
 	switch {
 	case r.Method == http.MethodGet && r.URL.Path == "/json/info":
 		m.mu.Lock()
@@ -97,6 +102,21 @@ func (m *physicalMock) setConfig(config string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.config = config
+}
+
+func (m *physicalMock) requestCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.requestLog)
+}
+
+func (m *physicalMock) requestsSince(index int) []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if index >= len(m.requestLog) {
+		return nil
+	}
+	return append([]string(nil), m.requestLog[index:]...)
 }
 
 type physicalFixture struct {
@@ -166,6 +186,9 @@ func newPhysicalFixture(t *testing.T) *physicalFixture {
 
 	cabinetID, err := store.CreateCabinet(ctx, db.CreateCabinetParams{Name: "Mock cabinet", ControllerID: sql.NullInt64{Int64: controllerID.ID, Valid: true}, CoordinateSystem: "grid"})
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.CreateCabinetController(ctx, db.CreateCabinetControllerParams{CabinetID: cabinetID, ControllerID: controllerID.ID, Slot: 0}); err != nil {
 		t.Fatal(err)
 	}
 	drawer1, err := store.CreateDrawer(ctx, db.CreateDrawerParams{CabinetID: cabinetID, Label: "Drawer 1", Width: 10, Height: 10})
@@ -571,6 +594,105 @@ func TestPhysicalLocateRequiresUnchangedAttestedOutputMapping(t *testing.T) {
 	}
 }
 
+func TestPhysicalLocateSessionBlocksElectricalConfigurationWrites(t *testing.T) {
+	f := newPhysicalFixture(t)
+	ctx := context.Background()
+	if _, err := f.service.LocateDrawerBin(ctx, f.drawer1, f.bin1, 7); err != nil {
+		t.Fatal(err)
+	}
+	called := false
+	if err := f.service.WithoutActiveSession(ctx, func() error { called = true; return nil }); !errors.Is(err, ErrLocateSessionActive) {
+		t.Fatalf("configuration write during active Locate = %v, want active-session refusal", err)
+	}
+	if called {
+		t.Fatal("configuration write callback ran while Locate owned pixels")
+	}
+	if err := f.service.StopDrawer(ctx, f.drawer1, 7); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.service.WithoutActiveSession(ctx, func() error { called = true; return nil }); err != nil {
+		t.Fatalf("configuration write after confirmed Stop: %v", err)
+	}
+	if !called {
+		t.Fatal("configuration write callback did not run after Stop")
+	}
+}
+
+func TestPhysicalLocateUsesTheDrawerAssignedSecondaryController(t *testing.T) {
+	f := newPhysicalFixture(t)
+	ctx := context.Background()
+	secondaryMock := newPhysicalMock()
+	secondaryServer := httptest.NewServer(secondaryMock)
+	t.Cleanup(secondaryServer.Close)
+	secondaryHost, secondaryPortText, err := net.SplitHostPort(secondaryServer.Listener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var secondaryPort int64
+	if _, err := fmt.Sscan(secondaryPortText, &secondaryPort); err != nil {
+		t.Fatal(err)
+	}
+	secondary, err := f.store.CreateController(ctx, db.CreateControllerParams{Name: "secondary mock", IpAddress: secondaryHost, Port: sql.NullInt64{Int64: secondaryPort, Valid: true}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.store.UpdateControllerLedCount(ctx, db.UpdateControllerLedCountParams{LedCount: 200, ID: secondary.ID, LedCount_2: 0}); err != nil {
+		t.Fatal(err)
+	}
+	cabinet, err := f.store.GetCabinet(ctx, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.store.CreateCabinetController(ctx, db.CreateCabinetControllerParams{CabinetID: cabinet.ID, ControllerID: secondary.ID, Slot: 1}); err != nil {
+		t.Fatal(err)
+	}
+	drawer, err := f.store.CreateDrawer(ctx, db.CreateDrawerParams{CabinetID: cabinet.ID, Label: "Secondary drawer", DisplayOrder: 2, X: 24, Width: 10, Height: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	bin, err := f.store.CreateBin(ctx, db.CreateBinParams{Name: "Secondary bin", Width: sql.NullInt64{Int64: 1, Valid: true}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.store.CreateBinDrawerAttachment(ctx, db.CreateBinDrawerAttachmentParams{BinID: bin, DrawerID: drawer, Width: 1, Height: 1}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.store.CreateDrawerLEDAllocation(ctx, db.CreateDrawerLEDAllocationParams{CabinetID: cabinet.ID, DrawerID: drawer, ControllerID: secondary.ID, StartPixel: 97, PixelCount: 8}); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.service.SaveControllerMappingVerification(ctx, secondary.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	secondaryRequestsBeforeLocate := secondaryMock.requestCount()
+	primaryRequestsBeforeLocate := f.mock.requestCount()
+	session, err := f.service.LocateDrawerBin(ctx, drawer, bin, 7)
+	if err != nil {
+		t.Fatalf("locate on secondary controller: %v", err)
+	}
+	if f.mock.requestCount() != primaryRequestsBeforeLocate {
+		t.Fatalf("Locate contacted primary controller endpoint; requests: %v", f.mock.requestsSince(primaryRequestsBeforeLocate))
+	}
+	if got := secondaryMock.requestsSince(secondaryRequestsBeforeLocate); len(got) < 4 || got[0] != "GET /json/info" || got[1] != "GET /json/cfg" || got[2] != "GET /json/state" || !strings.HasPrefix(got[3], "POST /json/state") {
+		t.Fatalf("secondary controller endpoint requests = %v, want inspect and pixel write there", got)
+	}
+	if session.ControllerID != secondary.ID {
+		t.Fatalf("Locate selected controller %d, want secondary controller %d", session.ControllerID, secondary.ID)
+	}
+	if err := f.service.StopDrawer(ctx, drawer, 7); err != nil {
+		t.Fatalf("stop secondary-controller drawer: %v", err)
+	}
+	if f.mock.requestCount() != primaryRequestsBeforeLocate {
+		t.Fatalf("Stop contacted primary controller endpoint; requests: %v", f.mock.requestsSince(primaryRequestsBeforeLocate))
+	}
+	secondaryRequests := secondaryMock.requestsSince(secondaryRequestsBeforeLocate)
+	if len(secondaryRequests) < 7 || !strings.HasPrefix(secondaryRequests[len(secondaryRequests)-1], "POST /json/state") {
+		t.Fatalf("Stop did not write its range-off command to the original controller: %v", secondaryRequests)
+	}
+	if got := f.service.getSession(secondary.ID); got == nil || got.State != "stopped" {
+		t.Fatalf("secondary controller session = %+v, want stopped", got)
+	}
+}
+
 func TestPhysicalLocateRejectsIncompletePersistedCleanupCommands(t *testing.T) {
 	f := newPhysicalFixture(t)
 	if _, err := f.service.LocateInventoryBin(context.Background(), f.partID, f.bin2, 7); err != nil {
@@ -709,6 +831,264 @@ func TestPhysicalLocateConcurrentRequestsAreSerialized(t *testing.T) {
 	}
 	if active != 1 {
 		t.Fatalf("got %d active drawers, want exactly one", active)
+	}
+}
+
+// discoveryFixture is a minimal read-only fixture for output discovery. It only
+// needs a controller and a mock WLED endpoint, so it deliberately avoids the
+// drawer/bin/allocation setup used by physical Locate session tests.
+type discoveryFixture struct {
+	store      db.Store
+	database   *sql.DB
+	client     *Client
+	service    *PhysicalLocateService
+	mock       *physicalMock
+	server     *httptest.Server
+	controller int64
+}
+
+func newDiscoveryFixture(t *testing.T) *discoveryFixture {
+	t.Helper()
+	mock := newPhysicalMock()
+	server := httptest.NewServer(mock)
+	host, portText, err := net.SplitHostPort(server.Listener.Addr().String())
+	if err != nil {
+		server.Close()
+		t.Fatal(err)
+	}
+	var port int64
+	if _, err := fmt.Sscan(portText, &port); err != nil {
+		server.Close()
+		t.Fatal(err)
+	}
+	database, err := db.Open("file:" + t.TempDir() + "/physical-discovery.db")
+	if err != nil {
+		server.Close()
+		t.Fatal(err)
+	}
+	if err := db.Migrate(database); err != nil {
+		database.Close()
+		server.Close()
+		t.Fatal(err)
+	}
+	store := db.NewStore(database)
+	ctx := context.Background()
+	if err := store.InitSettings(ctx); err != nil {
+		database.Close()
+		server.Close()
+		t.Fatal(err)
+	}
+	controller, err := store.CreateController(ctx, db.CreateControllerParams{Name: "mock", IpAddress: host, Port: sql.NullInt64{Int64: port, Valid: true}})
+	if err != nil {
+		database.Close()
+		server.Close()
+		t.Fatal(err)
+	}
+	if _, err := store.UpdateControllerLedCount(ctx, db.UpdateControllerLedCountParams{LedCount: 200, ID: controller.ID, LedCount_2: 0}); err != nil {
+		database.Close()
+		server.Close()
+		t.Fatal(err)
+	}
+	client := NewClient()
+	t.Cleanup(func() {
+		server.Close()
+		database.Close()
+	})
+	return &discoveryFixture{
+		store:      store,
+		database:   database,
+		client:     client,
+		service:    NewPhysicalLocateService(store, client),
+		mock:       mock,
+		server:     server,
+		controller: controller.ID,
+	}
+}
+
+func assertReadOnlyDiscovery(t *testing.T, mock *physicalMock, since int) {
+	t.Helper()
+	requests := mock.requestsSince(since)
+	if len(requests) == 0 {
+		t.Fatal("discovery issued no HTTP requests")
+	}
+	seenInfo, seenConfig := false, false
+	for _, request := range requests {
+		switch request {
+		case "GET /json/info":
+			seenInfo = true
+		case "GET /json/cfg":
+			seenConfig = true
+		default:
+			t.Fatalf("discovery issued non-read-only request %q; only GET /json/info and GET /json/cfg are permitted", request)
+		}
+	}
+	if !seenInfo || !seenConfig {
+		t.Fatalf("discovery must GET /json/info and /json/cfg; got %v", requests)
+	}
+	if got := len(mock.posts()); got != 0 {
+		t.Fatalf("read-only discovery sent %d POST requests", got)
+	}
+}
+
+func TestDiscoverPhysicalOutputsReportsOrderedExplicitGeometry(t *testing.T) {
+	f := newDiscoveryFixture(t)
+	f.mock.setConfig(`{"hw":{"led":{"ins":[{"start":0,"len":90,"rev":false,"skip":0,"type":22,"pin":[2,-1,-1]},{"start":90,"len":60,"rev":false,"skip":0,"type":22,"pin":[4,5,-1]},{"start":150,"len":50,"rev":false,"skip":0,"type":22,"pin":[16,-1,-1]}]}}}`)
+	before := f.mock.requestCount()
+
+	layout, err := f.service.DiscoverPhysicalOutputs(context.Background(), f.controller)
+	if err != nil {
+		t.Fatalf("discover physical outputs: %v", err)
+	}
+	if layout.ControllerID != f.controller || layout.Capacity != 200 {
+		t.Fatalf("layout identity = %+v, want controller %d capacity 200", layout, f.controller)
+	}
+	if layout.Fingerprint == "" {
+		t.Fatal("expected a non-empty mapping fingerprint")
+	}
+	want := []PhysicalOutput{
+		{Order: 0, Start: 0, Length: 90, Pins: []int64{2}, FirstIndex: 1, LastIndex: 90},
+		{Order: 1, Start: 90, Length: 60, Pins: []int64{4, 5}, FirstIndex: 91, LastIndex: 150},
+		{Order: 2, Start: 150, Length: 50, Pins: []int64{16}, FirstIndex: 151, LastIndex: 200},
+	}
+	if !reflect.DeepEqual(layout.Outputs, want) {
+		t.Fatalf("outputs = %+v, want %+v", layout.Outputs, want)
+	}
+
+	var sequence []int64
+	for _, output := range layout.Outputs {
+		if output.FirstIndex != output.Start+1 || output.LastIndex != output.Start+output.Length {
+			t.Fatalf("output %d numbering %d..%d is not the 1-based inclusive range for start %d length %d", output.Order, output.FirstIndex, output.LastIndex, output.Start, output.Length)
+		}
+		for index := output.FirstIndex; index <= output.LastIndex; index++ {
+			sequence = append(sequence, index)
+		}
+	}
+	if int64(len(sequence)) != layout.Capacity {
+		t.Fatalf("controller-wide numbering covers %d LEDs, want %d", len(sequence), layout.Capacity)
+	}
+	for i, index := range sequence {
+		if index != int64(i+1) {
+			t.Fatalf("controller-wide index sequence[%d] = %d, want %d", i, index, i+1)
+		}
+	}
+	assertReadOnlyDiscovery(t, f.mock, before)
+}
+
+func TestDiscoverPhysicalOutputsSingleOutputUsesOneBasedInclusiveNumbering(t *testing.T) {
+	f := newDiscoveryFixture(t)
+	f.mock.setConfig(`{"hw":{"led":{"ins":[{"start":0,"len":200,"rev":false,"skip":0,"type":22,"pin":[16,-1,-1]}]}}}`)
+	before := f.mock.requestCount()
+
+	layout, err := f.service.DiscoverPhysicalOutputs(context.Background(), f.controller)
+	if err != nil {
+		t.Fatalf("discover physical outputs: %v", err)
+	}
+	want := []PhysicalOutput{{Order: 0, Start: 0, Length: 200, Pins: []int64{16}, FirstIndex: 1, LastIndex: 200}}
+	if !reflect.DeepEqual(layout.Outputs, want) {
+		t.Fatalf("outputs = %+v, want %+v", layout.Outputs, want)
+	}
+	assertReadOnlyDiscovery(t, f.mock, before)
+}
+
+func TestDiscoverPhysicalOutputsRejectsMalformedOrIncompleteGeometry(t *testing.T) {
+	cases := []struct {
+		name   string
+		config string
+	}{
+		{
+			name:   "gapped layout",
+			config: `{"hw":{"led":{"ins":[{"start":0,"len":100,"rev":false,"skip":0,"type":22,"pin":[2,-1,-1]},{"start":110,"len":100,"rev":false,"skip":0,"type":22,"pin":[4,-1,-1]}]}}}`,
+		},
+		{
+			name:   "missing start",
+			config: `{"hw":{"led":{"ins":[{"len":100,"rev":false,"skip":0,"type":22,"pin":[2,-1,-1]},{"start":100,"len":100,"rev":false,"skip":0,"type":22,"pin":[4,-1,-1]}]}}}`,
+		},
+		{
+			name:   "unsorted start",
+			config: `{"hw":{"led":{"ins":[{"start":100,"len":100,"rev":false,"skip":0,"type":22,"pin":[2,-1,-1]},{"start":0,"len":100,"rev":false,"skip":0,"type":22,"pin":[4,-1,-1]}]}}}`,
+		},
+		{
+			name:   "missing pin",
+			config: `{"hw":{"led":{"ins":[{"start":0,"len":100,"rev":false,"skip":0,"type":22},{"start":100,"len":100,"rev":false,"skip":0,"type":22,"pin":[4,-1,-1]}]}}}`,
+		},
+		{
+			name:   "no active pin",
+			config: `{"hw":{"led":{"ins":[{"start":0,"len":200,"rev":false,"skip":0,"type":22,"pin":[-1,-1,-1]}]}}}`,
+		},
+		{
+			name:   "duplicate pin",
+			config: `{"hw":{"led":{"ins":[{"start":0,"len":100,"rev":false,"skip":0,"type":22,"pin":[2,-1,-1]},{"start":100,"len":100,"rev":false,"skip":0,"type":22,"pin":[2,-1,-1]}]}}}`,
+		},
+		{
+			name:   "reversed output",
+			config: `{"hw":{"led":{"ins":[{"start":0,"len":200,"rev":true,"skip":0,"type":22,"pin":[2,-1,-1]}]}}}`,
+		},
+		{
+			name:   "skipped leds",
+			config: `{"hw":{"led":{"ins":[{"start":0,"len":200,"rev":false,"skip":1,"type":22,"pin":[2,-1,-1]}]}}}`,
+		},
+		{
+			name:   "zero length",
+			config: `{"hw":{"led":{"ins":[{"start":0,"len":0,"rev":false,"skip":0,"type":22,"pin":[2,-1,-1]}]}}}`,
+		},
+		{
+			name:   "no outputs",
+			config: `{"hw":{"led":{"ins":[]}}}`,
+		},
+		{
+			name:   "total exceeds capacity",
+			config: `{"hw":{"led":{"ins":[{"start":0,"len":150,"rev":false,"skip":0,"type":22,"pin":[2,-1,-1]},{"start":150,"len":100,"rev":false,"skip":0,"type":22,"pin":[4,-1,-1]}]}}}`,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newDiscoveryFixture(t)
+			f.mock.setConfig(tc.config)
+			before := f.mock.requestCount()
+			if _, err := f.service.DiscoverPhysicalOutputs(context.Background(), f.controller); !errors.Is(err, ErrLocateTopology) {
+				t.Fatalf("got %v, want ErrLocateTopology", err)
+			}
+			assertReadOnlyDiscovery(t, f.mock, before)
+		})
+	}
+}
+
+func TestDiscoverPhysicalOutputsRejectsCapacityMismatch(t *testing.T) {
+	f := newDiscoveryFixture(t)
+	// The controller is saved with 300 LEDs while WLED reports 200.
+	if _, err := f.store.UpdateControllerLedCount(context.Background(), db.UpdateControllerLedCountParams{LedCount: 300, ID: f.controller, LedCount_2: 200}); err != nil {
+		t.Fatal(err)
+	}
+	before := f.mock.requestCount()
+	if _, err := f.service.DiscoverPhysicalOutputs(context.Background(), f.controller); !errors.Is(err, ErrLocateTopology) {
+		t.Fatalf("got %v, want capacity-mismatch ErrLocateTopology", err)
+	}
+	assertReadOnlyDiscovery(t, f.mock, before)
+}
+
+func TestDiscoverPhysicalOutputsRejectsIdentityMismatch(t *testing.T) {
+	f := newDiscoveryFixture(t)
+	if _, err := f.database.ExecContext(context.Background(), `UPDATE controllers SET mac_address=? WHERE id=?`, "AA:BB:CC:DD:EE:FF", f.controller); err != nil {
+		t.Fatal(err)
+	}
+	before := f.mock.requestCount()
+	if _, err := f.service.DiscoverPhysicalOutputs(context.Background(), f.controller); !errors.Is(err, ErrLocateTopology) {
+		t.Fatalf("got %v, want identity-mismatch ErrLocateTopology", err)
+	}
+	assertReadOnlyDiscovery(t, f.mock, before)
+}
+
+func TestDiscoverPhysicalOutputsRejectsInvalidOrUnknownControllerBeforeReading(t *testing.T) {
+	f := newDiscoveryFixture(t)
+	before := f.mock.requestCount()
+	if _, err := f.service.DiscoverPhysicalOutputs(context.Background(), 0); err == nil {
+		t.Fatal("expected an error for a non-positive controller id")
+	}
+	if _, err := f.service.DiscoverPhysicalOutputs(context.Background(), 999999); !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("got %v, want sql.ErrNoRows for an unknown controller", err)
+	}
+	if got := f.mock.requestsSince(before); got != nil {
+		t.Fatalf("invalid controller discovery issued HTTP requests: %v", got)
 	}
 }
 

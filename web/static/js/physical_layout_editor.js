@@ -5,15 +5,19 @@ function physicalLayoutEditor() {
     bins: [],
     controller: null,
     controllers: [],
+    assignedControllers: [],
     controllerError: '',
-    controllerDraft: '0',
+    controllerDraft: [],
+    drawerControllers: {},
+    capacityDrafts: {},
+    physicalOutputLayout: null,
+    outputDiscoveryError: '',
     controllerSaveNotice: '',
     controllerSaveError: '',
     ledRanges: {},
     persistedLedRanges: {},
     electricalRevision: 0,
     allowElectricalNavigation: false,
-    capacityDraft: '',
     capacitySaveNotice: '',
     capacitySaveError: '',
     ledSaveNotice: '',
@@ -45,13 +49,14 @@ function physicalLayoutEditor() {
       const cabinet = data.Cabinet;
       this.controller = data.Controller || null;
       this.controllers = data.Controllers || [];
+      this.assignedControllers = data.AssignedControllers || [];
       this.controllerError = data.ControllerError || '';
-      this.controllerDraft = this.controller ? String(this.controller.id) : '0';
+      this.controllerDraft = this.assignedControllers.map(item => Number(item.Controller.id));
+      this.capacityDrafts = Object.fromEntries(this.controllers.map(controller => [controller.id, String(controller.led_count)]));
       this.electricalRevision = cabinet.electrical_revision;
       const query = new URLSearchParams(window.location.search);
       this.controllerSaveError = query.get('controller_error') || '';
       this.controllerSaveNotice = query.get('controller_saved') === '1' ? 'Controller assignment saved.' : '';
-      this.capacityDraft = this.controller ? String(this.controller.led_count) : '';
       this.capacitySaveError = query.get('capacity_error') || '';
       this.capacitySaveNotice = query.get('capacity_saved') === '1' ? 'Controller-wide pixel capacity saved.' : '';
       this.ledSaveError = query.get('led_error') || '';
@@ -95,8 +100,11 @@ function physicalLayoutEditor() {
         })),
       };
       this.ledRanges = {};
+      this.drawerControllers = {};
       for (const item of data.Drawers || []) {
-        this.ledRanges[`drawer-${item.Drawer.id}`] = (item.LedAllocations || []).map(range => ({ id: range.id, start_pixel: String(range.start_pixel), pixel_count: String(range.pixel_count) }));
+        const key = `drawer-${item.Drawer.id}`;
+        this.ledRanges[key] = (item.LedAllocations || []).map(range => ({ id: range.id, controller_id: range.controller_id, start_pixel: String(range.start_pixel), pixel_count: String(range.pixel_count) }));
+        this.drawerControllers[key] = String(item.LedAllocations?.[0]?.controller_id || this.controller?.id || this.assignedControllers[0]?.Controller.id || 0);
       }
       this.persistedLedRanges = this.clone(this.ledRanges);
       this.bins = (data.UnattachedBins || []).map(bin => ({ id: bin.id, name: bin.name }));
@@ -417,10 +425,21 @@ function physicalLayoutEditor() {
       return this.state.drawers.some(drawer => drawer.key !== drawerKey && this.ledRangesChanged(drawer.key));
     },
     controllerAssignmentChanged() {
-      return String(Number(this.controllerDraft) || 0) !== String(this.controller?.id || 0);
+      const current = this.assignedControllers.map(item => Number(item.Controller.id)).sort((a,b) => a-b);
+      const draft = this.controllerDraft.map(Number).sort((a,b) => a-b);
+      return JSON.stringify(current) !== JSON.stringify(draft);
     },
-    controllerCapacityChanged() {
-      return !!this.controller && Number(this.capacityDraft) !== Number(this.controller.led_count);
+    controllerSelected(controllerID) { return this.controllerDraft.includes(Number(controllerID)); },
+    toggleController(controllerID, checked) {
+      const id = Number(controllerID);
+      if (checked && !this.controllerDraft.includes(id)) {
+        if (this.controllerDraft.length >= 5) { this.controllerSaveError = 'A cabinet supports at most five WLED controllers.'; return; }
+        this.controllerDraft = [...this.controllerDraft, id];
+      } else if (!checked) this.controllerDraft = this.controllerDraft.filter(value => value !== id);
+      this.controllerSaveError = ''; this.controllerSaveNotice = '';
+    },
+    controllerCapacityChanged(controllerID = 0) {
+      return this.controllers.some(controller => (!controllerID || controller.id === Number(controllerID)) && Number(this.capacityDrafts[controller.id]) !== Number(controller.led_count));
     },
     hasUnsavedElectricalChanges() {
       return this.controllerAssignmentChanged() || this.controllerCapacityChanged() || this.hasUnsavedLedRangesExcept();
@@ -431,33 +450,60 @@ function physicalLayoutEditor() {
     },
     ledStatus(drawer) {
       if (this.controllerError) return { error: `${this.controllerError} Electrical allocations cannot be validated.` };
-      if (!this.controller) return { error: 'Assign a controller to this cabinet before saving LED allocations.' };
-      const capacity = Number(this.controller.led_count);
-      if (!Number.isSafeInteger(capacity) || capacity < 1) return { error: 'The assigned controller has no valid positive LED capacity.' };
       const ranges = [];
       for (const candidate of this.state.drawers) {
+        const selectedControllerID = Number(this.drawerControllers[candidate.key]) || 0;
         for (const range of this.ledRangesFor(candidate)) {
           const startText = String(range.start_pixel ?? '').trim(); const countText = String(range.pixel_count ?? '').trim();
           if (!startText && !countText) continue;
+          if (!selectedControllerID) return { error: `Select an assigned controller for ${candidate.label}.` };
+          const controller = this.controllers.find(item => item.id === selectedControllerID);
+          if (!controller || !this.assignedControllers.some(item => item.Controller.id === selectedControllerID)) return { error: `Controller #${selectedControllerID} is not assigned to this cabinet.` };
+          const capacity = Number(controller.led_count);
+          if (!Number.isSafeInteger(capacity) || capacity < 1) return { error: `Controller #${selectedControllerID} has no valid positive LED capacity.` };
           if (!startText || !countText) return { error: `Enter both LED Start and LED Count for every range on ${candidate.label}.` };
           const start = Number(startText); const count = Number(countText);
           if (!Number.isSafeInteger(start) || start < 1) return { error: 'LED Start must be a whole number of at least 1.' };
           if (!Number.isSafeInteger(count) || count < 1) return { error: 'LED Count must be a positive whole number.' };
           const end = start + count - 1;
           if (!Number.isSafeInteger(end)) return { error: 'LED End overflows the supported integer range.' };
-          if (end > capacity) return { error: `LED range ends at ${end}, beyond controller #${this.controller.id} capacity (${capacity}).` };
-          ranges.push({ drawer: candidate, range, start, end });
+          if (end > capacity) return { error: `LED range ends at ${end}, beyond controller #${selectedControllerID} capacity (${capacity}).` };
+          ranges.push({ drawer: candidate, range, controllerID: selectedControllerID, start, end });
         }
       }
       for (let i = 0; i < ranges.length; i++) for (let j = i + 1; j < ranges.length; j++) {
-        if (ranges[i].start <= ranges[j].end && ranges[j].start <= ranges[i].end) return { error: `LED ranges overlap: ${ranges[i].drawer.label} (${ranges[i].start}–${ranges[i].end}) and ${ranges[j].drawer.label} (${ranges[j].start}–${ranges[j].end}).` };
+        if (ranges[i].controllerID === ranges[j].controllerID && ranges[i].start <= ranges[j].end && ranges[j].start <= ranges[i].end) return { error: `LED ranges overlap on controller #${ranges[i].controllerID}: ${ranges[i].drawer.label} (${ranges[i].start}–${ranges[i].end}) and ${ranges[j].drawer.label} (${ranges[j].start}–${ranges[j].end}).` };
       }
-      return { error: '', message: `Validated in controller-wide 1-based pixel space (capacity ${capacity}). Physical string boundaries do not split a range.` };
+      const selectedControllerID = Number(this.drawerControllers[drawer?.key]) || 0;
+      const selected = this.controllers.find(item => item.id === selectedControllerID);
+      if (!selectedControllerID) return { error: 'Assign at least one controller to this cabinet, then select one for this drawer.' };
+      return { error: '', message: `Validated in controller #${selectedControllerID}'s 1-based pixel space (capacity ${selected?.led_count || 0}). Physical output boundaries do not split a range.` };
     },
     controllerSummary() {
       if (this.controllerError) return this.controllerError;
-      if (!this.controller) return 'LED Controller: none assigned to this cabinet.';
-      return `Assigned controller: ${this.controller.name} (#${this.controller.id}), capacity ${this.controller.led_count} controller-wide pixels.`;
+      if (!this.assignedControllers.length) return 'No WLED controllers are assigned to this cabinet.';
+      return 'Assigned: ' + this.assignedControllers.map(item => `${item.Controller.name} (#${item.Controller.id}, ${item.Controller.led_count} pixels)`).join('; ');
+    },
+    async discoverPhysicalOutputs(drawer) {
+      this.outputDiscoveryError = ''; this.physicalOutputLayout = null;
+      const controllerID = Number(this.drawerControllers[drawer?.key]) || 0;
+      if (!drawer?.id || !controllerID) { this.outputDiscoveryError = 'Save the drawer and assign a controller before discovering outputs.'; return; }
+      try {
+        const response = await fetch(`/storage/cabinets/${this.state.id}/controllers/${controllerID}/outputs`, { headers: { Accept: 'application/json' } });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || `Output discovery failed (${response.status}).`);
+        this.physicalOutputLayout = data;
+      } catch (error) { this.outputDiscoveryError = error?.message || 'Read-only WLED output discovery failed.'; }
+    },
+    outputAllocationMarkers(output, drawer) {
+      if (!output || !drawer || Number(this.drawerControllers[drawer.key]) !== Number(this.physicalOutputLayout?.controller_id)) return [];
+      const first = Number(output.first_index); const last = Number(output.last_index); const length = Number(output.length);
+      return this.ledRangesFor(drawer).flatMap((range, index) => {
+        const start = Number(range.start_pixel); const count = Number(range.pixel_count); const end = start + count - 1;
+        if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start > last || end < first) return [];
+        const clippedStart = Math.max(start, first); const clippedEnd = Math.min(end, last);
+        return [{ key: `${range.id || index}-${output.order}`, start: clippedStart, end: clippedEnd, left: (clippedStart - first) / length * 100, width: (clippedEnd - clippedStart + 1) / length * 100 }];
+      });
     },
     addLedRange(drawer) {
       if (!drawer?.id) { this.ledSaveError = 'Save this physical drawer first to obtain its stable ID.'; return; }
@@ -470,25 +516,27 @@ function physicalLayoutEditor() {
     },
     saveCabinetController() {
       this.controllerSaveError = ''; this.controllerSaveNotice = '';
-      if (this.dirty) { this.controllerSaveError = 'Save or cancel physical layout changes before changing controller assignment.'; return; }
-      if (this.controllerCapacityChanged() || this.hasUnsavedLedRangesExcept()) { this.controllerSaveError = 'Save or cancel controller-capacity and LED-range edits before changing controller assignment.'; return; }
-      const controllerID = Number(this.controllerDraft);
-      if (!Number.isSafeInteger(controllerID) || controllerID < 0) { this.controllerSaveError = 'Choose a valid controller or Unassigned.'; return; }
+      if (this.dirty) { this.controllerSaveError = 'Save or cancel physical layout changes before changing controller assignments.'; return; }
+      if (this.controllerCapacityChanged() || this.hasUnsavedLedRangesExcept()) { this.controllerSaveError = 'Save or cancel controller-capacity and LED-range edits before changing assignments.'; return; }
+      if (this.controllerDraft.length > 5 || new Set(this.controllerDraft).size !== this.controllerDraft.length) { this.controllerSaveError = 'Select no more than five distinct controllers.'; return; }
       const form = document.createElement('form'); form.method = 'post'; form.action = `/storage/cabinets/${this.state.id}/controller`;
-      const fields = [['csrf_token', this.$refs.csrf.value], ['electrical_revision', this.electricalRevision], ['controller_id', controllerID]];
+      const fields = [['csrf_token', this.$refs.csrf.value], ['electrical_revision', this.electricalRevision]];
       for (const [name, value] of fields) { const input = document.createElement('input'); input.type = 'hidden'; input.name = name; input.value = value; form.appendChild(input); }
+      for (const id of this.controllerDraft) { const input = document.createElement('input'); input.type = 'hidden'; input.name = 'controller_ids'; input.value = id; form.appendChild(input); }
       this.allowElectricalNavigation = true;
       document.body.appendChild(form); form.submit();
     },
-    saveControllerCapacity() {
+    saveControllerCapacity(controllerID) {
       this.capacitySaveError = ''; this.capacitySaveNotice = '';
       if (this.dirty) { this.capacitySaveError = 'Save or cancel physical layout changes before saving controller capacity.'; return; }
       if (this.controllerAssignmentChanged() || this.hasUnsavedLedRangesExcept()) { this.capacitySaveError = 'Save or cancel controller-assignment and LED-range edits before saving capacity.'; return; }
-      if (!this.controller) { this.capacitySaveError = 'Assign a controller to this cabinet before configuring its capacity.'; return; }
-      const capacity = Number(this.capacityDraft);
+      if (this.controllers.some(item => item.id !== Number(controllerID) && Number(this.capacityDrafts[item.id]) !== Number(item.led_count))) { this.capacitySaveError = 'Save or cancel other controller capacity edits before saving this controller.'; return; }
+      const controller = this.controllers.find(item => item.id === Number(controllerID));
+      if (!controller || !this.assignedControllers.some(item => item.Controller.id === controller.id)) { this.capacitySaveError = 'Choose a controller assigned to this cabinet.'; return; }
+      const capacity = Number(this.capacityDrafts[controller.id]);
       if (!Number.isSafeInteger(capacity) || capacity < 1) { this.capacitySaveError = 'Controller-wide LED capacity must be a positive whole number.'; return; }
-      const form = document.createElement('form'); form.method = 'post'; form.action = `/hardware/${this.controller.id}/capacity`;
-      const fields = [['csrf_token', this.$refs.csrf.value], ['led_count', capacity], ['expected_led_count', this.controller.led_count], ['electrical_revision', this.electricalRevision]];
+      const form = document.createElement('form'); form.method = 'post'; form.action = `/hardware/${controller.id}/capacity`;
+      const fields = [['csrf_token', this.$refs.csrf.value], ['led_count', capacity], ['expected_led_count', controller.led_count], ['electrical_revision', this.electricalRevision]];
       for (const [name, value] of fields) { const input = document.createElement('input'); input.type = 'hidden'; input.name = name; input.value = value; form.appendChild(input); }
       this.allowElectricalNavigation = true;
       document.body.appendChild(form); form.submit();
@@ -505,7 +553,7 @@ function physicalLayoutEditor() {
         .filter(range => String(range.start_pixel ?? '').trim() || String(range.pixel_count ?? '').trim())
         .map(range => ({ id: Number(range.id) || 0, start_pixel: Number(range.start_pixel), pixel_count: Number(range.pixel_count) }));
       const form = document.createElement('form'); form.method = 'post'; form.action = `/storage/cabinets/${this.state.id}/drawers/${drawer.id}/led`;
-      const fields = [['csrf_token', this.$refs.csrf.value], ['revision', this.electricalRevision], ['allocations', JSON.stringify(allocations)]];
+      const fields = [['csrf_token', this.$refs.csrf.value], ['revision', this.electricalRevision], ['controller_id', Number(this.drawerControllers[drawer.key]) || 0], ['allocations', JSON.stringify(allocations)]];
       for (const [name, value] of fields) { const input = document.createElement('input'); input.type = 'hidden'; input.name = name; input.value = value; form.appendChild(input); }
       this.allowElectricalNavigation = true;
       document.body.appendChild(form); form.submit();

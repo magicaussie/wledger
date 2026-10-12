@@ -25,12 +25,17 @@ type LayoutService struct{ store db.Store }
 func NewLayoutService(store db.Store) *LayoutService { return &LayoutService{store: store} }
 
 type CabinetLayout struct {
-	Cabinet         db.Cabinet
-	Controller      *db.Controller
-	Controllers     []db.Controller
-	ControllerError string
-	Drawers         []DrawerLayout
-	UnattachedBins  []db.ListUnattachedBinsRow
+	Cabinet             db.Cabinet
+	Controller          *db.Controller
+	Controllers         []db.Controller
+	AssignedControllers []AssignedController
+	ControllerError     string
+	Drawers             []DrawerLayout
+	UnattachedBins      []db.ListUnattachedBinsRow
+}
+type AssignedController struct {
+	Slot       int64
+	Controller db.Controller
 }
 type DrawerLayout struct {
 	Drawer         db.Drawer
@@ -103,7 +108,27 @@ func (s *LayoutService) Get(ctx context.Context, cabinetID int64) (CabinetLayout
 		if out.Controllers == nil {
 			out.Controllers = make([]db.Controller, 0)
 		}
-		if cabinet.ControllerID.Valid {
+		members, err := q.ListCabinetControllers(ctx, cabinetID)
+		if err != nil {
+			return err
+		}
+		out.AssignedControllers = make([]AssignedController, 0, len(members))
+		for _, member := range members {
+			controller, controllerErr := q.GetController(ctx, member.ControllerID)
+			if errors.Is(controllerErr, sql.ErrNoRows) {
+				out.ControllerError = fmt.Sprintf("Cabinet references missing LED controller #%d.", member.ControllerID)
+				continue
+			}
+			if controllerErr != nil {
+				return controllerErr
+			}
+			out.AssignedControllers = append(out.AssignedControllers, AssignedController{Slot: member.Slot, Controller: controller})
+			if cabinet.ControllerID.Valid && cabinet.ControllerID.Int64 == controller.ID {
+				primary := controller
+				out.Controller = &primary
+			}
+		}
+		if out.Controller == nil && cabinet.ControllerID.Valid {
 			controller, controllerErr := q.GetController(ctx, cabinet.ControllerID.Int64)
 			if errors.Is(controllerErr, sql.ErrNoRows) {
 				out.ControllerError = fmt.Sprintf("Cabinet references missing LED controller #%d.", cabinet.ControllerID.Int64)

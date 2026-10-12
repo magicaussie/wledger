@@ -34,7 +34,7 @@ func (s *LayoutService) SaveControllerLEDCapacity(ctx context.Context, controlle
 			return ErrLEDControllerCapacityStale
 		}
 
-		cabinet, cabinetErr := q.GetCabinetByController(ctx, sql.NullInt64{Int64: controllerID, Valid: true})
+		cabinet, cabinetErr := q.GetCabinetByAssignedController(ctx, controllerID)
 		assigned := cabinetErr == nil
 		if cabinetErr != nil && !errors.Is(cabinetErr, sql.ErrNoRows) {
 			return cabinetErr

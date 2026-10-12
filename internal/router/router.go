@@ -150,6 +150,7 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 
 			// Physical layout editing (M7): editor/admin, CSRF-protected writes.
 			r.Get("/storage/cabinets/{id}/edit", h.HandleLayoutEditor)
+			r.Get("/storage/cabinets/{id}/controllers/{controllerID}/outputs", h.HandleCabinetControllerOutputDiscovery)
 			r.Group(func(r chi.Router) {
 				r.Use(mw.RequireRole("admin"))
 				r.Use(mw.RequireCSRF)

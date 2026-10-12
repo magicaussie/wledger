@@ -61,14 +61,37 @@ func (h *Handler) HandleLayoutSave(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) HandleCabinetControllerSave(w http.ResponseWriter, r *http.Request) {
 	cabinetID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	controllerID, controllerErr := strconv.ParseInt(r.FormValue("controller_id"), 10, 64)
 	revision, revisionErr := strconv.ParseInt(r.FormValue("electrical_revision"), 10, 64)
-	if err != nil || controllerErr != nil || revisionErr != nil {
+	if err != nil || revisionErr != nil || r.ParseForm() != nil {
 		http.Error(w, "invalid controller assignment request", http.StatusBadRequest)
 		return
 	}
-	if err := h.layoutService().SaveCabinetController(r.Context(), cabinetID, revision, controllerID); err != nil {
-		target := "/storage/cabinets/" + strconv.FormatInt(cabinetID, 10) + "/edit?controller_error=" + url.QueryEscape(err.Error())
+	values := r.Form["controller_ids"]
+	if len(values) == 0 && r.FormValue("controller_id") != "" {
+		values = []string{r.FormValue("controller_id")}
+	}
+	controllerIDs := make([]int64, 0, len(values))
+	for _, value := range values {
+		id, parseErr := strconv.ParseInt(value, 10, 64)
+		if parseErr != nil {
+			http.Error(w, "invalid controller assignment request", http.StatusBadRequest)
+			return
+		}
+		if id > 0 {
+			controllerIDs = append(controllerIDs, id)
+		}
+	}
+	save := func() error {
+		return h.layoutService().SaveCabinetControllers(r.Context(), cabinetID, revision, controllerIDs)
+	}
+	var saveErr error
+	if h.Locator != nil {
+		saveErr = h.Locator.WithoutActiveSession(r.Context(), save)
+	} else {
+		saveErr = save()
+	}
+	if saveErr != nil {
+		target := "/storage/cabinets/" + strconv.FormatInt(cabinetID, 10) + "/edit?controller_error=" + url.QueryEscape(saveErr.Error())
 		http.Redirect(w, r, target, http.StatusSeeOther)
 		return
 	}
@@ -99,8 +122,22 @@ func (h *Handler) HandleDrawerLEDAllocationsSave(w http.ResponseWriter, r *http.
 	if allocations == nil {
 		allocations = []storage.LEDAllocationInput{}
 	}
-	if err := h.layoutService().SaveDrawerLEDAllocations(r.Context(), cabinetID, drawerID, revision, allocations); err != nil {
-		target := "/storage/cabinets/" + strconv.FormatInt(cabinetID, 10) + "/edit?led_error=" + url.QueryEscape(err.Error())
+	controllerID, controllerErr := strconv.ParseInt(r.FormValue("controller_id"), 10, 64)
+	if controllerErr != nil {
+		http.Error(w, "invalid controller id", http.StatusBadRequest)
+		return
+	}
+	save := func() error {
+		return h.layoutService().SaveDrawerLEDAllocationsForController(r.Context(), cabinetID, drawerID, revision, controllerID, allocations)
+	}
+	var saveErr error
+	if h.Locator != nil {
+		saveErr = h.Locator.WithoutActiveSession(r.Context(), save)
+	} else {
+		saveErr = save()
+	}
+	if saveErr != nil {
+		target := "/storage/cabinets/" + strconv.FormatInt(cabinetID, 10) + "/edit?led_error=" + url.QueryEscape(saveErr.Error())
 		http.Redirect(w, r, target, http.StatusSeeOther)
 		return
 	}

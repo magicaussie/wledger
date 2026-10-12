@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -69,6 +70,56 @@ func (h *Handler) HandlePhysicalDrawerStop(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	http.Redirect(w, r, fmt.Sprintf("/storage/drawers/%d?stopped=1", drawerID), http.StatusSeeOther)
+}
+
+// HandleCabinetControllerOutputDiscovery performs a read-only WLED topology
+// request for a controller that is currently assigned to this cabinet.
+func (h *Handler) HandleCabinetControllerOutputDiscovery(w http.ResponseWriter, r *http.Request) {
+	cabinetID, cabinetErr := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	controllerID, controllerErr := strconv.ParseInt(chi.URLParam(r, "controllerID"), 10, 64)
+	if cabinetErr != nil || controllerErr != nil || cabinetID <= 0 || controllerID <= 0 {
+		http.Error(w, `{"error":"invalid cabinet or controller id"}`, http.StatusBadRequest)
+		return
+	}
+	members, err := h.Queries.ListCabinetControllers(r.Context(), cabinetID)
+	if errors.Is(err, sql.ErrNoRows) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		h.UIError.Respond(w, r, err, "Could not read cabinet controller assignments", http.StatusInternalServerError)
+		return
+	}
+	assigned := false
+	for _, member := range members {
+		if member.ControllerID == controllerID {
+			assigned = true
+			break
+		}
+	}
+	if !assigned {
+		http.Error(w, `{"error":"controller is not assigned to this cabinet"}`, http.StatusNotFound)
+		return
+	}
+	if h.Locator == nil {
+		http.Error(w, `{"error":"read-only WLED output discovery is unavailable"}`, http.StatusServiceUnavailable)
+		return
+	}
+	layout, err := h.Locator.DiscoverPhysicalOutputs(r.Context(), controllerID)
+	if err != nil {
+		status := http.StatusBadGateway
+		if errors.Is(err, sql.ErrNoRows) {
+			status = http.StatusNotFound
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(layout); err != nil {
+		return
+	}
 }
 
 func (h *Handler) HandleControllerLocateMappingSave(w http.ResponseWriter, r *http.Request) {

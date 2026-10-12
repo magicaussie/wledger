@@ -91,8 +91,18 @@ func (h *Handler) HandleBackupRestore(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	// Execute Restore via Service
-	if err := h.Backup.Restore(r.Context(), file, header.Size); err != nil {
+	// Restore replaces controller memberships and drawer ranges. Serialize it
+	// against Locate start/Stop and refuse it while any session may still own LED
+	// pixels, so session cleanup can never target a restored controller mapping.
+	restore := func() error { return h.Backup.Restore(r.Context(), file, header.Size) }
+	var restoreErr error
+	if h.Locator != nil {
+		restoreErr = h.Locator.WithoutActiveSession(r.Context(), restore)
+	} else {
+		restoreErr = restore()
+	}
+	if restoreErr != nil {
+		err := restoreErr
 		h.Logger.Error("restore failed", "err", err)
 
 		// A restore whose data and files were committed but whose post-restore
