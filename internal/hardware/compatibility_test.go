@@ -407,7 +407,7 @@ func TestCompatibilityBaselineSegmentSnapshot(t *testing.T) {
 	}
 }
 
-func TestCompatibilityBaselineTargetAddressUsesControllerIP(t *testing.T) {
+func TestCompatibilityBaselineTargetAddressUsesConfiguredEndpoint(t *testing.T) {
 	f := setupCompatFixture(t, "compat_address")
 	controller := f.controller(compatControllerSpec{Name: "Ctrl", IP: "192.168.1.50", Port: validInt64(80)})
 	container := f.container(compatContainerSpec{Name: "A", Controller: controller, Segment: 0, LedStart: 0, LedCount: 4, Config: linearConfig(4)})

@@ -28,7 +28,8 @@ import (
 // versioned SHA-256 fingerprints, so a later migration can prove that a layout
 // change preserved inventory identities, quantities and physical LED targets.
 //
-// It adds no writes, no new SQL and no runtime hooks.
+// It adds no writes or runtime hooks. A legacy-column-compatible controller
+// query lets the snapshot run before later controller-attestation migrations.
 
 // CompatibilityFingerprintVersion identifies the capture and fingerprint scheme.
 // The version is part of every hashed payload, so a digest can never be compared
@@ -94,8 +95,8 @@ const (
 	CodeOverlappingAllocation CompatibilityCode = "overlapping_allocation"
 	// CodeControllerEndpointMissing: a controller has no stored endpoint address.
 	CodeControllerEndpointMissing CompatibilityCode = "controller_endpoint_missing"
-	// CodeControllerEndpointInvalid: a controller address cannot form the legacy
-	// http://<IpAddress>/json/state endpoint.
+	// CodeControllerEndpointInvalid: a controller address and configured port
+	// cannot form a valid WLED /json/state endpoint.
 	CodeControllerEndpointInvalid CompatibilityCode = "controller_endpoint_invalid"
 	// CodeAssignmentMissingPart: a part assignment references a part that is not stored.
 	CodeAssignmentMissingPart CompatibilityCode = "assignment_missing_part"
@@ -456,8 +457,8 @@ func (v compatibilityView) resolveTargets() []CompatibilityBinTarget {
 		var hasController bool
 		if hasContainer {
 			target.ControllerID = container.ControllerID
-			// Wire targeting addresses a controller by IpAddress; the raw Port is
-			// preserved in the mapping fingerprint and is not used here.
+			// Record the effective wire authority, including the configured port,
+			// while preserving the raw controller columns in the mapping snapshot.
 			if controller, ok := v.controllers[container.ControllerID]; ok {
 				hasController = true
 				target.Address = controllerTargetAddress(controller)
