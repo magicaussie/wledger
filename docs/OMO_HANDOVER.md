@@ -186,11 +186,15 @@ below are historical.
   one expected browser warning came from that intentional HTTP 409. `sqlc
   generate`, `templ generate`, and `git diff --check` pass. No production
   controller was contacted.
-- **Publication/limitations:** verified implementation is ready for the
-  authorized branch commit/push; no hardware/production operation was performed.
-  No real controller topology was inspected; activation remains disabled per
-  controller until an administrator explicitly attests it and live read-only
-  checks continue to match. The hardware gate is process-local, not a
+- **Publication:** implementation commit
+  `420f7970816469b2a3de86284ae16b84708782ea` (parent
+  `8e078fa509bb960b5cd80285cc614e0a9ba4ddad`) is pushed to
+  `origin/development/chatgpt-m6-m7` as a fast-forward. It changes 41 files; the
+  complete path/stat list is in that commit. Tests were rerun and passed before
+  publication. No hardware or production operation was performed.
+- **Limitations:** no real controller topology was inspected; activation remains
+  disabled per controller until an administrator explicitly attests it and live
+  read-only checks continue to match. The hardware gate is process-local, not a
   multi-process lock: run one WLEDger hardware-control process per controller/
   database while physical Locate is enabled. Another process or external WLED
   writer can still interfere; cross-process/external arbitration remains a
@@ -200,10 +204,10 @@ below are historical.
   confirmed or the stale session is explicitly resolved. Stop blackens only
   app-owned ranges and does not restore preexisting per-pixel state; a blocked
   legacy auto-off can therefore leave its prior unrelated legacy indication on.
-  GlobalOff is deliberately a global
-  controller power-off on unreserved controllers and may affect unrelated LED
-  activity; it refuses to write to a reserved controller and reports partial
-  failures truthfully.
+  GlobalOff is deliberately a device-wide power-off when no physical session
+  is active and may affect unrelated LED activity; while a session is active it
+  is rejected before any write. A session beginning mid-run can cause a partial
+  off across controllers, which is reported truthfully.
 
 ## M7 LED sidebar authorization boundary — 2026-10-12
 
