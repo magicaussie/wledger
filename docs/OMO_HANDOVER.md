@@ -6,16 +6,13 @@ This is the single active development handover document. `AGENTS.md` defines
 development policy; the root `ROADMAP.md` records product requirements and design
 updates. Historical handovers are references, not active instructions.
 
-Current task: Task 053 — Complete Functional Acceptance Coverage.
+Current task: Task 054B — SQLite Cross-Process Locate Coordination.
 
 Baseline: branch `development/chatgpt-m6-m7` at
-`97cc97b3271c4fe557bd2f03c25039b35a17c64e`, aligned with
-`origin/development/chatgpt-m6-m7`; the worktree was clean. The owner authorizes
-only the missing automated acceptance tests, this handover update, requested
-verification and publication to the authorized development branch. Do not change
-production logic unless a reproducible defect is found; in that case stop for
-owner authorization. Do not modify production databases, access physical WLED
-hardware, merge or deploy.
+`68a3821459e359ec2032fbbfd4e810008f71e496`. Task 054A Approach A is approved
+in principle. The owner authorizes Task 054B implementation and publication to
+the authorized development branch. Use disposable SQLite databases and local
+WLED mocks only; do not contact production systems or physical hardware.
 
 ### Task 053 status — implementation verified; publication pending
 
@@ -1351,3 +1348,35 @@ commit. `docs/AI_DEVELOPMENT_HANDOVER.md` is a stop-time snapshot, not the
 current source of truth. The original `/home/spetchal/Code/wledger/wledger`
 checkout remains untouched. No push, merge, deployment, production access or
 hardware operation occurred.
+
+---
+
+### Task 054B — implementation published; independent review pending
+
+Implementation commit: `71a2cd73c468a29fd34d018dc39cc4d5e821ecc2`, parent
+`68a3821459e359ec2032fbbfd4e810008f71e496`. No schema migration was added.
+
+SQLite `BEGIN IMMEDIATE` is the shared WLEDger operation claim. Locate resolves
+mapping and reserves its session/target snapshots in one claim. Activation
+attempt markers are durable before POST; every physical write reloads session,
+target, endpoint, ranges and commands under the claim. Session state and target
+ownership updates use compare-and-set predicates. Target ownership clears only
+with acknowledged, exact range cleanup in the same claim. Legacy WLED writes,
+backup restore and relevant capacity/controller/wiring/allocation mutations
+share the claim and fail closed on unresolved ownership.
+
+Verification passed: `go test -tags fts5 ./...`,
+`go test -race -tags fts5 ./...`, `go vet -tags fts5 ./...`,
+`go build -tags fts5 ./...`, and `git diff --check`.
+
+Tests include dual-connection Locate/Stop, concurrent Locate and recovery,
+configuration/legacy command contention, conservative target ownership after
+uncertain results, restart cleanup, and subprocess termination releasing the
+SQLite transaction claim. All controller tests use local mocks; no production
+database, physical controller or deployment system was accessed.
+
+Limitations: only cooperating WLEDger instances sharing a supported local
+SQLite file are coordinated. External WLED applications are not fenced, and
+SQLite cannot retract an HTTP request already received by a controller.
+Independent GitHub source review is the next acceptance gate. Existing unrelated
+M6/handover working-tree changes remain uncommitted and excluded from this task.
