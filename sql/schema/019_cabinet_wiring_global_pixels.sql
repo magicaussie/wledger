@@ -4,13 +4,25 @@
 -- one cabinet-wide 1-based pixel namespace. The old controller-local ranges are
 -- translated by saved controller slot and configured controller capacity.
 -- +goose StatementBegin
--- Abort before changing schema/data or toggling connection state if an old range
--- cannot be assigned an unambiguous cabinet offset.
+-- Abort before changing persistent schema/data or toggling connection state if
+-- memberships, capacities or controller-local ranges cannot define safe cabinet
+-- offsets. Zero-capacity members are allowed, but cannot own an allocation.
 DROP TABLE IF EXISTS temp._cabinet_pixel_migration_guard;
 CREATE TEMP TABLE _cabinet_pixel_migration_guard (ok INTEGER NOT NULL CHECK (ok = 0));
 INSERT INTO _cabinet_pixel_migration_guard (ok)
 SELECT 1
 WHERE EXISTS (
+    SELECT 1
+    FROM cabinet_controllers cc
+    LEFT JOIN cabinets cabinet ON cabinet.id = cc.cabinet_id
+    LEFT JOIN controllers c ON c.id = cc.controller_id
+    WHERE cabinet.id IS NULL
+       OR c.id IS NULL
+       OR c.led_count < 0
+       OR cc.slot < 0
+       OR cc.slot > 4
+)
+   OR EXISTS (
     SELECT 1
     FROM drawer_led_allocations a
     LEFT JOIN cabinet_controllers cc
@@ -24,13 +36,47 @@ WHERE EXISTS (
        OR a.pixel_count > c.led_count
        OR a.start_pixel > c.led_count - a.pixel_count + 1
        OR a.pixel_count > 9223372036854775807 - a.start_pixel + 1
-       OR COALESCE((
-            SELECT SUM(prior_controller.led_count)
-            FROM cabinet_controllers prior
-            JOIN controllers prior_controller ON prior_controller.id = prior.controller_id
-            WHERE prior.cabinet_id = cc.cabinet_id AND prior.slot < cc.slot
-       ), 0) > 9223372036854775807 - a.start_pixel
 );
+
+-- SQLite SUM raises integer overflow rather than returning a wrapped integer.
+-- Materialize every cabinet total in TEMP before using offsets; with the
+-- non-negative-capacity check above, any overflowing total is unsafe, and the
+-- error occurs before any persistent DDL or data change.
+DROP TABLE IF EXISTS temp._cabinet_pixel_capacity_guard;
+CREATE TEMP TABLE _cabinet_pixel_capacity_guard (
+    cabinet_id INTEGER PRIMARY KEY,
+    total_capacity INTEGER NOT NULL CHECK (total_capacity >= 0)
+);
+INSERT INTO _cabinet_pixel_capacity_guard (cabinet_id, total_capacity)
+SELECT cc.cabinet_id, SUM(c.led_count)
+FROM cabinet_controllers cc
+JOIN controllers c ON c.id = cc.controller_id
+GROUP BY cc.cabinet_id;
+DROP TABLE _cabinet_pixel_capacity_guard;
+
+-- Compare the converted intervals, not just the old controller-local values.
+-- The preceding checks guarantee each offset and endpoint is representable.
+WITH translated AS (
+    SELECT a.id, a.cabinet_id,
+           a.start_pixel + COALESCE((
+               SELECT SUM(prior_controller.led_count)
+               FROM cabinet_controllers prior
+               JOIN controllers prior_controller ON prior_controller.id = prior.controller_id
+               WHERE prior.cabinet_id = current.cabinet_id AND prior.slot < current.slot
+           ), 0) AS start_pixel,
+           a.pixel_count
+    FROM drawer_led_allocations a
+    JOIN cabinet_controllers current
+      ON current.cabinet_id = a.cabinet_id AND current.controller_id = a.controller_id
+)
+INSERT INTO _cabinet_pixel_migration_guard (ok)
+SELECT 1
+FROM translated a
+JOIN translated b
+  ON b.cabinet_id = a.cabinet_id AND b.id > a.id
+WHERE a.start_pixel <= b.start_pixel + b.pixel_count - 1
+  AND b.start_pixel <= a.start_pixel + a.pixel_count - 1
+LIMIT 1;
 DROP TABLE _cabinet_pixel_migration_guard;
 
 PRAGMA foreign_keys = OFF;

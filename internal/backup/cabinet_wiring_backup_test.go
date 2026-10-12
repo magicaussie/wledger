@@ -127,6 +127,56 @@ func TestTask048ArchiveControllerLocalRangesDecodeAsCabinetWide(t *testing.T) {
 	if !reflect.DeepEqual(decoded.PhysicalStorage.LEDAllocations, env.PhysicalStorage.LEDAllocations) {
 		t.Fatalf("Task 048 local ranges did not round-trip to their original cabinet-wide spans:\nwant=%+v\ngot=%+v", env.PhysicalStorage.LEDAllocations, decoded.PhysicalStorage.LEDAllocations)
 	}
+
+	// Exercise the public restore path as well as the envelope decoder: the
+	// restored cabinet-wide coordinates must select the same physical pixels.
+	restoreTarget := physNewFixture(t, "task048_local_range_restore_target")
+	restoreTarget.initSettings()
+	if err := restoreTarget.restore(oldArchive); err != nil {
+		t.Fatalf("restore Task 048 local-range archive: %v", err)
+	}
+	if got := physReadPhysicalRows(t, restoreTarget.conn).LEDAllocations; !reflect.DeepEqual(got, env.PhysicalStorage.LEDAllocations) {
+		t.Fatalf("Task 048 restore changed cabinet-wide physical LED destinations:\nwant=%+v\ngot=%+v", env.PhysicalStorage.LEDAllocations, got)
+	}
+
+	// A local allocation naming a controller outside its archived cabinet is
+	// ambiguous and must be rejected before either the database or uploads change.
+	legacyAllocations[0].ControllerID = 999
+	badLocalJSON, err := json.Marshal(legacyAllocations)
+	if err != nil {
+		t.Fatal(err)
+	}
+	physical["drawer_led_allocations"] = badLocalJSON
+	badPhysicalJSON, err := json.Marshal(physical)
+	if err != nil {
+		t.Fatal(err)
+	}
+	top[storageManifestPhysicalField] = badPhysicalJSON
+	badLegacyJSON, err := json.Marshal(top)
+	if err != nil {
+		t.Fatal(err)
+	}
+	badArchive := physBuildZip(t, [][2]string{{currentStorageManifestName, string(badLegacyJSON)}})
+
+	badTarget := physNewFixture(t, "task048_ambiguous_archive_target")
+	badTarget.initSettings()
+	physSeedLegacy(t, badTarget.conn)
+	physSeedPhysical(t, badTarget.conn)
+	physSeedUploadSentinels(t, badTarget.uploadsDir)
+	before := physTakeSnapshot(t, badTarget)
+	uploads := physUploadsSnapshot(t, badTarget.uploadsDir)
+	if err := badTarget.restore(badArchive); err == nil {
+		t.Fatal("restore accepted a Task 048 allocation with no unambiguous controller membership")
+	} else {
+		var formatErr *BackupFormatError
+		if !errors.As(err, &formatErr) {
+			t.Fatalf("restore error=%v, want BackupFormatError", err)
+		}
+	}
+	physAssertUnchanged(t, "ambiguous-task048-archive", badTarget, before)
+	if got := physUploadsSnapshot(t, badTarget.uploadsDir); !reflect.DeepEqual(got, uploads) {
+		t.Errorf("uploads changed after rejecting ambiguous Task 048 archive: want %v got %v", uploads, got)
+	}
 }
 
 func TestLegacyTask048AllocationBackupConvertsControllerLocalRangesBySavedOrder(t *testing.T) {

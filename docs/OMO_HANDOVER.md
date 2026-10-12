@@ -6,34 +6,51 @@ This is the single active development handover document. `AGENTS.md` defines
 development policy; the root `ROADMAP.md` records product requirements and design
 updates. Historical handovers are references, not active instructions.
 
-Current task: Task 049 follow-up — Bound restart-recovery cleanup.
+Current task: Task 050 — Migration 019 Safety Corrections.
 
-Baseline for this follow-up: branch `development/chatgpt-m6-m7` at
-`67dbbacc7914606c4604920b0711cf15f943e41f`, aligned with
+Baseline: branch `development/chatgpt-m6-m7` at
+`49d47c38d54f9d04d1746e0a9444444ea1214c97`, aligned with
 `origin/development/chatgpt-m6-m7`; the worktree was clean. The owner authorizes
-this focused callback correction, regression tests, independent review, and
-commit/push to the authorized development branch. Do not merge, deploy, access
-production data, or contact physical WLED controllers.
+only the two audited migration preflight corrections, bounded disposable-SQLite
+regression coverage, this handover update, verification and publication to the
+authorized development branch. Do not access production data, apply migrations
+to a live installation, alter Locate timeout logic, or contact physical WLED
+controllers. Do not merge, deploy or begin another task after publication.
 
-### Active task status — bounded automatic cleanup callbacks
+### Task 050 status — verified; publication authorized
 
-Implemented and verified. Restart-recovered session timers and normal
-session-expiry timers now use the existing one-minute bounded retry runner,
-without changing their initial delays or explicit user Stop behavior. Timeout
-retains durable `MayHaveReceived` ownership and schedules a further bounded
-retry. Mapping/fingerprint checks and targeted range-off remain unchanged; no
-GlobalOff is used.
+The focused migration corrections and regression coverage are implemented.
+Migration 019 now validates every membership and rejects negative capacities,
+allocations on zero-capacity controllers, local out-of-range ranges, cabinet
+capacity SUM overflow and overlapping translated cabinet-wide ranges before
+persistent DDL/data changes. A zero-capacity controller with no allocation is
+accepted. Refused preflight and unsafe-downgrade tests compare persistent schema,
+Goose migration records, relevant rows, sequence values and foreign-key state.
+The Task 048 compatibility test exercises actual restore and rejects an
+ambiguous local allocation without changing target database or uploads.
 
-Verification passed:
-- Focused WLED package tests.
-- Restart-recovery and session-expiry regressions with `-count=3`.
-- `CGO_ENABLED=1 go test -tags fts5 -count=1 ./...`
-- `CGO_ENABLED=1 go vet -tags fts5 ./...`
-- `CGO_ENABLED=1 go build -tags fts5 ./...`
-- `CGO_ENABLED=1 go test -race -tags fts5 -count=1 ./internal/wled`
-- `git diff --check`.
+Verification passed on disposable SQLite fixtures:
+- `CGO_ENABLED=1 /home/spetchal/gotoolchain/go/bin/go test -tags fts5 -count=1 ./internal/db ./internal/backup`
+- `CGO_ENABLED=1 /home/spetchal/gotoolchain/go/bin/go test -tags fts5 -count=1 ./...`
+- `CGO_ENABLED=1 /home/spetchal/gotoolchain/go/bin/go vet -tags fts5 ./...`
+- `CGO_ENABLED=1 /home/spetchal/gotoolchain/go/bin/go build -tags fts5 ./...`
+- `git diff --check`
 
-Only mock WLED controllers and disposable test databases were used.
+The migration fixtures cover one through five controllers, non-ID slot order,
+allocation metadata preservation, overlap/membership/capacity refusals, zero and
+extreme capacity boundaries, SQLite SUM overflow, safe multi-controller rollback
+and unsafe downgrade refusal. No production database, live migration, physical
+WLED controller or Locate timeout code was accessed or changed. No unresolved
+implementation concerns were found in this scope. Task publication commit and
+parent SHA are recorded in the completion report; this task does not authorize
+merge, deployment or follow-on work.
+
+Changed files: `sql/schema/019_cabinet_wiring_global_pixels.sql`,
+`internal/db/cabinet_wiring_migration_test.go`,
+`internal/backup/cabinet_wiring_backup_test.go`, and this handover document.
+
+The Task 049 cleanup outcome and Task 048 architecture sections below are
+historical handover evidence and do not authorize changes outside Task 050.
 
 Task 048 currently stores drawer ranges in one controller's local 1-based space,
 with controller membership order and a one-controller-per-drawer invariant. This
