@@ -65,6 +65,19 @@ func makeCrossControllerDrawer(t *testing.T, f *physicalFixture) (int64, int64) 
 	return drawer, bin
 }
 
+func durablePhysicalTargets(t *testing.T, f *physicalFixture, sessionID string) map[int64]db.PhysicalLocateSessionTarget {
+	t.Helper()
+	targets, err := f.store.ListPhysicalLocateSessionTargets(context.Background(), sessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byController := make(map[int64]db.PhysicalLocateSessionTarget, len(targets))
+	for _, target := range targets {
+		byController[target.ControllerID] = target
+	}
+	return byController
+}
+
 func TestPhysicalLocateCrossesControllersInOneDurableSession(t *testing.T) {
 	f := newPhysicalFixture(t)
 	ctx := context.Background()
@@ -151,7 +164,136 @@ func TestPhysicalLocatePartialActivationAttemptsCleanupOnEveryTarget(t *testing.
 	if err != nil || !ok || status.State != "stopped" {
 		t.Fatalf("retried session status=%+v found=%v err=%v", status, ok, err)
 	}
-	if len(f.mock.posts()) != 3 || len(secondary.posts()) != 3 {
-		t.Fatalf("retry cleanup did not reach every controller: primary=%d secondary=%d", len(f.mock.posts()), len(secondary.posts()))
+	if len(f.mock.posts()) != 3 || len(secondary.posts()) != 2 {
+		t.Fatalf("retry cleanup did not target only the unresolved controller: primary=%d secondary=%d", len(f.mock.posts()), len(secondary.posts()))
+	}
+}
+
+func TestPhysicalLocateCleansHealthySecondControllerWhenFirstIsUnreachable(t *testing.T) {
+	f := newPhysicalFixture(t)
+	ctx := context.Background()
+	secondaryID, secondary := addSecondaryPhysicalTarget(t, f, "healthy second controller")
+	drawer, bin := makeCrossControllerDrawer(t, f)
+	if err := f.service.SaveControllerMappingVerification(ctx, secondaryID, true); err != nil {
+		t.Fatal(err)
+	}
+	session, err := f.service.LocateDrawerBin(ctx, drawer, bin, 7)
+	if err != nil || session.State != "active" {
+		t.Fatalf("activate cross-controller Locate: session=%+v err=%v", session, err)
+	}
+
+	f.server.Close()
+	if err := f.service.StopDrawer(ctx, drawer, 7); err == nil {
+		t.Fatal("Stop should retain an error for the unreachable first controller")
+	}
+	status, ok, err := f.service.SessionStatusForDrawer(ctx, drawer)
+	if err != nil || !ok || status.State != "partial" {
+		t.Fatalf("unreachable-first cleanup status=%+v found=%v err=%v", status, ok, err)
+	}
+	if len(f.mock.posts()) != 1 || len(secondary.posts()) != 2 {
+		t.Fatalf("unreachable first controller blocked or received unsafe cleanup: primary=%d secondary=%d", len(f.mock.posts()), len(secondary.posts()))
+	}
+	if !strings.Contains(status.LastError, fmt.Sprintf("controller #%d", f.controller)) {
+		t.Fatalf("session error does not identify unreachable controller: %q", status.LastError)
+	}
+	targets := durablePhysicalTargets(t, f, session.ID)
+	if targets[f.controller].MayHaveReceived != 1 || !strings.Contains(targets[f.controller].LastError, "cannot verify") {
+		t.Errorf("unreachable cleanup target was not durably retained: %+v", targets[f.controller])
+	}
+	if targets[secondaryID].MayHaveReceived != 0 || targets[secondaryID].LastError != "" {
+		t.Errorf("healthy controller cleanup was not durably resolved: %+v", targets[secondaryID])
+	}
+
+	if err := f.service.StopDrawer(ctx, drawer, 7); err == nil {
+		t.Fatal("retry should continue reporting the unresolved first controller")
+	}
+	if len(secondary.posts()) != 2 {
+		t.Fatalf("retry resent cleanup to the already-resolved second controller: %d writes", len(secondary.posts()))
+	}
+}
+
+func TestPhysicalLocateCleansFirstControllerWhenSecondIsUnverifiable(t *testing.T) {
+	f := newPhysicalFixture(t)
+	ctx := context.Background()
+	secondaryID, secondary := addSecondaryPhysicalTarget(t, f, "unverifiable second controller")
+	drawer, bin := makeCrossControllerDrawer(t, f)
+	if err := f.service.SaveControllerMappingVerification(ctx, secondaryID, true); err != nil {
+		t.Fatal(err)
+	}
+	session, err := f.service.LocateDrawerBin(ctx, drawer, bin, 7)
+	if err != nil || session.State != "active" {
+		t.Fatalf("activate cross-controller Locate: session=%+v err=%v", session, err)
+	}
+	secondary.mu.Lock()
+	secondary.offline = true
+	secondary.mu.Unlock()
+
+	if err := f.service.StopDrawer(ctx, drawer, 7); err == nil {
+		t.Fatal("Stop should retain an error for the unverifiable second controller")
+	}
+	status, ok, err := f.service.SessionStatusForDrawer(ctx, drawer)
+	if err != nil || !ok || status.State != "partial" {
+		t.Fatalf("unverifiable-second cleanup status=%+v found=%v err=%v", status, ok, err)
+	}
+	if len(f.mock.posts()) != 2 || len(secondary.posts()) != 1 {
+		t.Fatalf("second-controller verification failure did not isolate targeted cleanup: primary=%d secondary=%d", len(f.mock.posts()), len(secondary.posts()))
+	}
+	if !strings.Contains(status.LastError, fmt.Sprintf("controller #%d", secondaryID)) {
+		t.Fatalf("session error does not identify unverifiable controller: %q", status.LastError)
+	}
+	targets := durablePhysicalTargets(t, f, session.ID)
+	if targets[f.controller].MayHaveReceived != 0 || targets[f.controller].LastError != "" {
+		t.Errorf("healthy first controller cleanup was not durably resolved: %+v", targets[f.controller])
+	}
+	if targets[secondaryID].MayHaveReceived != 1 || !strings.Contains(targets[secondaryID].LastError, "cannot verify") {
+		t.Errorf("unverifiable second target was not durably retained: %+v", targets[secondaryID])
+	}
+}
+
+func TestPhysicalLocateRetriesOnlyControllerWithPartialCleanupFailure(t *testing.T) {
+	f := newPhysicalFixture(t)
+	ctx := context.Background()
+	secondaryID, secondary := addSecondaryPhysicalTarget(t, f, "partial cleanup failure")
+	drawer, bin := makeCrossControllerDrawer(t, f)
+	if err := f.service.SaveControllerMappingVerification(ctx, secondaryID, true); err != nil {
+		t.Fatal(err)
+	}
+	session, err := f.service.LocateDrawerBin(ctx, drawer, bin, 7)
+	if err != nil || session.State != "active" {
+		t.Fatalf("activate cross-controller Locate: session=%+v err=%v", session, err)
+	}
+	secondary.failPostNumber = 2 // fail only the second controller's cleanup write
+
+	if err := f.service.StopDrawer(ctx, drawer, 7); err == nil {
+		t.Fatal("Stop should report the failed targeted cleanup")
+	}
+	status, ok, err := f.service.SessionStatusForDrawer(ctx, drawer)
+	if err != nil || !ok || status.State != "partial" {
+		t.Fatalf("partial-cleanup status=%+v found=%v err=%v", status, ok, err)
+	}
+	targets := durablePhysicalTargets(t, f, session.ID)
+	if targets[f.controller].MayHaveReceived != 0 || targets[f.controller].LastError != "" {
+		t.Errorf("successful first controller cleanup was not durably resolved: %+v", targets[f.controller])
+	}
+	if targets[secondaryID].MayHaveReceived != 1 || !strings.Contains(targets[secondaryID].LastError, "targeted cleanup failed") {
+		t.Errorf("failed second controller cleanup was not retained with its error: %+v", targets[secondaryID])
+	}
+	if !strings.Contains(status.LastError, fmt.Sprintf("controller #%d", secondaryID)) {
+		t.Errorf("session error does not identify the failed controller: %q", status.LastError)
+	}
+	if len(f.mock.posts()) != 2 || len(secondary.posts()) != 2 {
+		t.Fatalf("initial partial cleanup writes primary=%d secondary=%d", len(f.mock.posts()), len(secondary.posts()))
+	}
+
+	secondary.failPostNumber = 0
+	if err := f.service.StopDrawer(ctx, drawer, 7); err != nil {
+		t.Fatalf("retry unresolved second-controller cleanup: %v", err)
+	}
+	if len(f.mock.posts()) != 2 || len(secondary.posts()) != 3 {
+		t.Fatalf("retry did not target only unresolved controller: primary=%d secondary=%d", len(f.mock.posts()), len(secondary.posts()))
+	}
+	status, ok, err = f.service.SessionStatusForDrawer(ctx, drawer)
+	if err != nil || !ok || status.State != "stopped" {
+		t.Fatalf("retried cleanup status=%+v found=%v err=%v", status, ok, err)
 	}
 }
