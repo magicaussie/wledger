@@ -21,11 +21,9 @@ import (
 // it cannot silently erase them. It reuses the raw-SQL fixtures and proofs of the
 // physical round-trip suite so assertions compare state, never prose.
 
-// ccSeedMultiController seeds the legacy graph plus a multi-controller physical
-// graph: cabinet 1 owns controllers 1 (primary) and 2 (secondary), cabinet 2 owns
-// controller 3, and three drawers carry allocations on all three controllers.
-// Drawers 1 and 3 sit on their cabinet's primary controller; drawer 2 sits on a
-// secondary member of cabinet 1.
+// ccSeedMultiController seeds a multi-controller physical graph with cabinet-wide
+// ranges. Drawer 2 occupies cabinet pixels 301–304, which are local pixels 1–4 on
+// cabinet 1's slot-1 controller after the first controller's 300-pixel span.
 func ccSeedMultiController(t *testing.T, conn *sql.DB) {
 	t.Helper()
 	physSeedLegacy(t, conn)
@@ -52,12 +50,12 @@ func ccSeedMultiController(t *testing.T, conn *sql.DB) {
 	exec(`INSERT INTO drawers (id, cabinet_id, label, display_order, x, y, width, height, archived, created_at, updated_at)
 		VALUES (3, 2, 'D3', 0, 0, 0, 10, 5, 0, '2024-01-07 08:09:10', '2024-01-07 08:09:10')`)
 
-	exec(`INSERT INTO drawer_led_allocations (id, cabinet_id, drawer_id, controller_id, start_pixel, pixel_count, display_order, created_at, updated_at)
-		VALUES (1, 1, 1, 1, 1, 8, 0, '2024-01-11 12:13:14', '2024-01-11 12:13:14')`)
-	exec(`INSERT INTO drawer_led_allocations (id, cabinet_id, drawer_id, controller_id, start_pixel, pixel_count, display_order, created_at, updated_at)
-		VALUES (2, 1, 2, 2, 1, 4, 0, '2024-01-12 13:14:15', '2024-01-12 13:14:15')`)
-	exec(`INSERT INTO drawer_led_allocations (id, cabinet_id, drawer_id, controller_id, start_pixel, pixel_count, display_order, created_at, updated_at)
-		VALUES (3, 2, 3, 3, 1, 4, 0, '2024-01-13 14:15:16', '2024-01-13 14:15:16')`)
+	exec(`INSERT INTO drawer_led_allocations (id, cabinet_id, drawer_id, start_pixel, pixel_count, display_order, created_at, updated_at)
+		VALUES (1, 1, 1, 1, 8, 0, '2024-01-11 12:13:14', '2024-01-11 12:13:14')`)
+	exec(`INSERT INTO drawer_led_allocations (id, cabinet_id, drawer_id, start_pixel, pixel_count, display_order, created_at, updated_at)
+		VALUES (2, 1, 2, 301, 4, 0, '2024-01-12 13:14:15', '2024-01-12 13:14:15')`)
+	exec(`INSERT INTO drawer_led_allocations (id, cabinet_id, drawer_id, start_pixel, pixel_count, display_order, created_at, updated_at)
+		VALUES (3, 2, 3, 1, 4, 0, '2024-01-13 14:15:16', '2024-01-13 14:15:16')`)
 }
 
 // ccSingleControllerSource seeds a single-controller physical graph and returns
@@ -378,17 +376,17 @@ func TestCabinetControllersBackup_RejectsInvalidMembershipsBeforeMutation(t *tes
 			},
 		},
 		{
-			name: "allocation on a non-member controller",
+			name: "allocation drawer does not belong to cabinet",
 			archive: func(t *testing.T) []byte {
-				return ccMutatedArchive(t, func(m *StorageManifest) { m.PhysicalStorage.LEDAllocations[0].ControllerID = 3 })
+				return ccMutatedArchive(t, func(m *StorageManifest) { m.PhysicalStorage.LEDAllocations[0].CabinetID = 2 })
 			},
 		},
 		{
-			name: "drawer allocated on two controllers",
+			name: "overlapping cabinet-wide ranges",
 			archive: func(t *testing.T) []byte {
 				return ccMutatedArchive(t, func(m *StorageManifest) {
 					m.PhysicalStorage.LEDAllocations = append(m.PhysicalStorage.LEDAllocations, db.DrawerLedAllocation{
-						ID: 99, CabinetID: 1, DrawerID: 1, ControllerID: 2, StartPixel: 1, PixelCount: 1,
+						ID: 99, CabinetID: 1, DrawerID: 1, StartPixel: 2, PixelCount: 1,
 						DisplayOrder: 1, CreatedAt: physTime().Time, UpdatedAt: physTime().Time,
 					})
 				})

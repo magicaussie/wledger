@@ -60,11 +60,38 @@ type Cabinet struct {
 }
 
 type CabinetController struct {
-	CabinetID    int64     `json:"cabinet_id"`
-	ControllerID int64     `json:"controller_id"`
-	Slot         int64     `json:"slot"`
+	CabinetID         int64     `json:"cabinet_id"`
+	ControllerID      int64     `json:"controller_id"`
+	Slot              int64     `json:"slot"`
+	StringsConfigured int64     `json:"strings_configured"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
+}
+
+type CabinetControllerReorderGuard struct {
+	CabinetID int64 `json:"cabinet_id"`
+}
+
+type CabinetLedPathSection struct {
+	ID           int64     `json:"id"`
+	StringID     int64     `json:"string_id"`
+	DisplayOrder int64     `json:"display_order"`
+	PixelCount   int64     `json:"pixel_count"`
+	PointsJson   string    `json:"points_json"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+type CabinetLedString struct {
+	ID             int64     `json:"id"`
+	CabinetID      int64     `json:"cabinet_id"`
+	ControllerID   int64     `json:"controller_id"`
+	Name           string    `json:"name"`
+	DisplayOrder   int64     `json:"display_order"`
+	PixelCount     int64     `json:"pixel_count"`
+	LayoutComplete int64     `json:"layout_complete"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 type Container struct {
@@ -111,7 +138,6 @@ type DrawerLedAllocation struct {
 	ID           int64     `json:"id"`
 	CabinetID    int64     `json:"cabinet_id"`
 	DrawerID     int64     `json:"drawer_id"`
-	ControllerID int64     `json:"controller_id"`
 	StartPixel   int64     `json:"start_pixel"`
 	PixelCount   int64     `json:"pixel_count"`
 	DisplayOrder int64     `json:"display_order"`
@@ -235,6 +261,18 @@ type PhysicalLocateSession struct {
 	LastSuccessfulOperation string    `json:"last_successful_operation"`
 	LastSuccessfulAt        string    `json:"last_successful_at"`
 	LastError               string    `json:"last_error"`
+}
+
+type PhysicalLocateSessionTarget struct {
+	SessionID         string `json:"session_id"`
+	ControllerID      int64  `json:"controller_id"`
+	ControllerAddress string `json:"controller_address"`
+	ControllerPort    int64  `json:"controller_port"`
+	RangesJson        string `json:"ranges_json"`
+	CommandsJson      string `json:"commands_json"`
+	Fingerprint       string `json:"fingerprint"`
+	MayHaveReceived   int64  `json:"may_have_received"`
+	LastError         string `json:"last_error"`
 }
 
 type PriceHistory struct {

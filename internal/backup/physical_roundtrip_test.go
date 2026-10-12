@@ -178,16 +178,14 @@ func physSeedPhysical(t *testing.T, conn *sql.DB) {
 		VALUES (2, 1, 2.5, 0.0, 2.0, 3.5, 1, '2024-01-09 10:11:12', '2024-01-09 10:11:12')`)
 	exec(`INSERT INTO bin_drawer_attachments (bin_id, drawer_id, x, y, width, height, display_order, created_at, updated_at)
 		VALUES (3, 3, 0.5, 0.5, 1.25, 2.0, 0, '2024-01-10 11:12:13', '2024-01-10 11:12:13')`)
-	// Migration 018 requires a drawer LED allocation's (cabinet_id, controller_id)
-	// to reference a cabinet controller membership. The fixture migrates before it
-	// seeds, so the migration's backfill saw no cabinets and the membership must be
-	// seeded explicitly for cabinet 1's primary controller.
+	// The fixture migrates before seeding, so controller membership must be
+	// inserted explicitly. Drawer allocations below use cabinet-wide coordinates.
 	exec(`INSERT INTO cabinet_controllers (cabinet_id, controller_id, slot, created_at, updated_at)
 		VALUES (1, 1, 0, '2024-01-02 03:04:05', '2024-02-03 04:05:06')`)
-	exec(`INSERT INTO drawer_led_allocations (id, cabinet_id, drawer_id, controller_id, start_pixel, pixel_count, display_order, created_at, updated_at)
-		VALUES (1, 1, 1, 1, 97, 8, 0, '2024-01-11 12:13:14', '2024-01-11 12:13:14')`)
-	exec(`INSERT INTO drawer_led_allocations (id, cabinet_id, drawer_id, controller_id, start_pixel, pixel_count, display_order, created_at, updated_at)
-		VALUES (2, 1, 1, 1, 150, 4, 1, '2024-01-12 13:14:15', '2024-01-12 13:14:15')`)
+	exec(`INSERT INTO drawer_led_allocations (id, cabinet_id, drawer_id, start_pixel, pixel_count, display_order, created_at, updated_at)
+		VALUES (1, 1, 1, 97, 8, 0, '2024-01-11 12:13:14', '2024-01-11 12:13:14')`)
+	exec(`INSERT INTO drawer_led_allocations (id, cabinet_id, drawer_id, start_pixel, pixel_count, display_order, created_at, updated_at)
+		VALUES (2, 1, 1, 150, 4, 1, '2024-01-12 13:14:15', '2024-01-12 13:14:15')`)
 }
 
 func physWriteUpload(t *testing.T, root, rel, content string) {
@@ -405,9 +403,12 @@ func physBaseStorageManifest() StorageManifest {
 		{CabinetID: 1, ControllerID: 1, Slot: 0, CreatedAt: now.Time, UpdatedAt: now.Time},
 	}
 	m.PhysicalStorage.LEDAllocations = []db.DrawerLedAllocation{
-		{ID: 1, CabinetID: 1, DrawerID: 1, ControllerID: 1, StartPixel: 97, PixelCount: 8, DisplayOrder: 0, CreatedAt: now.Time, UpdatedAt: now.Time},
-		{ID: 2, CabinetID: 1, DrawerID: 1, ControllerID: 1, StartPixel: 150, PixelCount: 4, DisplayOrder: 1, CreatedAt: now.Time, UpdatedAt: now.Time},
+		{ID: 1, CabinetID: 1, DrawerID: 1, StartPixel: 97, PixelCount: 8, DisplayOrder: 0, CreatedAt: now.Time, UpdatedAt: now.Time},
+		{ID: 2, CabinetID: 1, DrawerID: 1, StartPixel: 150, PixelCount: 4, DisplayOrder: 1, CreatedAt: now.Time, UpdatedAt: now.Time},
 	}
+	m.PhysicalStorage.CabinetLEDStrings = []db.CabinetLedString{}
+	m.PhysicalStorage.CabinetLEDPathSections = []db.CabinetLedPathSection{}
+	m.PhysicalStorage.AllocationCoordinateSpace = "cabinet"
 	m.SystemFlags = []db.SystemFlag{
 		{Key: ledspace.FlagKey, Value: ledspace.Segment, UpdatedAt: now},
 		{Key: hardware.Migration005FlagKey, Value: "true", UpdatedAt: now},
@@ -416,11 +417,13 @@ func physBaseStorageManifest() StorageManifest {
 }
 
 type physPhysicalRows struct {
-	Cabinets           []db.Cabinet
-	Drawers            []db.Drawer
-	Attachments        []db.BinDrawerAttachment
-	CabinetControllers []db.CabinetController
-	LEDAllocations     []db.DrawerLedAllocation
+	Cabinets               []db.Cabinet
+	Drawers                []db.Drawer
+	Attachments            []db.BinDrawerAttachment
+	CabinetControllers     []db.CabinetController
+	LEDAllocations         []db.DrawerLedAllocation
+	CabinetLEDStrings      []db.CabinetLedString
+	CabinetLEDPathSections []db.CabinetLedPathSection
 }
 
 func physReadPhysicalRows(t *testing.T, conn *sql.DB) physPhysicalRows {
@@ -478,13 +481,13 @@ func physReadPhysicalRows(t *testing.T, conn *sql.DB) physPhysicalRows {
 		t.Fatalf("iterate attachments: %v", err)
 	}
 
-	membershipRows, err := conn.Query(`SELECT cabinet_id, controller_id, slot, created_at, updated_at FROM cabinet_controllers ORDER BY cabinet_id, slot`)
+	membershipRows, err := conn.Query(`SELECT cabinet_id, controller_id, slot, strings_configured, created_at, updated_at FROM cabinet_controllers ORDER BY cabinet_id, slot`)
 	if err != nil {
 		t.Fatalf("query cabinet controllers: %v", err)
 	}
 	for membershipRows.Next() {
 		var m db.CabinetController
-		if err := membershipRows.Scan(&m.CabinetID, &m.ControllerID, &m.Slot, &m.CreatedAt, &m.UpdatedAt); err != nil {
+		if err := membershipRows.Scan(&m.CabinetID, &m.ControllerID, &m.Slot, &m.StringsConfigured, &m.CreatedAt, &m.UpdatedAt); err != nil {
 			membershipRows.Close()
 			t.Fatalf("scan cabinet controller: %v", err)
 		}
@@ -495,13 +498,13 @@ func physReadPhysicalRows(t *testing.T, conn *sql.DB) physPhysicalRows {
 		t.Fatalf("iterate cabinet controllers: %v", err)
 	}
 
-	allocationRows, err := conn.Query(`SELECT id, cabinet_id, drawer_id, controller_id, start_pixel, pixel_count, display_order, created_at, updated_at FROM drawer_led_allocations ORDER BY id`)
+	allocationRows, err := conn.Query(`SELECT id, cabinet_id, drawer_id, start_pixel, pixel_count, display_order, created_at, updated_at FROM drawer_led_allocations ORDER BY id`)
 	if err != nil {
 		t.Fatalf("query drawer LED allocations: %v", err)
 	}
 	for allocationRows.Next() {
 		var a db.DrawerLedAllocation
-		if err := allocationRows.Scan(&a.ID, &a.CabinetID, &a.DrawerID, &a.ControllerID, &a.StartPixel, &a.PixelCount, &a.DisplayOrder, &a.CreatedAt, &a.UpdatedAt); err != nil {
+		if err := allocationRows.Scan(&a.ID, &a.CabinetID, &a.DrawerID, &a.StartPixel, &a.PixelCount, &a.DisplayOrder, &a.CreatedAt, &a.UpdatedAt); err != nil {
 			allocationRows.Close()
 			t.Fatalf("scan drawer LED allocation: %v", err)
 		}
@@ -510,6 +513,39 @@ func physReadPhysicalRows(t *testing.T, conn *sql.DB) physPhysicalRows {
 	allocationRows.Close()
 	if err := allocationRows.Err(); err != nil {
 		t.Fatalf("iterate drawer LED allocations: %v", err)
+	}
+
+	stringRows, err := conn.Query(`SELECT id,cabinet_id,controller_id,name,display_order,pixel_count,layout_complete,created_at,updated_at FROM cabinet_led_strings ORDER BY id`)
+	if err != nil {
+		t.Fatalf("query cabinet LED strings: %v", err)
+	}
+	for stringRows.Next() {
+		var stringRecord db.CabinetLedString
+		if err := stringRows.Scan(&stringRecord.ID, &stringRecord.CabinetID, &stringRecord.ControllerID, &stringRecord.Name, &stringRecord.DisplayOrder, &stringRecord.PixelCount, &stringRecord.LayoutComplete, &stringRecord.CreatedAt, &stringRecord.UpdatedAt); err != nil {
+			stringRows.Close()
+			t.Fatalf("scan cabinet LED string: %v", err)
+		}
+		rows.CabinetLEDStrings = append(rows.CabinetLEDStrings, stringRecord)
+	}
+	stringRows.Close()
+	if err := stringRows.Err(); err != nil {
+		t.Fatalf("iterate cabinet LED strings: %v", err)
+	}
+	sectionRows, err := conn.Query(`SELECT id,string_id,display_order,pixel_count,points_json,created_at,updated_at FROM cabinet_led_path_sections ORDER BY id`)
+	if err != nil {
+		t.Fatalf("query cabinet LED path sections: %v", err)
+	}
+	for sectionRows.Next() {
+		var section db.CabinetLedPathSection
+		if err := sectionRows.Scan(&section.ID, &section.StringID, &section.DisplayOrder, &section.PixelCount, &section.PointsJson, &section.CreatedAt, &section.UpdatedAt); err != nil {
+			sectionRows.Close()
+			t.Fatalf("scan cabinet LED path section: %v", err)
+		}
+		rows.CabinetLEDPathSections = append(rows.CabinetLEDPathSections, section)
+	}
+	sectionRows.Close()
+	if err := sectionRows.Err(); err != nil {
+		t.Fatalf("iterate cabinet LED path sections: %v", err)
 	}
 
 	return rows

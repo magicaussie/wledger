@@ -33,9 +33,13 @@ func (h *Handler) HandleHardwareList(w http.ResponseWriter, r *http.Request) {
 		h.UIError.Respond(w, r, err, "Failed to fetch hardware list", http.StatusInternalServerError)
 		return
 	}
+	cabinets, err := h.Queries.ListCabinets(r.Context())
+	if err != nil {
+		h.UIError.Respond(w, r, err, "Failed to fetch cabinet list", http.StatusInternalServerError)
+		return
+	}
 
-	// Pass User to Template
-	pages.Hardware(user, controllers).Render(r.Context(), w)
+	pages.Hardware(user, controllers, cabinets).Render(r.Context(), w)
 }
 
 // POST /hardware
@@ -79,8 +83,9 @@ func (h *Handler) HandleHardwareCapacitySave(w http.ResponseWriter, r *http.Requ
 		http.Error(w, "invalid controller capacity request", http.StatusBadRequest)
 		return
 	}
+	confirmMappingImpact := r.FormValue("confirm_mapping_impact") == "confirm"
 	save := func() error {
-		return h.layoutService().SaveControllerLEDCapacity(r.Context(), controllerID, expectedCapacity, capacity, electricalRevision)
+		return h.layoutService().SaveControllerLEDCapacityConfirmed(r.Context(), controllerID, expectedCapacity, capacity, electricalRevision, confirmMappingImpact)
 	}
 	var saveErr error
 	if h.Locator != nil {

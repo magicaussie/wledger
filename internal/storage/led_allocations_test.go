@@ -43,7 +43,7 @@ func ledAllocationFixture(t *testing.T) (*LayoutService, db.Store, int64, int64)
 	return NewLayoutService(store), store, cabinetID, drawerID
 }
 
-func TestMultiControllerCabinetAllocationsUseControllerSpecificSpaces(t *testing.T) {
+func TestCabinetWideAllocationsCrossControllerBoundariesAndOverlapGlobally(t *testing.T) {
 	service, store, cabinetID, drawerOne := ledAllocationFixture(t)
 	ctx := context.Background()
 	cabinet, err := store.GetCabinet(ctx, cabinetID)
@@ -51,7 +51,7 @@ func TestMultiControllerCabinetAllocationsUseControllerSpecificSpaces(t *testing
 		t.Fatal(err)
 	}
 	primaryID := cabinet.ControllerID.Int64
-	var secondaryID, drawerTwo, drawerThree int64
+	var secondaryID, drawerTwo int64
 	if err := store.ExecImmediateTx(ctx, func(q db.Querier) error {
 		secondary, err := q.CreateController(ctx, db.CreateControllerParams{Name: "Secondary controller", IpAddress: "192.0.2.201"})
 		if err != nil {
@@ -62,10 +62,6 @@ func TestMultiControllerCabinetAllocationsUseControllerSpecificSpaces(t *testing
 			return err
 		}
 		drawerTwo, err = q.CreateDrawer(ctx, db.CreateDrawerParams{CabinetID: cabinetID, Label: "Drawer Two", DisplayOrder: 1, X: 12, Width: 10, Height: 10})
-		if err != nil {
-			return err
-		}
-		drawerThree, err = q.CreateDrawer(ctx, db.CreateDrawerParams{CabinetID: cabinetID, Label: "Drawer Three", DisplayOrder: 2, X: 24, Width: 10, Height: 10})
 		return err
 	}); err != nil {
 		t.Fatal(err)
@@ -77,31 +73,24 @@ func TestMultiControllerCabinetAllocationsUseControllerSpecificSpaces(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := service.SaveDrawerLEDAllocationsForController(ctx, cabinetID, drawerOne, cabinet.ElectricalRevision, primaryID, []LEDAllocationInput{{StartPixel: 1, PixelCount: 10}}); err != nil {
-		t.Fatalf("save primary-controller range: %v", err)
+	if err := service.SaveDrawerLEDAllocations(ctx, cabinetID, drawerOne, cabinet.ElectricalRevision, []LEDAllocationInput{{StartPixel: 195, PixelCount: 16}}); err != nil {
+		t.Fatalf("save a drawer range spanning controllers: %v", err)
 	}
 	cabinet, err = store.GetCabinet(ctx, cabinetID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := service.SaveDrawerLEDAllocationsForController(ctx, cabinetID, drawerTwo, cabinet.ElectricalRevision, secondaryID, []LEDAllocationInput{{StartPixel: 1, PixelCount: 10}}); err != nil {
-		t.Fatalf("same indices on secondary controller should be valid: %v", err)
+	if err := service.SaveDrawerLEDAllocations(ctx, cabinetID, drawerTwo, cabinet.ElectricalRevision, []LEDAllocationInput{{StartPixel: 201, PixelCount: 10}}); !errors.Is(err, ErrLEDAllocationInvalid) {
+		t.Fatalf("overlap on controller 2's cabinet-wide pixels = %v, want invalid allocation", err)
 	}
-	cabinet, err = store.GetCabinet(ctx, cabinetID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := service.SaveDrawerLEDAllocationsForController(ctx, cabinetID, drawerThree, cabinet.ElectricalRevision, primaryID, []LEDAllocationInput{{StartPixel: 5, PixelCount: 2}}); !errors.Is(err, ErrLEDAllocationInvalid) {
-		t.Fatalf("overlap on primary controller = %v, want invalid allocation", err)
-	}
-	if err := service.SaveControllerLEDCapacity(ctx, secondaryID, 100, 9, cabinet.ElectricalRevision); !errors.Is(err, ErrLEDControllerCapacityInvalid) {
-		t.Fatalf("secondary controller capacity shrink past saved ranges = %v, want invalid capacity", err)
+	if err := service.SaveControllerLEDCapacity(ctx, secondaryID, 100, 9, cabinet.ElectricalRevision); !errors.Is(err, ErrUnsafeLayout) {
+		t.Fatalf("secondary controller capacity shrink invalidating global ranges = %v, want unsafe-layout rejection", err)
 	}
 	if err := store.ExecImmediateTx(ctx, func(q db.Querier) error {
-		_, err := q.CreateDrawerLEDAllocation(ctx, db.CreateDrawerLEDAllocationParams{CabinetID: cabinetID, DrawerID: drawerOne, ControllerID: secondaryID, StartPixel: 50, PixelCount: 2})
+		_, err := q.CreateDrawerLEDAllocation(ctx, db.CreateDrawerLEDAllocationParams{CabinetID: cabinetID, DrawerID: drawerTwo, StartPixel: 200, PixelCount: 2})
 		return err
 	}); err == nil {
-		t.Fatal("database accepted two controllers for one physical drawer")
+		t.Fatal("database accepted overlapping ranges in cabinet-wide pixel space")
 	}
 }
 
@@ -119,7 +108,7 @@ func TestDrawerLEDAllocationGlobalIndexCrossesPhysicalStringBoundary(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := layout.Drawers[0].LedAllocations; len(got) != 1 || got[0].StartPixel != 97 || got[0].PixelCount != 8 || got[0].ControllerID != layout.Cabinet.ControllerID.Int64 {
+	if got := layout.Drawers[0].LedAllocations; len(got) != 1 || got[0].StartPixel != 97 || got[0].PixelCount != 8 {
 		t.Fatalf("saved allocation did not reload exactly: %#v", got)
 	}
 	if end := layout.Drawers[0].LedAllocations[0].StartPixel + layout.Drawers[0].LedAllocations[0].PixelCount - 1; end != 104 {
@@ -259,6 +248,47 @@ func TestCabinetControllerAssignmentIsRevisionAndAllocationSafe(t *testing.T) {
 	}
 }
 
+func TestControllerOrderChangeRequiresExplicitMappingImpactConfirmation(t *testing.T) {
+	service, store, cabinetID, drawerID := ledAllocationFixture(t)
+	ctx := context.Background()
+	var secondControllerID int64
+	if err := store.ExecImmediateTx(ctx, func(q db.Querier) error {
+		controller, err := q.CreateController(ctx, db.CreateControllerParams{Name: "Second ordered controller", IpAddress: "192.0.2.233"})
+		if err != nil {
+			return err
+		}
+		secondControllerID = controller.ID
+		return q.UpdateControllerStatus(ctx, db.UpdateControllerStatusParams{IsOnline: sql.NullBool{Bool: false, Valid: true}, LedCount: 100, ID: secondControllerID})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.SaveCabinetControllers(ctx, cabinetID, 0, []int64{1, secondControllerID}); err != nil {
+		t.Fatal(err)
+	}
+	cabinet, err := store.GetCabinet(ctx, cabinetID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.SaveDrawerLEDAllocations(ctx, cabinetID, drawerID, cabinet.ElectricalRevision, []LEDAllocationInput{{StartPixel: 205, PixelCount: 10}}); err != nil {
+		t.Fatal(err)
+	}
+	cabinet, _ = store.GetCabinet(ctx, cabinetID)
+	if err := service.SaveCabinetControllersConfirmed(ctx, cabinetID, cabinet.ElectricalRevision, []int64{secondControllerID, 1}, false); !errors.Is(err, ErrUnsafeLayout) {
+		t.Fatalf("controller reorder without impact confirmation = %v, want ErrUnsafeLayout", err)
+	}
+	if err := service.SaveCabinetControllersConfirmed(ctx, cabinetID, cabinet.ElectricalRevision, []int64{secondControllerID, 1}, true); err != nil {
+		t.Fatalf("confirmed controller reorder: %v", err)
+	}
+	members, err := store.ListCabinetControllers(ctx, cabinetID)
+	if err != nil || len(members) != 2 || members[0].ControllerID != secondControllerID || members[0].Slot != 0 || members[1].ControllerID != 1 || members[1].Slot != 1 {
+		t.Fatalf("saved controller order=%+v err=%v", members, err)
+	}
+	allocations, err := store.ListDrawerLEDAllocationsByDrawer(ctx, drawerID)
+	if err != nil || len(allocations) != 1 || allocations[0].StartPixel != 205 {
+		t.Fatalf("controller order change rewrote cabinet-wide allocation: %+v err=%v", allocations, err)
+	}
+}
+
 func TestControllerCapacityChangeIsRevisionSafeAndPreservesAllocations(t *testing.T) {
 	service, store, cabinetID, drawerID := ledAllocationFixture(t)
 	ctx := context.Background()
@@ -270,7 +300,7 @@ func TestControllerCapacityChangeIsRevisionSafeAndPreservesAllocations(t *testin
 		t.Fatal(err)
 	}
 	controllerID := cabinet.ControllerID.Int64
-	if err := service.SaveControllerLEDCapacity(ctx, controllerID, 200, 103, cabinet.ElectricalRevision); !errors.Is(err, ErrLEDControllerCapacityInvalid) {
+	if err := service.SaveControllerLEDCapacity(ctx, controllerID, 200, 103, cabinet.ElectricalRevision); !errors.Is(err, ErrUnsafeLayout) {
 		t.Fatalf("capacity reduction that would invalidate a saved range: %v", err)
 	}
 	if err := service.SaveControllerLEDCapacity(ctx, controllerID, 200, 250, cabinet.ElectricalRevision); err != nil {

@@ -155,6 +155,7 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 				r.Use(mw.RequireRole("admin"))
 				r.Use(mw.RequireCSRF)
 				r.Post("/storage/cabinets/{id}/controller", h.HandleCabinetControllerSave)
+				r.Post("/storage/cabinets/{id}/wiring", h.HandleCabinetWiringSave)
 				r.Post("/hardware/{id}/locate-mapping", h.HandleControllerLocateMappingSave)
 			})
 			r.Group(func(r chi.Router) {

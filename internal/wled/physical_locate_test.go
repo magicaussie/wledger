@@ -139,11 +139,22 @@ type failingFinalSessionStore struct {
 	failFinal bool
 }
 
-func (s *failingFinalSessionStore) SavePhysicalLocateSession(ctx context.Context, arg db.SavePhysicalLocateSessionParams) (int64, error) {
-	if s.failFinal && arg.State == "stopped" {
+type failingFinalSessionQuerier struct {
+	db.Querier
+	failFinal bool
+}
+
+func (s *failingFinalSessionStore) ExecImmediateTx(ctx context.Context, fn func(db.Querier) error) error {
+	return s.Store.ExecImmediateTx(ctx, func(q db.Querier) error {
+		return fn(failingFinalSessionQuerier{Querier: q, failFinal: s.failFinal})
+	})
+}
+
+func (q failingFinalSessionQuerier) SavePhysicalLocateSession(ctx context.Context, arg db.SavePhysicalLocateSessionParams) (int64, error) {
+	if q.failFinal && arg.State == "stopped" {
 		return 0, errors.New("simulated final session save failure")
 	}
-	return s.Store.SavePhysicalLocateSession(ctx, arg)
+	return q.Querier.SavePhysicalLocateSession(ctx, arg)
 }
 
 func newPhysicalFixture(t *testing.T) *physicalFixture {
@@ -227,9 +238,9 @@ func newPhysicalFixture(t *testing.T) *physicalFixture {
 		t.Fatal(err)
 	}
 	for _, allocation := range []db.CreateDrawerLEDAllocationParams{
-		{CabinetID: cabinetID, DrawerID: drawer1, ControllerID: controllerID.ID, StartPixel: 97, PixelCount: 8, DisplayOrder: 0},
-		{CabinetID: cabinetID, DrawerID: drawer1, ControllerID: controllerID.ID, StartPixel: 150, PixelCount: 2, DisplayOrder: 1},
-		{CabinetID: cabinetID, DrawerID: drawer2, ControllerID: controllerID.ID, StartPixel: 10, PixelCount: 2, DisplayOrder: 0},
+		{CabinetID: cabinetID, DrawerID: drawer1, StartPixel: 97, PixelCount: 8, DisplayOrder: 0},
+		{CabinetID: cabinetID, DrawerID: drawer1, StartPixel: 150, PixelCount: 2, DisplayOrder: 1},
+		{CabinetID: cabinetID, DrawerID: drawer2, StartPixel: 10, PixelCount: 2, DisplayOrder: 0},
 	} {
 		if _, err := store.CreateDrawerLEDAllocation(ctx, allocation); err != nil {
 			t.Fatal(err)
@@ -409,7 +420,7 @@ func TestPhysicalLocateSendsExactSegmentRelativeCommandsAndTurnsOffOnlyOwnedRang
 	assertPixelCommand(t, posts[4], 20, 0, 4, []any{float64(0), float64(0), float64(0)})
 	assertPixelCommand(t, posts[5], 20, 49, 51, []any{float64(0), float64(0), float64(0)})
 	session, ok := f.service.SessionForDrawer(f.drawer1)
-	if !ok || session.State != "stopped" || session.LastOperation != "WLED acknowledged range-off commands for this drawer" {
+	if !ok || session.State != "stopped" || session.LastOperation != "WLED acknowledged targeted cleanup on all affected controllers" {
 		t.Fatalf("stop was not recorded as confirmed: %+v, %v", session, ok)
 	}
 }
@@ -451,7 +462,7 @@ func TestPhysicalLocateFailsBeforeWritesForMissingBinOrUnverifiedMapping(t *test
 	if _, err := f.store.UpdateControllerLocateMappingVerification(context.Background(), db.UpdateControllerLocateMappingVerificationParams{ID: f.controller, LocateMappingVerified: false, LocateMappingFingerprint: ""}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.service.LocateInventoryBin(context.Background(), f.partID, f.bin1, 7); err != ErrLocateMappingUnverified {
+	if _, err := f.service.LocateInventoryBin(context.Background(), f.partID, f.bin1, 7); !errors.Is(err, ErrLocateMappingUnverified) {
 		t.Fatalf("got error %v, want ErrLocateMappingUnverified", err)
 	}
 	if posts := f.mock.posts(); len(posts) != 0 {
@@ -467,7 +478,7 @@ func TestPhysicalLocateRejectsStaleTopologyAndPartialCommandFailure(t *testing.T
 		}
 		f.mock.setState(`{"on":true,"seg":[{"id":10,"start":0,"stop":90,"on":true,"fx":0,"grp":1,"spc":0,"rev":false,"mi":false,"col":[[20,30,40]]},{"id":20,"start":90,"stop":200,"on":true,"fx":0,"grp":1,"spc":0,"rev":false,"mi":false,"col":[[50,60,70]]}]}`)
 		before := len(f.mock.posts())
-		if err := f.service.StopDrawer(context.Background(), f.drawer2, 7); err != ErrLocateSessionStale {
+		if err := f.service.StopDrawer(context.Background(), f.drawer2, 7); !errors.Is(err, ErrLocateSessionStale) {
 			t.Fatalf("got %v, want stale-config error", err)
 		}
 		if got := len(f.mock.posts()); got != before {
@@ -657,7 +668,7 @@ func TestPhysicalLocateUsesTheDrawerAssignedSecondaryController(t *testing.T) {
 	if err := f.store.CreateBinDrawerAttachment(ctx, db.CreateBinDrawerAttachmentParams{BinID: bin, DrawerID: drawer, Width: 1, Height: 1}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.store.CreateDrawerLEDAllocation(ctx, db.CreateDrawerLEDAllocationParams{CabinetID: cabinet.ID, DrawerID: drawer, ControllerID: secondary.ID, StartPixel: 97, PixelCount: 8}); err != nil {
+	if _, err := f.store.CreateDrawerLEDAllocation(ctx, db.CreateDrawerLEDAllocationParams{CabinetID: cabinet.ID, DrawerID: drawer, StartPixel: 297, PixelCount: 8}); err != nil {
 		t.Fatal(err)
 	}
 	if err := f.service.SaveControllerMappingVerification(ctx, secondary.ID, true); err != nil {
@@ -698,7 +709,7 @@ func TestPhysicalLocateRejectsIncompletePersistedCleanupCommands(t *testing.T) {
 	if _, err := f.service.LocateInventoryBin(context.Background(), f.partID, f.bin2, 7); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.database.ExecContext(context.Background(), `UPDATE physical_locate_sessions SET commands_json='[]' WHERE controller_id=?`, f.controller); err != nil {
+	if _, err := f.database.ExecContext(context.Background(), `UPDATE physical_locate_session_targets SET commands_json='[]' WHERE session_id=(SELECT session_id FROM physical_locate_sessions WHERE controller_id=?)`, f.controller); err != nil {
 		t.Fatal(err)
 	}
 	restarted := NewPhysicalLocateService(f.store, NewClient())

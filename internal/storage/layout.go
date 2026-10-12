@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/tuxedocurly/wledger/internal/cabinetpixels"
 	"github.com/tuxedocurly/wledger/internal/db"
 )
 
@@ -30,12 +31,14 @@ type CabinetLayout struct {
 	Controllers         []db.Controller
 	AssignedControllers []AssignedController
 	ControllerError     string
+	Wiring              cabinetpixels.Topology
 	Drawers             []DrawerLayout
 	UnattachedBins      []db.ListUnattachedBinsRow
 }
 type AssignedController struct {
-	Slot       int64
-	Controller db.Controller
+	Slot              int64
+	StringsConfigured int64
+	Controller        db.Controller
 }
 type DrawerLayout struct {
 	Drawer         db.Drawer
@@ -98,6 +101,10 @@ func (s *LayoutService) Get(ctx context.Context, cabinetID int64) (CabinetLayout
 			return err
 		}
 		out.Cabinet = cabinet
+		out.Wiring, err = cabinetpixels.Load(ctx, q, cabinetID)
+		if err != nil {
+			return err
+		}
 		controllers, err := q.GetControllers(ctx)
 		if err != nil {
 			return err
@@ -122,7 +129,7 @@ func (s *LayoutService) Get(ctx context.Context, cabinetID int64) (CabinetLayout
 			if controllerErr != nil {
 				return controllerErr
 			}
-			out.AssignedControllers = append(out.AssignedControllers, AssignedController{Slot: member.Slot, Controller: controller})
+			out.AssignedControllers = append(out.AssignedControllers, AssignedController{Slot: member.Slot, StringsConfigured: member.StringsConfigured, Controller: controller})
 			if cabinet.ControllerID.Valid && cabinet.ControllerID.Int64 == controller.ID {
 				primary := controller
 				out.Controller = &primary

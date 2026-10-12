@@ -10,10 +10,46 @@ import (
 	"github.com/tuxedocurly/wledger/web/layouts"
 )
 
-templ Hardware(user auth.User, controllers []db.Controller) {
+templ Hardware(user auth.User, controllers []db.Controller, cabinets []db.Cabinet) {
 	@layouts.Base(i18n.T(ctx, "Hardware"), user) {
-		@components.PageHeader(i18n.T(ctx, "Hardware"), "", nil)
-		<div class="flex flex-col md:flex-row justify-end mb-6 gap-4">
+		@components.PageHeader(i18n.T(ctx, "Hardware"), "Configure physical cabinets and their LED wiring independently from legacy electrical containers.", nil)
+		<section class="card border border-primary/30 bg-primary/5 shadow-sm mb-8">
+			<div class="card-body gap-4">
+				<div class="flex flex-wrap items-start justify-between gap-4">
+					<div>
+						<h2 class="card-title">Cabinets</h2>
+						<p class="text-sm opacity-80">The cabinet is the primary hardware configuration object. Set up controllers, physical LED strings and paths, then edit drawers and assign cabinet-wide pixel ranges.</p>
+					</div>
+					<div class="flex flex-wrap gap-2">
+						<a class="btn btn-primary btn-sm" href="/storage/cabinets">Open Cabinets</a>
+						if user.CanWrite() {
+							<a class="btn btn-outline btn-sm" href="/storage/cabinets">Create Cabinet</a>
+							<button onclick="add_controller_modal.showModal()" class="btn btn-outline btn-sm">Add WLED Controller</button>
+						}
+					</div>
+				</div>
+				<div class="rounded-lg bg-base-100/70 p-3 text-sm">
+					<strong>Setup sequence:</strong> Create Cabinet → Configure Controllers → Configure Strings → Configure Wiring Layout → Edit Drawer Layout → Assign Drawer LEDs.
+				</div>
+				if len(cabinets) > 0 {
+					<div class="flex flex-wrap gap-2">
+						for _, cabinet := range cabinets {
+							<a class="badge badge-outline py-3" href={ templ.SafeURL(fmt.Sprintf("/storage/cabinets/%d/edit", cabinet.ID)) }>{ cabinet.Name }</a>
+						}
+					</div>
+				} else {
+					<p class="text-sm opacity-70">No cabinets yet. Create one to begin; drawers and their inventory identities are configured separately from electrical wiring.</p>
+				}
+			</div>
+		</section>
+		<section aria-labelledby="legacy-hardware-heading">
+			<div class="mb-3">
+				<h2 id="legacy-hardware-heading" class="text-lg font-semibold">Controller device records and legacy electrical tools</h2>
+				<p class="text-sm opacity-70">Legacy containers, WLED segments and bin LED indices remain available here, but are not prerequisites for cabinet setup and are not physical strings.</p>
+			</div>
+			<details class="rounded-lg border border-base-300 p-3">
+				<summary class="cursor-pointer font-semibold">Advanced legacy controller and segment tools</summary>
+		<div class="flex flex-col md:flex-row justify-end mb-6 gap-4 mt-4">
 			if user.CanWrite() {
 				<a href="/hardware/labels" class="btn btn-outline gap-2">
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg>
@@ -80,6 +116,8 @@ templ Hardware(user auth.User, controllers []db.Controller) {
 				@components.EmptyState(i18n.T(ctx, "NoControllersFound"), i18n.T(ctx, "AddFirstWLEDDevice"), "🔌")
 			}
 		</div>
+			</details>
+		</section>
 		@components.Modal(components.ModalProps{
 			ID:    "add_controller_modal",
 			Title: i18n.T(ctx, "AddNewController"),

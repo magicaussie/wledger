@@ -23,6 +23,8 @@ type Querier interface {
 	ClearBinDrawerAttachments(ctx context.Context) error
 	ClearBins(ctx context.Context) error
 	ClearCabinetControllers(ctx context.Context) error
+	ClearCabinetLEDPathSections(ctx context.Context) error
+	ClearCabinetLEDStrings(ctx context.Context) error
 	// ClearCabinets empties the cabinet table. It must run before any legacy
 	// controller deletion, and after the drawers and cabinets it references.
 	ClearCabinets(ctx context.Context) error
@@ -41,6 +43,8 @@ type Querier interface {
 	ClearPartPricing(ctx context.Context) error
 	ClearPartTags(ctx context.Context) error
 	ClearParts(ctx context.Context) error
+	ClearPhysicalLocateSessionTargets(ctx context.Context, sessionID string) error
+	ClearPhysicalLocateSessionTargetsForPrimaryController(ctx context.Context, controllerID int64) error
 	ClearPriceHistory(ctx context.Context) error
 	ClearSupplierCredentials(ctx context.Context) error
 	ClearSupplierReferences(ctx context.Context) error
@@ -56,6 +60,9 @@ type Querier interface {
 	CreateBinDrawerAttachment(ctx context.Context, arg CreateBinDrawerAttachmentParams) error
 	CreateCabinet(ctx context.Context, arg CreateCabinetParams) (int64, error)
 	CreateCabinetController(ctx context.Context, arg CreateCabinetControllerParams) error
+	CreateCabinetControllerReorderGuard(ctx context.Context, cabinetID int64) error
+	CreateCabinetLEDPathSection(ctx context.Context, arg CreateCabinetLEDPathSectionParams) (int64, error)
+	CreateCabinetLEDString(ctx context.Context, arg CreateCabinetLEDStringParams) (int64, error)
 	CreateContainer(ctx context.Context, arg CreateContainerParams) (int64, error)
 	CreateController(ctx context.Context, arg CreateControllerParams) (CreateControllerRow, error)
 	CreateDrawer(ctx context.Context, arg CreateDrawerParams) (int64, error)
@@ -85,6 +92,9 @@ type Querier interface {
 	DeleteBinsByContainer(ctx context.Context, containerID sql.NullInt64) error
 	DeleteCabinet(ctx context.Context, id int64) (int64, error)
 	DeleteCabinetController(ctx context.Context, arg DeleteCabinetControllerParams) (int64, error)
+	DeleteCabinetControllerReorderGuard(ctx context.Context, cabinetID int64) error
+	DeleteCabinetLEDPathSectionsByString(ctx context.Context, stringID int64) error
+	DeleteCabinetLEDString(ctx context.Context, arg DeleteCabinetLEDStringParams) (int64, error)
 	DeleteContainer(ctx context.Context, id int64) error
 	DeleteController(ctx context.Context, id int64) error
 	DeleteDrawer(ctx context.Context, id int64) (int64, error)
@@ -203,6 +213,8 @@ type Querier interface {
 	GetWalls(ctx context.Context) ([]Wall, error)
 	InitSettings(ctx context.Context) error
 	ListAllCabinetControllers(ctx context.Context) ([]CabinetController, error)
+	ListAllCabinetLEDPathSections(ctx context.Context) ([]CabinetLedPathSection, error)
+	ListAllCabinetLEDStrings(ctx context.Context) ([]CabinetLedString, error)
 	ListAllDrawerLEDAllocations(ctx context.Context) ([]DrawerLedAllocation, error)
 	// ListAllDrawers returns every drawer, including archived rows and every
 	// cabinet, in a deterministic order so an exported snapshot is stable and
@@ -213,10 +225,13 @@ type Querier interface {
 	ListBinDrawerAttachments(ctx context.Context) ([]BinDrawerAttachment, error)
 	ListBinDrawerAttachmentsByDrawer(ctx context.Context, drawerID int64) ([]BinDrawerAttachment, error)
 	ListCabinetControllers(ctx context.Context, cabinetID int64) ([]CabinetController, error)
+	ListCabinetLEDPathSections(ctx context.Context, cabinetID int64) ([]CabinetLedPathSection, error)
+	ListCabinetLEDPathSectionsByString(ctx context.Context, stringID int64) ([]CabinetLedPathSection, error)
+	ListCabinetLEDStrings(ctx context.Context, cabinetID int64) ([]CabinetLedString, error)
+	ListCabinetLEDStringsByController(ctx context.Context, arg ListCabinetLEDStringsByControllerParams) ([]CabinetLedString, error)
 	ListCabinets(ctx context.Context) ([]Cabinet, error)
 	ListCabinetsIncludingArchived(ctx context.Context) ([]Cabinet, error)
 	ListDrawerLEDAllocationsByCabinet(ctx context.Context, cabinetID int64) ([]DrawerLedAllocation, error)
-	ListDrawerLEDAllocationsByController(ctx context.Context, controllerID int64) ([]DrawerLedAllocation, error)
 	ListDrawerLEDAllocationsByDrawer(ctx context.Context, drawerID int64) ([]DrawerLedAllocation, error)
 	ListDrawersByCabinet(ctx context.Context, cabinetID int64) ([]Drawer, error)
 	ListDrawersByCabinetIncludingArchived(ctx context.Context, cabinetID int64) ([]Drawer, error)
@@ -225,6 +240,7 @@ type Querier interface {
 	// unconfigured parts are not flagged. Ordered by the largest shortfall first.
 	ListLowStockParts(ctx context.Context) ([]ListLowStockPartsRow, error)
 	ListParts(ctx context.Context, arg ListPartsParams) ([]ListPartsRow, error)
+	ListPhysicalLocateSessionTargets(ctx context.Context, sessionID string) ([]PhysicalLocateSessionTarget, error)
 	ListPhysicalLocateSessions(ctx context.Context) ([]PhysicalLocateSession, error)
 	ListUnattachedBins(ctx context.Context) ([]ListUnattachedBinsRow, error)
 	ListUsers(ctx context.Context) ([]ListUsersRow, error)
@@ -241,6 +257,8 @@ type Querier interface {
 	// archived state and timestamps.
 	RestoreCabinet(ctx context.Context, arg RestoreCabinetParams) error
 	RestoreCabinetController(ctx context.Context, arg RestoreCabinetControllerParams) error
+	RestoreCabinetLEDPathSection(ctx context.Context, arg RestoreCabinetLEDPathSectionParams) error
+	RestoreCabinetLEDString(ctx context.Context, arg RestoreCabinetLEDStringParams) error
 	RestoreContainer(ctx context.Context, arg RestoreContainerParams) error
 	RestoreController(ctx context.Context, arg RestoreControllerParams) error
 	// RestoreDrawer re-inserts a captured drawer with its exact id, geometry,
@@ -267,7 +285,9 @@ type Querier interface {
 	RestoreWall(ctx context.Context, arg RestoreWallParams) error
 	RestoreWallCard(ctx context.Context, arg RestoreWallCardParams) error
 	SavePhysicalLocateSession(ctx context.Context, arg SavePhysicalLocateSessionParams) (int64, error)
+	SavePhysicalLocateSessionTarget(ctx context.Context, arg SavePhysicalLocateSessionTargetParams) error
 	SearchParts(ctx context.Context, arg SearchPartsParams) ([]SearchPartsRow, error)
+	SetControllerLEDCapacityFromStrings(ctx context.Context, arg SetControllerLEDCapacityFromStringsParams) (int64, error)
 	SetControllerOnlineStatus(ctx context.Context, arg SetControllerOnlineStatusParams) error
 	SetFlag(ctx context.Context, arg SetFlagParams) error
 	SetPasswordResetFlag(ctx context.Context, arg SetPasswordResetFlagParams) error
@@ -281,7 +301,11 @@ type Querier interface {
 	UpdateBinName(ctx context.Context, arg UpdateBinNameParams) (int64, error)
 	UpdateCabinet(ctx context.Context, arg UpdateCabinetParams) (int64, error)
 	UpdateCabinetController(ctx context.Context, arg UpdateCabinetControllerParams) (int64, error)
+	UpdateCabinetControllerSlot(ctx context.Context, arg UpdateCabinetControllerSlotParams) (int64, error)
+	UpdateCabinetControllerStringsConfigured(ctx context.Context, arg UpdateCabinetControllerStringsConfiguredParams) (int64, error)
 	UpdateCabinetElectricalRevision(ctx context.Context, arg UpdateCabinetElectricalRevisionParams) (int64, error)
+	UpdateCabinetLEDPathSection(ctx context.Context, arg UpdateCabinetLEDPathSectionParams) (int64, error)
+	UpdateCabinetLEDString(ctx context.Context, arg UpdateCabinetLEDStringParams) (int64, error)
 	UpdateCabinetLayoutRevision(ctx context.Context, arg UpdateCabinetLayoutRevisionParams) (int64, error)
 	UpdateCabinetLayoutSettings(ctx context.Context, arg UpdateCabinetLayoutSettingsParams) (int64, error)
 	UpdateColors(ctx context.Context, arg UpdateColorsParams) error

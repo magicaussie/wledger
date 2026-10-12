@@ -13,13 +13,13 @@ templ StorageLayoutEditor(layout storage.CabinetLayout, user auth.User) {
 	@layouts.Base("Cabinet designer", user) {
 		@templ.JSONScript("layout-editor-data", layout)
 		<div class="max-w-[1800px] mx-auto w-full" x-data="physicalLayoutEditor()" x-init="init()" x-on:keydown.window="onKeydown($event)">
-			@components.PageHeader("Cabinet designer", "Save physical layout and drawer LED allocations as separate operations. Configuration never activates WLED.", []components.Breadcrumb{{Label: "Physical storage", URL: "/storage/cabinets"}, {Label: layout.Cabinet.Name, URL: fmt.Sprintf("/storage/cabinets/%d", layout.Cabinet.ID)}, {Label: "Designer"}})
+			@components.PageHeader("Cabinet setup", "Configure ordered controllers, physical strings and wiring paths, then edit independent drawer geometry and cabinet-wide LED assignments. Settings never write to WLED.", []components.Breadcrumb{{Label: "Physical storage", URL: "/storage/cabinets"}, {Label: layout.Cabinet.Name, URL: fmt.Sprintf("/storage/cabinets/%d", layout.Cabinet.ID)}, {Label: "Designer"}})
 			<form method="POST" action={templ.SafeURL(fmt.Sprintf("/storage/cabinets/%d/edit", layout.Cabinet.ID))} x-on:submit="prepare($event)" class="space-y-3">
 				<input type="hidden" name="csrf_token" value={csrf.TokenFromContext(ctx)} x-ref="csrf"/>
 				<input type="hidden" name="layout" x-ref="layout"/>
 				<div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-base-300 bg-base-200 p-3">
 					<div class="flex flex-wrap gap-2 items-center">
-						<strong class="mr-2" x-text="mode === 'cabinet' ? state.name : activeDrawer()?.label"></strong>
+						<strong class="mr-2" x-text="mode === 'bins' ? activeDrawer()?.label : state.name"></strong>
 						<button type="button" class="btn btn-sm btn-ghost" x-on:click="undo()" x-bind:disabled="!undoStack.length" aria-label="Undo">↶ Undo</button>
 						<button type="button" class="btn btn-sm btn-ghost" x-on:click="redo()" x-bind:disabled="!redoStack.length" aria-label="Redo">↷ Redo</button>
 						<span class="badge" x-show="dirty">Unsaved changes</span>
@@ -44,6 +44,12 @@ templ StorageLayoutEditor(layout storage.CabinetLayout, user auth.User) {
 									<button type="button" class="btn btn-sm justify-start" x-bind:class="tool === 'pan' ? 'btn-primary' : 'btn-outline'" x-on:click="setTool('pan')">Pan</button>
 								</div>
 								<p class="text-xs opacity-70 mt-2">Drag on the canvas to draw. Drag a shape to move it; use corner handles to resize.</p>
+							</section>
+							<section x-show="mode === 'wiring'" class="rounded border border-secondary/40 p-2 space-y-2">
+								<h2 class="font-bold text-sm">Wiring path drawing</h2>
+								<p class="text-xs">Click ordered path points on the cabinet canvas. Double-click to finish the current section.</p>
+								<button type="button" class="btn btn-sm btn-secondary w-full" x-on:click="finishPathSection()">Finish path section</button>
+								<button type="button" class="btn btn-sm btn-ghost w-full" x-on:click="mode='cabinet';tool='select';activePathSectionKey='';renderCanvas()">Cancel path drawing</button>
 							</section>
 							<section x-show="mode === 'bins'">
 								<div class="flex justify-between items-center mb-2"><h2 class="font-bold text-sm">Drawer bins</h2><button type="button" class="btn btn-xs btn-ghost" x-on:click="closeDrawer()">Back</button></div>
@@ -72,16 +78,16 @@ templ StorageLayoutEditor(layout storage.CabinetLayout, user auth.User) {
 
 					<section class="card bg-base-200 border border-base-300 shadow-md min-w-0">
 						<div class="card-body p-3">
-							<div class="flex flex-wrap justify-between items-center gap-2"><div><h2 class="font-bold" x-text="mode === 'cabinet' ? 'Cabinet canvas' : 'Bin layout canvas'"></h2><p class="text-xs opacity-70">Double-click a drawer to edit its bins.</p></div><span class="badge badge-outline" x-text="mode === 'cabinet' ? state.width + ' × ' + state.height : activeDrawer()?.width + ' × ' + activeDrawer()?.height"></span></div>
+							<div class="flex flex-wrap justify-between items-center gap-2"><div><h2 class="font-bold" x-text="mode === 'wiring' ? 'Wiring and drawer canvas' : (mode === 'cabinet' ? 'Cabinet canvas' : 'Bin layout canvas')"></h2><p class="text-xs opacity-70" x-text="mode === 'wiring' ? 'String paths share cabinet coordinates with the independent physical drawer layout.' : 'Double-click a drawer to edit its bins.'"></p></div><span class="badge badge-outline" x-text="mode === 'bins' ? activeDrawer()?.width + ' × ' + activeDrawer()?.height : state.width + ' × ' + state.height"></span></div>
 							<div class="w-full overflow-auto rounded-lg border border-base-300 bg-base-100 mt-2">
-								<svg x-ref="canvas" class="block w-full min-h-[420px] max-h-[75vh] touch-none select-none" role="application" aria-label="Interactive physical layout canvas" tabindex="0" preserveAspectRatio="xMidYMid meet" x-on:pointerdown="canvasPointerDown($event)" x-on:pointermove="canvasPointerMove($event)" x-on:pointerup="canvasPointerUp($event)" x-on:pointercancel="cancelPointer()" x-on:wheel.prevent="wheelZoom($event)" x-on:click.self="canvasClick($event)">
+								<svg x-ref="canvas" class="block w-full min-h-[420px] max-h-[75vh] touch-none select-none" role="application" aria-label="Interactive physical layout canvas" tabindex="0" preserveAspectRatio="xMidYMid meet" x-on:pointerdown="canvasPointerDown($event)" x-on:pointermove="canvasPointerMove($event)" x-on:pointerup="canvasPointerUp($event)" x-on:pointercancel="cancelPointer()" x-on:wheel.prevent="wheelZoom($event)" x-on:click.self="canvasClick($event)" x-on:dblclick="finishPathSection()">
 									<defs><pattern id="layout-grid" x-bind:width="gridSize" x-bind:height="gridSize" patternUnits="userSpaceOnUse"><path x-bind:d="'M ' + gridSize + ' 0 L 0 0 0 ' + gridSize" fill="none" stroke="currentColor" stroke-opacity="0.16" stroke-width="0.12"/></pattern></defs>
 																		<rect x="-100000" y="-100000" width="200000" height="200000" fill="var(--color-base-100)"/>
 																		<rect x="0" y="0" x-bind:width="canvasWidth()" x-bind:height="canvasHeight()" x-bind:fill="showGrid ? 'url(#layout-grid)' : 'var(--color-base-100)'" stroke="var(--color-base-content)" stroke-opacity="0.5" stroke-width="0.3"/>
 																		<g x-ref="decorLayer"></g><g x-ref="drawerLayer"></g><g x-ref="binLayer"></g><g x-ref="previewLayer"></g>
 								</svg>
 							</div>
-							<p class="text-xs opacity-70 mt-2" x-show="mode === 'cabinet'">Canvas is physical-only. Moving drawers never rewrites controller, string, LED index or electrical mapping data.</p>
+							<p class="text-xs opacity-70 mt-2" x-show="mode !== 'bins'">Drawer rectangles and ordered LED string paths share cabinet coordinates but are saved independently. Moving a drawer never changes its cabinet-wide pixel assignment.</p>
 						</div>
 					</section>
 
@@ -91,61 +97,56 @@ templ StorageLayoutEditor(layout storage.CabinetLayout, user auth.User) {
 							<section class="space-y-3" x-show="state.uiSelectionKind === 'drawer'">
 								<label class="form-control"><span class="label-text text-xs">Drawer label</span><input class="input input-bordered input-sm" x-model="selectedDrawer().label" x-on:focus="beginPropertyEdit()" x-on:change="finishPropertyEdit()"/></label>
 								<div class="grid grid-cols-2 gap-2"><label class="form-control"><span class="label-text text-xs">Order</span><input class="input input-bordered input-sm" type="number" x-model.number="selectedDrawer().display_order" x-on:focus="beginPropertyEdit()" x-on:change="finishPropertyEdit()"/></label><label class="form-control"><span class="label-text text-xs">Width</span><input class="input input-bordered input-sm" type="number" min="0.1" step="any" x-model.number="selectedDrawer().width" x-on:focus="beginPropertyEdit()" x-on:change="finishPropertyEdit()"/></label><label class="form-control"><span class="label-text text-xs">X</span><input class="input input-bordered input-sm" type="number" min="0" step="any" x-model.number="selectedDrawer().x" x-on:focus="beginPropertyEdit()" x-on:change="finishPropertyEdit()"/></label><label class="form-control"><span class="label-text text-xs">Y</span><input class="input input-bordered input-sm" type="number" min="0" step="any" x-model.number="selectedDrawer().y" x-on:focus="beginPropertyEdit()" x-on:change="finishPropertyEdit()"/></label><label class="form-control"><span class="label-text text-xs">Height</span><input class="input input-bordered input-sm" type="number" min="0.1" step="any" x-model.number="selectedDrawer().height" x-on:focus="beginPropertyEdit()" x-on:change="finishPropertyEdit()"/></label></div>
-								<div class="rounded border border-info/50 bg-info/10 p-3 space-y-2">
-									<h3 class="font-bold text-sm">Saved LED allocation ranges</h3>
-									<p class="text-xs">Controller-wide, 1-based pixel numbers. A range may cross physical string boundaries; strings are not treated as WLED segments. Saving this mapping does not send requests to WLED.</p>
-									<p class="text-xs" x-text="controllerSummary()"></p>
-									<label class="form-control"><span class="label-text text-xs">Controller for this drawer</span><select class="select select-bordered select-sm" x-model="drawerControllers[selectedDrawer().key]" x-on:change="physicalOutputLayout = null; outputDiscoveryError = ''"><option value="0">Unassigned</option><template x-for="assigned in assignedControllers" :key="assigned.Controller.id"><option x-bind:value="String(assigned.Controller.id)" x-text="assigned.Controller.name + ' (#' + assigned.Controller.id + ') — ' + assigned.Controller.led_count + ' pixels'"></option></template></select></label>
-									<p class="text-xs">A physical drawer uses exactly one controller. Every saved range below restarts numbering at 1 on that controller.</p>
-									if user.IsAdmin() {
-										<div class="rounded bg-base-300/50 p-2 space-y-2">
-											<h4 class="font-semibold text-xs">Read-only WLED physical outputs</h4>
-											<button type="button" class="btn btn-xs btn-outline" x-on:click="discoverPhysicalOutputs(selectedDrawer())" x-bind:disabled="!Number(drawerControllers[selectedDrawer().key])">Discover assigned controller outputs</button>
-											<p class="text-xs text-error" role="alert" x-show="outputDiscoveryError" x-text="outputDiscoveryError"></p>
-											<template x-if="physicalOutputLayout && Number(drawerControllers[selectedDrawer().key]) === physicalOutputLayout.controller_id">
-												<div class="space-y-2" aria-label="Physical LED output map">
-													<div class="relative flex h-14 w-full overflow-hidden rounded border border-base-content/30 bg-base-100">
-														<template x-for="output in physicalOutputLayout.outputs" :key="output.order">
-															<div class="relative flex h-full min-w-0 items-center justify-center border-r border-base-content/40 bg-info/20 text-[10px]" x-bind:style="'flex-basis:' + (output.length / physicalOutputLayout.capacity * 100) + '%'"><span class="truncate text-center" x-text="'Output ' + (output.order + 1) + ' · ' + output.first_index + '–' + output.last_index + ' · GPIO ' + output.pins.join(',')"></span><template x-for="mark in outputAllocationMarkers(output, selectedDrawer())" :key="mark.key"><span class="absolute inset-y-0 bg-primary/60 ring-1 ring-primary" x-bind:style="'left:' + mark.left + '%;width:' + mark.width + '%'" x-bind:title="'Drawer range ' + mark.start + '–' + mark.end"></span></template></div>
-													</template>
-												</div>
-												<p class="text-[10px] opacity-75" x-text="'Controller #' + physicalOutputLayout.controller_id + ': controller-wide 1-based pixels, total ' + physicalOutputLayout.capacity + '. Output order is physical output order; WLED segments are separate.'"></p>
-												<p class="text-[10px]">Purple overlays indicate the selected drawer's saved ranges.</p>
-												<div class="space-y-1"><template x-for="output in physicalOutputLayout.outputs" :key="'details-' + output.order"><p class="text-[10px] font-mono" x-text="'Output ' + (output.order + 1) + ' (order ' + (output.order + 1) + '): WLED start ' + output.start + ', length ' + output.length + ', GPIO ' + output.pins.join(', ') + ', controller-wide LEDs ' + output.first_index + '–' + output.last_index"></p></template></div>
-												</div>
-											</template>
-									</div>
-									<div class="rounded bg-base-300/50 p-2 space-y-2" x-show="assignedControllers.length">
-										<h4 class="font-semibold text-xs">Controller capacities</h4>
-										<template x-for="assigned in assignedControllers" :key="'capacity-' + assigned.Controller.id">
-											<div class="space-y-1 border-b border-base-content/10 pb-2">
-												<label class="form-control"><span class="label-text text-xs" x-text="assigned.Controller.name + ' (#' + assigned.Controller.id + ') total pixels across outputs'"></span><input class="input input-bordered input-sm" type="number" min="0" step="1" x-model="capacityDrafts[assigned.Controller.id]"/></label>
-												<button type="button" class="btn btn-xs btn-outline" x-on:click="saveControllerCapacity(assigned.Controller.id)">Save capacity</button>
-											</div>
-										</template>
-										<p class="text-xs">Capacity defines this controller's 1-based numbering. It does not configure outputs, WLED segments or activate hardware.</p>
-										<p class="text-xs text-success" role="status" x-show="capacitySaveNotice" x-text="capacitySaveNotice"></p>
-										<p class="text-xs text-error" role="alert" x-show="capacitySaveError" x-text="capacitySaveError"></p>
-									</div>
-								}
-									<template x-for="(range,index) in ledRangesFor(selectedDrawer())" :key="range.id || ('new-' + index)">
+								<div class="rounded border border-info/50 bg-info/10 p-3 space-y-3">
+									<h3 class="font-bold text-sm">Drawer LED assignment</h3>
+									<p class="text-xs">Enter cabinet-wide 1-based pixels. Drawer numbers and physical positions do not determine wiring order. A range may cross strings and controllers; WLEDger calculates each controller-local span.</p>
+									<p class="text-xs font-mono" x-text="controllerSummary()"></p>
+									<template x-if="ledRangesFor(selectedDrawer()).length">
 										<div class="rounded border border-base-300 p-2 space-y-2">
-											<div class="flex items-center justify-between"><strong class="text-xs" x-text="'Range ' + (index + 1)"></strong><button type="button" class="btn btn-xs btn-ghost text-error" x-on:click="removeLedRange(selectedDrawer(), index)">Remove range</button></div>
 											<div class="grid grid-cols-3 gap-2">
-												<label class="form-control"><span class="label-text text-xs">LED Start</span><input class="input input-bordered input-sm" type="number" min="1" step="1" x-model="range.start_pixel" x-bind:disabled="!selectedDrawer().id"/></label>
-												<label class="form-control"><span class="label-text text-xs">LED Count</span><input class="input input-bordered input-sm" type="number" min="1" step="1" x-model="range.pixel_count" x-bind:disabled="!selectedDrawer().id"/></label>
-												<div class="form-control"><span class="label-text text-xs">LED End</span><output class="input input-bordered input-sm" x-text="ledEnd(range)"></output></div>
+												<label class="form-control"><span class="label-text text-xs">Cabinet pixel Start</span><input class="input input-bordered input-sm" type="number" min="1" step="1" x-model="ledRangesFor(selectedDrawer())[0].start_pixel" x-bind:disabled="!selectedDrawer().id"/></label>
+												<label class="form-control"><span class="label-text text-xs">Pixel Count</span><input class="input input-bordered input-sm" type="number" min="1" step="1" x-model="ledRangesFor(selectedDrawer())[0].pixel_count" x-bind:disabled="!selectedDrawer().id"/></label>
+												<div class="form-control"><span class="label-text text-xs">Calculated End</span><output class="input input-bordered input-sm" x-text="ledEnd(ledRangesFor(selectedDrawer())[0])"></output></div>
 											</div>
+											<p class="text-[11px]" x-text="allocationDestinations(ledRangesFor(selectedDrawer())[0]).join(' → ') || 'Controller/string destinations appear after a valid start and count are entered.'"></p>
 										</div>
 									</template>
-									<div class="flex flex-wrap gap-2"><button type="button" class="btn btn-xs btn-outline" x-on:click="addLedRange(selectedDrawer())" x-bind:disabled="!selectedDrawer().id">＋ Add range</button><button type="button" class="btn btn-xs btn-primary" x-on:click="saveLedAllocations(selectedDrawer())" x-bind:disabled="!selectedDrawer().id">Save LED mapping</button></div>
-									<p class="text-xs text-info" x-show="!selectedDrawer().id">Save this physical drawer with “Save layout” first. Its stable ID is required before creating a permanent LED allocation.</p>
+									<details class="rounded border border-base-300 p-2" x-show="ledRangesFor(selectedDrawer()).length > 1 || selectedDrawer()?.id">
+										<summary class="cursor-pointer text-xs font-semibold">Advanced: additional non-contiguous ranges</summary>
+										<div class="mt-2 space-y-2">
+											<template x-for="(range,index) in ledRangesFor(selectedDrawer()).slice(1)" :key="range.id || ('additional-' + index)">
+												<div class="rounded border border-base-300 p-2 space-y-2">
+													<div class="flex items-center justify-between"><strong class="text-xs" x-text="'Additional range ' + (index + 2)"></strong><button type="button" class="btn btn-xs btn-ghost text-error" x-on:click="removeLedRange(selectedDrawer(), index + 1)">Remove</button></div>
+													<div class="grid grid-cols-3 gap-2"><label class="form-control"><span class="label-text text-xs">Start</span><input class="input input-bordered input-sm" type="number" min="1" step="1" x-model="range.start_pixel"/></label><label class="form-control"><span class="label-text text-xs">Count</span><input class="input input-bordered input-sm" type="number" min="1" step="1" x-model="range.pixel_count"/></label><div class="form-control"><span class="label-text text-xs">End</span><output class="input input-bordered input-sm" x-text="ledEnd(range)"></output></div></div>
+													<p class="text-[11px]" x-text="allocationDestinations(range).join(' → ')"></p>
+												</div>
+												</template>
+											<button type="button" class="btn btn-xs btn-outline" x-on:click="addLedRange(selectedDrawer())" x-bind:disabled="!selectedDrawer().id">＋ Add another range</button>
+										</div>
+									</details>
+									<div class="flex flex-wrap gap-2"><button type="button" class="btn btn-sm btn-primary" x-on:click="saveLedAllocations(selectedDrawer())" x-bind:disabled="!selectedDrawer().id">Save drawer pixels</button></div>
+									<p class="text-xs text-info" x-show="!selectedDrawer().id">Save the drawer layout first to assign its stable physical drawer ID.</p>
 									<p class="text-xs" x-text="ledStatus(selectedDrawer()).error || ledStatus(selectedDrawer()).message" x-bind:class="ledStatus(selectedDrawer()).error ? 'text-error font-semibold' : 'opacity-80'"></p>
 									<p class="text-xs text-success" role="status" x-show="ledSaveNotice" x-text="ledSaveNotice"></p>
 									<p class="text-xs text-error" role="alert" x-show="ledSaveError" x-text="ledSaveError"></p>
 									<p class="text-xs text-warning" role="status" x-show="legacyLedDraftNotice" x-text="legacyLedDraftNotice"></p>
 								</div>
-								<div class="rounded bg-base-300/50 p-2 text-xs"><strong>Coordinate-space boundary</strong><p class="mt-1">These rows store controller-wide pixel indices and the cabinet’s assigned controller. Legacy containers remain WLED segment allocations; no physical-output-to-WLED-segment conversion or Locate integration is performed here.</p></div>
+								if user.IsAdmin() {
+									<details class="rounded border border-base-300 bg-base-300/30 p-2 space-y-2">
+										<summary class="cursor-pointer text-xs font-semibold">Advanced hardware diagnostics (read-only)</summary>
+										<label class="form-control mt-2"><span class="label-text text-xs">Controller to inspect</span><select class="select select-bordered select-xs" x-model.number="diagnosticControllerID" x-on:change="physicalOutputLayout=null;outputDiscoveryError=''" ><template x-for="assigned in assignedControllers" :key="'diag-' + assigned.Controller.id"><option x-bind:value="assigned.Controller.id" x-text="assigned.Controller.name + ' (#' + assigned.Controller.id + ')' "></option></template></select></label>
+										<button type="button" class="btn btn-xs btn-outline mt-2" x-on:click="discoverPhysicalOutputs(diagnosticControllerID)">Read WLED output topology</button>
+										<p class="text-xs text-error" role="alert" x-show="outputDiscoveryError" x-text="outputDiscoveryError"></p>
+										<template x-if="physicalOutputLayout && Number(diagnosticControllerID) === physicalOutputLayout.controller_id">
+											<div class="space-y-2 mt-2" aria-label="Read-only WLED output map">
+												<div class="relative flex h-12 w-full overflow-hidden rounded border border-base-content/30 bg-base-100"><template x-for="output in physicalOutputLayout.outputs" :key="output.order"><div class="relative flex h-full min-w-0 items-center justify-center border-r border-base-content/40 bg-info/20 text-[9px]" x-bind:style="'flex-basis:' + (output.length / physicalOutputLayout.capacity * 100) + '%'" ><span class="truncate text-center" x-text="'Output ' + (output.order + 1) + ' · ' + output.first_index + '–' + output.last_index"></span><template x-for="mark in outputAllocationMarkers(output, selectedDrawer())" :key="mark.key"><span class="absolute inset-y-0 bg-primary/60 ring-1 ring-primary" x-bind:style="'left:' + mark.left + '%;width:' + mark.width + '%'" x-bind:title="'Selected drawer cabinet range mapped to local pixels ' + mark.start + '–' + mark.end"></span></template></div></template></div>
+												<p class="text-[10px]" x-text="'WLED physical outputs on controller #' + physicalOutputLayout.controller_id + ', local pixels 1–' + physicalOutputLayout.capacity + '. Outputs, physical strings and WLED segments are distinct.'"></p>
+												<div class="space-y-1"><template x-for="output in physicalOutputLayout.outputs" :key="'diag-details-' + output.order"><p class="text-[10px] font-mono" x-text="'Output ' + (output.order + 1) + ': WLED start ' + output.start + ', length ' + output.length + ', GPIO ' + output.pins.join(', ') + ', local pixels ' + output.first_index + '–' + output.last_index"></p></template></div>
+											</div>
+										</template>
+									</details>
+								}
+								<div class="rounded bg-base-300/50 p-2 text-xs"><strong>Coordinate boundary</strong><p class="mt-1">Drawer records store cabinet-wide logical pixels. WLEDger translates to controller-local indices and verified WLED segment-relative commands only during Locate. Legacy containers, segment IDs and bin LED indices remain separate.</p></div>
 								<div class="flex flex-wrap gap-2"><button type="button" class="btn btn-sm btn-outline" x-on:click="openDrawer(selectedDrawer())">Open bin layout</button><button type="button" class="btn btn-sm btn-warning btn-outline" x-on:click="archiveDrawer()" x-show="selectedDrawer()?.id">Archive</button><button type="button" class="btn btn-sm btn-error btn-outline" x-on:click="deleteSelectedDrawer()">Delete</button></div>
 							</section>
 							<section class="space-y-3" x-show="state.uiSelectionKind === 'bin'">
@@ -159,19 +160,47 @@ templ StorageLayoutEditor(layout storage.CabinetLayout, user auth.User) {
 							</section>
 							<section class="space-y-3" x-show="!state.uiSelectionKind">
 								if user.IsAdmin() {
-									<div class="rounded border border-base-300 p-3 space-y-2">
-										<h3 class="font-semibold text-sm">Cabinet WLED controllers (maximum 5)</h3>
-										<p class="text-xs">Each controller may belong to at most one physical cabinet. Remove a controller only after its saved drawer ranges are cleared. A drawer still uses one controller.</p>
-										<div class="max-h-56 space-y-1 overflow-auto"><template x-for="controller in controllers" :key="controller.id"><label class="flex cursor-pointer items-center gap-2 rounded p-1 hover:bg-base-300"><input class="checkbox checkbox-sm" type="checkbox" x-bind:checked="controllerSelected(controller.id)" x-on:change="toggleController(controller.id, $event.target.checked)"/><span class="text-xs" x-text="controller.name + ' (#' + controller.id + ') — ' + controller.led_count + ' pixels'"></span></label></template></div>
-										<p class="text-xs" x-text="controllerDraft.length + ' of 5 assigned'"></p>
-										<button type="button" class="btn btn-xs btn-outline" x-on:click="saveCabinetController()">Save controller assignments</button>
+									<div class="rounded border border-primary/40 bg-primary/5 p-3 space-y-3">
+										<h3 class="font-semibold text-sm">1. Cabinet controllers</h3>
+										<p class="text-xs">Assign zero to five exclusive controllers. Their order defines cabinet-wide pixel numbering; it is independent of drawer numbers and positions.</p>
+										<div class="max-h-48 space-y-1 overflow-auto"><template x-for="controller in controllers" :key="controller.id"><label class="flex cursor-pointer items-center gap-2 rounded p-1 hover:bg-base-300"><input class="checkbox checkbox-sm" type="checkbox" x-bind:checked="controllerSelected(controller.id)" x-on:change="toggleController(controller.id, $event.target.checked)"/><span class="text-xs" x-text="controller.name + ' (#' + controller.id + ')' "></span></label></template></div>
+										<div class="space-y-1"><strong class="text-xs">Cabinet controller order</strong><template x-for="(controllerID,index) in controllerDraft" :key="'order-' + controllerID"><div class="flex items-center gap-2 rounded bg-base-100 p-1"><span class="badge badge-primary badge-xs" x-text="index + 1"></span><span class="flex-1 truncate text-xs" x-text="controllers.find(item => item.id === controllerID)?.name || ('Controller #' + controllerID)"></span><button type="button" class="btn btn-xs btn-ghost" x-on:click="moveController(controllerID,-1)" x-bind:disabled="index===0" aria-label="Move controller up">↑</button><button type="button" class="btn btn-xs btn-ghost" x-on:click="moveController(controllerID,1)" x-bind:disabled="index===controllerDraft.length-1" aria-label="Move controller down">↓</button></div></template></div>
+										<template x-for="change in controllerMappingPreview()" :key="'controller-impact-' + change.drawer + '-' + change.start"><div class="rounded bg-warning/10 p-2 text-[11px]"><strong x-text="change.drawer + ': pixels ' + change.start + ' +' + change.count"></strong><p><span class="font-semibold">Before:</span> <span x-text="change.before.join(' + ') || 'unmapped'"></span></p><p><span class="font-semibold">After:</span> <span x-text="change.after.join(' + ') || 'out of range'"></span></p></div></template>
+										<label class="label cursor-pointer justify-start gap-2" x-show="controllerMappingPreview().length"><input type="checkbox" class="checkbox checkbox-sm" x-model="controllerMappingImpactConfirmed"/><span class="label-text text-xs">I reviewed and confirm the displayed destination changes.</span></label>
+										<button type="button" class="btn btn-sm btn-outline" x-on:click="saveCabinetController()">Save controller order</button>
 										<p class="text-xs text-success" role="status" x-show="controllerSaveNotice" x-text="controllerSaveNotice"></p>
 										<p class="text-xs text-error" role="alert" x-show="controllerSaveError" x-text="controllerSaveError"></p>
+									</div>
+									<div class="rounded border border-secondary/40 bg-secondary/5 p-3 space-y-3">
+										<h3 class="font-semibold text-sm">2. LED strings and wiring paths</h3>
+										<p class="text-xs">String lengths determine each controller total. Ordered path sections describe where each pixel sequence runs on this cabinet canvas; one string may snake across rows, turn corners, or follow an irregular path.</p>
+										<template x-for="(controllerID,controllerIndex) in controllerDraft" :key="'wiring-controller-' + controllerID">
+											<div class="rounded bg-base-100 p-2 space-y-2">
+												<div class="flex flex-wrap items-center justify-between gap-2"><strong class="text-xs" x-text="'Controller ' + (controllerIndex+1) + ': ' + (controllers.find(item => item.id === controllerID)?.name || ('#' + controllerID))"></strong><span class="badge badge-xs" x-text="controllerCabinetSpan(controllerID)"></span></div>
+												<button type="button" class="btn btn-xs btn-outline" x-on:click="configureControllerStrings(controllerID)" x-show="!configuredControllerIDs.map(Number).includes(Number(controllerID))">Configure physical strings</button>
+												<template x-for="string in stringRows(controllerID)" :key="string.key">
+													<div class="rounded border border-base-300 p-2 space-y-2" x-bind:class="selectedStringKey===string.key?'ring-1 ring-secondary':''">
+														<div class="flex items-center gap-1"><span class="badge badge-secondary badge-xs" x-text="'S' + (Number(string.display_order)+1)"></span><label class="form-control flex-1"><span class="label-text text-[10px]">String name</span><input class="input input-bordered input-xs" x-model="string.name"/></label><label class="form-control w-24"><span class="label-text text-[10px]">Pixels</span><input class="input input-bordered input-xs" type="number" min="1" step="1" x-model="string.pixel_count"/></label><button type="button" class="btn btn-xs btn-ghost" x-on:click="moveWiringString(string,-1)" x-bind:disabled="stringRows(controllerID).indexOf(string)===0" aria-label="Move string up">↑</button><button type="button" class="btn btn-xs btn-ghost" x-on:click="moveWiringString(string,1)" x-bind:disabled="stringRows(controllerID).indexOf(string)===stringRows(controllerID).length-1" aria-label="Move string down">↓</button></div>
+														<p class="text-[10px]" x-text="'Cabinet range ' + stringCabinetRange(string) + ' · sections cover ' + wiringPathPixelTotal(string) + ' / ' + (Number(string.pixel_count)||0) + ' pixels'"></p>
+														<label class="label cursor-pointer justify-start gap-2 py-0"><input type="checkbox" class="checkbox checkbox-xs" x-model="string.layout_complete"/><span class="label-text text-[10px]">Mark physical path complete</span></label>
+														<div class="space-y-1"><template x-for="section in [...string.sections].sort((a,b)=>Number(a.display_order)-Number(b.display_order))" :key="section.key"><div class="rounded bg-base-200 p-2 space-y-1"><div class="flex items-center gap-1"><span class="text-[10px] flex-1" x-text="'Section ' + (Number(section.display_order)+1) + ' · ' + (Number(section.pixel_count)||0) + ' pixels · ' + section.points.length + ' path points'"></span><button type="button" class="btn btn-xs btn-ghost" x-on:click="movePathSection(string,section,-1)">↑</button><button type="button" class="btn btn-xs btn-ghost" x-on:click="movePathSection(string,section,1)">↓</button><button type="button" class="btn btn-xs btn-ghost" x-on:click="drawPathSection(string,section)">Draw path</button><button type="button" class="btn btn-xs btn-ghost text-error" x-on:click="removePathSection(string,section)">×</button></div><label class="form-control"><span class="label-text text-[10px]">Pixels in this ordered section</span><input class="input input-bordered input-xs" type="number" min="1" step="1" x-model="section.pixel_count"/></label></div></template></div>
+														<div class="flex gap-1"><button type="button" class="btn btn-xs btn-outline" x-on:click="selectWiringString(string)">Highlight string</button><button type="button" class="btn btn-xs btn-outline" x-on:click="addPathSection(string)">＋ Add path section</button><button type="button" class="btn btn-xs btn-ghost text-error" x-on:click="removeWiringString(string)">Remove string</button></div>
+													</div>
+												</template>
+												<button type="button" class="btn btn-xs btn-outline" x-on:click="addWiringString(controllerID)">＋ Add string</button>
+											</div>
+										</template>
+										<template x-for="change in wiringMappingPreview()" :key="'wiring-impact-' + change.drawer + '-' + change.start"><div class="rounded bg-warning/10 p-2 text-[11px]"><strong x-text="change.drawer + ': cabinet pixels ' + change.start + ' +' + change.count"></strong><p><span class="font-semibold">Before:</span> <span x-text="change.before.join(' + ') || 'unmapped'"></span></p><p><span class="font-semibold">After:</span> <span x-text="change.after.join(' + ') || 'out of range'"></span></p></div></template>
+										<label class="label cursor-pointer justify-start gap-2" x-show="wiringMappingPreview().length"><input type="checkbox" class="checkbox checkbox-sm" x-model="wiringMappingImpactConfirmed"/><span class="label-text text-xs">I reviewed and confirm the displayed wiring/mapping impact.</span></label>
+										<button type="button" class="btn btn-sm btn-secondary" x-on:click="saveCabinetWiring()" x-bind:disabled="!configuredControllerIDs.length">Save strings and wiring paths</button>
+										<p class="text-xs opacity-70" x-show="mode==='wiring' && tool==='path-point'">Click ordered points on the cabinet canvas; double-click to finish this section.</p>
+										<p class="text-xs text-success" role="status" x-show="wiringSaveNotice" x-text="wiringSaveNotice"></p>
+										<p class="text-xs text-error" role="alert" x-show="wiringSaveError" x-text="wiringSaveError"></p>
 									</div>
 								}
 								<label class="form-control"><span class="label-text text-xs">Cabinet name</span><input class="input input-bordered input-sm" x-model="state.name" x-on:focus="beginPropertyEdit()" x-on:change="finishPropertyEdit()"/></label>
 								<div class="grid grid-cols-2 gap-2"><label class="form-control"><span class="label-text text-xs">Canvas width</span><input class="input input-bordered input-sm" type="number" min="0.1" step="any" x-model.number="state.width" x-on:focus="beginPropertyEdit()" x-on:change="finishPropertyEdit()"/></label><label class="form-control"><span class="label-text text-xs">Canvas height</span><input class="input input-bordered input-sm" type="number" min="0.1" step="any" x-model.number="state.height" x-on:focus="beginPropertyEdit()" x-on:change="finishPropertyEdit()"/></label></div>
-								<p class="text-xs opacity-70">Controller and electrical assignments are read-only and unchanged by this editor.</p><button type="button" class="btn btn-warning btn-outline btn-sm" x-on:click="archiveCabinet()">Archive cabinet</button><button type="button" class="btn btn-error btn-outline btn-sm" x-on:click="deleteCabinet()">Delete cabinet</button>
+								<p class="text-xs opacity-70">Drawer geometry is saved separately and never implies a pixel allocation.</p><button type="button" class="btn btn-warning btn-outline btn-sm" x-on:click="archiveCabinet()">Archive cabinet</button><button type="button" class="btn btn-error btn-outline btn-sm" x-on:click="deleteCabinet()">Delete cabinet</button>
 							</section>
 							<p class="text-sm text-error rounded bg-error/10 p-2" role="alert" x-show="error" x-text="error" x-cloak></p>
 						</div>

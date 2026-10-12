@@ -44,6 +44,22 @@ func (e *CabinetControllerConflictError) Error() string {
 	return "restore refused: " + e.Reason
 }
 
+type CabinetWiringConflictError struct {
+	Reason string
+}
+
+func (e *CabinetWiringConflictError) Error() string {
+	return "restore refused: " + e.Reason
+}
+
+type ActivePhysicalLocateConflictError struct {
+	Reason string
+}
+
+func (e *ActivePhysicalLocateConflictError) Error() string {
+	return "restore refused: " + e.Reason
+}
+
 // physicalGraphPopulated reports whether the installation holds any cabinet,
 // drawer or bin attachment. Every table is read so a partially populated graph is
 // still detected rather than assumed impossible.
@@ -101,6 +117,44 @@ func secondaryCabinetMembershipsExist(ctx context.Context, q db.Querier) (bool, 
 	return false, nil
 }
 
+func activePhysicalLocateSessionExists(ctx context.Context, q db.Querier) (bool, error) {
+	sessions, err := q.ListPhysicalLocateSessions(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to read durable physical Locate sessions: %w", err)
+	}
+	for _, session := range sessions {
+		switch session.State {
+		case "activating", "active", "partial", "stopping":
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func cabinetWiringExists(ctx context.Context, q db.Querier) (bool, error) {
+	strings, err := q.ListAllCabinetLEDStrings(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to read cabinet LED strings: %w", err)
+	}
+	sections, err := q.ListAllCabinetLEDPathSections(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to read cabinet LED path sections: %w", err)
+	}
+	memberships, err := q.ListAllCabinetControllers(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to read cabinet wiring configuration state: %w", err)
+	}
+	if len(strings) != 0 || len(sections) != 0 {
+		return true, nil
+	}
+	for _, member := range memberships {
+		if member.StringsConfigured != 0 {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // clearPhysicalStorage empties the physical storage tables. It must run before
 // the legacy bin and controller clears: bin attachments reference bins and
 // drawers, drawers reference cabinets and cabinets reference controllers, so the
@@ -108,6 +162,12 @@ func secondaryCabinetMembershipsExist(ctx context.Context, q db.Querier) (bool, 
 func clearPhysicalStorage(ctx context.Context, q db.Querier) error {
 	if err := q.ClearDrawerLEDAllocations(ctx); err != nil {
 		return fmt.Errorf("failed to clear drawer LED allocations: %w", err)
+	}
+	if err := q.ClearCabinetLEDPathSections(ctx); err != nil {
+		return fmt.Errorf("failed to clear cabinet LED path sections: %w", err)
+	}
+	if err := q.ClearCabinetLEDStrings(ctx); err != nil {
+		return fmt.Errorf("failed to clear cabinet LED strings: %w", err)
 	}
 	if err := q.ClearBinDrawerAttachments(ctx); err != nil {
 		return fmt.Errorf("failed to clear bin attachments: %w", err)
@@ -152,6 +212,16 @@ func restorePhysicalStorage(ctx context.Context, q db.Querier, snap PhysicalStor
 	for _, m := range resolveCabinetControllers(snap) {
 		if err := q.RestoreCabinetController(ctx, db.RestoreCabinetControllerParams(m)); err != nil {
 			return fmt.Errorf("cabinet controller restore: %w", err)
+		}
+	}
+	for _, stringRecord := range snap.CabinetLEDStrings {
+		if err := q.RestoreCabinetLEDString(ctx, db.RestoreCabinetLEDStringParams(stringRecord)); err != nil {
+			return fmt.Errorf("cabinet LED string restore: %w", err)
+		}
+	}
+	for _, section := range snap.CabinetLEDPathSections {
+		if err := q.RestoreCabinetLEDPathSection(ctx, db.RestoreCabinetLEDPathSectionParams(section)); err != nil {
+			return fmt.Errorf("cabinet LED path section restore: %w", err)
 		}
 	}
 	for _, d := range snap.Drawers {

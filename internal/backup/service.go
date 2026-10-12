@@ -307,6 +307,14 @@ func (s *service) snapshotStorageManifest(ctx context.Context) (StorageManifest,
 		if err != nil {
 			return fmt.Errorf("failed to fetch cabinet controllers: %w", err)
 		}
+		cabinetLEDStrings, err := q.ListAllCabinetLEDStrings(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to fetch cabinet LED strings: %w", err)
+		}
+		cabinetLEDPathSections, err := q.ListAllCabinetLEDPathSections(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to fetch cabinet LED path sections: %w", err)
+		}
 		flags, err := q.GetAllSystemFlags(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to fetch system flags: %w", err)
@@ -329,6 +337,12 @@ func (s *service) snapshotStorageManifest(ctx context.Context) (StorageManifest,
 		if cabinetControllers == nil {
 			cabinetControllers = []db.CabinetController{}
 		}
+		if cabinetLEDStrings == nil {
+			cabinetLEDStrings = []db.CabinetLedString{}
+		}
+		if cabinetLEDPathSections == nil {
+			cabinetLEDPathSections = []db.CabinetLedPathSection{}
+		}
 		if flags == nil {
 			flags = []db.SystemFlag{}
 		}
@@ -343,8 +357,12 @@ func (s *service) snapshotStorageManifest(ctx context.Context) (StorageManifest,
 				BinAttachments:             attachments,
 				CabinetControllers:         cabinetControllers,
 				LEDAllocations:             ledAllocations,
+				CabinetLEDStrings:          cabinetLEDStrings,
+				CabinetLEDPathSections:     cabinetLEDPathSections,
+				AllocationCoordinateSpace:  "cabinet",
 				LEDAllocationsDeclared:     true,
 				CabinetControllersDeclared: true,
+				CabinetWiringDeclared:      true,
 			},
 			SystemFlags: flags,
 		}
@@ -568,6 +586,13 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 			}
 		}
 	}
+	activeSession, err := activePhysicalLocateSessionExists(ctx, s.store)
+	if err != nil {
+		return err
+	}
+	if activeSession {
+		return &ActivePhysicalLocateConflictError{Reason: "a durable physical Locate session may still own pixels; stop and confirm cleanup before restoring a backup"}
+	}
 	if envelope.Current != nil && !envelope.Current.PhysicalStorage.LEDAllocationsDeclared {
 		allocations, err := s.store.ListAllDrawerLEDAllocations(ctx)
 		if err != nil {
@@ -588,6 +613,15 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 		}
 		if secondary {
 			return &CabinetControllerConflictError{Reason: "this older current-format backup does not contain cabinet controller memberships, but this installation has secondary controller assignments; export a new backup before restoring"}
+		}
+	}
+	if envelope.Current != nil && !envelope.Current.PhysicalStorage.CabinetWiringDeclared {
+		wiringExists, err := cabinetWiringExists(ctx, s.store)
+		if err != nil {
+			return err
+		}
+		if wiringExists {
+			return &CabinetWiringConflictError{Reason: "this older current-format backup does not contain physical string/path wiring, but this installation has configured wiring; export a new backup before restoring"}
 		}
 	}
 
@@ -656,6 +690,15 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 	// (BEGIN IMMEDIATE) so a concurrent coordinate conversion cannot commit
 	// between the restore's reads and its writes.
 	err = s.store.ExecImmediateTx(ctx, func(qtx db.Querier) error {
+		// Re-check durable Locate ownership under the write reservation. This
+		// protects direct restore callers as well as the handler's in-process lease.
+		activeSession, err := activePhysicalLocateSessionExists(ctx, qtx)
+		if err != nil {
+			return err
+		}
+		if activeSession {
+			return &ActivePhysicalLocateConflictError{Reason: "a durable physical Locate session may still own pixels; stop and confirm cleanup before restoring a backup"}
+		}
 		// Re-check inside the write transaction so a physical graph that appeared
 		// after the pre-restore check is refused atomically rather than silently
 		// cleared.
@@ -686,6 +729,15 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 			}
 			if secondary {
 				return &CabinetControllerConflictError{Reason: "this older current-format backup does not contain cabinet controller memberships, but this installation has secondary controller assignments; export a new backup before restoring"}
+			}
+		}
+		if envelope.Current != nil && !envelope.Current.PhysicalStorage.CabinetWiringDeclared {
+			wiringExists, err := cabinetWiringExists(ctx, qtx)
+			if err != nil {
+				return err
+			}
+			if wiringExists {
+				return &CabinetWiringConflictError{Reason: "this older current-format backup does not contain physical string/path wiring, but this installation has configured wiring; export a new backup before restoring"}
 			}
 		}
 		s.logger.Debug("clearing existing database records")

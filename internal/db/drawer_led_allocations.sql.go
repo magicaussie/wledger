@@ -20,15 +20,14 @@ func (q *Queries) ClearDrawerLEDAllocations(ctx context.Context) error {
 }
 
 const createDrawerLEDAllocation = `-- name: CreateDrawerLEDAllocation :one
-INSERT INTO drawer_led_allocations (cabinet_id, drawer_id, controller_id, start_pixel, pixel_count, display_order)
-VALUES (?, ?, ?, ?, ?, ?)
+INSERT INTO drawer_led_allocations (cabinet_id, drawer_id, start_pixel, pixel_count, display_order)
+VALUES (?, ?, ?, ?, ?)
 RETURNING id
 `
 
 type CreateDrawerLEDAllocationParams struct {
 	CabinetID    int64 `json:"cabinet_id"`
 	DrawerID     int64 `json:"drawer_id"`
-	ControllerID int64 `json:"controller_id"`
 	StartPixel   int64 `json:"start_pixel"`
 	PixelCount   int64 `json:"pixel_count"`
 	DisplayOrder int64 `json:"display_order"`
@@ -38,7 +37,6 @@ func (q *Queries) CreateDrawerLEDAllocation(ctx context.Context, arg CreateDrawe
 	row := q.queryRow(ctx, q.createDrawerLEDAllocationStmt, createDrawerLEDAllocation,
 		arg.CabinetID,
 		arg.DrawerID,
-		arg.ControllerID,
 		arg.StartPixel,
 		arg.PixelCount,
 		arg.DisplayOrder,
@@ -68,7 +66,7 @@ func (q *Queries) DeleteDrawerLEDAllocation(ctx context.Context, arg DeleteDrawe
 }
 
 const listAllDrawerLEDAllocations = `-- name: ListAllDrawerLEDAllocations :many
-SELECT id, cabinet_id, drawer_id, controller_id, start_pixel, pixel_count, display_order, created_at, updated_at FROM drawer_led_allocations
+SELECT id, cabinet_id, drawer_id, start_pixel, pixel_count, display_order, created_at, updated_at FROM drawer_led_allocations
 ORDER BY cabinet_id ASC, drawer_id ASC, display_order ASC, id ASC
 `
 
@@ -85,7 +83,6 @@ func (q *Queries) ListAllDrawerLEDAllocations(ctx context.Context) ([]DrawerLedA
 			&i.ID,
 			&i.CabinetID,
 			&i.DrawerID,
-			&i.ControllerID,
 			&i.StartPixel,
 			&i.PixelCount,
 			&i.DisplayOrder,
@@ -106,9 +103,9 @@ func (q *Queries) ListAllDrawerLEDAllocations(ctx context.Context) ([]DrawerLedA
 }
 
 const listDrawerLEDAllocationsByCabinet = `-- name: ListDrawerLEDAllocationsByCabinet :many
-SELECT id, cabinet_id, drawer_id, controller_id, start_pixel, pixel_count, display_order, created_at, updated_at FROM drawer_led_allocations
+SELECT id, cabinet_id, drawer_id, start_pixel, pixel_count, display_order, created_at, updated_at FROM drawer_led_allocations
 WHERE cabinet_id = ?
-ORDER BY controller_id ASC, start_pixel ASC, drawer_id ASC, display_order ASC, id ASC
+ORDER BY start_pixel ASC, drawer_id ASC, display_order ASC, id ASC
 `
 
 func (q *Queries) ListDrawerLEDAllocationsByCabinet(ctx context.Context, cabinetID int64) ([]DrawerLedAllocation, error) {
@@ -124,46 +121,6 @@ func (q *Queries) ListDrawerLEDAllocationsByCabinet(ctx context.Context, cabinet
 			&i.ID,
 			&i.CabinetID,
 			&i.DrawerID,
-			&i.ControllerID,
-			&i.StartPixel,
-			&i.PixelCount,
-			&i.DisplayOrder,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listDrawerLEDAllocationsByController = `-- name: ListDrawerLEDAllocationsByController :many
-SELECT id, cabinet_id, drawer_id, controller_id, start_pixel, pixel_count, display_order, created_at, updated_at FROM drawer_led_allocations
-WHERE controller_id = ?
-ORDER BY start_pixel ASC, drawer_id ASC, display_order ASC, id ASC
-`
-
-func (q *Queries) ListDrawerLEDAllocationsByController(ctx context.Context, controllerID int64) ([]DrawerLedAllocation, error) {
-	rows, err := q.query(ctx, q.listDrawerLEDAllocationsByControllerStmt, listDrawerLEDAllocationsByController, controllerID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []DrawerLedAllocation
-	for rows.Next() {
-		var i DrawerLedAllocation
-		if err := rows.Scan(
-			&i.ID,
-			&i.CabinetID,
-			&i.DrawerID,
-			&i.ControllerID,
 			&i.StartPixel,
 			&i.PixelCount,
 			&i.DisplayOrder,
@@ -184,7 +141,7 @@ func (q *Queries) ListDrawerLEDAllocationsByController(ctx context.Context, cont
 }
 
 const listDrawerLEDAllocationsByDrawer = `-- name: ListDrawerLEDAllocationsByDrawer :many
-SELECT id, cabinet_id, drawer_id, controller_id, start_pixel, pixel_count, display_order, created_at, updated_at FROM drawer_led_allocations
+SELECT id, cabinet_id, drawer_id, start_pixel, pixel_count, display_order, created_at, updated_at FROM drawer_led_allocations
 WHERE drawer_id = ?
 ORDER BY display_order ASC, id ASC
 `
@@ -202,7 +159,6 @@ func (q *Queries) ListDrawerLEDAllocationsByDrawer(ctx context.Context, drawerID
 			&i.ID,
 			&i.CabinetID,
 			&i.DrawerID,
-			&i.ControllerID,
 			&i.StartPixel,
 			&i.PixelCount,
 			&i.DisplayOrder,
@@ -223,15 +179,14 @@ func (q *Queries) ListDrawerLEDAllocationsByDrawer(ctx context.Context, drawerID
 }
 
 const restoreDrawerLEDAllocation = `-- name: RestoreDrawerLEDAllocation :exec
-INSERT INTO drawer_led_allocations (id, cabinet_id, drawer_id, controller_id, start_pixel, pixel_count, display_order, created_at, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO drawer_led_allocations (id, cabinet_id, drawer_id, start_pixel, pixel_count, display_order, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type RestoreDrawerLEDAllocationParams struct {
 	ID           int64     `json:"id"`
 	CabinetID    int64     `json:"cabinet_id"`
 	DrawerID     int64     `json:"drawer_id"`
-	ControllerID int64     `json:"controller_id"`
 	StartPixel   int64     `json:"start_pixel"`
 	PixelCount   int64     `json:"pixel_count"`
 	DisplayOrder int64     `json:"display_order"`
@@ -244,7 +199,6 @@ func (q *Queries) RestoreDrawerLEDAllocation(ctx context.Context, arg RestoreDra
 		arg.ID,
 		arg.CabinetID,
 		arg.DrawerID,
-		arg.ControllerID,
 		arg.StartPixel,
 		arg.PixelCount,
 		arg.DisplayOrder,
@@ -257,7 +211,7 @@ func (q *Queries) RestoreDrawerLEDAllocation(ctx context.Context, arg RestoreDra
 const updateDrawerLEDAllocation = `-- name: UpdateDrawerLEDAllocation :execrows
 UPDATE drawer_led_allocations
 SET start_pixel = ?, pixel_count = ?, display_order = ?, updated_at = CURRENT_TIMESTAMP
-WHERE id = ? AND cabinet_id = ? AND drawer_id = ? AND controller_id = ?
+WHERE id = ? AND cabinet_id = ? AND drawer_id = ?
 `
 
 type UpdateDrawerLEDAllocationParams struct {
@@ -267,7 +221,6 @@ type UpdateDrawerLEDAllocationParams struct {
 	ID           int64 `json:"id"`
 	CabinetID    int64 `json:"cabinet_id"`
 	DrawerID     int64 `json:"drawer_id"`
-	ControllerID int64 `json:"controller_id"`
 }
 
 func (q *Queries) UpdateDrawerLEDAllocation(ctx context.Context, arg UpdateDrawerLEDAllocationParams) (int64, error) {
@@ -278,7 +231,6 @@ func (q *Queries) UpdateDrawerLEDAllocation(ctx context.Context, arg UpdateDrawe
 		arg.ID,
 		arg.CabinetID,
 		arg.DrawerID,
-		arg.ControllerID,
 	)
 	if err != nil {
 		return 0, err

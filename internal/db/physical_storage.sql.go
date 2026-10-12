@@ -97,6 +97,24 @@ func (q *Queries) ClearCabinetControllers(ctx context.Context) error {
 	return err
 }
 
+const clearCabinetLEDPathSections = `-- name: ClearCabinetLEDPathSections :exec
+DELETE FROM cabinet_led_path_sections
+`
+
+func (q *Queries) ClearCabinetLEDPathSections(ctx context.Context) error {
+	_, err := q.exec(ctx, q.clearCabinetLEDPathSectionsStmt, clearCabinetLEDPathSections)
+	return err
+}
+
+const clearCabinetLEDStrings = `-- name: ClearCabinetLEDStrings :exec
+DELETE FROM cabinet_led_strings
+`
+
+func (q *Queries) ClearCabinetLEDStrings(ctx context.Context) error {
+	_, err := q.exec(ctx, q.clearCabinetLEDStringsStmt, clearCabinetLEDStrings)
+	return err
+}
+
 const clearCabinets = `-- name: ClearCabinets :exec
 DELETE FROM cabinets
 `
@@ -116,6 +134,28 @@ DELETE FROM drawers
 // or controller deletion, and after the attachments that reference drawers.
 func (q *Queries) ClearDrawers(ctx context.Context) error {
 	_, err := q.exec(ctx, q.clearDrawersStmt, clearDrawers)
+	return err
+}
+
+const clearPhysicalLocateSessionTargets = `-- name: ClearPhysicalLocateSessionTargets :exec
+DELETE FROM physical_locate_session_targets WHERE session_id = ?
+`
+
+func (q *Queries) ClearPhysicalLocateSessionTargets(ctx context.Context, sessionID string) error {
+	_, err := q.exec(ctx, q.clearPhysicalLocateSessionTargetsStmt, clearPhysicalLocateSessionTargets, sessionID)
+	return err
+}
+
+const clearPhysicalLocateSessionTargetsForPrimaryController = `-- name: ClearPhysicalLocateSessionTargetsForPrimaryController :exec
+DELETE FROM physical_locate_session_targets
+WHERE physical_locate_session_targets.session_id = (
+    SELECT physical_locate_sessions.session_id FROM physical_locate_sessions
+    WHERE physical_locate_sessions.controller_id = ?
+)
+`
+
+func (q *Queries) ClearPhysicalLocateSessionTargetsForPrimaryController(ctx context.Context, controllerID int64) error {
+	_, err := q.exec(ctx, q.clearPhysicalLocateSessionTargetsForPrimaryControllerStmt, clearPhysicalLocateSessionTargetsForPrimaryController, controllerID)
 	return err
 }
 
@@ -188,6 +228,69 @@ func (q *Queries) CreateCabinetController(ctx context.Context, arg CreateCabinet
 	return err
 }
 
+const createCabinetControllerReorderGuard = `-- name: CreateCabinetControllerReorderGuard :exec
+INSERT INTO cabinet_controller_reorder_guard (cabinet_id) VALUES (?)
+`
+
+func (q *Queries) CreateCabinetControllerReorderGuard(ctx context.Context, cabinetID int64) error {
+	_, err := q.exec(ctx, q.createCabinetControllerReorderGuardStmt, createCabinetControllerReorderGuard, cabinetID)
+	return err
+}
+
+const createCabinetLEDPathSection = `-- name: CreateCabinetLEDPathSection :one
+INSERT INTO cabinet_led_path_sections (string_id, display_order, pixel_count, points_json)
+VALUES (?, ?, ?, ?)
+RETURNING id
+`
+
+type CreateCabinetLEDPathSectionParams struct {
+	StringID     int64  `json:"string_id"`
+	DisplayOrder int64  `json:"display_order"`
+	PixelCount   int64  `json:"pixel_count"`
+	PointsJson   string `json:"points_json"`
+}
+
+func (q *Queries) CreateCabinetLEDPathSection(ctx context.Context, arg CreateCabinetLEDPathSectionParams) (int64, error) {
+	row := q.queryRow(ctx, q.createCabinetLEDPathSectionStmt, createCabinetLEDPathSection,
+		arg.StringID,
+		arg.DisplayOrder,
+		arg.PixelCount,
+		arg.PointsJson,
+	)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
+const createCabinetLEDString = `-- name: CreateCabinetLEDString :one
+INSERT INTO cabinet_led_strings (cabinet_id, controller_id, name, display_order, pixel_count, layout_complete)
+VALUES (?, ?, ?, ?, ?, ?)
+RETURNING id
+`
+
+type CreateCabinetLEDStringParams struct {
+	CabinetID      int64  `json:"cabinet_id"`
+	ControllerID   int64  `json:"controller_id"`
+	Name           string `json:"name"`
+	DisplayOrder   int64  `json:"display_order"`
+	PixelCount     int64  `json:"pixel_count"`
+	LayoutComplete int64  `json:"layout_complete"`
+}
+
+func (q *Queries) CreateCabinetLEDString(ctx context.Context, arg CreateCabinetLEDStringParams) (int64, error) {
+	row := q.queryRow(ctx, q.createCabinetLEDStringStmt, createCabinetLEDString,
+		arg.CabinetID,
+		arg.ControllerID,
+		arg.Name,
+		arg.DisplayOrder,
+		arg.PixelCount,
+		arg.LayoutComplete,
+	)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
 const createDrawer = `-- name: CreateDrawer :one
 INSERT INTO drawers (cabinet_id, label, display_order, x, y, width, height)
 VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -254,6 +357,42 @@ type DeleteCabinetControllerParams struct {
 
 func (q *Queries) DeleteCabinetController(ctx context.Context, arg DeleteCabinetControllerParams) (int64, error) {
 	result, err := q.exec(ctx, q.deleteCabinetControllerStmt, deleteCabinetController, arg.CabinetID, arg.ControllerID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deleteCabinetControllerReorderGuard = `-- name: DeleteCabinetControllerReorderGuard :exec
+DELETE FROM cabinet_controller_reorder_guard WHERE cabinet_id = ?
+`
+
+func (q *Queries) DeleteCabinetControllerReorderGuard(ctx context.Context, cabinetID int64) error {
+	_, err := q.exec(ctx, q.deleteCabinetControllerReorderGuardStmt, deleteCabinetControllerReorderGuard, cabinetID)
+	return err
+}
+
+const deleteCabinetLEDPathSectionsByString = `-- name: DeleteCabinetLEDPathSectionsByString :exec
+DELETE FROM cabinet_led_path_sections WHERE string_id = ?
+`
+
+func (q *Queries) DeleteCabinetLEDPathSectionsByString(ctx context.Context, stringID int64) error {
+	_, err := q.exec(ctx, q.deleteCabinetLEDPathSectionsByStringStmt, deleteCabinetLEDPathSectionsByString, stringID)
+	return err
+}
+
+const deleteCabinetLEDString = `-- name: DeleteCabinetLEDString :execrows
+DELETE FROM cabinet_led_strings WHERE id = ? AND cabinet_id = ? AND controller_id = ?
+`
+
+type DeleteCabinetLEDStringParams struct {
+	ID           int64 `json:"id"`
+	CabinetID    int64 `json:"cabinet_id"`
+	ControllerID int64 `json:"controller_id"`
+}
+
+func (q *Queries) DeleteCabinetLEDString(ctx context.Context, arg DeleteCabinetLEDStringParams) (int64, error) {
+	result, err := q.exec(ctx, q.deleteCabinetLEDStringStmt, deleteCabinetLEDString, arg.ID, arg.CabinetID, arg.ControllerID)
 	if err != nil {
 		return 0, err
 	}
@@ -394,7 +533,7 @@ func (q *Queries) GetDrawer(ctx context.Context, id int64) (Drawer, error) {
 }
 
 const listAllCabinetControllers = `-- name: ListAllCabinetControllers :many
-SELECT cabinet_id, controller_id, slot, created_at, updated_at FROM cabinet_controllers
+SELECT cabinet_id, controller_id, slot, strings_configured, created_at, updated_at FROM cabinet_controllers
 ORDER BY cabinet_id ASC, slot ASC
 `
 
@@ -411,6 +550,82 @@ func (q *Queries) ListAllCabinetControllers(ctx context.Context) ([]CabinetContr
 			&i.CabinetID,
 			&i.ControllerID,
 			&i.Slot,
+			&i.StringsConfigured,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAllCabinetLEDPathSections = `-- name: ListAllCabinetLEDPathSections :many
+SELECT p.id, p.string_id, p.display_order, p.pixel_count, p.points_json, p.created_at, p.updated_at FROM cabinet_led_path_sections p
+JOIN cabinet_led_strings s ON s.id = p.string_id
+ORDER BY s.cabinet_id ASC, s.controller_id ASC, s.display_order ASC, p.display_order ASC, p.id ASC
+`
+
+func (q *Queries) ListAllCabinetLEDPathSections(ctx context.Context) ([]CabinetLedPathSection, error) {
+	rows, err := q.query(ctx, q.listAllCabinetLEDPathSectionsStmt, listAllCabinetLEDPathSections)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CabinetLedPathSection
+	for rows.Next() {
+		var i CabinetLedPathSection
+		if err := rows.Scan(
+			&i.ID,
+			&i.StringID,
+			&i.DisplayOrder,
+			&i.PixelCount,
+			&i.PointsJson,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAllCabinetLEDStrings = `-- name: ListAllCabinetLEDStrings :many
+SELECT id, cabinet_id, controller_id, name, display_order, pixel_count, layout_complete, created_at, updated_at FROM cabinet_led_strings
+ORDER BY cabinet_id ASC, controller_id ASC, display_order ASC, id ASC
+`
+
+func (q *Queries) ListAllCabinetLEDStrings(ctx context.Context) ([]CabinetLedString, error) {
+	rows, err := q.query(ctx, q.listAllCabinetLEDStringsStmt, listAllCabinetLEDStrings)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CabinetLedString
+	for rows.Next() {
+		var i CabinetLedString
+		if err := rows.Scan(
+			&i.ID,
+			&i.CabinetID,
+			&i.ControllerID,
+			&i.Name,
+			&i.DisplayOrder,
+			&i.PixelCount,
+			&i.LayoutComplete,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -548,7 +763,7 @@ func (q *Queries) ListBinDrawerAttachmentsByDrawer(ctx context.Context, drawerID
 }
 
 const listCabinetControllers = `-- name: ListCabinetControllers :many
-SELECT cabinet_id, controller_id, slot, created_at, updated_at FROM cabinet_controllers
+SELECT cabinet_id, controller_id, slot, strings_configured, created_at, updated_at FROM cabinet_controllers
 WHERE cabinet_id = ?
 ORDER BY slot ASC
 `
@@ -566,6 +781,166 @@ func (q *Queries) ListCabinetControllers(ctx context.Context, cabinetID int64) (
 			&i.CabinetID,
 			&i.ControllerID,
 			&i.Slot,
+			&i.StringsConfigured,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listCabinetLEDPathSections = `-- name: ListCabinetLEDPathSections :many
+SELECT p.id, p.string_id, p.display_order, p.pixel_count, p.points_json, p.created_at, p.updated_at FROM cabinet_led_path_sections p
+JOIN cabinet_led_strings s ON s.id = p.string_id
+WHERE s.cabinet_id = ?
+ORDER BY s.controller_id ASC, s.display_order ASC, p.display_order ASC, p.id ASC
+`
+
+func (q *Queries) ListCabinetLEDPathSections(ctx context.Context, cabinetID int64) ([]CabinetLedPathSection, error) {
+	rows, err := q.query(ctx, q.listCabinetLEDPathSectionsStmt, listCabinetLEDPathSections, cabinetID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CabinetLedPathSection
+	for rows.Next() {
+		var i CabinetLedPathSection
+		if err := rows.Scan(
+			&i.ID,
+			&i.StringID,
+			&i.DisplayOrder,
+			&i.PixelCount,
+			&i.PointsJson,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listCabinetLEDPathSectionsByString = `-- name: ListCabinetLEDPathSectionsByString :many
+SELECT id, string_id, display_order, pixel_count, points_json, created_at, updated_at FROM cabinet_led_path_sections
+WHERE string_id = ?
+ORDER BY display_order ASC, id ASC
+`
+
+func (q *Queries) ListCabinetLEDPathSectionsByString(ctx context.Context, stringID int64) ([]CabinetLedPathSection, error) {
+	rows, err := q.query(ctx, q.listCabinetLEDPathSectionsByStringStmt, listCabinetLEDPathSectionsByString, stringID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CabinetLedPathSection
+	for rows.Next() {
+		var i CabinetLedPathSection
+		if err := rows.Scan(
+			&i.ID,
+			&i.StringID,
+			&i.DisplayOrder,
+			&i.PixelCount,
+			&i.PointsJson,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listCabinetLEDStrings = `-- name: ListCabinetLEDStrings :many
+SELECT s.id, s.cabinet_id, s.controller_id, s.name, s.display_order, s.pixel_count, s.layout_complete, s.created_at, s.updated_at FROM cabinet_led_strings s
+JOIN cabinet_controllers cc ON cc.cabinet_id = s.cabinet_id AND cc.controller_id = s.controller_id
+WHERE s.cabinet_id = ?
+ORDER BY cc.slot ASC, s.display_order ASC, s.id ASC
+`
+
+func (q *Queries) ListCabinetLEDStrings(ctx context.Context, cabinetID int64) ([]CabinetLedString, error) {
+	rows, err := q.query(ctx, q.listCabinetLEDStringsStmt, listCabinetLEDStrings, cabinetID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CabinetLedString
+	for rows.Next() {
+		var i CabinetLedString
+		if err := rows.Scan(
+			&i.ID,
+			&i.CabinetID,
+			&i.ControllerID,
+			&i.Name,
+			&i.DisplayOrder,
+			&i.PixelCount,
+			&i.LayoutComplete,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listCabinetLEDStringsByController = `-- name: ListCabinetLEDStringsByController :many
+SELECT id, cabinet_id, controller_id, name, display_order, pixel_count, layout_complete, created_at, updated_at FROM cabinet_led_strings
+WHERE cabinet_id = ? AND controller_id = ?
+ORDER BY display_order ASC, id ASC
+`
+
+type ListCabinetLEDStringsByControllerParams struct {
+	CabinetID    int64 `json:"cabinet_id"`
+	ControllerID int64 `json:"controller_id"`
+}
+
+func (q *Queries) ListCabinetLEDStringsByController(ctx context.Context, arg ListCabinetLEDStringsByControllerParams) ([]CabinetLedString, error) {
+	rows, err := q.query(ctx, q.listCabinetLEDStringsByControllerStmt, listCabinetLEDStringsByController, arg.CabinetID, arg.ControllerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CabinetLedString
+	for rows.Next() {
+		var i CabinetLedString
+		if err := rows.Scan(
+			&i.ID,
+			&i.CabinetID,
+			&i.ControllerID,
+			&i.Name,
+			&i.DisplayOrder,
+			&i.PixelCount,
+			&i.LayoutComplete,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -749,6 +1124,45 @@ func (q *Queries) ListDrawersByCabinetIncludingArchived(ctx context.Context, cab
 	return items, nil
 }
 
+const listPhysicalLocateSessionTargets = `-- name: ListPhysicalLocateSessionTargets :many
+SELECT session_id, controller_id, controller_address, controller_port, ranges_json, commands_json, fingerprint, may_have_received, last_error FROM physical_locate_session_targets
+WHERE session_id = ?
+ORDER BY controller_id ASC
+`
+
+func (q *Queries) ListPhysicalLocateSessionTargets(ctx context.Context, sessionID string) ([]PhysicalLocateSessionTarget, error) {
+	rows, err := q.query(ctx, q.listPhysicalLocateSessionTargetsStmt, listPhysicalLocateSessionTargets, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PhysicalLocateSessionTarget
+	for rows.Next() {
+		var i PhysicalLocateSessionTarget
+		if err := rows.Scan(
+			&i.SessionID,
+			&i.ControllerID,
+			&i.ControllerAddress,
+			&i.ControllerPort,
+			&i.RangesJson,
+			&i.CommandsJson,
+			&i.Fingerprint,
+			&i.MayHaveReceived,
+			&i.LastError,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listUnattachedBins = `-- name: ListUnattachedBins :many
 SELECT id, name FROM bins
 WHERE id NOT IN (SELECT bin_id FROM bin_drawer_attachments)
@@ -860,16 +1274,17 @@ func (q *Queries) RestoreCabinet(ctx context.Context, arg RestoreCabinetParams) 
 }
 
 const restoreCabinetController = `-- name: RestoreCabinetController :exec
-INSERT INTO cabinet_controllers (cabinet_id, controller_id, slot, created_at, updated_at)
-VALUES (?, ?, ?, ?, ?)
+INSERT INTO cabinet_controllers (cabinet_id, controller_id, slot, strings_configured, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?)
 `
 
 type RestoreCabinetControllerParams struct {
-	CabinetID    int64     `json:"cabinet_id"`
-	ControllerID int64     `json:"controller_id"`
-	Slot         int64     `json:"slot"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	CabinetID         int64     `json:"cabinet_id"`
+	ControllerID      int64     `json:"controller_id"`
+	Slot              int64     `json:"slot"`
+	StringsConfigured int64     `json:"strings_configured"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
 }
 
 func (q *Queries) RestoreCabinetController(ctx context.Context, arg RestoreCabinetControllerParams) error {
@@ -877,6 +1292,67 @@ func (q *Queries) RestoreCabinetController(ctx context.Context, arg RestoreCabin
 		arg.CabinetID,
 		arg.ControllerID,
 		arg.Slot,
+		arg.StringsConfigured,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	return err
+}
+
+const restoreCabinetLEDPathSection = `-- name: RestoreCabinetLEDPathSection :exec
+INSERT INTO cabinet_led_path_sections (id, string_id, display_order, pixel_count, points_json, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?)
+`
+
+type RestoreCabinetLEDPathSectionParams struct {
+	ID           int64     `json:"id"`
+	StringID     int64     `json:"string_id"`
+	DisplayOrder int64     `json:"display_order"`
+	PixelCount   int64     `json:"pixel_count"`
+	PointsJson   string    `json:"points_json"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+func (q *Queries) RestoreCabinetLEDPathSection(ctx context.Context, arg RestoreCabinetLEDPathSectionParams) error {
+	_, err := q.exec(ctx, q.restoreCabinetLEDPathSectionStmt, restoreCabinetLEDPathSection,
+		arg.ID,
+		arg.StringID,
+		arg.DisplayOrder,
+		arg.PixelCount,
+		arg.PointsJson,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	return err
+}
+
+const restoreCabinetLEDString = `-- name: RestoreCabinetLEDString :exec
+INSERT INTO cabinet_led_strings (id, cabinet_id, controller_id, name, display_order, pixel_count, layout_complete, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+`
+
+type RestoreCabinetLEDStringParams struct {
+	ID             int64     `json:"id"`
+	CabinetID      int64     `json:"cabinet_id"`
+	ControllerID   int64     `json:"controller_id"`
+	Name           string    `json:"name"`
+	DisplayOrder   int64     `json:"display_order"`
+	PixelCount     int64     `json:"pixel_count"`
+	LayoutComplete int64     `json:"layout_complete"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
+func (q *Queries) RestoreCabinetLEDString(ctx context.Context, arg RestoreCabinetLEDStringParams) error {
+	_, err := q.exec(ctx, q.restoreCabinetLEDStringStmt, restoreCabinetLEDString,
+		arg.ID,
+		arg.CabinetID,
+		arg.ControllerID,
+		arg.Name,
+		arg.DisplayOrder,
+		arg.PixelCount,
+		arg.LayoutComplete,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)
@@ -919,6 +1395,56 @@ func (q *Queries) RestoreDrawer(ctx context.Context, arg RestoreDrawerParams) er
 		arg.UpdatedAt,
 	)
 	return err
+}
+
+const savePhysicalLocateSessionTarget = `-- name: SavePhysicalLocateSessionTarget :exec
+INSERT INTO physical_locate_session_targets
+    (session_id, controller_id, controller_address, controller_port, ranges_json, commands_json, fingerprint, may_have_received, last_error)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+`
+
+type SavePhysicalLocateSessionTargetParams struct {
+	SessionID         string `json:"session_id"`
+	ControllerID      int64  `json:"controller_id"`
+	ControllerAddress string `json:"controller_address"`
+	ControllerPort    int64  `json:"controller_port"`
+	RangesJson        string `json:"ranges_json"`
+	CommandsJson      string `json:"commands_json"`
+	Fingerprint       string `json:"fingerprint"`
+	MayHaveReceived   int64  `json:"may_have_received"`
+	LastError         string `json:"last_error"`
+}
+
+func (q *Queries) SavePhysicalLocateSessionTarget(ctx context.Context, arg SavePhysicalLocateSessionTargetParams) error {
+	_, err := q.exec(ctx, q.savePhysicalLocateSessionTargetStmt, savePhysicalLocateSessionTarget,
+		arg.SessionID,
+		arg.ControllerID,
+		arg.ControllerAddress,
+		arg.ControllerPort,
+		arg.RangesJson,
+		arg.CommandsJson,
+		arg.Fingerprint,
+		arg.MayHaveReceived,
+		arg.LastError,
+	)
+	return err
+}
+
+const setControllerLEDCapacityFromStrings = `-- name: SetControllerLEDCapacityFromStrings :execrows
+UPDATE controllers SET led_count = ? WHERE id = ?
+`
+
+type SetControllerLEDCapacityFromStringsParams struct {
+	LedCount int64 `json:"led_count"`
+	ID       int64 `json:"id"`
+}
+
+func (q *Queries) SetControllerLEDCapacityFromStrings(ctx context.Context, arg SetControllerLEDCapacityFromStringsParams) (int64, error) {
+	result, err := q.exec(ctx, q.setControllerLEDCapacityFromStringsStmt, setControllerLEDCapacityFromStrings, arg.LedCount, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const unarchiveCabinet = `-- name: UnarchiveCabinet :execrows
@@ -1061,6 +1587,44 @@ func (q *Queries) UpdateCabinetController(ctx context.Context, arg UpdateCabinet
 	return result.RowsAffected()
 }
 
+const updateCabinetControllerSlot = `-- name: UpdateCabinetControllerSlot :execrows
+UPDATE cabinet_controllers SET slot = ?, updated_at = CURRENT_TIMESTAMP
+WHERE cabinet_id = ? AND controller_id = ?
+`
+
+type UpdateCabinetControllerSlotParams struct {
+	Slot         int64 `json:"slot"`
+	CabinetID    int64 `json:"cabinet_id"`
+	ControllerID int64 `json:"controller_id"`
+}
+
+func (q *Queries) UpdateCabinetControllerSlot(ctx context.Context, arg UpdateCabinetControllerSlotParams) (int64, error) {
+	result, err := q.exec(ctx, q.updateCabinetControllerSlotStmt, updateCabinetControllerSlot, arg.Slot, arg.CabinetID, arg.ControllerID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const updateCabinetControllerStringsConfigured = `-- name: UpdateCabinetControllerStringsConfigured :execrows
+UPDATE cabinet_controllers SET strings_configured = ?, updated_at = CURRENT_TIMESTAMP
+WHERE cabinet_id = ? AND controller_id = ?
+`
+
+type UpdateCabinetControllerStringsConfiguredParams struct {
+	StringsConfigured int64 `json:"strings_configured"`
+	CabinetID         int64 `json:"cabinet_id"`
+	ControllerID      int64 `json:"controller_id"`
+}
+
+func (q *Queries) UpdateCabinetControllerStringsConfigured(ctx context.Context, arg UpdateCabinetControllerStringsConfiguredParams) (int64, error) {
+	result, err := q.exec(ctx, q.updateCabinetControllerStringsConfiguredStmt, updateCabinetControllerStringsConfigured, arg.StringsConfigured, arg.CabinetID, arg.ControllerID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const updateCabinetElectricalRevision = `-- name: UpdateCabinetElectricalRevision :execrows
 UPDATE cabinets
 SET electrical_revision = ?, updated_at = CURRENT_TIMESTAMP
@@ -1074,6 +1638,66 @@ type UpdateCabinetElectricalRevisionParams struct {
 
 func (q *Queries) UpdateCabinetElectricalRevision(ctx context.Context, arg UpdateCabinetElectricalRevisionParams) (int64, error) {
 	result, err := q.exec(ctx, q.updateCabinetElectricalRevisionStmt, updateCabinetElectricalRevision, arg.ElectricalRevision, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const updateCabinetLEDPathSection = `-- name: UpdateCabinetLEDPathSection :execrows
+UPDATE cabinet_led_path_sections
+SET display_order = ?, pixel_count = ?, points_json = ?, updated_at = CURRENT_TIMESTAMP
+WHERE id = ? AND string_id = ?
+`
+
+type UpdateCabinetLEDPathSectionParams struct {
+	DisplayOrder int64  `json:"display_order"`
+	PixelCount   int64  `json:"pixel_count"`
+	PointsJson   string `json:"points_json"`
+	ID           int64  `json:"id"`
+	StringID     int64  `json:"string_id"`
+}
+
+func (q *Queries) UpdateCabinetLEDPathSection(ctx context.Context, arg UpdateCabinetLEDPathSectionParams) (int64, error) {
+	result, err := q.exec(ctx, q.updateCabinetLEDPathSectionStmt, updateCabinetLEDPathSection,
+		arg.DisplayOrder,
+		arg.PixelCount,
+		arg.PointsJson,
+		arg.ID,
+		arg.StringID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const updateCabinetLEDString = `-- name: UpdateCabinetLEDString :execrows
+UPDATE cabinet_led_strings
+SET name = ?, display_order = ?, pixel_count = ?, layout_complete = ?, updated_at = CURRENT_TIMESTAMP
+WHERE id = ? AND cabinet_id = ? AND controller_id = ?
+`
+
+type UpdateCabinetLEDStringParams struct {
+	Name           string `json:"name"`
+	DisplayOrder   int64  `json:"display_order"`
+	PixelCount     int64  `json:"pixel_count"`
+	LayoutComplete int64  `json:"layout_complete"`
+	ID             int64  `json:"id"`
+	CabinetID      int64  `json:"cabinet_id"`
+	ControllerID   int64  `json:"controller_id"`
+}
+
+func (q *Queries) UpdateCabinetLEDString(ctx context.Context, arg UpdateCabinetLEDStringParams) (int64, error) {
+	result, err := q.exec(ctx, q.updateCabinetLEDStringStmt, updateCabinetLEDString,
+		arg.Name,
+		arg.DisplayOrder,
+		arg.PixelCount,
+		arg.LayoutComplete,
+		arg.ID,
+		arg.CabinetID,
+		arg.ControllerID,
+	)
 	if err != nil {
 		return 0, err
 	}

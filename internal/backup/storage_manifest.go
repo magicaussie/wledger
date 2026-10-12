@@ -47,12 +47,16 @@ type StorageManifest struct {
 // captured as empty lists so the current format always declares its physical
 // storage explicitly rather than leaving it unknown.
 type PhysicalStorageSnapshot struct {
-	Cabinets               []db.Cabinet             `json:"cabinets"`
-	Drawers                []db.Drawer              `json:"drawers"`
-	BinAttachments         []db.BinDrawerAttachment `json:"bin_attachments"`
-	CabinetControllers     []db.CabinetController   `json:"cabinet_controllers"`
-	LEDAllocations         []db.DrawerLedAllocation `json:"drawer_led_allocations"`
-	LEDAllocationsDeclared bool                     `json:"-"`
+	Cabinets                  []db.Cabinet               `json:"cabinets"`
+	Drawers                   []db.Drawer                `json:"drawers"`
+	BinAttachments            []db.BinDrawerAttachment   `json:"bin_attachments"`
+	CabinetControllers        []db.CabinetController     `json:"cabinet_controllers"`
+	LEDAllocations            []db.DrawerLedAllocation   `json:"drawer_led_allocations"`
+	CabinetLEDStrings         []db.CabinetLedString      `json:"cabinet_led_strings"`
+	CabinetLEDPathSections    []db.CabinetLedPathSection `json:"cabinet_led_path_sections"`
+	AllocationCoordinateSpace string                     `json:"allocation_coordinate_space,omitempty"`
+	LEDAllocationsDeclared    bool                       `json:"-"`
+	CabinetWiringDeclared     bool                       `json:"-"`
 	// CabinetControllersDeclared distinguishes an explicit (possibly empty)
 	// membership list from the field being absent. An older current-format archive
 	// predates the membership table, so its absence is read with legacy
@@ -89,6 +93,9 @@ func physicalStorageRequiredFields() map[string]struct{} {
 	// remain readable when the fields are absent.
 	delete(fields, "drawer_led_allocations")
 	delete(fields, "cabinet_controllers")
+	delete(fields, "cabinet_led_strings")
+	delete(fields, "cabinet_led_path_sections")
+	delete(fields, "allocation_coordinate_space")
 	return fields
 }
 
@@ -192,6 +199,13 @@ func decodeCurrentStorageManifest(f *zip.File) (StorageManifest, error) {
 			return StorageManifest{}, err
 		}
 	}
+	for _, name := range []string{"cabinet_led_strings", "cabinet_led_path_sections"} {
+		if raw, ok := physicalMembers[name]; ok {
+			if err := requireJSONArray(raw, storageManifestPhysicalField+"."+name); err != nil {
+				return StorageManifest{}, err
+			}
+		}
+	}
 	if err := requireJSONArray(members[storageManifestSystemFlagsField], storageManifestSystemFlagsField); err != nil {
 		return StorageManifest{}, err
 	}
@@ -202,6 +216,12 @@ func decodeCurrentStorageManifest(f *zip.File) (StorageManifest, error) {
 	}
 	_, env.PhysicalStorage.LEDAllocationsDeclared = physicalMembers["drawer_led_allocations"]
 	_, env.PhysicalStorage.CabinetControllersDeclared = physicalMembers["cabinet_controllers"]
+	_, stringsDeclared := physicalMembers["cabinet_led_strings"]
+	_, sectionsDeclared := physicalMembers["cabinet_led_path_sections"]
+	if stringsDeclared != sectionsDeclared {
+		return StorageManifest{}, malformedManifest("physical_storage must declare both cabinet_led_strings and cabinet_led_path_sections, or omit both for an older archive")
+	}
+	env.PhysicalStorage.CabinetWiringDeclared = stringsDeclared && sectionsDeclared
 
 	if env.Version != supportedCurrentManifestVersion {
 		return StorageManifest{}, &BackupFormatError{
@@ -215,6 +235,9 @@ func decodeCurrentStorageManifest(f *zip.File) (StorageManifest, error) {
 			Reason: fmt.Sprintf("unsupported embedded legacy manifest version %q (supported: %q)", env.Legacy.Version, supportedLegacyManifestVersion),
 		}
 	}
+	if err := convertLegacyAllocationCoordinates(&env, physicalMembers); err != nil {
+		return StorageManifest{}, err
+	}
 	if err := validateStorageGraph(env.Legacy, env.PhysicalStorage, env.SystemFlags); err != nil {
 		return StorageManifest{}, err
 	}
@@ -222,6 +245,97 @@ func decodeCurrentStorageManifest(f *zip.File) (StorageManifest, error) {
 		return StorageManifest{}, err
 	}
 	return env, nil
+}
+
+// convertLegacyAllocationCoordinates upgrades pre-cabinet-wide v2 snapshots in
+// memory before validation/restore. The archived controller membership order and
+// led_count provide the exact historical local-to-cabinet offset; missing or
+// inconsistent facts are rejected before any database mutation.
+func convertLegacyAllocationCoordinates(env *StorageManifest, physical map[string]json.RawMessage) error {
+	invalid := func(reason string, args ...any) error {
+		return &BackupFormatError{Code: FormatInvalidPhysicalGraph, Reason: fmt.Sprintf(reason, args...)}
+	}
+	space := env.PhysicalStorage.AllocationCoordinateSpace
+	if env.PhysicalStorage.CabinetWiringDeclared && space != "cabinet" {
+		return invalid("declared cabinet wiring requires cabinet-wide allocation coordinates")
+	}
+	if space == "cabinet" {
+		if !env.PhysicalStorage.CabinetWiringDeclared {
+			return invalid("cabinet-wide allocations require declared string and path-section lists")
+		}
+		return nil
+	}
+	if space != "" {
+		return invalid("unsupported drawer allocation coordinate space %q", space)
+	}
+	raw, declared := physical["drawer_led_allocations"]
+	if !declared || len(env.PhysicalStorage.LEDAllocations) == 0 {
+		env.PhysicalStorage.AllocationCoordinateSpace = "cabinet"
+		return nil
+	}
+	var local []struct {
+		ID           int64 `json:"id"`
+		CabinetID    int64 `json:"cabinet_id"`
+		DrawerID     int64 `json:"drawer_id"`
+		ControllerID int64 `json:"controller_id"`
+		StartPixel   int64 `json:"start_pixel"`
+		PixelCount   int64 `json:"pixel_count"`
+		DisplayOrder int64 `json:"display_order"`
+	}
+	if err := json.Unmarshal(raw, &local); err != nil {
+		return invalid("cannot decode legacy controller-local drawer allocations: %v", err)
+	}
+	if len(local) != len(env.PhysicalStorage.LEDAllocations) {
+		return invalid("legacy drawer allocation list changed while translating coordinates")
+	}
+	controllers := make(map[int64]db.Controller, len(env.Legacy.Controllers))
+	for _, controller := range env.Legacy.Controllers {
+		controllers[controller.ID] = controller
+	}
+	membersByCabinet := make(map[int64][]db.CabinetController)
+	for _, member := range resolveCabinetControllers(env.PhysicalStorage) {
+		membersByCabinet[member.CabinetID] = append(membersByCabinet[member.CabinetID], member)
+	}
+	for i, allocation := range local {
+		current := env.PhysicalStorage.LEDAllocations[i]
+		if allocation.ID != current.ID || allocation.CabinetID != current.CabinetID || allocation.DrawerID != current.DrawerID || allocation.StartPixel != current.StartPixel || allocation.PixelCount != current.PixelCount || allocation.DisplayOrder != current.DisplayOrder {
+			return invalid("legacy drawer allocation %d has inconsistent archive fields", allocation.ID)
+		}
+		controller, ok := controllers[allocation.ControllerID]
+		if !ok || controller.LedCount < 1 || allocation.StartPixel < 1 || allocation.PixelCount < 1 || allocation.PixelCount > math.MaxInt64-allocation.StartPixel+1 || allocation.StartPixel+allocation.PixelCount-1 > controller.LedCount {
+			return invalid("legacy drawer allocation %d cannot be converted within controller #%d capacity", allocation.ID, allocation.ControllerID)
+		}
+		var offset int64
+		var targetSlot int64 = -1
+		for _, member := range membersByCabinet[allocation.CabinetID] {
+			memberController, exists := controllers[member.ControllerID]
+			if !exists || memberController.LedCount < 0 || member.Slot < 0 || member.Slot > 4 {
+				return invalid("legacy cabinet %d has a controller with invalid order or unknown capacity", allocation.CabinetID)
+			}
+			if member.ControllerID == allocation.ControllerID {
+				targetSlot = member.Slot
+			}
+		}
+		if targetSlot < 0 {
+			return invalid("legacy allocation %d controller is not a member of cabinet %d", allocation.ID, allocation.CabinetID)
+		}
+		for _, member := range membersByCabinet[allocation.CabinetID] {
+			if member.Slot >= targetSlot {
+				continue
+			}
+			memberController := controllers[member.ControllerID]
+			if memberController.LedCount > math.MaxInt64-offset {
+				return invalid("legacy cabinet %d controller offsets overflow", allocation.CabinetID)
+			}
+			offset += memberController.LedCount
+		}
+		if allocation.StartPixel > math.MaxInt64-offset {
+			return invalid("legacy allocation %d cabinet offset overflows", allocation.ID)
+		}
+		env.PhysicalStorage.LEDAllocations[i].StartPixel = allocation.StartPixel + offset
+	}
+	env.PhysicalStorage.AllocationCoordinateSpace = "cabinet"
+	return nil
 }
 
 // validateCoordinateSpaceConsistency requires the embedded legacy manifest's
@@ -303,6 +417,7 @@ func validateStorageGraph(legacy Manifest, snap PhysicalStorageSnapshot, flags [
 	}
 
 	cabinets := make(map[int64]struct{}, len(snap.Cabinets))
+	cabinetRecords := make(map[int64]db.Cabinet, len(snap.Cabinets))
 	ownedControllers := make(map[int64]int64, len(snap.Cabinets))
 	for _, c := range snap.Cabinets {
 		if c.ID <= 0 {
@@ -312,6 +427,7 @@ func validateStorageGraph(legacy Manifest, snap PhysicalStorageSnapshot, flags [
 			return invalid("duplicate cabinet id %d", c.ID)
 		}
 		cabinets[c.ID] = struct{}{}
+		cabinetRecords[c.ID] = c
 		if strings.TrimSpace(c.Name) == "" {
 			return invalid("cabinet %d has an empty name", c.ID)
 		}
@@ -383,6 +499,9 @@ func validateStorageGraph(legacy Manifest, snap PhysicalStorageSnapshot, flags [
 		if m.Slot < 0 || m.Slot > 4 {
 			return invalid("cabinet %d controller %d has an invalid slot %d (slots are 0..4)", m.CabinetID, m.ControllerID, m.Slot)
 		}
+		if m.StringsConfigured != 0 && m.StringsConfigured != 1 {
+			return invalid("cabinet %d controller %d has invalid strings_configured value %d", m.CabinetID, m.ControllerID, m.StringsConfigured)
+		}
 		if owner, taken := ownedMembers[m.ControllerID]; taken {
 			return invalid("controller %d is a member of cabinets %d and %d", m.ControllerID, owner, m.CabinetID)
 		}
@@ -401,6 +520,100 @@ func validateStorageGraph(legacy Manifest, snap PhysicalStorageSnapshot, flags [
 			return invalid("cabinet %d has more than five controllers", m.CabinetID)
 		}
 		membershipByPair[[2]int64{m.CabinetID, m.ControllerID}] = m
+	}
+
+	stringsByID := make(map[int64]db.CabinetLedString, len(snap.CabinetLEDStrings))
+	stringOrders := make(map[[3]int64]struct{}, len(snap.CabinetLEDStrings))
+	stringPixelsByController := make(map[int64]int64, len(snap.CabinetLEDStrings))
+	for _, stringRecord := range snap.CabinetLEDStrings {
+		if stringRecord.ID <= 0 || stringRecord.CabinetID <= 0 || stringRecord.ControllerID <= 0 || stringRecord.DisplayOrder < 0 || stringRecord.PixelCount < 1 || strings.TrimSpace(stringRecord.Name) == "" {
+			return invalid("cabinet wiring string has an invalid id, owner, name, order or pixel count")
+		}
+		if _, duplicate := stringsByID[stringRecord.ID]; duplicate {
+			return invalid("duplicate cabinet wiring string id %d", stringRecord.ID)
+		}
+		if _, member := membershipByPair[[2]int64{stringRecord.CabinetID, stringRecord.ControllerID}]; !member {
+			return invalid("string %d references controller %d that is not assigned to cabinet %d", stringRecord.ID, stringRecord.ControllerID, stringRecord.CabinetID)
+		}
+		orderKey := [3]int64{stringRecord.CabinetID, stringRecord.ControllerID, stringRecord.DisplayOrder}
+		if _, duplicate := stringOrders[orderKey]; duplicate {
+			return invalid("cabinet %d controller %d has duplicate string order %d", stringRecord.CabinetID, stringRecord.ControllerID, stringRecord.DisplayOrder)
+		}
+		stringOrders[orderKey] = struct{}{}
+		if stringRecord.LayoutComplete != 0 && stringRecord.LayoutComplete != 1 {
+			return invalid("string %d has invalid layout_complete value %d", stringRecord.ID, stringRecord.LayoutComplete)
+		}
+		if stringRecord.PixelCount > math.MaxInt64-stringPixelsByController[stringRecord.ControllerID] {
+			return invalid("controller %d string capacity overflows", stringRecord.ControllerID)
+		}
+		stringPixelsByController[stringRecord.ControllerID] += stringRecord.PixelCount
+		stringsByID[stringRecord.ID] = stringRecord
+	}
+	sectionIDs := make(map[int64]struct{}, len(snap.CabinetLEDPathSections))
+	sectionOrders := make(map[[2]int64]struct{}, len(snap.CabinetLEDPathSections))
+	sectionPixelsByString := make(map[int64]int64, len(snap.CabinetLEDPathSections))
+	sectionCountByString := make(map[int64]int, len(snap.CabinetLEDPathSections))
+	for _, section := range snap.CabinetLEDPathSections {
+		stringRecord, exists := stringsByID[section.StringID]
+		if section.ID <= 0 || !exists || section.DisplayOrder < 0 || section.PixelCount < 1 {
+			return invalid("wiring path section %d has invalid identity, string, order or pixel count", section.ID)
+		}
+		if _, duplicate := sectionIDs[section.ID]; duplicate {
+			return invalid("duplicate wiring path section id %d", section.ID)
+		}
+		sectionIDs[section.ID] = struct{}{}
+		orderKey := [2]int64{section.StringID, section.DisplayOrder}
+		if _, duplicate := sectionOrders[orderKey]; duplicate {
+			return invalid("string %d has duplicate path section order %d", section.StringID, section.DisplayOrder)
+		}
+		sectionOrders[orderKey] = struct{}{}
+		if section.PixelCount > math.MaxInt64-sectionPixelsByString[section.StringID] {
+			return invalid("string %d path pixel count overflows", section.StringID)
+		}
+		sectionPixelsByString[section.StringID] += section.PixelCount
+		sectionCountByString[section.StringID]++
+		var points []struct {
+			X float64 `json:"x"`
+			Y float64 `json:"y"`
+		}
+		if err := json.Unmarshal([]byte(section.PointsJson), &points); err != nil || points == nil {
+			return invalid("path section %d has invalid point geometry", section.ID)
+		}
+		if len(points) != 0 && len(points) < 2 {
+			return invalid("path section %d needs at least two ordered points", section.ID)
+		}
+		if stringRecord.LayoutComplete == 1 && len(points) < 2 {
+			return invalid("complete string %d contains a path section without direction geometry", stringRecord.ID)
+		}
+		cabinet := cabinetRecords[stringRecord.CabinetID]
+		width, height := cabinet.LayoutWidth, cabinet.LayoutHeight
+		if width <= 0 || height <= 0 {
+			width, height = 100, 100
+		}
+		for _, point := range points {
+			if math.IsNaN(point.X) || math.IsNaN(point.Y) || math.IsInf(point.X, 0) || math.IsInf(point.Y, 0) || point.X < 0 || point.Y < 0 || point.X > width || point.Y > height {
+				return invalid("path section %d has a point outside cabinet %d bounds", section.ID, stringRecord.CabinetID)
+			}
+		}
+	}
+	for _, stringRecord := range snap.CabinetLEDStrings {
+		sectionPixels := sectionPixelsByString[stringRecord.ID]
+		if sectionPixels > stringRecord.PixelCount || (stringRecord.LayoutComplete == 1 && (sectionCountByString[stringRecord.ID] == 0 || sectionPixels != stringRecord.PixelCount)) {
+			return invalid("string %d path sections account for %d of %d pixels but layout_complete=%d", stringRecord.ID, sectionPixels, stringRecord.PixelCount, stringRecord.LayoutComplete)
+		}
+	}
+	for _, member := range memberships {
+		if member.StringsConfigured == 1 {
+			controller := controllers[member.ControllerID]
+			if controller.LedCount != stringPixelsByController[member.ControllerID] {
+				return invalid("controller %d capacity %d does not equal configured string total %d", member.ControllerID, controller.LedCount, stringPixelsByController[member.ControllerID])
+			}
+		} else if stringPixelsByController[member.ControllerID] != 0 {
+			return invalid("controller %d has strings but strings_configured is false", member.ControllerID)
+		}
+	}
+	if snap.CabinetWiringDeclared && (len(snap.CabinetLEDStrings) == 0 && len(snap.CabinetLEDPathSections) != 0) {
+		return invalid("wiring path sections exist without any strings")
 	}
 
 	attached := make(map[int64]struct{}, len(snap.BinAttachments))
@@ -425,15 +638,20 @@ func validateStorageGraph(legacy Manifest, snap PhysicalStorageSnapshot, flags [
 		}
 	}
 
+	cabinetCapacity := make(map[int64]int64, len(memberships))
+	for _, member := range memberships {
+		controller := controllers[member.ControllerID]
+		if controller.LedCount < 0 || controller.LedCount > math.MaxInt64-cabinetCapacity[member.CabinetID] {
+			return invalid("cabinet %d has invalid total controller capacity", member.CabinetID)
+		}
+		cabinetCapacity[member.CabinetID] += controller.LedCount
+	}
 	allocationIDs := make(map[int64]struct{}, len(snap.LEDAllocations))
-	allocationRanges := make([]struct{ controllerID, start, end, allocationID int64 }, 0, len(snap.LEDAllocations))
+	allocationRanges := make([]struct{ cabinetID, start, end, allocationID int64 }, 0, len(snap.LEDAllocations))
 	cabinetByDrawer := make(map[int64]int64, len(snap.Drawers))
 	for _, drawer := range snap.Drawers {
 		cabinetByDrawer[drawer.ID] = drawer.CabinetID
 	}
-	// A drawer is assigned to exactly one controller: every one of its saved
-	// ranges must sit on the same member controller.
-	drawerController := make(map[int64]int64, len(snap.Drawers))
 	for _, allocation := range snap.LEDAllocations {
 		if allocation.ID <= 0 {
 			return invalid("drawer LED allocation has a non-positive id %d", allocation.ID)
@@ -446,33 +664,19 @@ func validateStorageGraph(legacy Manifest, snap PhysicalStorageSnapshot, flags [
 		if !drawerExists || cabinetID != allocation.CabinetID {
 			return invalid("drawer LED allocation %d references drawer %d outside cabinet %d", allocation.ID, allocation.DrawerID, allocation.CabinetID)
 		}
-		// The allocation's controller must be a member of its own cabinet. This is
-		// the electrical ownership the restored foreign key will enforce; it is not
-		// assumed to be the cabinet's primary controller.
-		if _, member := membershipByPair[[2]int64{allocation.CabinetID, allocation.ControllerID}]; !member {
-			return invalid("drawer LED allocation %d references controller %d, which is not a member of cabinet %d", allocation.ID, allocation.ControllerID, allocation.CabinetID)
-		}
-		if prev, ok := drawerController[allocation.DrawerID]; ok && prev != allocation.ControllerID {
-			return invalid("drawer %d has LED allocations on more than one controller (%d and %d)", allocation.DrawerID, prev, allocation.ControllerID)
-		}
-		drawerController[allocation.DrawerID] = allocation.ControllerID
-		controller, controllerExists := controllers[allocation.ControllerID]
-		if !controllerExists {
-			return invalid("drawer LED allocation %d references controller %d, which the backup does not contain", allocation.ID, allocation.ControllerID)
-		}
 		if allocation.DisplayOrder < 0 || allocation.StartPixel < 1 || allocation.PixelCount < 1 || allocation.PixelCount > math.MaxInt64-allocation.StartPixel+1 {
 			return invalid("drawer LED allocation %d has an invalid start, count, order or overflowing end", allocation.ID)
 		}
 		end := allocation.StartPixel + allocation.PixelCount - 1
-		if controller.LedCount < 1 || end > controller.LedCount {
-			return invalid("drawer LED allocation %d exceeds controller #%d capacity", allocation.ID, allocation.ControllerID)
+		if cabinetCapacity[allocation.CabinetID] < 1 || end > cabinetCapacity[allocation.CabinetID] {
+			return invalid("drawer LED allocation %d exceeds cabinet #%d capacity", allocation.ID, allocation.CabinetID)
 		}
 		for _, other := range allocationRanges {
-			if other.controllerID == allocation.ControllerID && allocation.StartPixel <= other.end && other.start <= end {
-				return invalid("drawer LED allocations %d and %d overlap on controller #%d", allocation.ID, other.allocationID, allocation.ControllerID)
+			if other.cabinetID == allocation.CabinetID && allocation.StartPixel <= other.end && other.start <= end {
+				return invalid("drawer LED allocations %d and %d overlap in cabinet #%d pixel space", allocation.ID, other.allocationID, allocation.CabinetID)
 			}
 		}
-		allocationRanges = append(allocationRanges, struct{ controllerID, start, end, allocationID int64 }{allocation.ControllerID, allocation.StartPixel, end, allocation.ID})
+		allocationRanges = append(allocationRanges, struct{ cabinetID, start, end, allocationID int64 }{allocation.CabinetID, allocation.StartPixel, end, allocation.ID})
 	}
 
 	flagKeys := make(map[string]struct{}, len(flags))

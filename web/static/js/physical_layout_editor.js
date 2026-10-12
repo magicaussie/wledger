@@ -8,8 +8,16 @@ function physicalLayoutEditor() {
     assignedControllers: [],
     controllerError: '',
     controllerDraft: [],
-    drawerControllers: {},
     capacityDrafts: {},
+    wiringStrings: [],
+    configuredControllerIDs: [],
+    wiringSaveError: '',
+    wiringSaveNotice: '',
+    wiringMappingImpactConfirmed: false,
+    controllerMappingImpactConfirmed: false,
+    diagnosticControllerID: 0,
+    selectedStringKey: '',
+    activePathSectionKey: '',
     physicalOutputLayout: null,
     outputDiscoveryError: '',
     controllerSaveNotice: '',
@@ -51,8 +59,26 @@ function physicalLayoutEditor() {
       this.controllers = data.Controllers || [];
       this.assignedControllers = data.AssignedControllers || [];
       this.controllerError = data.ControllerError || '';
+      this.assignedControllers.sort((a, b) => Number(a.Slot) - Number(b.Slot));
       this.controllerDraft = this.assignedControllers.map(item => Number(item.Controller.id));
+      this.configuredControllerIDs = this.assignedControllers.filter(item => Number(item.StringsConfigured) === 1).map(item => Number(item.Controller.id));
       this.capacityDrafts = Object.fromEntries(this.controllers.map(controller => [controller.id, String(controller.led_count)]));
+      this.diagnosticControllerID = this.controllerDraft[0] || 0;
+      const wiringData = data.Wiring || { Controllers: [], Total: 0 };
+      this.wiringStrings = (wiringData.Controllers || []).flatMap(controller => (controller.Strings || []).map(item => {
+        const record = item.Record;
+        return {
+          id: Number(record.id), key: `string-${record.id}`, controller_id: Number(record.controller_id),
+          name: record.name, display_order: Number(record.display_order), pixel_count: String(record.pixel_count),
+          layout_complete: Number(record.layout_complete) === 1,
+          sections: (item.Sections || []).map(section => {
+            let points = [];
+            try { points = JSON.parse(section.points_json || '[]'); } catch { points = []; }
+            return { id: Number(section.id), key: `section-${section.id}`, display_order: Number(section.display_order), pixel_count: String(section.pixel_count), points: Array.isArray(points) ? points : [] };
+          }),
+        };
+      }));
+      this.persistedWiringJSON = JSON.stringify(this.wiringStrings);
       this.electricalRevision = cabinet.electrical_revision;
       const query = new URLSearchParams(window.location.search);
       this.controllerSaveError = query.get('controller_error') || '';
@@ -60,7 +86,9 @@ function physicalLayoutEditor() {
       this.capacitySaveError = query.get('capacity_error') || '';
       this.capacitySaveNotice = query.get('capacity_saved') === '1' ? 'Controller-wide pixel capacity saved.' : '';
       this.ledSaveError = query.get('led_error') || '';
-      this.ledSaveNotice = new URLSearchParams(window.location.search).get('led_saved') === '1' ? 'Electrical mapping saved to the database.' : '';
+      this.ledSaveNotice = query.get('led_saved') === '1' ? 'Cabinet-wide drawer mapping saved.' : '';
+      this.wiringSaveError = query.get('wiring_error') || '';
+      this.wiringSaveNotice = query.get('wiring_saved') === '1' ? 'Controller strings and wiring paths saved.' : '';
       const oldLedDraftKey = `wledger-led-allocation-draft-cab-${cabinet.id}`;
       try {
         if (localStorage.getItem(oldLedDraftKey) !== null) this.legacyLedDraftNotice = 'A legacy browser-local LED draft exists but was not imported. Database allocations are authoritative; the old draft has been left untouched.';
@@ -100,11 +128,10 @@ function physicalLayoutEditor() {
         })),
       };
       this.ledRanges = {};
-      this.drawerControllers = {};
       for (const item of data.Drawers || []) {
         const key = `drawer-${item.Drawer.id}`;
-        this.ledRanges[key] = (item.LedAllocations || []).map(range => ({ id: range.id, controller_id: range.controller_id, start_pixel: String(range.start_pixel), pixel_count: String(range.pixel_count) }));
-        this.drawerControllers[key] = String(item.LedAllocations?.[0]?.controller_id || this.controller?.id || this.assignedControllers[0]?.Controller.id || 0);
+        this.ledRanges[key] = (item.LedAllocations || []).map(range => ({ id: range.id, start_pixel: String(range.start_pixel), pixel_count: String(range.pixel_count) }));
+        if (!this.ledRanges[key].length) this.ledRanges[key].push({ id: 0, start_pixel: '', pixel_count: '' });
       }
       this.persistedLedRanges = this.clone(this.ledRanges);
       this.bins = (data.UnattachedBins || []).map(bin => ({ id: bin.id, name: bin.name }));
@@ -122,6 +149,9 @@ function physicalLayoutEditor() {
         this.lastStateJSON = current;
         this.renderCanvas();
       }, { deep: true });
+      this.$watch('wiringStrings', () => { this.wiringMappingImpactConfirmed = false; this.renderCanvas(); }, { deep: true });
+      this.$watch('configuredControllerIDs', () => { this.wiringMappingImpactConfirmed = false; }, { deep: true });
+      this.$watch('controllerDraft', () => { this.controllerMappingImpactConfirmed = false; this.renderCanvas(); }, { deep: true });
       window.addEventListener('beforeunload', event => {
         if ((this.dirty || this.hasUnsavedElectricalChanges()) && !this.saving && !this.allowElectricalNavigation) { event.preventDefault(); event.returnValue = ''; }
       });
@@ -203,8 +233,8 @@ function physicalLayoutEditor() {
       this.dirty = false;
     },
     setTool(tool) { this.tool = tool; this.pointerOp = null; },
-    canvasWidth() { return this.mode === 'cabinet' ? this.state.width : (this.activeDrawer()?.width || 1); },
-    canvasHeight() { return this.mode === 'cabinet' ? this.state.height : (this.activeDrawer()?.height || 1); },
+    canvasWidth() { return this.mode === 'bins' ? (this.activeDrawer()?.width || 1) : this.state.width; },
+    canvasHeight() { return this.mode === 'bins' ? (this.activeDrawer()?.height || 1) : this.state.height; },
     canvasViewBox() {
       const width = Math.max(1, this.canvasWidth() / this.zoom);
       const height = Math.max(1, this.canvasHeight() / this.zoom);
@@ -228,6 +258,7 @@ function physicalLayoutEditor() {
       if (this.tool === 'select' && event.target.closest('[data-layout-entity]')) return;
       this.$refs.canvas.setPointerCapture(event.pointerId);
       const point = this.pointForEdit(event);
+      if (this.mode === 'wiring' && this.tool === 'path-point') { this.addPathPoint(event); return; }
       if (this.tool === 'pan') {
         this.pointerOp = { kind: 'pan', screenX: event.clientX, screenY: event.clientY, panX: this.pan.x, panY: this.pan.y };
         return;
@@ -310,7 +341,8 @@ function physicalLayoutEditor() {
               group.appendChild(node);
             }
           };
-          if (this.mode === 'cabinet') {
+          if (this.mode === 'cabinet' || this.mode === 'wiring') {
+            this.renderWiringPaths(decorLayer);
             for (const item of this.state.decorations) {
               const group = this.svgElement('g', { 'data-layout-entity':'true', role:'button', tabindex:0, 'aria-label':`${item.kind} drawing` });
               group.addEventListener('pointerdown', event => this.beginMove(event,'decoration',item));
@@ -324,7 +356,7 @@ function physicalLayoutEditor() {
               const group = this.svgElement('g',{ 'data-layout-entity':'true',role:'button',tabindex:0,'aria-label':`Select drawer ${drawer.label}` });
               group.addEventListener('pointerdown',event=>this.beginMove(event,'drawer',drawer));
               group.addEventListener('click',event=>{event.stopPropagation();this.selectDrawer(drawer);});
-              group.addEventListener('dblclick',event=>{event.stopPropagation();this.openDrawer(drawer);});
+              group.addEventListener('dblclick',event=>{event.stopPropagation();if(this.mode==='cabinet')this.openDrawer(drawer);});
               group.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();this.selectDrawer(drawer);}});
               const selected=this.selection.kind==='drawer'&&this.selection.key===drawer.key;
               group.appendChild(this.svgElement('rect',{x:drawer.x,y:drawer.y,width:drawer.width,height:drawer.height,rx:0.5,fill:selected?'var(--color-primary)':'var(--color-info)','fill-opacity':0.22,stroke:selected?'var(--color-primary)':'var(--color-info)','stroke-width':0.45}));
@@ -348,6 +380,84 @@ function physicalLayoutEditor() {
             const r=this.previewRect();previewLayer.appendChild(this.svgElement('rect',{x:r.x,y:r.y,width:r.width,height:r.height,fill:'var(--color-primary)','fill-opacity':0.12,stroke:'var(--color-primary)','stroke-width':0.35,'stroke-dasharray':'1 0.5'}));
           }
         },
+    selectWiringString(string) { if (!string) return; this.selectedStringKey = string.key; this.setSelection('', ''); this.renderCanvas(); },
+    renderWiringPaths(layer) {
+      const spans = this.controllerSpans();
+      const colors = ['var(--color-primary)', 'var(--color-secondary)', 'var(--color-accent)', 'var(--color-info)', 'var(--color-success)'];
+      const selectedDrawer = this.selection.kind === 'drawer' ? this.selectedDrawer() : null;
+      for (let controllerIndex = 0; controllerIndex < spans.length; controllerIndex++) {
+        const span = spans[controllerIndex];
+        const strings = this.stringRows(span.controller_id);
+        let stringOffset = 0;
+        for (let stringIndex = 0; stringIndex < strings.length; stringIndex++) {
+          const string = strings[stringIndex];
+          let sectionOffset = 0;
+          for (const section of [...string.sections].sort((a, b) => Number(a.display_order) - Number(b.display_order))) {
+            const count = Number(section.pixel_count) || 0;
+            const pixelStart = span.start + stringOffset + sectionOffset;
+            const pixelEnd = pixelStart + count - 1;
+            const points = section.points || [];
+            if (points.length >= 2) {
+              const group = this.svgElement('g', { 'data-wiring-string': string.key, role: 'button', tabindex: 0, 'aria-label': `${string.name}, section ${Number(section.display_order) + 1}, cabinet pixels ${pixelStart}–${pixelEnd}` });
+              group.addEventListener('click', event => { event.stopPropagation(); this.selectWiringString(string); });
+              const polyline = values => values.map(point => `${point.x},${point.y}`).join(' ');
+              const selected = this.selectedStringKey === string.key;
+              group.appendChild(this.svgElement('polyline', { points: polyline(points), fill: 'none', stroke: colors[controllerIndex % colors.length], 'stroke-width': selected ? 0.9 : 0.55, 'stroke-dasharray': string.layout_complete ? null : '1 0.6', 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+              const first = points[0], last = points[points.length - 1];
+              const label = this.svgElement('text', { x: first.x + 0.4, y: first.y - 0.5, 'font-size': 1.25, fill: colors[controllerIndex % colors.length] });
+              label.textContent = `${controllerIndex + 1}.${stringIndex + 1} ${pixelStart}–${pixelEnd}`;
+              group.appendChild(label);
+              const arrow = this.svgElement('text', { x: last.x + 0.3, y: last.y + 1.3, 'font-size': 2, fill: colors[controllerIndex % colors.length] });
+              arrow.textContent = '›'; group.appendChild(arrow);
+              if (selectedDrawer) for (const range of this.ledRangesFor(selectedDrawer)) {
+                const rangeStart = Number(range.start_pixel), rangeEnd = rangeStart + Number(range.pixel_count) - 1;
+                const left = Math.max(pixelStart, rangeStart), right = Math.min(pixelEnd, rangeEnd);
+                if (left > right) continue;
+                const sliced = this.sliceWiringPolyline(points, (left - pixelStart) / count, (right - pixelStart + 1) / count);
+                if (sliced.length >= 2) group.appendChild(this.svgElement('polyline', { points: polyline(sliced), fill: 'none', stroke: 'var(--color-primary)', 'stroke-width': 1.35, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'data-drawer-highlight': selectedDrawer.key }));
+              }
+              layer.appendChild(group);
+            }
+            sectionOffset += count;
+          }
+          stringOffset += Number(string.pixel_count) || 0;
+        }
+      }
+      const draftSection = this.currentPathSection();
+      if (this.mode === 'wiring' && this.tool === 'path-point' && draftSection?.points?.length) {
+        const pts = draftSection.points.map(point => `${point.x},${point.y}`).join(' ');
+        layer.appendChild(this.svgElement('polyline', { points: pts, fill: 'none', stroke: 'var(--color-warning)', 'stroke-width': 1, 'stroke-dasharray': '1 0.5', 'stroke-linecap': 'round' }));
+        for (const point of draftSection.points) layer.appendChild(this.svgElement('circle', { cx: point.x, cy: point.y, r: 0.7, fill: 'var(--color-warning)' }));
+      }
+    },
+    sliceWiringPolyline(points, from, to) {
+      const lengths = [];
+      let total = 0;
+      for (let i = 1; i < points.length; i++) {
+        const dx = points[i].x - points[i - 1].x, dy = points[i].y - points[i - 1].y;
+        const length = Math.hypot(dx, dy); lengths.push(length); total += length;
+      }
+      if (!total) return [];
+      const at = fraction => {
+        const target = Math.max(0, Math.min(1, fraction)) * total;
+        let walked = 0;
+        for (let i = 0; i < lengths.length; i++) {
+          const length = lengths[i];
+          if (target <= walked + length || i === lengths.length - 1) {
+            const part = length ? (target - walked) / length : 0;
+            return { x: points[i].x + (points[i + 1].x - points[i].x) * part, y: points[i].y + (points[i + 1].y - points[i].y) * part };
+          }
+          walked += length;
+        }
+        return points.at(-1);
+      };
+      const out = [at(from)]; let walked = 0;
+      for (let i = 0; i < lengths.length; i++) {
+        walked += lengths[i]; const fraction = walked / total;
+        if (fraction > from && fraction < to) out.push(points[i + 1]);
+      }
+      out.push(at(to)); return out;
+    },
     completeDrawing(op) {
       const end = op.current || op.start;
       const rect = this.rectFromPoints(op.start, end);
@@ -425,9 +535,11 @@ function physicalLayoutEditor() {
       return this.state.drawers.some(drawer => drawer.key !== drawerKey && this.ledRangesChanged(drawer.key));
     },
     controllerAssignmentChanged() {
-      const current = this.assignedControllers.map(item => Number(item.Controller.id)).sort((a,b) => a-b);
-      const draft = this.controllerDraft.map(Number).sort((a,b) => a-b);
-      return JSON.stringify(current) !== JSON.stringify(draft);
+      const current = this.assignedControllers.map(item => Number(item.Controller.id));
+      return JSON.stringify(current) !== JSON.stringify(this.controllerDraft.map(Number));
+    },
+    wiringChanged() {
+      return JSON.stringify(this.wiringStrings) !== this.persistedWiringJSON || JSON.stringify([...this.configuredControllerIDs].sort()) !== JSON.stringify(this.assignedControllers.filter(item => Number(item.StringsConfigured) === 1).map(item => Number(item.Controller.id)).sort());
     },
     controllerSelected(controllerID) { return this.controllerDraft.includes(Number(controllerID)); },
     toggleController(controllerID, checked) {
@@ -435,73 +547,183 @@ function physicalLayoutEditor() {
       if (checked && !this.controllerDraft.includes(id)) {
         if (this.controllerDraft.length >= 5) { this.controllerSaveError = 'A cabinet supports at most five WLED controllers.'; return; }
         this.controllerDraft = [...this.controllerDraft, id];
-      } else if (!checked) this.controllerDraft = this.controllerDraft.filter(value => value !== id);
+      } else if (!checked) {
+        if (this.stringRows(id).length) { this.controllerSaveError = 'Remove and save this controller’s physical strings before unassigning it from the cabinet.'; return; }
+        this.controllerDraft = this.controllerDraft.filter(value => value !== id);
+      }
+      this.controllerMappingImpactConfirmed = false;
       this.controllerSaveError = ''; this.controllerSaveNotice = '';
+    },
+    moveController(controllerID, delta) {
+      const index = this.controllerDraft.indexOf(Number(controllerID)); const target = index + delta;
+      if (index < 0 || target < 0 || target >= this.controllerDraft.length) return;
+      const next = [...this.controllerDraft]; [next[index], next[target]] = [next[target], next[index]];
+      this.controllerDraft = next; this.controllerMappingImpactConfirmed = false;
     },
     controllerCapacityChanged(controllerID = 0) {
       return this.controllers.some(controller => (!controllerID || controller.id === Number(controllerID)) && Number(this.capacityDrafts[controller.id]) !== Number(controller.led_count));
     },
     hasUnsavedElectricalChanges() {
-      return this.controllerAssignmentChanged() || this.controllerCapacityChanged() || this.hasUnsavedLedRangesExcept();
+      return this.controllerAssignmentChanged() || this.controllerCapacityChanged() || this.wiringChanged() || this.hasUnsavedLedRangesExcept();
     },
+    stringRows(controllerID, source = this.wiringStrings) {
+      return source.filter(item => Number(item.controller_id) === Number(controllerID)).sort((a, b) => Number(a.display_order) - Number(b.display_order));
+    },
+    controllerCapacity(controllerID, strings = this.wiringStrings, configuredIDs = this.configuredControllerIDs) {
+      const records = this.stringRows(controllerID, strings);
+      if (records.length || configuredIDs.map(Number).includes(Number(controllerID))) return records.reduce((sum, item) => sum + (Number(item.pixel_count) || 0), 0);
+      const controller = this.controllers.find(item => Number(item.id) === Number(controllerID));
+      return Number(controller?.led_count) || 0;
+    },
+    controllerSpans(order = this.controllerDraft, strings = this.wiringStrings, configuredIDs = this.configuredControllerIDs) {
+      let next = 1; const spans = [];
+      for (const controllerID of order.map(Number)) {
+        const pixels = this.controllerCapacity(controllerID, strings, configuredIDs);
+        spans.push({ controller_id: controllerID, start: next, pixels, end: next + pixels - 1 });
+        next += pixels;
+      }
+      return spans;
+    },
+    totalCabinetPixels() { return this.controllerSpans().reduce((sum, item) => sum + item.pixels, 0); },
+    splitRange(startValue, countValue, order = this.controllerDraft, strings = this.wiringStrings, configuredIDs = this.configuredControllerIDs) {
+      const start = Number(startValue), count = Number(countValue), end = start + count - 1;
+      if (!Number.isSafeInteger(start) || start < 1 || !Number.isSafeInteger(count) || count < 1 || !Number.isSafeInteger(end)) return [];
+      const spans = this.controllerSpans(order, strings, configuredIDs); const pieces = [];
+      for (const span of spans) {
+        const left = Math.max(start, span.start), right = Math.min(end, span.end);
+        if (left <= right) {
+          let stringOffset = 0; const stringRows = this.stringRows(span.controller_id, strings);
+          if (!stringRows.length) pieces.push({ controller_id: span.controller_id, start: left - span.start + 1, count: right - left + 1, string_id: 0, string_start: left - span.start + 1 });
+          else for (const string of stringRows) {
+            const localStart = stringOffset + 1, localEnd = stringOffset + Number(string.pixel_count);
+            const stringLeft = Math.max(left - span.start + 1, localStart), stringRight = Math.min(right - span.start + 1, localEnd);
+            if (stringLeft <= stringRight) pieces.push({ controller_id: span.controller_id, start: span.start + stringLeft - 1, count: stringRight - stringLeft + 1, string_id: string.id || string.key, string_start: stringLeft - localStart + 1 });
+            stringOffset += Number(string.pixel_count);
+          }
+        }
+      }
+      return pieces;
+    },
+    allocationDestinations(range, order = this.controllerDraft, strings = this.wiringStrings, configuredIDs = this.configuredControllerIDs) {
+      return this.splitRange(range.start_pixel, range.pixel_count, order, strings, configuredIDs).map(piece => {
+        const controller = this.controllers.find(item => Number(item.id) === piece.controller_id);
+        const string = this.stringRows(piece.controller_id, strings).find(item => String(item.id || item.key) === String(piece.string_id));
+        const end = piece.start + piece.count - 1;
+        return `${controller?.name || `Controller #${piece.controller_id}`} local ${piece.start}–${end}${string ? ` · ${string.name} pixels ${piece.string_start}–${piece.string_start + piece.count - 1}` : ''}`;
+      });
+    },
+    changedMappingPreview(oldOrder, oldStrings, oldConfigured, newOrder, newStrings, newConfigured) {
+      const changes = [];
+      for (const drawer of this.state.drawers) for (const range of this.ledRangesFor(drawer)) {
+        if (!String(range.start_pixel ?? '').trim() || !String(range.pixel_count ?? '').trim()) continue;
+        const before = this.allocationDestinations(range, oldOrder, oldStrings, oldConfigured);
+        const after = this.allocationDestinations(range, newOrder, newStrings, newConfigured);
+        if (JSON.stringify(before) !== JSON.stringify(after)) changes.push({ drawer: drawer.label, start: range.start_pixel, count: range.pixel_count, before, after });
+      }
+      return changes;
+    },
+    controllerMappingPreview() {
+      const oldOrder = this.assignedControllers.map(item => Number(item.Controller.id));
+      const oldConfigured = this.assignedControllers.filter(item => Number(item.StringsConfigured) === 1).map(item => Number(item.Controller.id));
+      return this.changedMappingPreview(oldOrder, this.wiringStrings, oldConfigured, this.controllerDraft, this.wiringStrings, this.configuredControllerIDs);
+    },
+
     ledEnd(range) {
       const start = Number(range?.start_pixel); const count = Number(range?.pixel_count);
       return Number.isSafeInteger(start) && start >= 1 && Number.isSafeInteger(count) && count >= 1 && Number.isSafeInteger(start + count - 1) ? start + count - 1 : '—';
     },
     ledStatus(drawer) {
-      if (this.controllerError) return { error: `${this.controllerError} Electrical allocations cannot be validated.` };
-      const ranges = [];
-      for (const candidate of this.state.drawers) {
-        const selectedControllerID = Number(this.drawerControllers[candidate.key]) || 0;
-        for (const range of this.ledRangesFor(candidate)) {
-          const startText = String(range.start_pixel ?? '').trim(); const countText = String(range.pixel_count ?? '').trim();
-          if (!startText && !countText) continue;
-          if (!selectedControllerID) return { error: `Select an assigned controller for ${candidate.label}.` };
-          const controller = this.controllers.find(item => item.id === selectedControllerID);
-          if (!controller || !this.assignedControllers.some(item => item.Controller.id === selectedControllerID)) return { error: `Controller #${selectedControllerID} is not assigned to this cabinet.` };
-          const capacity = Number(controller.led_count);
-          if (!Number.isSafeInteger(capacity) || capacity < 1) return { error: `Controller #${selectedControllerID} has no valid positive LED capacity.` };
-          if (!startText || !countText) return { error: `Enter both LED Start and LED Count for every range on ${candidate.label}.` };
-          const start = Number(startText); const count = Number(countText);
-          if (!Number.isSafeInteger(start) || start < 1) return { error: 'LED Start must be a whole number of at least 1.' };
-          if (!Number.isSafeInteger(count) || count < 1) return { error: 'LED Count must be a positive whole number.' };
-          const end = start + count - 1;
-          if (!Number.isSafeInteger(end)) return { error: 'LED End overflows the supported integer range.' };
-          if (end > capacity) return { error: `LED range ends at ${end}, beyond controller #${selectedControllerID} capacity (${capacity}).` };
-          ranges.push({ drawer: candidate, range, controllerID: selectedControllerID, start, end });
-        }
+      if (this.controllerError) return { error: `${this.controllerError} Cabinet pixel capacity cannot be verified.` };
+      const capacity = this.totalCabinetPixels(); const ranges = [];
+      for (const candidate of this.state.drawers) for (const range of this.ledRangesFor(candidate)) {
+        const startText = String(range.start_pixel ?? '').trim(), countText = String(range.pixel_count ?? '').trim();
+        if (!startText && !countText) continue;
+        if (!startText || !countText) return { error: `Enter both Start and Count for every range on ${candidate.label}.` };
+        const start = Number(startText), count = Number(countText), end = start + count - 1;
+        if (!Number.isSafeInteger(start) || start < 1) return { error: 'Cabinet pixel Start must be a whole number of at least 1.' };
+        if (!Number.isSafeInteger(count) || count < 1) return { error: 'Pixel Count must be a positive whole number.' };
+        if (!Number.isSafeInteger(end)) return { error: 'Pixel End overflows the supported integer range.' };
+        if (end > capacity) return { error: `Range ${start}–${end} exceeds cabinet capacity (${capacity} pixels).` };
+        ranges.push({ drawer: candidate, start, end });
       }
       for (let i = 0; i < ranges.length; i++) for (let j = i + 1; j < ranges.length; j++) {
-        if (ranges[i].controllerID === ranges[j].controllerID && ranges[i].start <= ranges[j].end && ranges[j].start <= ranges[i].end) return { error: `LED ranges overlap on controller #${ranges[i].controllerID}: ${ranges[i].drawer.label} (${ranges[i].start}–${ranges[i].end}) and ${ranges[j].drawer.label} (${ranges[j].start}–${ranges[j].end}).` };
+        if (ranges[i].start <= ranges[j].end && ranges[j].start <= ranges[i].end) return { error: `Cabinet pixel ranges overlap: ${ranges[i].drawer.label} (${ranges[i].start}–${ranges[i].end}) and ${ranges[j].drawer.label} (${ranges[j].start}–${ranges[j].end}).` };
       }
-      const selectedControllerID = Number(this.drawerControllers[drawer?.key]) || 0;
-      const selected = this.controllers.find(item => item.id === selectedControllerID);
-      if (!selectedControllerID) return { error: 'Assign at least one controller to this cabinet, then select one for this drawer.' };
-      return { error: '', message: `Validated in controller #${selectedControllerID}'s 1-based pixel space (capacity ${selected?.led_count || 0}). Physical output boundaries do not split a range.` };
+      return { error: '', message: `${capacity} cabinet pixels · controller and string offsets are calculated automatically.` };
     },
     controllerSummary() {
       if (this.controllerError) return this.controllerError;
-      if (!this.assignedControllers.length) return 'No WLED controllers are assigned to this cabinet.';
-      return 'Assigned: ' + this.assignedControllers.map(item => `${item.Controller.name} (#${item.Controller.id}, ${item.Controller.led_count} pixels)`).join('; ');
+      const spans = this.controllerSpans();
+      if (!spans.length) return 'No WLED controllers are assigned. Assign a controller before mapping drawer LEDs.';
+      return spans.map((span, index) => `${index + 1}. ${this.controllers.find(item => item.id === span.controller_id)?.name || `Controller #${span.controller_id}`} · ${span.pixels} pixels · cabinet ${span.pixels ? `${span.start}–${span.end}` : 'not sized'}`).join('; ');
     },
-    async discoverPhysicalOutputs(drawer) {
+    controllerCabinetSpan(controllerID) {
+      const span = this.controllerSpans().find(item => item.controller_id === Number(controllerID));
+      return span ? `${span.pixels} pixels · cabinet ${span.pixels ? `${span.start}–${span.end}` : 'not sized'}` : 'not assigned';
+    },
+    stringCabinetRange(string) {
+      const span = this.controllerSpans().find(item => item.controller_id === Number(string.controller_id));
+      if (!span) return 'not assigned';
+      let offset = 0;
+      for (const row of this.stringRows(string.controller_id)) {
+        if (row.key === string.key) break;
+        offset += Number(row.pixel_count) || 0;
+      }
+      const count = Number(string.pixel_count) || 0;
+      return count ? `${span.start + offset}–${span.start + offset + count - 1}` : 'not sized';
+    },
+    configureControllerStrings(controllerID) {
+      const id = Number(controllerID);
+      this.configuredControllerIDs = [...new Set([...this.configuredControllerIDs.map(Number), id])];
+      this.wiringSaveError = ''; this.wiringMappingImpactConfirmed = false;
+    },
+    wiringStructureChanged() {
+      let previous = [];
+      try { previous = JSON.parse(this.persistedWiringJSON || '[]'); } catch { previous = []; }
+      const normalize = values => values.map(string => ({
+        id: Number(string.id) || string.key, controller_id: Number(string.controller_id), display_order: Number(string.display_order),
+        pixel_count: Number(string.pixel_count), layout_complete: Boolean(string.layout_complete),
+        sections: (string.sections || []).map(section => ({ display_order: Number(section.display_order), pixel_count: Number(section.pixel_count), points: section.points || [] })),
+      })).sort((a, b) => a.controller_id - b.controller_id || a.display_order - b.display_order);
+      return JSON.stringify(normalize(previous)) !== JSON.stringify(normalize(this.wiringStrings));
+    },
+    wiringMappingPreview() {
+      const order = this.assignedControllers.map(item => Number(item.Controller.id));
+      const configured = this.assignedControllers.filter(item => Number(item.StringsConfigured) === 1).map(item => Number(item.Controller.id));
+      let previousStrings = [];
+      try { previousStrings = JSON.parse(this.persistedWiringJSON || '[]'); } catch { previousStrings = []; }
+      const changes = this.changedMappingPreview(order, previousStrings, configured, order, this.wiringStrings, this.configuredControllerIDs);
+      if (changes.length || !this.wiringStructureChanged()) return changes;
+      const structural = this.state.drawers.flatMap(drawer => this.ledRangesFor(drawer).filter(range => String(range.start_pixel ?? '').trim() && String(range.pixel_count ?? '').trim()).map(range => ({
+        drawer: drawer.label, start: range.start_pixel, count: range.pixel_count,
+        before: [...this.allocationDestinations(range, order, previousStrings, configured), 'existing physical path'],
+        after: [...this.allocationDestinations(range, order, this.wiringStrings, this.configuredControllerIDs), 'draft physical path'],
+      })));
+      return structural;
+    },
+    async discoverPhysicalOutputs(controllerID) {
       this.outputDiscoveryError = ''; this.physicalOutputLayout = null;
-      const controllerID = Number(this.drawerControllers[drawer?.key]) || 0;
-      if (!drawer?.id || !controllerID) { this.outputDiscoveryError = 'Save the drawer and assign a controller before discovering outputs.'; return; }
+      controllerID = Number(controllerID || this.diagnosticControllerID) || 0;
+      if (!controllerID) { this.outputDiscoveryError = 'Assign a controller to this cabinet before discovering outputs.'; return; }
       try {
         const response = await fetch(`/storage/cabinets/${this.state.id}/controllers/${controllerID}/outputs`, { headers: { Accept: 'application/json' } });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || `Output discovery failed (${response.status}).`);
-        this.physicalOutputLayout = data;
+        this.diagnosticControllerID = controllerID; this.physicalOutputLayout = data;
       } catch (error) { this.outputDiscoveryError = error?.message || 'Read-only WLED output discovery failed.'; }
     },
     outputAllocationMarkers(output, drawer) {
-      if (!output || !drawer || Number(this.drawerControllers[drawer.key]) !== Number(this.physicalOutputLayout?.controller_id)) return [];
-      const first = Number(output.first_index); const last = Number(output.last_index); const length = Number(output.length);
+      if (!output || !drawer || Number(this.diagnosticControllerID) !== Number(this.physicalOutputLayout?.controller_id)) return [];
+      const first = Number(output.first_index), last = Number(output.last_index), length = Number(output.length);
+      const span = this.controllerSpans().find(item => item.controller_id === Number(this.physicalOutputLayout.controller_id));
+      if (!span) return [];
       return this.ledRangesFor(drawer).flatMap((range, index) => {
-        const start = Number(range.start_pixel); const count = Number(range.pixel_count); const end = start + count - 1;
-        if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start > last || end < first) return [];
-        const clippedStart = Math.max(start, first); const clippedEnd = Math.min(end, last);
+        const globalStart = Number(range.start_pixel), count = Number(range.pixel_count), globalEnd = globalStart + count - 1;
+        const localStart = Math.max(globalStart, span.start) - span.start + 1;
+        const localEnd = Math.min(globalEnd, span.end) - span.start + 1;
+        if (!Number.isSafeInteger(globalStart) || !Number.isSafeInteger(globalEnd) || globalStart > span.end || globalEnd < span.start || localStart > localEnd) return [];
+        const clippedStart = Math.max(localStart, first), clippedEnd = Math.min(localEnd, last);
+        if (clippedStart > clippedEnd) return [];
         return [{ key: `${range.id || index}-${output.order}`, start: clippedStart, end: clippedEnd, left: (clippedStart - first) / length * 100, width: (clippedEnd - clippedStart + 1) / length * 100 }];
       });
     },
@@ -514,49 +736,124 @@ function physicalLayoutEditor() {
       this.ledRangesFor(drawer).splice(index, 1);
       this.ledSaveError = ''; this.ledSaveNotice = '';
     },
+    addWiringString(controllerID) {
+      const id = Number(controllerID); const rows = this.stringRows(id);
+      this.configuredControllerIDs = [...new Set([...this.configuredControllerIDs.map(Number), id])];
+      this.wiringStrings.push({ id: 0, key: `string-${crypto.randomUUID()}`, controller_id: id, name: `String ${rows.length + 1}`, display_order: rows.length, pixel_count: '100', layout_complete: false, sections: [] });
+      this.wiringSaveError = ''; this.wiringMappingImpactConfirmed = false;
+    },
+    removeWiringString(string) {
+      if (!string) return;
+      this.wiringStrings = this.wiringStrings.filter(item => item.key !== string.key);
+      this.stringRows(string.controller_id).forEach((item, index) => { item.display_order = index; });
+      this.wiringMappingImpactConfirmed = false;
+    },
+    addPathSection(string) {
+      if (!string) return;
+      string.sections.push({ id: 0, key: `section-${crypto.randomUUID()}`, display_order: string.sections.length, pixel_count: '1', points: [] });
+      this.selectedStringKey = string.key; this.activePathSectionKey = string.sections.at(-1).key;
+      this.mode = 'wiring'; this.tool = 'path-point'; this.wiringSaveError = '';
+    },
+    drawPathSection(string, section) {
+      if (!string || !section) return;
+      this.selectedStringKey = string.key; this.activePathSectionKey = section.key;
+      this.mode = 'wiring'; this.tool = 'path-point'; this.renderCanvas();
+    },
+    addPathPoint(event) {
+      const section = this.currentPathSection(); if (!section) return;
+      const point = this.pointForEdit(event);
+      section.points.push({ x: Number(point.x.toFixed(3)), y: Number(point.y.toFixed(3)) });
+      this.renderCanvas();
+    },
+    currentPathSection() {
+      const string = this.wiringStrings.find(item => item.key === this.selectedStringKey);
+      return string?.sections.find(item => item.key === this.activePathSectionKey) || null;
+    },
+    finishPathSection() {
+      const section = this.currentPathSection();
+      if (!section || section.points.length < 2) { this.wiringSaveError = 'Add at least two ordered points to define a section direction.'; return; }
+      this.mode = 'cabinet'; this.tool = 'select'; this.activePathSectionKey = ''; this.renderCanvas();
+    },
+    wiringPathPixelTotal(string) { return (string?.sections || []).reduce((sum, section) => sum + (Number(section.pixel_count) || 0), 0); },
+    moveWiringString(string, delta) {
+      const rows = this.stringRows(string.controller_id); const index = rows.findIndex(item => item.key === string.key); const target = index + delta;
+      if (index < 0 || target < 0 || target >= rows.length) return;
+      [rows[index].display_order, rows[target].display_order] = [rows[target].display_order, rows[index].display_order];
+      this.wiringMappingImpactConfirmed = false;
+    },
+    movePathSection(string, section, delta) {
+      const rows = string.sections; const index = rows.indexOf(section); const target = index + delta;
+      if (index < 0 || target < 0 || target >= rows.length) return;
+      [rows[index].display_order, rows[target].display_order] = [rows[target].display_order, rows[index].display_order];
+      rows.sort((a, b) => a.display_order - b.display_order); this.wiringMappingImpactConfirmed = false;
+    },
+    removePathSection(string, section) {
+      if (!string || !section) return;
+      string.sections = string.sections.filter(item => item.key !== section.key);
+      string.sections.forEach((item, index) => { item.display_order = index; });
+      if (this.activePathSectionKey === section.key) { this.activePathSectionKey = ''; this.mode = 'cabinet'; this.tool = 'select'; }
+      this.wiringMappingImpactConfirmed = false;
+    },
     saveCabinetController() {
       this.controllerSaveError = ''; this.controllerSaveNotice = '';
       if (this.dirty) { this.controllerSaveError = 'Save or cancel physical layout changes before changing controller assignments.'; return; }
-      if (this.controllerCapacityChanged() || this.hasUnsavedLedRangesExcept()) { this.controllerSaveError = 'Save or cancel controller-capacity and LED-range edits before changing assignments.'; return; }
+      if (this.controllerCapacityChanged() || this.wiringChanged() || this.hasUnsavedLedRangesExcept()) { this.controllerSaveError = 'Save or cancel string, capacity and LED-range edits before changing controller assignments.'; return; }
       if (this.controllerDraft.length > 5 || new Set(this.controllerDraft).size !== this.controllerDraft.length) { this.controllerSaveError = 'Select no more than five distinct controllers.'; return; }
+      const preview = this.controllerMappingPreview();
+      if (preview.length && !this.controllerMappingImpactConfirmed) { this.controllerSaveError = 'Review the before/after mapping preview and check the explicit confirmation before saving controller order.'; return; }
       const form = document.createElement('form'); form.method = 'post'; form.action = `/storage/cabinets/${this.state.id}/controller`;
       const fields = [['csrf_token', this.$refs.csrf.value], ['electrical_revision', this.electricalRevision]];
+      if (preview.length) fields.push(['confirm_mapping_impact', 'confirm']);
       for (const [name, value] of fields) { const input = document.createElement('input'); input.type = 'hidden'; input.name = name; input.value = value; form.appendChild(input); }
       for (const id of this.controllerDraft) { const input = document.createElement('input'); input.type = 'hidden'; input.name = 'controller_ids'; input.value = id; form.appendChild(input); }
-      this.allowElectricalNavigation = true;
-      document.body.appendChild(form); form.submit();
+      this.allowElectricalNavigation = true; document.body.appendChild(form); form.submit();
+    },
+    saveCabinetWiring() {
+      this.wiringSaveError = ''; this.wiringSaveNotice = '';
+      if (this.dirty) { this.wiringSaveError = 'Save or cancel physical drawer geometry before saving wiring.'; return; }
+      if (this.controllerAssignmentChanged() || this.controllerCapacityChanged() || this.hasUnsavedLedRangesExcept()) { this.wiringSaveError = 'Save or cancel controller order, legacy capacity and drawer range edits first.'; return; }
+      for (const string of this.wiringStrings) {
+        const pixels = Number(string.pixel_count);
+        if (!Number.isSafeInteger(pixels) || pixels < 1) { this.wiringSaveError = `${string.name} needs a positive whole-pixel length.`; return; }
+        if (string.layout_complete && this.wiringPathPixelTotal(string) !== pixels) { this.wiringSaveError = `${string.name} path sections account for ${this.wiringPathPixelTotal(string)} of ${pixels} pixels.`; return; }
+      }
+      const preview = this.wiringMappingPreview();
+      if (preview.length && !this.wiringMappingImpactConfirmed) { this.wiringSaveError = 'Review the before/after drawer pixel destinations and confirm this wiring change.'; return; }
+      const wiring = { configured_controller_ids: this.configuredControllerIDs.map(Number), strings: this.wiringStrings.map(string => ({
+        id: Number(string.id) || 0, controller_id: Number(string.controller_id), name: string.name, display_order: Number(string.display_order),
+        pixel_count: Number(string.pixel_count), layout_complete: Boolean(string.layout_complete),
+        sections: string.sections.map(section => ({ id: Number(section.id) || 0, display_order: Number(section.display_order), pixel_count: Number(section.pixel_count), points: section.points || [] })),
+      })) };
+      const form = document.createElement('form'); form.method = 'post'; form.action = `/storage/cabinets/${this.state.id}/wiring`;
+      const fields = [['csrf_token', this.$refs.csrf.value], ['electrical_revision', this.electricalRevision], ['wiring', JSON.stringify(wiring)]];
+      if (preview.length) fields.push(['confirm_mapping_impact', 'confirm']);
+      for (const [name, value] of fields) { const input = document.createElement('input'); input.type = 'hidden'; input.name = name; input.value = value; form.appendChild(input); }
+      this.allowElectricalNavigation = true; document.body.appendChild(form); form.submit();
     },
     saveControllerCapacity(controllerID) {
       this.capacitySaveError = ''; this.capacitySaveNotice = '';
-      if (this.dirty) { this.capacitySaveError = 'Save or cancel physical layout changes before saving controller capacity.'; return; }
-      if (this.controllerAssignmentChanged() || this.hasUnsavedLedRangesExcept()) { this.capacitySaveError = 'Save or cancel controller-assignment and LED-range edits before saving capacity.'; return; }
-      if (this.controllers.some(item => item.id !== Number(controllerID) && Number(this.capacityDrafts[item.id]) !== Number(item.led_count))) { this.capacitySaveError = 'Save or cancel other controller capacity edits before saving this controller.'; return; }
       const controller = this.controllers.find(item => item.id === Number(controllerID));
-      if (!controller || !this.assignedControllers.some(item => item.Controller.id === controller.id)) { this.capacitySaveError = 'Choose a controller assigned to this cabinet.'; return; }
+      if (!controller || this.configuredControllerIDs.map(Number).includes(Number(controllerID))) { this.capacitySaveError = 'Configured physical strings determine this controller capacity; do not set it manually.'; return; }
+      if (this.dirty || this.controllerAssignmentChanged() || this.wiringChanged() || this.hasUnsavedLedRangesExcept()) { this.capacitySaveError = 'Save or cancel other cabinet configuration edits first.'; return; }
       const capacity = Number(this.capacityDrafts[controller.id]);
-      if (!Number.isSafeInteger(capacity) || capacity < 1) { this.capacitySaveError = 'Controller-wide LED capacity must be a positive whole number.'; return; }
+      if (!Number.isSafeInteger(capacity) || capacity < 1) { this.capacitySaveError = 'Legacy capacity must be a positive whole number.'; return; }
       const form = document.createElement('form'); form.method = 'post'; form.action = `/hardware/${controller.id}/capacity`;
       const fields = [['csrf_token', this.$refs.csrf.value], ['led_count', capacity], ['expected_led_count', controller.led_count], ['electrical_revision', this.electricalRevision]];
       for (const [name, value] of fields) { const input = document.createElement('input'); input.type = 'hidden'; input.name = name; input.value = value; form.appendChild(input); }
-      this.allowElectricalNavigation = true;
-      document.body.appendChild(form); form.submit();
+      this.allowElectricalNavigation = true; document.body.appendChild(form); form.submit();
     },
     saveLedAllocations(drawer) {
       this.ledSaveError = ''; this.ledSaveNotice = '';
-      if (this.dirty) { this.ledSaveError = 'Save or cancel physical layout changes before saving LED allocations.'; return; }
-      if (this.controllerAssignmentChanged() || this.controllerCapacityChanged()) { this.ledSaveError = 'Save or cancel controller-assignment and capacity edits before saving LED allocations.'; return; }
+      if (this.dirty || this.controllerAssignmentChanged() || this.controllerCapacityChanged() || this.wiringChanged()) { this.ledSaveError = 'Save or cancel physical layout, controller order and wiring edits first.'; return; }
       if (this.hasUnsavedLedRangesExcept(drawer.key)) { this.ledSaveError = 'Save or cancel LED-range edits on other drawers before saving this drawer.'; return; }
       if (!drawer?.id) { this.ledSaveError = 'Save this physical drawer first; no permanent mapping is created for an unsaved drawer.'; return; }
       const status = this.ledStatus(drawer);
       if (status.error) { this.ledSaveError = status.error; return; }
-      const allocations = this.ledRangesFor(drawer)
-        .filter(range => String(range.start_pixel ?? '').trim() || String(range.pixel_count ?? '').trim())
-        .map(range => ({ id: Number(range.id) || 0, start_pixel: Number(range.start_pixel), pixel_count: Number(range.pixel_count) }));
+      const allocations = this.ledRangesFor(drawer).filter(range => String(range.start_pixel ?? '').trim() || String(range.pixel_count ?? '').trim()).map(range => ({ id: Number(range.id) || 0, start_pixel: Number(range.start_pixel), pixel_count: Number(range.pixel_count) }));
       const form = document.createElement('form'); form.method = 'post'; form.action = `/storage/cabinets/${this.state.id}/drawers/${drawer.id}/led`;
-      const fields = [['csrf_token', this.$refs.csrf.value], ['revision', this.electricalRevision], ['controller_id', Number(this.drawerControllers[drawer.key]) || 0], ['allocations', JSON.stringify(allocations)]];
+      const fields = [['csrf_token', this.$refs.csrf.value], ['revision', this.electricalRevision], ['coordinate_space', 'cabinet'], ['allocations', JSON.stringify(allocations)]];
       for (const [name, value] of fields) { const input = document.createElement('input'); input.type = 'hidden'; input.name = name; input.value = value; form.appendChild(input); }
-      this.allowElectricalNavigation = true;
-      document.body.appendChild(form); form.submit();
+      this.allowElectricalNavigation = true; document.body.appendChild(form); form.submit();
     },
     activeDrawer() { return this.state.drawers.find(item => item.key === this.activeDrawerKey) || (this.selection.kind === 'drawer' ? this.selectedDrawer() : null); },
     openDrawer(drawer) { if (!drawer) return; this.activeDrawerKey = drawer.key; this.mode = 'bins'; this.tool = 'select'; this.setSelection('', ''); this.resetView(); this.renderCanvas(); },

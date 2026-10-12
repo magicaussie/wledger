@@ -57,6 +57,12 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.clearCabinetControllersStmt, err = db.PrepareContext(ctx, clearCabinetControllers); err != nil {
 		return nil, fmt.Errorf("error preparing query ClearCabinetControllers: %w", err)
 	}
+	if q.clearCabinetLEDPathSectionsStmt, err = db.PrepareContext(ctx, clearCabinetLEDPathSections); err != nil {
+		return nil, fmt.Errorf("error preparing query ClearCabinetLEDPathSections: %w", err)
+	}
+	if q.clearCabinetLEDStringsStmt, err = db.PrepareContext(ctx, clearCabinetLEDStrings); err != nil {
+		return nil, fmt.Errorf("error preparing query ClearCabinetLEDStrings: %w", err)
+	}
 	if q.clearCabinetsStmt, err = db.PrepareContext(ctx, clearCabinets); err != nil {
 		return nil, fmt.Errorf("error preparing query ClearCabinets: %w", err)
 	}
@@ -98,6 +104,12 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.clearPartsStmt, err = db.PrepareContext(ctx, clearParts); err != nil {
 		return nil, fmt.Errorf("error preparing query ClearParts: %w", err)
+	}
+	if q.clearPhysicalLocateSessionTargetsStmt, err = db.PrepareContext(ctx, clearPhysicalLocateSessionTargets); err != nil {
+		return nil, fmt.Errorf("error preparing query ClearPhysicalLocateSessionTargets: %w", err)
+	}
+	if q.clearPhysicalLocateSessionTargetsForPrimaryControllerStmt, err = db.PrepareContext(ctx, clearPhysicalLocateSessionTargetsForPrimaryController); err != nil {
+		return nil, fmt.Errorf("error preparing query ClearPhysicalLocateSessionTargetsForPrimaryController: %w", err)
 	}
 	if q.clearPriceHistoryStmt, err = db.PrepareContext(ctx, clearPriceHistory); err != nil {
 		return nil, fmt.Errorf("error preparing query ClearPriceHistory: %w", err)
@@ -143,6 +155,15 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.createCabinetControllerStmt, err = db.PrepareContext(ctx, createCabinetController); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateCabinetController: %w", err)
+	}
+	if q.createCabinetControllerReorderGuardStmt, err = db.PrepareContext(ctx, createCabinetControllerReorderGuard); err != nil {
+		return nil, fmt.Errorf("error preparing query CreateCabinetControllerReorderGuard: %w", err)
+	}
+	if q.createCabinetLEDPathSectionStmt, err = db.PrepareContext(ctx, createCabinetLEDPathSection); err != nil {
+		return nil, fmt.Errorf("error preparing query CreateCabinetLEDPathSection: %w", err)
+	}
+	if q.createCabinetLEDStringStmt, err = db.PrepareContext(ctx, createCabinetLEDString); err != nil {
+		return nil, fmt.Errorf("error preparing query CreateCabinetLEDString: %w", err)
 	}
 	if q.createContainerStmt, err = db.PrepareContext(ctx, createContainer); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateContainer: %w", err)
@@ -218,6 +239,15 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.deleteCabinetControllerStmt, err = db.PrepareContext(ctx, deleteCabinetController); err != nil {
 		return nil, fmt.Errorf("error preparing query DeleteCabinetController: %w", err)
+	}
+	if q.deleteCabinetControllerReorderGuardStmt, err = db.PrepareContext(ctx, deleteCabinetControllerReorderGuard); err != nil {
+		return nil, fmt.Errorf("error preparing query DeleteCabinetControllerReorderGuard: %w", err)
+	}
+	if q.deleteCabinetLEDPathSectionsByStringStmt, err = db.PrepareContext(ctx, deleteCabinetLEDPathSectionsByString); err != nil {
+		return nil, fmt.Errorf("error preparing query DeleteCabinetLEDPathSectionsByString: %w", err)
+	}
+	if q.deleteCabinetLEDStringStmt, err = db.PrepareContext(ctx, deleteCabinetLEDString); err != nil {
+		return nil, fmt.Errorf("error preparing query DeleteCabinetLEDString: %w", err)
 	}
 	if q.deleteContainerStmt, err = db.PrepareContext(ctx, deleteContainer); err != nil {
 		return nil, fmt.Errorf("error preparing query DeleteContainer: %w", err)
@@ -525,6 +555,12 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.listAllCabinetControllersStmt, err = db.PrepareContext(ctx, listAllCabinetControllers); err != nil {
 		return nil, fmt.Errorf("error preparing query ListAllCabinetControllers: %w", err)
 	}
+	if q.listAllCabinetLEDPathSectionsStmt, err = db.PrepareContext(ctx, listAllCabinetLEDPathSections); err != nil {
+		return nil, fmt.Errorf("error preparing query ListAllCabinetLEDPathSections: %w", err)
+	}
+	if q.listAllCabinetLEDStringsStmt, err = db.PrepareContext(ctx, listAllCabinetLEDStrings); err != nil {
+		return nil, fmt.Errorf("error preparing query ListAllCabinetLEDStrings: %w", err)
+	}
 	if q.listAllDrawerLEDAllocationsStmt, err = db.PrepareContext(ctx, listAllDrawerLEDAllocations); err != nil {
 		return nil, fmt.Errorf("error preparing query ListAllDrawerLEDAllocations: %w", err)
 	}
@@ -546,6 +582,18 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.listCabinetControllersStmt, err = db.PrepareContext(ctx, listCabinetControllers); err != nil {
 		return nil, fmt.Errorf("error preparing query ListCabinetControllers: %w", err)
 	}
+	if q.listCabinetLEDPathSectionsStmt, err = db.PrepareContext(ctx, listCabinetLEDPathSections); err != nil {
+		return nil, fmt.Errorf("error preparing query ListCabinetLEDPathSections: %w", err)
+	}
+	if q.listCabinetLEDPathSectionsByStringStmt, err = db.PrepareContext(ctx, listCabinetLEDPathSectionsByString); err != nil {
+		return nil, fmt.Errorf("error preparing query ListCabinetLEDPathSectionsByString: %w", err)
+	}
+	if q.listCabinetLEDStringsStmt, err = db.PrepareContext(ctx, listCabinetLEDStrings); err != nil {
+		return nil, fmt.Errorf("error preparing query ListCabinetLEDStrings: %w", err)
+	}
+	if q.listCabinetLEDStringsByControllerStmt, err = db.PrepareContext(ctx, listCabinetLEDStringsByController); err != nil {
+		return nil, fmt.Errorf("error preparing query ListCabinetLEDStringsByController: %w", err)
+	}
 	if q.listCabinetsStmt, err = db.PrepareContext(ctx, listCabinets); err != nil {
 		return nil, fmt.Errorf("error preparing query ListCabinets: %w", err)
 	}
@@ -554,9 +602,6 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.listDrawerLEDAllocationsByCabinetStmt, err = db.PrepareContext(ctx, listDrawerLEDAllocationsByCabinet); err != nil {
 		return nil, fmt.Errorf("error preparing query ListDrawerLEDAllocationsByCabinet: %w", err)
-	}
-	if q.listDrawerLEDAllocationsByControllerStmt, err = db.PrepareContext(ctx, listDrawerLEDAllocationsByController); err != nil {
-		return nil, fmt.Errorf("error preparing query ListDrawerLEDAllocationsByController: %w", err)
 	}
 	if q.listDrawerLEDAllocationsByDrawerStmt, err = db.PrepareContext(ctx, listDrawerLEDAllocationsByDrawer); err != nil {
 		return nil, fmt.Errorf("error preparing query ListDrawerLEDAllocationsByDrawer: %w", err)
@@ -572,6 +617,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.listPartsStmt, err = db.PrepareContext(ctx, listParts); err != nil {
 		return nil, fmt.Errorf("error preparing query ListParts: %w", err)
+	}
+	if q.listPhysicalLocateSessionTargetsStmt, err = db.PrepareContext(ctx, listPhysicalLocateSessionTargets); err != nil {
+		return nil, fmt.Errorf("error preparing query ListPhysicalLocateSessionTargets: %w", err)
 	}
 	if q.listPhysicalLocateSessionsStmt, err = db.PrepareContext(ctx, listPhysicalLocateSessions); err != nil {
 		return nil, fmt.Errorf("error preparing query ListPhysicalLocateSessions: %w", err)
@@ -608,6 +656,12 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.restoreCabinetControllerStmt, err = db.PrepareContext(ctx, restoreCabinetController); err != nil {
 		return nil, fmt.Errorf("error preparing query RestoreCabinetController: %w", err)
+	}
+	if q.restoreCabinetLEDPathSectionStmt, err = db.PrepareContext(ctx, restoreCabinetLEDPathSection); err != nil {
+		return nil, fmt.Errorf("error preparing query RestoreCabinetLEDPathSection: %w", err)
+	}
+	if q.restoreCabinetLEDStringStmt, err = db.PrepareContext(ctx, restoreCabinetLEDString); err != nil {
+		return nil, fmt.Errorf("error preparing query RestoreCabinetLEDString: %w", err)
 	}
 	if q.restoreContainerStmt, err = db.PrepareContext(ctx, restoreContainer); err != nil {
 		return nil, fmt.Errorf("error preparing query RestoreContainer: %w", err)
@@ -675,8 +729,14 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.savePhysicalLocateSessionStmt, err = db.PrepareContext(ctx, savePhysicalLocateSession); err != nil {
 		return nil, fmt.Errorf("error preparing query SavePhysicalLocateSession: %w", err)
 	}
+	if q.savePhysicalLocateSessionTargetStmt, err = db.PrepareContext(ctx, savePhysicalLocateSessionTarget); err != nil {
+		return nil, fmt.Errorf("error preparing query SavePhysicalLocateSessionTarget: %w", err)
+	}
 	if q.searchPartsStmt, err = db.PrepareContext(ctx, searchParts); err != nil {
 		return nil, fmt.Errorf("error preparing query SearchParts: %w", err)
+	}
+	if q.setControllerLEDCapacityFromStringsStmt, err = db.PrepareContext(ctx, setControllerLEDCapacityFromStrings); err != nil {
+		return nil, fmt.Errorf("error preparing query SetControllerLEDCapacityFromStrings: %w", err)
 	}
 	if q.setControllerOnlineStatusStmt, err = db.PrepareContext(ctx, setControllerOnlineStatus); err != nil {
 		return nil, fmt.Errorf("error preparing query SetControllerOnlineStatus: %w", err)
@@ -717,8 +777,20 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.updateCabinetControllerStmt, err = db.PrepareContext(ctx, updateCabinetController); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateCabinetController: %w", err)
 	}
+	if q.updateCabinetControllerSlotStmt, err = db.PrepareContext(ctx, updateCabinetControllerSlot); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateCabinetControllerSlot: %w", err)
+	}
+	if q.updateCabinetControllerStringsConfiguredStmt, err = db.PrepareContext(ctx, updateCabinetControllerStringsConfigured); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateCabinetControllerStringsConfigured: %w", err)
+	}
 	if q.updateCabinetElectricalRevisionStmt, err = db.PrepareContext(ctx, updateCabinetElectricalRevision); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateCabinetElectricalRevision: %w", err)
+	}
+	if q.updateCabinetLEDPathSectionStmt, err = db.PrepareContext(ctx, updateCabinetLEDPathSection); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateCabinetLEDPathSection: %w", err)
+	}
+	if q.updateCabinetLEDStringStmt, err = db.PrepareContext(ctx, updateCabinetLEDString); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateCabinetLEDString: %w", err)
 	}
 	if q.updateCabinetLayoutRevisionStmt, err = db.PrepareContext(ctx, updateCabinetLayoutRevision); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateCabinetLayoutRevision: %w", err)
@@ -855,6 +927,16 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing clearCabinetControllersStmt: %w", cerr)
 		}
 	}
+	if q.clearCabinetLEDPathSectionsStmt != nil {
+		if cerr := q.clearCabinetLEDPathSectionsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing clearCabinetLEDPathSectionsStmt: %w", cerr)
+		}
+	}
+	if q.clearCabinetLEDStringsStmt != nil {
+		if cerr := q.clearCabinetLEDStringsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing clearCabinetLEDStringsStmt: %w", cerr)
+		}
+	}
 	if q.clearCabinetsStmt != nil {
 		if cerr := q.clearCabinetsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing clearCabinetsStmt: %w", cerr)
@@ -923,6 +1005,16 @@ func (q *Queries) Close() error {
 	if q.clearPartsStmt != nil {
 		if cerr := q.clearPartsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing clearPartsStmt: %w", cerr)
+		}
+	}
+	if q.clearPhysicalLocateSessionTargetsStmt != nil {
+		if cerr := q.clearPhysicalLocateSessionTargetsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing clearPhysicalLocateSessionTargetsStmt: %w", cerr)
+		}
+	}
+	if q.clearPhysicalLocateSessionTargetsForPrimaryControllerStmt != nil {
+		if cerr := q.clearPhysicalLocateSessionTargetsForPrimaryControllerStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing clearPhysicalLocateSessionTargetsForPrimaryControllerStmt: %w", cerr)
 		}
 	}
 	if q.clearPriceHistoryStmt != nil {
@@ -998,6 +1090,21 @@ func (q *Queries) Close() error {
 	if q.createCabinetControllerStmt != nil {
 		if cerr := q.createCabinetControllerStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing createCabinetControllerStmt: %w", cerr)
+		}
+	}
+	if q.createCabinetControllerReorderGuardStmt != nil {
+		if cerr := q.createCabinetControllerReorderGuardStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing createCabinetControllerReorderGuardStmt: %w", cerr)
+		}
+	}
+	if q.createCabinetLEDPathSectionStmt != nil {
+		if cerr := q.createCabinetLEDPathSectionStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing createCabinetLEDPathSectionStmt: %w", cerr)
+		}
+	}
+	if q.createCabinetLEDStringStmt != nil {
+		if cerr := q.createCabinetLEDStringStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing createCabinetLEDStringStmt: %w", cerr)
 		}
 	}
 	if q.createContainerStmt != nil {
@@ -1123,6 +1230,21 @@ func (q *Queries) Close() error {
 	if q.deleteCabinetControllerStmt != nil {
 		if cerr := q.deleteCabinetControllerStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing deleteCabinetControllerStmt: %w", cerr)
+		}
+	}
+	if q.deleteCabinetControllerReorderGuardStmt != nil {
+		if cerr := q.deleteCabinetControllerReorderGuardStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing deleteCabinetControllerReorderGuardStmt: %w", cerr)
+		}
+	}
+	if q.deleteCabinetLEDPathSectionsByStringStmt != nil {
+		if cerr := q.deleteCabinetLEDPathSectionsByStringStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing deleteCabinetLEDPathSectionsByStringStmt: %w", cerr)
+		}
+	}
+	if q.deleteCabinetLEDStringStmt != nil {
+		if cerr := q.deleteCabinetLEDStringStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing deleteCabinetLEDStringStmt: %w", cerr)
 		}
 	}
 	if q.deleteContainerStmt != nil {
@@ -1635,6 +1757,16 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing listAllCabinetControllersStmt: %w", cerr)
 		}
 	}
+	if q.listAllCabinetLEDPathSectionsStmt != nil {
+		if cerr := q.listAllCabinetLEDPathSectionsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listAllCabinetLEDPathSectionsStmt: %w", cerr)
+		}
+	}
+	if q.listAllCabinetLEDStringsStmt != nil {
+		if cerr := q.listAllCabinetLEDStringsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listAllCabinetLEDStringsStmt: %w", cerr)
+		}
+	}
 	if q.listAllDrawerLEDAllocationsStmt != nil {
 		if cerr := q.listAllDrawerLEDAllocationsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing listAllDrawerLEDAllocationsStmt: %w", cerr)
@@ -1670,6 +1802,26 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing listCabinetControllersStmt: %w", cerr)
 		}
 	}
+	if q.listCabinetLEDPathSectionsStmt != nil {
+		if cerr := q.listCabinetLEDPathSectionsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listCabinetLEDPathSectionsStmt: %w", cerr)
+		}
+	}
+	if q.listCabinetLEDPathSectionsByStringStmt != nil {
+		if cerr := q.listCabinetLEDPathSectionsByStringStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listCabinetLEDPathSectionsByStringStmt: %w", cerr)
+		}
+	}
+	if q.listCabinetLEDStringsStmt != nil {
+		if cerr := q.listCabinetLEDStringsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listCabinetLEDStringsStmt: %w", cerr)
+		}
+	}
+	if q.listCabinetLEDStringsByControllerStmt != nil {
+		if cerr := q.listCabinetLEDStringsByControllerStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listCabinetLEDStringsByControllerStmt: %w", cerr)
+		}
+	}
 	if q.listCabinetsStmt != nil {
 		if cerr := q.listCabinetsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing listCabinetsStmt: %w", cerr)
@@ -1683,11 +1835,6 @@ func (q *Queries) Close() error {
 	if q.listDrawerLEDAllocationsByCabinetStmt != nil {
 		if cerr := q.listDrawerLEDAllocationsByCabinetStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing listDrawerLEDAllocationsByCabinetStmt: %w", cerr)
-		}
-	}
-	if q.listDrawerLEDAllocationsByControllerStmt != nil {
-		if cerr := q.listDrawerLEDAllocationsByControllerStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing listDrawerLEDAllocationsByControllerStmt: %w", cerr)
 		}
 	}
 	if q.listDrawerLEDAllocationsByDrawerStmt != nil {
@@ -1713,6 +1860,11 @@ func (q *Queries) Close() error {
 	if q.listPartsStmt != nil {
 		if cerr := q.listPartsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing listPartsStmt: %w", cerr)
+		}
+	}
+	if q.listPhysicalLocateSessionTargetsStmt != nil {
+		if cerr := q.listPhysicalLocateSessionTargetsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listPhysicalLocateSessionTargetsStmt: %w", cerr)
 		}
 	}
 	if q.listPhysicalLocateSessionsStmt != nil {
@@ -1773,6 +1925,16 @@ func (q *Queries) Close() error {
 	if q.restoreCabinetControllerStmt != nil {
 		if cerr := q.restoreCabinetControllerStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing restoreCabinetControllerStmt: %w", cerr)
+		}
+	}
+	if q.restoreCabinetLEDPathSectionStmt != nil {
+		if cerr := q.restoreCabinetLEDPathSectionStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing restoreCabinetLEDPathSectionStmt: %w", cerr)
+		}
+	}
+	if q.restoreCabinetLEDStringStmt != nil {
+		if cerr := q.restoreCabinetLEDStringStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing restoreCabinetLEDStringStmt: %w", cerr)
 		}
 	}
 	if q.restoreContainerStmt != nil {
@@ -1885,9 +2047,19 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing savePhysicalLocateSessionStmt: %w", cerr)
 		}
 	}
+	if q.savePhysicalLocateSessionTargetStmt != nil {
+		if cerr := q.savePhysicalLocateSessionTargetStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing savePhysicalLocateSessionTargetStmt: %w", cerr)
+		}
+	}
 	if q.searchPartsStmt != nil {
 		if cerr := q.searchPartsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing searchPartsStmt: %w", cerr)
+		}
+	}
+	if q.setControllerLEDCapacityFromStringsStmt != nil {
+		if cerr := q.setControllerLEDCapacityFromStringsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing setControllerLEDCapacityFromStringsStmt: %w", cerr)
 		}
 	}
 	if q.setControllerOnlineStatusStmt != nil {
@@ -1955,9 +2127,29 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing updateCabinetControllerStmt: %w", cerr)
 		}
 	}
+	if q.updateCabinetControllerSlotStmt != nil {
+		if cerr := q.updateCabinetControllerSlotStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateCabinetControllerSlotStmt: %w", cerr)
+		}
+	}
+	if q.updateCabinetControllerStringsConfiguredStmt != nil {
+		if cerr := q.updateCabinetControllerStringsConfiguredStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateCabinetControllerStringsConfiguredStmt: %w", cerr)
+		}
+	}
 	if q.updateCabinetElectricalRevisionStmt != nil {
 		if cerr := q.updateCabinetElectricalRevisionStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing updateCabinetElectricalRevisionStmt: %w", cerr)
+		}
+	}
+	if q.updateCabinetLEDPathSectionStmt != nil {
+		if cerr := q.updateCabinetLEDPathSectionStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateCabinetLEDPathSectionStmt: %w", cerr)
+		}
+	}
+	if q.updateCabinetLEDStringStmt != nil {
+		if cerr := q.updateCabinetLEDStringStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateCabinetLEDStringStmt: %w", cerr)
 		}
 	}
 	if q.updateCabinetLayoutRevisionStmt != nil {
@@ -2122,296 +2314,324 @@ func (q *Queries) queryRow(ctx context.Context, stmt *sql.Stmt, query string, ar
 }
 
 type Queries struct {
-	db                                            DBTX
-	tx                                            *sql.Tx
-	addContainerToWallStmt                        *sql.Stmt
-	addTagToPartStmt                              *sql.Stmt
-	advanceCabinetElectricalRevisionStmt          *sql.Stmt
-	advanceCabinetLayoutRevisionStmt              *sql.Stmt
-	archiveCabinetStmt                            *sql.Stmt
-	archiveDrawerStmt                             *sql.Stmt
-	cleanupSessionsStmt                           *sql.Stmt
-	clearAuditLogsStmt                            *sql.Stmt
-	clearBinDrawerAttachmentsStmt                 *sql.Stmt
-	clearBinsStmt                                 *sql.Stmt
-	clearCabinetControllersStmt                   *sql.Stmt
-	clearCabinetsStmt                             *sql.Stmt
-	clearContainerBinLedIndicesStmt               *sql.Stmt
-	clearContainersStmt                           *sql.Stmt
-	clearControllersStmt                          *sql.Stmt
-	clearDrawerLEDAllocationsStmt                 *sql.Stmt
-	clearDrawersStmt                              *sql.Stmt
-	clearPartAiPromptsStmt                        *sql.Stmt
-	clearPartAssignmentsStmt                      *sql.Stmt
-	clearPartDocsStmt                             *sql.Stmt
-	clearPartLinksStmt                            *sql.Stmt
-	clearPartParametersStmt                       *sql.Stmt
-	clearPartPricingStmt                          *sql.Stmt
-	clearPartTagsStmt                             *sql.Stmt
-	clearPartsStmt                                *sql.Stmt
-	clearPriceHistoryStmt                         *sql.Stmt
-	clearSupplierCredentialsStmt                  *sql.Stmt
-	clearSupplierReferencesStmt                   *sql.Stmt
-	clearTagsStmt                                 *sql.Stmt
-	clearUsersStmt                                *sql.Stmt
-	clearWallCardsStmt                            *sql.Stmt
-	clearWallsStmt                                *sql.Stmt
-	countAuditLogsStmt                            *sql.Stmt
-	countUnallocatedContainersStmt                *sql.Stmt
-	countUsersStmt                                *sql.Stmt
-	createAuditLogStmt                            *sql.Stmt
-	createBinStmt                                 *sql.Stmt
-	createBinDrawerAttachmentStmt                 *sql.Stmt
-	createCabinetStmt                             *sql.Stmt
-	createCabinetControllerStmt                   *sql.Stmt
-	createContainerStmt                           *sql.Stmt
-	createControllerStmt                          *sql.Stmt
-	createDrawerStmt                              *sql.Stmt
-	createDrawerLEDAllocationStmt                 *sql.Stmt
-	createInspirationTemplateStmt                 *sql.Stmt
-	createPartStmt                                *sql.Stmt
-	createPartAssignmentStmt                      *sql.Stmt
-	createPartDocStmt                             *sql.Stmt
-	createPartLinkStmt                            *sql.Stmt
-	createPartParameterStmt                       *sql.Stmt
-	createPartPricingStmt                         *sql.Stmt
-	createPriceHistoryStmt                        *sql.Stmt
-	createSessionStmt                             *sql.Stmt
-	createSupplierReferenceStmt                   *sql.Stmt
-	createTagStmt                                 *sql.Stmt
-	createUserStmt                                *sql.Stmt
-	createWallStmt                                *sql.Stmt
-	deleteAllSystemFlagsStmt                      *sql.Stmt
-	deleteAssignmentStmt                          *sql.Stmt
-	deleteBinStmt                                 *sql.Stmt
-	deleteBinByLedStmt                            *sql.Stmt
-	deleteBinDrawerAttachmentStmt                 *sql.Stmt
-	deleteBinsByContainerStmt                     *sql.Stmt
-	deleteCabinetStmt                             *sql.Stmt
-	deleteCabinetControllerStmt                   *sql.Stmt
-	deleteContainerStmt                           *sql.Stmt
-	deleteControllerStmt                          *sql.Stmt
-	deleteDrawerStmt                              *sql.Stmt
-	deleteDrawerLEDAllocationStmt                 *sql.Stmt
-	deleteExpiredSupplierCacheStmt                *sql.Stmt
-	deleteInspirationTemplateStmt                 *sql.Stmt
-	deletePartStmt                                *sql.Stmt
-	deletePartAssignmentStmt                      *sql.Stmt
-	deletePartDocStmt                             *sql.Stmt
-	deletePartLinkStmt                            *sql.Stmt
-	deletePartParameterStmt                       *sql.Stmt
-	deletePartParametersByPartStmt                *sql.Stmt
-	deletePartPricingStmt                         *sql.Stmt
-	deletePartPricingByPartStmt                   *sql.Stmt
-	deletePartPricingBySupplierRefStmt            *sql.Stmt
-	deleteSessionStmt                             *sql.Stmt
-	deleteSupplierCacheStmt                       *sql.Stmt
-	deleteSupplierCacheByProviderStmt             *sql.Stmt
-	deleteSupplierCredentialStmt                  *sql.Stmt
-	deleteSupplierReferenceStmt                   *sql.Stmt
-	deleteSupplierReferencesByPartStmt            *sql.Stmt
-	deleteUnusedTagsStmt                          *sql.Stmt
-	deleteUserStmt                                *sql.Stmt
-	deleteWallStmt                                *sql.Stmt
-	deleteWallCardsByWallIDStmt                   *sql.Stmt
-	findExistingPartByProviderRefStmt             *sql.Stmt
-	getAllAuditLogsStmt                           *sql.Stmt
-	getAllBinsStmt                                *sql.Stmt
-	getAllContainersStmt                          *sql.Stmt
-	getAllInspirationTemplatesStmt                *sql.Stmt
-	getAllPartAiPromptsStmt                       *sql.Stmt
-	getAllPartAssignmentsStmt                     *sql.Stmt
-	getAllPartDocsStmt                            *sql.Stmt
-	getAllPartLinksStmt                           *sql.Stmt
-	getAllPartParametersStmt                      *sql.Stmt
-	getAllPartPricingStmt                         *sql.Stmt
-	getAllPartTagsStmt                            *sql.Stmt
-	getAllPartsStmt                               *sql.Stmt
-	getAllPriceHistoryStmt                        *sql.Stmt
-	getAllSupplierCacheStmt                       *sql.Stmt
-	getAllSupplierCredentialsStmt                 *sql.Stmt
-	getAllSupplierReferencesStmt                  *sql.Stmt
-	getAllSystemFlagsStmt                         *sql.Stmt
-	getAllUsersStmt                               *sql.Stmt
-	getAllWallCardsStmt                           *sql.Stmt
-	getAllWallContainerBinsStmt                   *sql.Stmt
-	getAssignmentStmt                             *sql.Stmt
-	getAssignmentIDStmt                           *sql.Stmt
-	getBinStmt                                    *sql.Stmt
-	getBinByContainerAndLedStmt                   *sql.Stmt
-	getBinByLocationStmt                          *sql.Stmt
-	getBinContentsStmt                            *sql.Stmt
-	getBinDrawerAttachmentStmt                    *sql.Stmt
-	getBinsByContainerStmt                        *sql.Stmt
-	getCabinetStmt                                *sql.Stmt
-	getCabinetByAssignedControllerStmt            *sql.Stmt
-	getCabinetByControllerStmt                    *sql.Stmt
-	getContainerStmt                              *sql.Stmt
-	getContainersByControllerStmt                 *sql.Stmt
-	getControllerStmt                             *sql.Stmt
-	getControllerByIPStmt                         *sql.Stmt
-	getControllersStmt                            *sql.Stmt
-	getControllersForCompatibilityStmt            *sql.Stmt
-	getDashboardGridStmt                          *sql.Stmt
-	getDashboardGridByControllerStmt              *sql.Stmt
-	getDashboardStatsStmt                         *sql.Stmt
-	getDrawerStmt                                 *sql.Stmt
-	getFlagStmt                                   *sql.Stmt
-	getInspirationTemplateStmt                    *sql.Stmt
-	getLatestPriceSnapshotStmt                    *sql.Stmt
-	getPartStmt                                   *sql.Stmt
-	getPartAssignmentsStmt                        *sql.Stmt
-	getPartByBarcodeStmt                          *sql.Stmt
-	getPartDocStmt                                *sql.Stmt
-	getPartDocsStmt                               *sql.Stmt
-	getPartLinksStmt                              *sql.Stmt
-	getPartParametersStmt                         *sql.Stmt
-	getPartPricingStmt                            *sql.Stmt
-	getPartPricingBySupplierRefStmt               *sql.Stmt
-	getPartsForInspirationAllStmt                 *sql.Stmt
-	getPartsForInspirationFilteredStmt            *sql.Stmt
-	getPriceComparisonByPartStmt                  *sql.Stmt
-	getPriceHistoryByPartStmt                     *sql.Stmt
-	getPriceHistoryByPartAndProviderStmt          *sql.Stmt
-	getRecentlyImportedPartsStmt                  *sql.Stmt
-	getSessionStmt                                *sql.Stmt
-	getSettingsStmt                               *sql.Stmt
-	getSupplierCacheStmt                          *sql.Stmt
-	getSupplierCredentialStmt                     *sql.Stmt
-	getSupplierReferenceStmt                      *sql.Stmt
-	getSupplierReferenceByProviderStmt            *sql.Stmt
-	getSupplierReferencesByPartStmt               *sql.Stmt
-	getTagByNameStmt                              *sql.Stmt
-	getTagsForPartStmt                            *sql.Stmt
-	getUserStmt                                   *sql.Stmt
-	getUserByEmailStmt                            *sql.Stmt
-	getWallStmt                                   *sql.Stmt
-	getWallCardsStmt                              *sql.Stmt
-	getWallContainerBinsStmt                      *sql.Stmt
-	getWallsStmt                                  *sql.Stmt
-	initSettingsStmt                              *sql.Stmt
-	listAllCabinetControllersStmt                 *sql.Stmt
-	listAllDrawerLEDAllocationsStmt               *sql.Stmt
-	listAllDrawersStmt                            *sql.Stmt
-	listAllTagsStmt                               *sql.Stmt
-	listAuditLogsStmt                             *sql.Stmt
-	listBinDrawerAttachmentsStmt                  *sql.Stmt
-	listBinDrawerAttachmentsByDrawerStmt          *sql.Stmt
-	listCabinetControllersStmt                    *sql.Stmt
-	listCabinetsStmt                              *sql.Stmt
-	listCabinetsIncludingArchivedStmt             *sql.Stmt
-	listDrawerLEDAllocationsByCabinetStmt         *sql.Stmt
-	listDrawerLEDAllocationsByControllerStmt      *sql.Stmt
-	listDrawerLEDAllocationsByDrawerStmt          *sql.Stmt
-	listDrawersByCabinetStmt                      *sql.Stmt
-	listDrawersByCabinetIncludingArchivedStmt     *sql.Stmt
-	listLowStockPartsStmt                         *sql.Stmt
-	listPartsStmt                                 *sql.Stmt
-	listPhysicalLocateSessionsStmt                *sql.Stmt
-	listUnattachedBinsStmt                        *sql.Stmt
-	listUsersStmt                                 *sql.Stmt
-	markInspirationSeedsAppliedStmt               *sql.Stmt
-	reassignPartAssignmentStmt                    *sql.Stmt
-	removeContainerFromWallStmt                   *sql.Stmt
-	removeTagsFromPartStmt                        *sql.Stmt
-	restoreAuditLogStmt                           *sql.Stmt
-	restoreBinStmt                                *sql.Stmt
-	restoreBinDrawerAttachmentStmt                *sql.Stmt
-	restoreCabinetStmt                            *sql.Stmt
-	restoreCabinetControllerStmt                  *sql.Stmt
-	restoreContainerStmt                          *sql.Stmt
-	restoreControllerStmt                         *sql.Stmt
-	restoreDrawerStmt                             *sql.Stmt
-	restoreDrawerLEDAllocationStmt                *sql.Stmt
-	restorePartStmt                               *sql.Stmt
-	restorePartAiPromptStmt                       *sql.Stmt
-	restorePartAssignmentStmt                     *sql.Stmt
-	restorePartDocStmt                            *sql.Stmt
-	restorePartLinkStmt                           *sql.Stmt
-	restorePartParameterStmt                      *sql.Stmt
-	restorePartPricingStmt                        *sql.Stmt
-	restorePartTagStmt                            *sql.Stmt
-	restorePriceHistoryStmt                       *sql.Stmt
-	restoreSettingsStmt                           *sql.Stmt
-	restoreSupplierCredentialStmt                 *sql.Stmt
-	restoreSupplierReferenceStmt                  *sql.Stmt
-	restoreSystemFlagStmt                         *sql.Stmt
-	restoreTagStmt                                *sql.Stmt
-	restoreUserStmt                               *sql.Stmt
-	restoreWallStmt                               *sql.Stmt
-	restoreWallCardStmt                           *sql.Stmt
-	savePhysicalLocateSessionStmt                 *sql.Stmt
-	searchPartsStmt                               *sql.Stmt
-	setControllerOnlineStatusStmt                 *sql.Stmt
-	setFlagStmt                                   *sql.Stmt
-	setPasswordResetFlagStmt                      *sql.Stmt
-	togglePartFavoriteStmt                        *sql.Stmt
-	unarchiveCabinetStmt                          *sql.Stmt
-	unarchiveDrawerStmt                           *sql.Stmt
-	updateBinStmt                                 *sql.Stmt
-	updateBinDrawerAttachmentStmt                 *sql.Stmt
-	updateBinDrawerAttachmentGeometryStmt         *sql.Stmt
-	updateBinLedIndexStmt                         *sql.Stmt
-	updateBinNameStmt                             *sql.Stmt
-	updateCabinetStmt                             *sql.Stmt
-	updateCabinetControllerStmt                   *sql.Stmt
-	updateCabinetElectricalRevisionStmt           *sql.Stmt
-	updateCabinetLayoutRevisionStmt               *sql.Stmt
-	updateCabinetLayoutSettingsStmt               *sql.Stmt
-	updateColorsStmt                              *sql.Stmt
-	updateContainerAllocationStmt                 *sql.Stmt
-	updateContainerConfigStmt                     *sql.Stmt
-	updateControllerLedCountStmt                  *sql.Stmt
-	updateControllerLocateMappingVerificationStmt *sql.Stmt
-	updateControllerStatusStmt                    *sql.Stmt
-	updateDrawerStmt                              *sql.Stmt
-	updateDrawerGeometryStmt                      *sql.Stmt
-	updateDrawerLEDAllocationStmt                 *sql.Stmt
-	updateGeneralSettingsStmt                     *sql.Stmt
-	updateInspirationTemplateStmt                 *sql.Stmt
-	updatePartStmt                                *sql.Stmt
-	updatePartAssignmentQuantityStmt              *sql.Stmt
-	updatePartAssignmentQuantityByIDStmt          *sql.Stmt
-	updatePartLinkStmt                            *sql.Stmt
-	updateSupplierCredentialTokenStmt             *sql.Stmt
-	updateSupplierSettingsStmt                    *sql.Stmt
-	updateUserPasswordStmt                        *sql.Stmt
-	updateWallStmt                                *sql.Stmt
-	updateWallCardPositionStmt                    *sql.Stmt
-	upsertBinStmt                                 *sql.Stmt
-	upsertSupplierCacheStmt                       *sql.Stmt
-	upsertSupplierCredentialStmt                  *sql.Stmt
+	db                                                        DBTX
+	tx                                                        *sql.Tx
+	addContainerToWallStmt                                    *sql.Stmt
+	addTagToPartStmt                                          *sql.Stmt
+	advanceCabinetElectricalRevisionStmt                      *sql.Stmt
+	advanceCabinetLayoutRevisionStmt                          *sql.Stmt
+	archiveCabinetStmt                                        *sql.Stmt
+	archiveDrawerStmt                                         *sql.Stmt
+	cleanupSessionsStmt                                       *sql.Stmt
+	clearAuditLogsStmt                                        *sql.Stmt
+	clearBinDrawerAttachmentsStmt                             *sql.Stmt
+	clearBinsStmt                                             *sql.Stmt
+	clearCabinetControllersStmt                               *sql.Stmt
+	clearCabinetLEDPathSectionsStmt                           *sql.Stmt
+	clearCabinetLEDStringsStmt                                *sql.Stmt
+	clearCabinetsStmt                                         *sql.Stmt
+	clearContainerBinLedIndicesStmt                           *sql.Stmt
+	clearContainersStmt                                       *sql.Stmt
+	clearControllersStmt                                      *sql.Stmt
+	clearDrawerLEDAllocationsStmt                             *sql.Stmt
+	clearDrawersStmt                                          *sql.Stmt
+	clearPartAiPromptsStmt                                    *sql.Stmt
+	clearPartAssignmentsStmt                                  *sql.Stmt
+	clearPartDocsStmt                                         *sql.Stmt
+	clearPartLinksStmt                                        *sql.Stmt
+	clearPartParametersStmt                                   *sql.Stmt
+	clearPartPricingStmt                                      *sql.Stmt
+	clearPartTagsStmt                                         *sql.Stmt
+	clearPartsStmt                                            *sql.Stmt
+	clearPhysicalLocateSessionTargetsStmt                     *sql.Stmt
+	clearPhysicalLocateSessionTargetsForPrimaryControllerStmt *sql.Stmt
+	clearPriceHistoryStmt                                     *sql.Stmt
+	clearSupplierCredentialsStmt                              *sql.Stmt
+	clearSupplierReferencesStmt                               *sql.Stmt
+	clearTagsStmt                                             *sql.Stmt
+	clearUsersStmt                                            *sql.Stmt
+	clearWallCardsStmt                                        *sql.Stmt
+	clearWallsStmt                                            *sql.Stmt
+	countAuditLogsStmt                                        *sql.Stmt
+	countUnallocatedContainersStmt                            *sql.Stmt
+	countUsersStmt                                            *sql.Stmt
+	createAuditLogStmt                                        *sql.Stmt
+	createBinStmt                                             *sql.Stmt
+	createBinDrawerAttachmentStmt                             *sql.Stmt
+	createCabinetStmt                                         *sql.Stmt
+	createCabinetControllerStmt                               *sql.Stmt
+	createCabinetControllerReorderGuardStmt                   *sql.Stmt
+	createCabinetLEDPathSectionStmt                           *sql.Stmt
+	createCabinetLEDStringStmt                                *sql.Stmt
+	createContainerStmt                                       *sql.Stmt
+	createControllerStmt                                      *sql.Stmt
+	createDrawerStmt                                          *sql.Stmt
+	createDrawerLEDAllocationStmt                             *sql.Stmt
+	createInspirationTemplateStmt                             *sql.Stmt
+	createPartStmt                                            *sql.Stmt
+	createPartAssignmentStmt                                  *sql.Stmt
+	createPartDocStmt                                         *sql.Stmt
+	createPartLinkStmt                                        *sql.Stmt
+	createPartParameterStmt                                   *sql.Stmt
+	createPartPricingStmt                                     *sql.Stmt
+	createPriceHistoryStmt                                    *sql.Stmt
+	createSessionStmt                                         *sql.Stmt
+	createSupplierReferenceStmt                               *sql.Stmt
+	createTagStmt                                             *sql.Stmt
+	createUserStmt                                            *sql.Stmt
+	createWallStmt                                            *sql.Stmt
+	deleteAllSystemFlagsStmt                                  *sql.Stmt
+	deleteAssignmentStmt                                      *sql.Stmt
+	deleteBinStmt                                             *sql.Stmt
+	deleteBinByLedStmt                                        *sql.Stmt
+	deleteBinDrawerAttachmentStmt                             *sql.Stmt
+	deleteBinsByContainerStmt                                 *sql.Stmt
+	deleteCabinetStmt                                         *sql.Stmt
+	deleteCabinetControllerStmt                               *sql.Stmt
+	deleteCabinetControllerReorderGuardStmt                   *sql.Stmt
+	deleteCabinetLEDPathSectionsByStringStmt                  *sql.Stmt
+	deleteCabinetLEDStringStmt                                *sql.Stmt
+	deleteContainerStmt                                       *sql.Stmt
+	deleteControllerStmt                                      *sql.Stmt
+	deleteDrawerStmt                                          *sql.Stmt
+	deleteDrawerLEDAllocationStmt                             *sql.Stmt
+	deleteExpiredSupplierCacheStmt                            *sql.Stmt
+	deleteInspirationTemplateStmt                             *sql.Stmt
+	deletePartStmt                                            *sql.Stmt
+	deletePartAssignmentStmt                                  *sql.Stmt
+	deletePartDocStmt                                         *sql.Stmt
+	deletePartLinkStmt                                        *sql.Stmt
+	deletePartParameterStmt                                   *sql.Stmt
+	deletePartParametersByPartStmt                            *sql.Stmt
+	deletePartPricingStmt                                     *sql.Stmt
+	deletePartPricingByPartStmt                               *sql.Stmt
+	deletePartPricingBySupplierRefStmt                        *sql.Stmt
+	deleteSessionStmt                                         *sql.Stmt
+	deleteSupplierCacheStmt                                   *sql.Stmt
+	deleteSupplierCacheByProviderStmt                         *sql.Stmt
+	deleteSupplierCredentialStmt                              *sql.Stmt
+	deleteSupplierReferenceStmt                               *sql.Stmt
+	deleteSupplierReferencesByPartStmt                        *sql.Stmt
+	deleteUnusedTagsStmt                                      *sql.Stmt
+	deleteUserStmt                                            *sql.Stmt
+	deleteWallStmt                                            *sql.Stmt
+	deleteWallCardsByWallIDStmt                               *sql.Stmt
+	findExistingPartByProviderRefStmt                         *sql.Stmt
+	getAllAuditLogsStmt                                       *sql.Stmt
+	getAllBinsStmt                                            *sql.Stmt
+	getAllContainersStmt                                      *sql.Stmt
+	getAllInspirationTemplatesStmt                            *sql.Stmt
+	getAllPartAiPromptsStmt                                   *sql.Stmt
+	getAllPartAssignmentsStmt                                 *sql.Stmt
+	getAllPartDocsStmt                                        *sql.Stmt
+	getAllPartLinksStmt                                       *sql.Stmt
+	getAllPartParametersStmt                                  *sql.Stmt
+	getAllPartPricingStmt                                     *sql.Stmt
+	getAllPartTagsStmt                                        *sql.Stmt
+	getAllPartsStmt                                           *sql.Stmt
+	getAllPriceHistoryStmt                                    *sql.Stmt
+	getAllSupplierCacheStmt                                   *sql.Stmt
+	getAllSupplierCredentialsStmt                             *sql.Stmt
+	getAllSupplierReferencesStmt                              *sql.Stmt
+	getAllSystemFlagsStmt                                     *sql.Stmt
+	getAllUsersStmt                                           *sql.Stmt
+	getAllWallCardsStmt                                       *sql.Stmt
+	getAllWallContainerBinsStmt                               *sql.Stmt
+	getAssignmentStmt                                         *sql.Stmt
+	getAssignmentIDStmt                                       *sql.Stmt
+	getBinStmt                                                *sql.Stmt
+	getBinByContainerAndLedStmt                               *sql.Stmt
+	getBinByLocationStmt                                      *sql.Stmt
+	getBinContentsStmt                                        *sql.Stmt
+	getBinDrawerAttachmentStmt                                *sql.Stmt
+	getBinsByContainerStmt                                    *sql.Stmt
+	getCabinetStmt                                            *sql.Stmt
+	getCabinetByAssignedControllerStmt                        *sql.Stmt
+	getCabinetByControllerStmt                                *sql.Stmt
+	getContainerStmt                                          *sql.Stmt
+	getContainersByControllerStmt                             *sql.Stmt
+	getControllerStmt                                         *sql.Stmt
+	getControllerByIPStmt                                     *sql.Stmt
+	getControllersStmt                                        *sql.Stmt
+	getControllersForCompatibilityStmt                        *sql.Stmt
+	getDashboardGridStmt                                      *sql.Stmt
+	getDashboardGridByControllerStmt                          *sql.Stmt
+	getDashboardStatsStmt                                     *sql.Stmt
+	getDrawerStmt                                             *sql.Stmt
+	getFlagStmt                                               *sql.Stmt
+	getInspirationTemplateStmt                                *sql.Stmt
+	getLatestPriceSnapshotStmt                                *sql.Stmt
+	getPartStmt                                               *sql.Stmt
+	getPartAssignmentsStmt                                    *sql.Stmt
+	getPartByBarcodeStmt                                      *sql.Stmt
+	getPartDocStmt                                            *sql.Stmt
+	getPartDocsStmt                                           *sql.Stmt
+	getPartLinksStmt                                          *sql.Stmt
+	getPartParametersStmt                                     *sql.Stmt
+	getPartPricingStmt                                        *sql.Stmt
+	getPartPricingBySupplierRefStmt                           *sql.Stmt
+	getPartsForInspirationAllStmt                             *sql.Stmt
+	getPartsForInspirationFilteredStmt                        *sql.Stmt
+	getPriceComparisonByPartStmt                              *sql.Stmt
+	getPriceHistoryByPartStmt                                 *sql.Stmt
+	getPriceHistoryByPartAndProviderStmt                      *sql.Stmt
+	getRecentlyImportedPartsStmt                              *sql.Stmt
+	getSessionStmt                                            *sql.Stmt
+	getSettingsStmt                                           *sql.Stmt
+	getSupplierCacheStmt                                      *sql.Stmt
+	getSupplierCredentialStmt                                 *sql.Stmt
+	getSupplierReferenceStmt                                  *sql.Stmt
+	getSupplierReferenceByProviderStmt                        *sql.Stmt
+	getSupplierReferencesByPartStmt                           *sql.Stmt
+	getTagByNameStmt                                          *sql.Stmt
+	getTagsForPartStmt                                        *sql.Stmt
+	getUserStmt                                               *sql.Stmt
+	getUserByEmailStmt                                        *sql.Stmt
+	getWallStmt                                               *sql.Stmt
+	getWallCardsStmt                                          *sql.Stmt
+	getWallContainerBinsStmt                                  *sql.Stmt
+	getWallsStmt                                              *sql.Stmt
+	initSettingsStmt                                          *sql.Stmt
+	listAllCabinetControllersStmt                             *sql.Stmt
+	listAllCabinetLEDPathSectionsStmt                         *sql.Stmt
+	listAllCabinetLEDStringsStmt                              *sql.Stmt
+	listAllDrawerLEDAllocationsStmt                           *sql.Stmt
+	listAllDrawersStmt                                        *sql.Stmt
+	listAllTagsStmt                                           *sql.Stmt
+	listAuditLogsStmt                                         *sql.Stmt
+	listBinDrawerAttachmentsStmt                              *sql.Stmt
+	listBinDrawerAttachmentsByDrawerStmt                      *sql.Stmt
+	listCabinetControllersStmt                                *sql.Stmt
+	listCabinetLEDPathSectionsStmt                            *sql.Stmt
+	listCabinetLEDPathSectionsByStringStmt                    *sql.Stmt
+	listCabinetLEDStringsStmt                                 *sql.Stmt
+	listCabinetLEDStringsByControllerStmt                     *sql.Stmt
+	listCabinetsStmt                                          *sql.Stmt
+	listCabinetsIncludingArchivedStmt                         *sql.Stmt
+	listDrawerLEDAllocationsByCabinetStmt                     *sql.Stmt
+	listDrawerLEDAllocationsByDrawerStmt                      *sql.Stmt
+	listDrawersByCabinetStmt                                  *sql.Stmt
+	listDrawersByCabinetIncludingArchivedStmt                 *sql.Stmt
+	listLowStockPartsStmt                                     *sql.Stmt
+	listPartsStmt                                             *sql.Stmt
+	listPhysicalLocateSessionTargetsStmt                      *sql.Stmt
+	listPhysicalLocateSessionsStmt                            *sql.Stmt
+	listUnattachedBinsStmt                                    *sql.Stmt
+	listUsersStmt                                             *sql.Stmt
+	markInspirationSeedsAppliedStmt                           *sql.Stmt
+	reassignPartAssignmentStmt                                *sql.Stmt
+	removeContainerFromWallStmt                               *sql.Stmt
+	removeTagsFromPartStmt                                    *sql.Stmt
+	restoreAuditLogStmt                                       *sql.Stmt
+	restoreBinStmt                                            *sql.Stmt
+	restoreBinDrawerAttachmentStmt                            *sql.Stmt
+	restoreCabinetStmt                                        *sql.Stmt
+	restoreCabinetControllerStmt                              *sql.Stmt
+	restoreCabinetLEDPathSectionStmt                          *sql.Stmt
+	restoreCabinetLEDStringStmt                               *sql.Stmt
+	restoreContainerStmt                                      *sql.Stmt
+	restoreControllerStmt                                     *sql.Stmt
+	restoreDrawerStmt                                         *sql.Stmt
+	restoreDrawerLEDAllocationStmt                            *sql.Stmt
+	restorePartStmt                                           *sql.Stmt
+	restorePartAiPromptStmt                                   *sql.Stmt
+	restorePartAssignmentStmt                                 *sql.Stmt
+	restorePartDocStmt                                        *sql.Stmt
+	restorePartLinkStmt                                       *sql.Stmt
+	restorePartParameterStmt                                  *sql.Stmt
+	restorePartPricingStmt                                    *sql.Stmt
+	restorePartTagStmt                                        *sql.Stmt
+	restorePriceHistoryStmt                                   *sql.Stmt
+	restoreSettingsStmt                                       *sql.Stmt
+	restoreSupplierCredentialStmt                             *sql.Stmt
+	restoreSupplierReferenceStmt                              *sql.Stmt
+	restoreSystemFlagStmt                                     *sql.Stmt
+	restoreTagStmt                                            *sql.Stmt
+	restoreUserStmt                                           *sql.Stmt
+	restoreWallStmt                                           *sql.Stmt
+	restoreWallCardStmt                                       *sql.Stmt
+	savePhysicalLocateSessionStmt                             *sql.Stmt
+	savePhysicalLocateSessionTargetStmt                       *sql.Stmt
+	searchPartsStmt                                           *sql.Stmt
+	setControllerLEDCapacityFromStringsStmt                   *sql.Stmt
+	setControllerOnlineStatusStmt                             *sql.Stmt
+	setFlagStmt                                               *sql.Stmt
+	setPasswordResetFlagStmt                                  *sql.Stmt
+	togglePartFavoriteStmt                                    *sql.Stmt
+	unarchiveCabinetStmt                                      *sql.Stmt
+	unarchiveDrawerStmt                                       *sql.Stmt
+	updateBinStmt                                             *sql.Stmt
+	updateBinDrawerAttachmentStmt                             *sql.Stmt
+	updateBinDrawerAttachmentGeometryStmt                     *sql.Stmt
+	updateBinLedIndexStmt                                     *sql.Stmt
+	updateBinNameStmt                                         *sql.Stmt
+	updateCabinetStmt                                         *sql.Stmt
+	updateCabinetControllerStmt                               *sql.Stmt
+	updateCabinetControllerSlotStmt                           *sql.Stmt
+	updateCabinetControllerStringsConfiguredStmt              *sql.Stmt
+	updateCabinetElectricalRevisionStmt                       *sql.Stmt
+	updateCabinetLEDPathSectionStmt                           *sql.Stmt
+	updateCabinetLEDStringStmt                                *sql.Stmt
+	updateCabinetLayoutRevisionStmt                           *sql.Stmt
+	updateCabinetLayoutSettingsStmt                           *sql.Stmt
+	updateColorsStmt                                          *sql.Stmt
+	updateContainerAllocationStmt                             *sql.Stmt
+	updateContainerConfigStmt                                 *sql.Stmt
+	updateControllerLedCountStmt                              *sql.Stmt
+	updateControllerLocateMappingVerificationStmt             *sql.Stmt
+	updateControllerStatusStmt                                *sql.Stmt
+	updateDrawerStmt                                          *sql.Stmt
+	updateDrawerGeometryStmt                                  *sql.Stmt
+	updateDrawerLEDAllocationStmt                             *sql.Stmt
+	updateGeneralSettingsStmt                                 *sql.Stmt
+	updateInspirationTemplateStmt                             *sql.Stmt
+	updatePartStmt                                            *sql.Stmt
+	updatePartAssignmentQuantityStmt                          *sql.Stmt
+	updatePartAssignmentQuantityByIDStmt                      *sql.Stmt
+	updatePartLinkStmt                                        *sql.Stmt
+	updateSupplierCredentialTokenStmt                         *sql.Stmt
+	updateSupplierSettingsStmt                                *sql.Stmt
+	updateUserPasswordStmt                                    *sql.Stmt
+	updateWallStmt                                            *sql.Stmt
+	updateWallCardPositionStmt                                *sql.Stmt
+	upsertBinStmt                                             *sql.Stmt
+	upsertSupplierCacheStmt                                   *sql.Stmt
+	upsertSupplierCredentialStmt                              *sql.Stmt
 }
 
 func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 	return &Queries{
-		db:                                            tx,
-		tx:                                            tx,
-		addContainerToWallStmt:                        q.addContainerToWallStmt,
-		addTagToPartStmt:                              q.addTagToPartStmt,
-		advanceCabinetElectricalRevisionStmt:          q.advanceCabinetElectricalRevisionStmt,
-		advanceCabinetLayoutRevisionStmt:              q.advanceCabinetLayoutRevisionStmt,
-		archiveCabinetStmt:                            q.archiveCabinetStmt,
-		archiveDrawerStmt:                             q.archiveDrawerStmt,
-		cleanupSessionsStmt:                           q.cleanupSessionsStmt,
-		clearAuditLogsStmt:                            q.clearAuditLogsStmt,
-		clearBinDrawerAttachmentsStmt:                 q.clearBinDrawerAttachmentsStmt,
-		clearBinsStmt:                                 q.clearBinsStmt,
-		clearCabinetControllersStmt:                   q.clearCabinetControllersStmt,
-		clearCabinetsStmt:                             q.clearCabinetsStmt,
-		clearContainerBinLedIndicesStmt:               q.clearContainerBinLedIndicesStmt,
-		clearContainersStmt:                           q.clearContainersStmt,
-		clearControllersStmt:                          q.clearControllersStmt,
-		clearDrawerLEDAllocationsStmt:                 q.clearDrawerLEDAllocationsStmt,
-		clearDrawersStmt:                              q.clearDrawersStmt,
-		clearPartAiPromptsStmt:                        q.clearPartAiPromptsStmt,
-		clearPartAssignmentsStmt:                      q.clearPartAssignmentsStmt,
-		clearPartDocsStmt:                             q.clearPartDocsStmt,
-		clearPartLinksStmt:                            q.clearPartLinksStmt,
-		clearPartParametersStmt:                       q.clearPartParametersStmt,
-		clearPartPricingStmt:                          q.clearPartPricingStmt,
-		clearPartTagsStmt:                             q.clearPartTagsStmt,
-		clearPartsStmt:                                q.clearPartsStmt,
+		db:                                    tx,
+		tx:                                    tx,
+		addContainerToWallStmt:                q.addContainerToWallStmt,
+		addTagToPartStmt:                      q.addTagToPartStmt,
+		advanceCabinetElectricalRevisionStmt:  q.advanceCabinetElectricalRevisionStmt,
+		advanceCabinetLayoutRevisionStmt:      q.advanceCabinetLayoutRevisionStmt,
+		archiveCabinetStmt:                    q.archiveCabinetStmt,
+		archiveDrawerStmt:                     q.archiveDrawerStmt,
+		cleanupSessionsStmt:                   q.cleanupSessionsStmt,
+		clearAuditLogsStmt:                    q.clearAuditLogsStmt,
+		clearBinDrawerAttachmentsStmt:         q.clearBinDrawerAttachmentsStmt,
+		clearBinsStmt:                         q.clearBinsStmt,
+		clearCabinetControllersStmt:           q.clearCabinetControllersStmt,
+		clearCabinetLEDPathSectionsStmt:       q.clearCabinetLEDPathSectionsStmt,
+		clearCabinetLEDStringsStmt:            q.clearCabinetLEDStringsStmt,
+		clearCabinetsStmt:                     q.clearCabinetsStmt,
+		clearContainerBinLedIndicesStmt:       q.clearContainerBinLedIndicesStmt,
+		clearContainersStmt:                   q.clearContainersStmt,
+		clearControllersStmt:                  q.clearControllersStmt,
+		clearDrawerLEDAllocationsStmt:         q.clearDrawerLEDAllocationsStmt,
+		clearDrawersStmt:                      q.clearDrawersStmt,
+		clearPartAiPromptsStmt:                q.clearPartAiPromptsStmt,
+		clearPartAssignmentsStmt:              q.clearPartAssignmentsStmt,
+		clearPartDocsStmt:                     q.clearPartDocsStmt,
+		clearPartLinksStmt:                    q.clearPartLinksStmt,
+		clearPartParametersStmt:               q.clearPartParametersStmt,
+		clearPartPricingStmt:                  q.clearPartPricingStmt,
+		clearPartTagsStmt:                     q.clearPartTagsStmt,
+		clearPartsStmt:                        q.clearPartsStmt,
+		clearPhysicalLocateSessionTargetsStmt: q.clearPhysicalLocateSessionTargetsStmt,
+		clearPhysicalLocateSessionTargetsForPrimaryControllerStmt: q.clearPhysicalLocateSessionTargetsForPrimaryControllerStmt,
 		clearPriceHistoryStmt:                         q.clearPriceHistoryStmt,
 		clearSupplierCredentialsStmt:                  q.clearSupplierCredentialsStmt,
 		clearSupplierReferencesStmt:                   q.clearSupplierReferencesStmt,
@@ -2427,6 +2647,9 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		createBinDrawerAttachmentStmt:                 q.createBinDrawerAttachmentStmt,
 		createCabinetStmt:                             q.createCabinetStmt,
 		createCabinetControllerStmt:                   q.createCabinetControllerStmt,
+		createCabinetControllerReorderGuardStmt:       q.createCabinetControllerReorderGuardStmt,
+		createCabinetLEDPathSectionStmt:               q.createCabinetLEDPathSectionStmt,
+		createCabinetLEDStringStmt:                    q.createCabinetLEDStringStmt,
 		createContainerStmt:                           q.createContainerStmt,
 		createControllerStmt:                          q.createControllerStmt,
 		createDrawerStmt:                              q.createDrawerStmt,
@@ -2452,6 +2675,9 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		deleteBinsByContainerStmt:                     q.deleteBinsByContainerStmt,
 		deleteCabinetStmt:                             q.deleteCabinetStmt,
 		deleteCabinetControllerStmt:                   q.deleteCabinetControllerStmt,
+		deleteCabinetControllerReorderGuardStmt:       q.deleteCabinetControllerReorderGuardStmt,
+		deleteCabinetLEDPathSectionsByStringStmt:      q.deleteCabinetLEDPathSectionsByStringStmt,
+		deleteCabinetLEDStringStmt:                    q.deleteCabinetLEDStringStmt,
 		deleteContainerStmt:                           q.deleteContainerStmt,
 		deleteControllerStmt:                          q.deleteControllerStmt,
 		deleteDrawerStmt:                              q.deleteDrawerStmt,
@@ -2554,6 +2780,8 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		getWallsStmt:                                  q.getWallsStmt,
 		initSettingsStmt:                              q.initSettingsStmt,
 		listAllCabinetControllersStmt:                 q.listAllCabinetControllersStmt,
+		listAllCabinetLEDPathSectionsStmt:             q.listAllCabinetLEDPathSectionsStmt,
+		listAllCabinetLEDStringsStmt:                  q.listAllCabinetLEDStringsStmt,
 		listAllDrawerLEDAllocationsStmt:               q.listAllDrawerLEDAllocationsStmt,
 		listAllDrawersStmt:                            q.listAllDrawersStmt,
 		listAllTagsStmt:                               q.listAllTagsStmt,
@@ -2561,15 +2789,19 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		listBinDrawerAttachmentsStmt:                  q.listBinDrawerAttachmentsStmt,
 		listBinDrawerAttachmentsByDrawerStmt:          q.listBinDrawerAttachmentsByDrawerStmt,
 		listCabinetControllersStmt:                    q.listCabinetControllersStmt,
+		listCabinetLEDPathSectionsStmt:                q.listCabinetLEDPathSectionsStmt,
+		listCabinetLEDPathSectionsByStringStmt:        q.listCabinetLEDPathSectionsByStringStmt,
+		listCabinetLEDStringsStmt:                     q.listCabinetLEDStringsStmt,
+		listCabinetLEDStringsByControllerStmt:         q.listCabinetLEDStringsByControllerStmt,
 		listCabinetsStmt:                              q.listCabinetsStmt,
 		listCabinetsIncludingArchivedStmt:             q.listCabinetsIncludingArchivedStmt,
 		listDrawerLEDAllocationsByCabinetStmt:         q.listDrawerLEDAllocationsByCabinetStmt,
-		listDrawerLEDAllocationsByControllerStmt:      q.listDrawerLEDAllocationsByControllerStmt,
 		listDrawerLEDAllocationsByDrawerStmt:          q.listDrawerLEDAllocationsByDrawerStmt,
 		listDrawersByCabinetStmt:                      q.listDrawersByCabinetStmt,
 		listDrawersByCabinetIncludingArchivedStmt:     q.listDrawersByCabinetIncludingArchivedStmt,
 		listLowStockPartsStmt:                         q.listLowStockPartsStmt,
 		listPartsStmt:                                 q.listPartsStmt,
+		listPhysicalLocateSessionTargetsStmt:          q.listPhysicalLocateSessionTargetsStmt,
 		listPhysicalLocateSessionsStmt:                q.listPhysicalLocateSessionsStmt,
 		listUnattachedBinsStmt:                        q.listUnattachedBinsStmt,
 		listUsersStmt:                                 q.listUsersStmt,
@@ -2582,6 +2814,8 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		restoreBinDrawerAttachmentStmt:                q.restoreBinDrawerAttachmentStmt,
 		restoreCabinetStmt:                            q.restoreCabinetStmt,
 		restoreCabinetControllerStmt:                  q.restoreCabinetControllerStmt,
+		restoreCabinetLEDPathSectionStmt:              q.restoreCabinetLEDPathSectionStmt,
+		restoreCabinetLEDStringStmt:                   q.restoreCabinetLEDStringStmt,
 		restoreContainerStmt:                          q.restoreContainerStmt,
 		restoreControllerStmt:                         q.restoreControllerStmt,
 		restoreDrawerStmt:                             q.restoreDrawerStmt,
@@ -2604,7 +2838,9 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		restoreWallStmt:                               q.restoreWallStmt,
 		restoreWallCardStmt:                           q.restoreWallCardStmt,
 		savePhysicalLocateSessionStmt:                 q.savePhysicalLocateSessionStmt,
+		savePhysicalLocateSessionTargetStmt:           q.savePhysicalLocateSessionTargetStmt,
 		searchPartsStmt:                               q.searchPartsStmt,
+		setControllerLEDCapacityFromStringsStmt:       q.setControllerLEDCapacityFromStringsStmt,
 		setControllerOnlineStatusStmt:                 q.setControllerOnlineStatusStmt,
 		setFlagStmt:                                   q.setFlagStmt,
 		setPasswordResetFlagStmt:                      q.setPasswordResetFlagStmt,
@@ -2618,7 +2854,11 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		updateBinNameStmt:                             q.updateBinNameStmt,
 		updateCabinetStmt:                             q.updateCabinetStmt,
 		updateCabinetControllerStmt:                   q.updateCabinetControllerStmt,
+		updateCabinetControllerSlotStmt:               q.updateCabinetControllerSlotStmt,
+		updateCabinetControllerStringsConfiguredStmt:  q.updateCabinetControllerStringsConfiguredStmt,
 		updateCabinetElectricalRevisionStmt:           q.updateCabinetElectricalRevisionStmt,
+		updateCabinetLEDPathSectionStmt:               q.updateCabinetLEDPathSectionStmt,
+		updateCabinetLEDStringStmt:                    q.updateCabinetLEDStringStmt,
 		updateCabinetLayoutRevisionStmt:               q.updateCabinetLayoutRevisionStmt,
 		updateCabinetLayoutSettingsStmt:               q.updateCabinetLayoutSettingsStmt,
 		updateColorsStmt:                              q.updateColorsStmt,

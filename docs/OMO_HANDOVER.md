@@ -6,38 +6,187 @@ This is the single active development handover document. `AGENTS.md` defines
 development policy; the root `ROADMAP.md` records product requirements and design
 updates. Historical handovers are references, not active instructions.
 
-Current task: Task 048 — Multi-Controller Cabinet Architecture.
+Current task: Simplified Cabinet Hardware and Cabinet-wide LED Mapping follow-up
+to Task 048.
 
 Baseline: branch `development/chatgpt-m6-m7` at
-`c9c64aa716a6c40d6f7ae9f7876b5b67ca56b4ed`, with no ahead/behind divergence at
-task start. The owner authorizes implementation, disposable SQLite and mock WLED
-tests, all Go/JavaScript/generation/Chromium gates, and commit/push ONLY to
-`origin/development/chatgpt-m6-m7` after all gates pass. The owner explicitly
-clarifies that publication is authorized with exactly the verified Task 048
-implementation staged, while unrelated unstaged working-tree changes remain
-preserved. `AGENTS.md` must remain exactly as it exists and excluded from staging
-and the commit. No real controller, production database, deployment, production
-restore/migration, merge, or push to `main` is authorized. The branch target is
-exactly `development/chatgpt-m6-m7`.
+`c35b944d73ec9f055fd0e6abcaa04ccb06175b57`, parent
+`c9c64aa716a6c40d6f7ae9f7876b5b67ca56b4ed`; local branch and remote were aligned
+at task start. The pre-existing `AGENTS.md` modification is unrelated and must
+remain byte-for-byte unchanged and unstaged. The owner authorizes implementation
+and disposable SQLite/mock-WLED verification only. Do not commit or push; do not
+merge, deploy, access production data, or contact physical WLED controllers.
 
-Task 048 extends the saved physical-drawer allocation and safe Locate contracts.
-Legacy `containers`, `segment_id`, `bins.led_index`, drawer IDs, attachments,
-and inventory identities/quantities remain untouched. Cabinet ownership is now
-up to five exclusive controller memberships; each drawer's saved ranges all
-belong to one selected membership, with independent 1-based numbering/capacity
-and overlap per controller. Physical WLED outputs are read-only discovery data,
-not WLED segments. Locate resolves its controller from the saved drawer ranges;
-Stop uses the durable session's original controller and ranges. Electrical
-configuration writes and backup restore are serialized against active Locate
-sessions. No real controller was contacted.
+Task 048 currently stores drawer ranges in one controller's local 1-based space,
+with controller membership order and a one-controller-per-drawer invariant. This
+follow-up supersedes those user-facing and mapping-engine constraints while
+preserving stable cabinet/controller/drawer/bin/inventory identities, legacy
+electrical containers, and safe read-only WLED discovery. The new canonical
+mapping is cabinet-wide 1-based pixels, derived by controller order and string
+order; drawer numbering/geometry remains independent.
 
-An unrelated working-tree modification to `AGENTS.md` appeared after the
-initial baseline and is preserved unchanged; it is not part of this task's
-change set. The owner explicitly authorized Task 048 publication to
-`origin/development/chatgpt-m6-m7` with the exact verified implementation staged,
-while this unrelated modification remains unstaged. Task 048 test and publication
-evidence is recorded in the entry below; older authorization notes remain
-historical.
+### Implementation plan (recorded before code changes)
+
+1. **Additive schema and safe migration:** add ordered physical strings per
+   cabinet/controller and ordered path sections per string (pixel count plus an
+   arbitrary ordered polyline in cabinet coordinates). Keep physical drawer
+   geometry and LED wiring paths as separate entities. Make drawer allocation
+   `start_pixel`/`pixel_count` canonical cabinet-wide ranges and remove the
+   one-controller-per-drawer database rule. In a new migration, convert every
+   Task 048 controller-local allocation to cabinet-wide numbering by adding the
+   capacities of earlier controllers in saved slot order. Preserve IDs/order/
+   timestamps; abort migration if a saved mapping cannot be converted and
+   validated unambiguously. Leave bins, attachments, inventory, legacy
+   containers, `segment_id`, and `bins.led_index` untouched.
+2. **One capacity/coordinate service:** calculate each controller capacity from
+   its ordered strings (retain a clearly identified compatibility path for
+   pre-existing controllers that have no explicit string definitions); derive
+   cabinet offsets and total deterministically. Validate overlaps and bounds in
+   cabinet coordinates. Any controller-order or length edit that changes saved
+   mappings must show a before/after destination preview and require explicit
+   confirmation; configuration writes remain blocked during active Locate.
+3. **Safe multi-controller Locate:** intersect cabinet-wide drawer ranges with
+   ordered controller spans, translate intersections to controller-local
+   1-based pixels, then reuse the existing attested output/segment mapper. Validate
+   every affected controller before any write. Persist one logical session plus
+   durable per-controller target snapshots; acquire per-controller locks in
+   sorted ID order, record attempted activations before requests, and attempt
+   targeted cleanup on every controller that may have received a request. Keep
+   existing topology fingerprints, restart/timeout recovery, process-local lease,
+   and explicit partial/failure reporting; never claim network atomicity or use
+   GlobalOff for cleanup.
+4. **Backup and restore:** extend current exports with controller order, string
+   definitions, path sections, and cabinet-wide allocations. Continue reading
+   older v1/v2 archives; convert old controller-local allocation ranges using
+   archived membership order/capacity, or reject before mutation when conversion
+   is ambiguous. Keep restore serialized against active Locate and preserve the
+   existing no-silent-data-loss behavior.
+5. **Simplified Hardware/editor workflow:** make Hardware lead with Cabinets and
+   the sequence Create Cabinet → Controllers → Strings → Wiring Layout → Drawer
+   Layout → Drawer LEDs. Keep legacy controller/container/segment tools available
+   but visually distinct as advanced legacy functions. Extend the existing
+   graphical editor for ordered multi-section string paths, string/drawer
+   selection/highlighting, controller/string boundaries, cabinet pixel labels,
+   and a default single start/count allocation with optional additional ranges.
+   Do not derive allocations from drawer number; any automatic proposal must be
+   previewed and manually correctable.
+6. **Regression and gates:** add migration-preservation and failure tests;
+   string ordering/continuous offsets and path validation; controller/string
+   crossing and non-contiguous allocation tests; reorder/length preview and
+   explicit-confirmation tests; multi-controller Locate/Stop, partial cleanup,
+   concurrency/restart/timeout and backup compatibility tests; and disposable DB
+   plus mock-WLED browser workflows. Run sqlc/templ generation, Go tests/vet/build,
+   JavaScript tests/syntax, CSS build, and Chromium browser tests. No hardware or
+   production operation is part of verification.
+
+**Open implementation constraint:** WLED physical output definitions, logical
+WLED segments, WLEDger physical strings and cabinet-wide pixels remain distinct.
+Do not infer a one-to-one output/string/segment relationship. Activation must
+continue to verify each controller's live `/json/info`, `/json/cfg` and segment
+state against its own safety fingerprint before mapping controller-local pixels.
+The process-local Locate lease remains a documented cross-process limitation.
+
+### Follow-up implementation outcome — 2026-10-12
+
+**Status:** Implemented and verified in the local working tree at baseline
+`c35b944d73ec9f055fd0e6abcaa04ccb06175b57`. It is intentionally not committed or
+pushed: the owner explicitly requested an owner-reviewable working tree. The
+remote development branch still points to the baseline. `AGENTS.md` is untouched
+by this work and remains the sole unrelated unstaged modification.
+
+- Migration `019_cabinet_wiring_global_pixels.sql` adds ordered controller
+  strings and ordered cabinet-coordinate path sections; translates Task 048
+  controller-local allocations by controller slot and legacy capacity; rebuilds
+  allocations into cabinet-wide ranges; allows a range to cross controller
+  boundaries; and extends durable Locate sessions with per-controller cleanup
+  targets. It refuses ambiguous/out-of-capacity legacy ranges before changing
+  connection/schema state. Controller slots above 4 are allowed only while an
+  in-transaction reorder guard is present.
+- `internal/cabinetpixels` is the shared deterministic capacity/span translator.
+  Explicit strings determine controller capacity; pre-existing controllers with
+  no string configuration use their preserved legacy capacity until explicitly
+  configured. String names/orders, pixel counts, completion state and arbitrary
+  ordered polylines are persisted independently of drawer geometry and inventory.
+- Drawer allocation inputs and persisted rows now use cabinet-wide 1-based
+  starts/counts. Database/service validation rejects global overlap and capacity
+  overflow. Controller order and string-length/path edits compare old/new
+  destinations and require a confirmation when saved drawer pixels are affected.
+- Locate splits global ranges across ordered controllers and strings, validates
+  every affected controller and WLED topology before activation, locks targets in
+  ascending controller-ID order, persists one logical session and each local
+  cleanup snapshot, and retries targeted cleanup for every attempted target on
+  partial failure. Durable session records block backup restore while any target
+  may still own pixels. No global-off command or real controller was used.
+- Current backups now include controller ordering, strings, sections and
+  cabinet-wide allocations. A Task 048 archive containing controller-local
+  ranges is decoded into cabinet-wide coordinates from its saved membership
+  order/capacities. Missing wiring data cannot silently erase configured wiring;
+  ambiguous legacy coordinate conversion is rejected before restore mutation.
+- Hardware now leads with Cabinets and an ordered setup flow. The existing editor
+  draws ordered string polylines over the same cabinet-coordinate canvas, shows
+  string/controller pixel ranges and drawer highlights, offers simple start/count
+  allocation with advanced additional ranges, and keeps read-only WLED output
+  diagnostics in the admin-only advanced section. Legacy containers/segments stay
+  separate and preserved. Automatic drawer-to-pixel inference remains optional
+  and was not implemented; manual mapping remains available.
+
+**Verification completed:**
+- `sqlc generate` and `templ generate` completed successfully.
+- `CGO_ENABLED=1 /home/spetchal/gotoolchain/go/bin/go test -tags fts5 -count=1 ./...` passed.
+- `CGO_ENABLED=1 /home/spetchal/gotoolchain/go/bin/go vet -tags fts5 ./...` passed.
+- `CGO_ENABLED=1 /home/spetchal/gotoolchain/go/bin/go build -tags fts5 ./...` passed.
+- `npm test` passed all 20 existing JavaScript behavior tests; `node --check`
+  passed for the editor and browser test.
+- `npm run build:css:prod` passed with the existing nonfatal daisyUI
+  `@property --radialprogress` optimizer warning.
+- `GO_BIN=/home/spetchal/gotoolchain/go/bin/go npm run test:layout-browser`
+  passed using a disposable SQLite DB and local mock WLED server. It verifies
+  cabinet-led workflow, five-controller cap/order, four-section serpentine path,
+  explicit mapping-impact confirmation, cross-string/cross-controller ranges,
+  read-only output discovery, Locate/Stop and inventory preservation; zero page
+  errors and zero runtime console errors (one expected HTTP 409 warning).
+- `git diff --check` passed. No production database, deployment, merge, commit,
+  push, or physical WLED controller was used.
+
+**Changed task files (41; `AGENTS.md` excluded):**
+- Product/handover: `ROADMAP.md`, `docs/OMO_HANDOVER.md`.
+- Migration/queries/generated DB: `sql/schema/019_cabinet_wiring_global_pixels.sql`,
+  `sql/queries/drawer_led_allocations.sql`, `sql/queries/physical_storage.sql`,
+  `internal/db/db.go`, `internal/db/models.go`,
+  `internal/db/drawer_led_allocations.sql.go`,
+  `internal/db/physical_storage.sql.go`, `internal/db/querier.go`.
+- Pixel mapping/storage: `internal/cabinetpixels/ranges.go`,
+  `internal/cabinetpixels/topology.go`, `internal/cabinetpixels/ranges_test.go`,
+  `internal/storage/cabinet_controller.go`,
+  `internal/storage/controller_capacity.go`, `internal/storage/layout.go`,
+  `internal/storage/led_allocations.go`, `internal/storage/cabinet_wiring.go`,
+  `internal/storage/led_allocations_test.go`, `internal/storage/cabinet_wiring_test.go`.
+- Locate/backup/handlers: `internal/wled/physical_locate.go`,
+  `internal/wled/physical_locate_test.go`,
+  `internal/wled/physical_locate_multicontroller_test.go`,
+  `internal/backup/service.go`, `internal/backup/storage_manifest.go`,
+  `internal/backup/storage_restore.go`,
+  `internal/backup/cabinet_controllers_backup_test.go`,
+  `internal/backup/physical_roundtrip_test.go`,
+  `internal/backup/cabinet_wiring_backup_test.go`,
+  `internal/handler/hardware.go`, `internal/handler/layout_editor.go`,
+  `internal/router/router.go`,
+  `internal/db/cabinet_controllers_migration_test.go`,
+  `internal/db/cabinet_wiring_migration_test.go`.
+- UI/assets/browser regression: `web/pages/hardware.templ`,
+  `web/pages/hardware_templ.go`, `web/pages/storage_layout_editor.templ`,
+  `web/pages/storage_layout_editor_templ.go`,
+  `web/static/js/physical_layout_editor.js`, `web/static/css/output.css`,
+  `web/tests/layout_editor.browser.test.js`.
+
+**Remaining risks/limits:** The Locate write lease is process-local; other
+WLEDger processes or external WLED writers can interfere. WLEDger strings are
+not inferred from WLED outputs, and no 1:1 string/output/segment relation is
+claimed. Physical path overlays interpolate pixels along drawn polylines for
+visual inspection; they do not configure LEDs or transform electrical mapping.
+Legacy installations with invalid controller-local ranges must resolve the
+reported migration preflight issue before upgrading. `AGENTS.md` remains
+modified/unstaged exactly as it was at task start; it is not in this task's diff.
 
 ## Task 048 — Multi-Controller Cabinet Architecture — 2026-10-12
 
@@ -111,8 +260,12 @@ historical.
   Task 048 files staged, with `AGENTS.md` excluded and preserved unchanged;
   unrelated working-tree changes may remain unstaged. No merge, deployment,
   production operation, real WLED contact, or push to `main` is authorized.
-- **Publication status:** pending staged-diff verification, commit, and fast-forward
-  push to the authorized development branch.
+- **Publication status:** published as
+  `c35b944d73ec9f055fd0e6abcaa04ccb06175b57` to
+  `origin/development/chatgpt-m6-m7`; parent is
+  `c9c64aa716a6c40d6f7ae9f7876b5b67ca56b4ed`. The simplified cabinet mapping
+  follow-up is a separate uncommitted owner-requested task; it is not authorized
+  for commit or push.
 - **Remaining limitations:** discovered output geometry is not persisted and
   hardware support is limited to configurations accepted by the current safe
   linear mapping rules. No real WLED topology was inspected. The Locate write

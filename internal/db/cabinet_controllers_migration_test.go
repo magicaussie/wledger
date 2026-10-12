@@ -70,12 +70,12 @@ func openCabinetControllerFixture(t *testing.T, name string) cabinetControllerFi
 	}
 }
 
-// migrateLatest applies the embedded migrations up to the newest available
-// version, including 018_cabinet_controllers.sql.
+// migrateLatest applies the embedded migrations through 018 so these focused
+// tests continue to assert the Task 048 schema independently of later migrations.
 func (f cabinetControllerFixture) migrateLatest() {
 	f.t.Helper()
-	if err := goose.Up(f.dbConn, "."); err != nil {
-		f.t.Fatalf("apply latest migrations: %v", err)
+	if err := goose.UpTo(f.dbConn, ".", ccVersion); err != nil {
+		f.t.Fatalf("apply Task 048 migration: %v", err)
 	}
 }
 

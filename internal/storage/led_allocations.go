@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"time"
 
+	"github.com/tuxedocurly/wledger/internal/cabinetpixels"
 	"github.com/tuxedocurly/wledger/internal/db"
 )
 
@@ -16,8 +18,8 @@ var (
 	ErrLEDControllerConfiguration = errors.New("drawer LED allocation requires a valid cabinet controller configuration")
 )
 
-// LEDAllocationInput uses user-facing controller-wide, 1-based pixel numbers.
-// ID preserves the stable row identity when a range is edited.
+// LEDAllocationInput uses user-facing cabinet-wide, 1-based pixel numbers. ID
+// preserves the stable allocation identity when a range is edited.
 type LEDAllocationInput struct {
 	ID         int64 `json:"id"`
 	StartPixel int64 `json:"start_pixel"`
@@ -41,27 +43,12 @@ func ledAllocationEnd(start, count int64) (int64, error) {
 	return start + count - 1, nil
 }
 
-// SaveDrawerLEDAllocations preserves the previous single-controller API and
-// routes writes to the cabinet's legacy primary controller.
+// SaveDrawerLEDAllocations atomically replaces a drawer's cabinet-wide ranges.
+// A range can cross string and controller boundaries; those spans are derived
+// later from the saved wiring topology.
 func (s *LayoutService) SaveDrawerLEDAllocations(ctx context.Context, cabinetID, drawerID, revision int64, inputs []LEDAllocationInput) error {
-	cabinet, err := s.store.GetCabinet(ctx, cabinetID)
-	if err != nil {
-		return err
-	}
-	controllerID := int64(0)
-	if cabinet.ControllerID.Valid {
-		controllerID = cabinet.ControllerID.Int64
-	}
-	return s.SaveDrawerLEDAllocationsForController(ctx, cabinetID, drawerID, revision, controllerID, inputs)
-}
-
-// SaveDrawerLEDAllocationsForController atomically replaces one drawer's range
-// list. Every range for a drawer belongs to exactly one controller; ranges use
-// that controller's 1-based controller-wide pixel space and may cross physical
-// output boundaries. Physical outputs are not WLED segments.
-func (s *LayoutService) SaveDrawerLEDAllocationsForController(ctx context.Context, cabinetID, drawerID, revision, controllerID int64, inputs []LEDAllocationInput) error {
-	if controllerID < 0 {
-		return ErrLEDControllerConfiguration
+	if cabinetID <= 0 || drawerID <= 0 {
+		return ErrLEDAllocationInvalid
 	}
 	return s.store.ExecImmediateTx(ctx, func(q db.Querier) error {
 		cab, err := q.GetCabinet(ctx, cabinetID)
@@ -74,14 +61,6 @@ func (s *LayoutService) SaveDrawerLEDAllocationsForController(ctx context.Contex
 		if cab.ElectricalRevision != revision {
 			return ErrLEDAllocationStale
 		}
-		members, err := q.ListCabinetControllers(ctx, cabinetID)
-		if err != nil {
-			return err
-		}
-		memberIDs := make(map[int64]bool, len(members))
-		for _, member := range members {
-			memberIDs[member.ControllerID] = true
-		}
 		drawer, err := q.GetDrawer(ctx, drawerID)
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrLayoutNotFound
@@ -92,39 +71,12 @@ func (s *LayoutService) SaveDrawerLEDAllocationsForController(ctx context.Contex
 		if drawer.CabinetID != cabinetID {
 			return fmt.Errorf("%w: drawer does not belong to this cabinet", ErrLEDAllocationInvalid)
 		}
-		drawerAllocations, err := q.ListDrawerLEDAllocationsByDrawer(ctx, drawerID)
+		topology, err := cabinetpixels.Load(ctx, q, cabinetID)
 		if err != nil {
-			return err
+			return fmt.Errorf("%w: cannot resolve cabinet pixel capacity: %v", ErrLEDControllerConfiguration, err)
 		}
-		existingControllerID := int64(0)
-		for _, allocation := range drawerAllocations {
-			if existingControllerID == 0 {
-				existingControllerID = allocation.ControllerID
-			} else if existingControllerID != allocation.ControllerID {
-				return fmt.Errorf("%w: drawer #%d already contains ranges from multiple controllers", ErrLEDControllerConfiguration, drawerID)
-			}
-		}
-		if len(inputs) > 0 {
-			if controllerID == 0 || !memberIDs[controllerID] {
-				return fmt.Errorf("%w: select a controller assigned to this cabinet before saving drawer LED ranges", ErrLEDControllerConfiguration)
-			}
-			if existingControllerID != 0 && existingControllerID != controllerID {
-				return fmt.Errorf("%w: clear this drawer's saved LED ranges before changing its controller", ErrUnsafeLayout)
-			}
-		}
-		var controller db.Controller
-		if controllerID > 0 {
-			controller, err = q.GetController(ctx, controllerID)
-			if errors.Is(err, sql.ErrNoRows) {
-				return fmt.Errorf("%w: cabinet references missing controller #%d", ErrLEDControllerConfiguration, controllerID)
-			}
-			if err != nil {
-				return err
-			}
-		}
-		capacity := controller.LedCount
-		if len(inputs) > 0 && capacity < 1 {
-			return fmt.Errorf("%w: controller #%d has no valid positive LED capacity", ErrLEDControllerConfiguration, controller.ID)
+		if len(inputs) > 0 && topology.Total < 1 {
+			return fmt.Errorf("%w: configure at least one positive-capacity controller string before assigning pixels", ErrLEDControllerConfiguration)
 		}
 
 		existing, err := q.ListDrawerLEDAllocationsByCabinet(ctx, cabinetID)
@@ -144,7 +96,6 @@ func (s *LayoutService) SaveDrawerLEDAllocationsForController(ctx context.Contex
 		type checked struct {
 			input LEDAllocationInput
 			end   int64
-			order int64
 		}
 		checkedInputs := make([]checked, 0, len(inputs))
 		seenIDs := make(map[int64]bool, len(inputs))
@@ -159,19 +110,16 @@ func (s *LayoutService) SaveDrawerLEDAllocationsForController(ctx context.Contex
 			if err != nil {
 				return err
 			}
-			if end > capacity {
-				return ledAllocationError("range %d ends at pixel %d, beyond controller #%d capacity (%d)", i+1, end, controller.ID, capacity)
+			if end > topology.Total {
+				return ledAllocationError("range %d ends at pixel %d, beyond cabinet capacity (%d)", i+1, end, topology.Total)
 			}
 			for _, other := range others {
-				if other.ControllerID != controller.ID {
-					continue
-				}
 				otherEnd, rangeErr := ledAllocationEnd(other.StartPixel, other.PixelCount)
 				if rangeErr != nil {
-					return fmt.Errorf("%w: existing controller #%d allocation is invalid", ErrLEDControllerConfiguration, controller.ID)
+					return fmt.Errorf("%w: existing allocation #%d is invalid", ErrLEDControllerConfiguration, other.ID)
 				}
 				if input.StartPixel <= otherEnd && other.StartPixel <= end {
-					return ledAllocationError("range %d (pixels %d–%d) overlaps drawer #%d on controller #%d (pixels %d–%d)", i+1, input.StartPixel, end, other.DrawerID, controller.ID, other.StartPixel, otherEnd)
+					return ledAllocationError("range %d (pixels %d–%d) overlaps drawer #%d (pixels %d–%d)", i+1, input.StartPixel, end, other.DrawerID, other.StartPixel, otherEnd)
 				}
 			}
 			for j := 0; j < i; j++ {
@@ -180,29 +128,31 @@ func (s *LayoutService) SaveDrawerLEDAllocationsForController(ctx context.Contex
 					return ledAllocationError("ranges %d and %d on this drawer overlap (pixels %d–%d and %d–%d)", j+1, i+1, prior.input.StartPixel, prior.end, input.StartPixel, end)
 				}
 			}
-			checkedInputs = append(checkedInputs, checked{input: input, end: end, order: int64(i)})
+			checkedInputs = append(checkedInputs, checked{input: input, end: end})
 		}
 
-		for id := range byID {
-			if !seenIDs[id] {
-				if _, err := q.DeleteDrawerLEDAllocation(ctx, db.DeleteDrawerLEDAllocationParams{ID: id, CabinetID: cabinetID, DrawerID: drawerID}); err != nil {
-					return err
-				}
+		// Replace this drawer's rows together so a valid edit can move or reorder
+		// ranges without transient overlap against another row in the same drawer.
+		for _, old := range byID {
+			if _, err := q.DeleteDrawerLEDAllocation(ctx, db.DeleteDrawerLEDAllocationParams{ID: old.ID, CabinetID: cabinetID, DrawerID: drawerID}); err != nil {
+				return err
 			}
 		}
-		for _, item := range checkedInputs {
+		now := time.Now().UTC()
+		for order, item := range checkedInputs {
 			if item.input.ID == 0 {
-				if _, err := q.CreateDrawerLEDAllocation(ctx, db.CreateDrawerLEDAllocationParams{CabinetID: cabinetID, DrawerID: drawerID, ControllerID: controller.ID, StartPixel: item.input.StartPixel, PixelCount: item.input.PixelCount, DisplayOrder: item.order}); err != nil {
+				if _, err := q.CreateDrawerLEDAllocation(ctx, db.CreateDrawerLEDAllocationParams{CabinetID: cabinetID, DrawerID: drawerID, StartPixel: item.input.StartPixel, PixelCount: item.input.PixelCount, DisplayOrder: int64(order)}); err != nil {
 					return err
 				}
 				continue
 			}
-			rows, err := q.UpdateDrawerLEDAllocation(ctx, db.UpdateDrawerLEDAllocationParams{StartPixel: item.input.StartPixel, PixelCount: item.input.PixelCount, DisplayOrder: item.order, ID: item.input.ID, CabinetID: cabinetID, DrawerID: drawerID, ControllerID: controller.ID})
-			if err != nil {
+			old := byID[item.input.ID]
+			if err := q.RestoreDrawerLEDAllocation(ctx, db.RestoreDrawerLEDAllocationParams{
+				ID: old.ID, CabinetID: cabinetID, DrawerID: drawerID,
+				StartPixel: item.input.StartPixel, PixelCount: item.input.PixelCount,
+				DisplayOrder: int64(order), CreatedAt: old.CreatedAt, UpdatedAt: now,
+			}); err != nil {
 				return err
-			}
-			if rows != 1 {
-				return ledAllocationError("allocation #%d no longer belongs to this drawer and controller", item.input.ID)
 			}
 		}
 		rows, err := q.AdvanceCabinetElectricalRevision(ctx, db.AdvanceCabinetElectricalRevisionParams{ID: cabinetID, ElectricalRevision: revision})
@@ -214,4 +164,45 @@ func (s *LayoutService) SaveDrawerLEDAllocationsForController(ctx context.Contex
 		}
 		return nil
 	})
+}
+
+// SaveDrawerLEDAllocationsForController is a compatibility adapter for old
+// clients whose payload used controller-local pixels. New UI must call
+// SaveDrawerLEDAllocations with cabinet-wide coordinates.
+func (s *LayoutService) SaveDrawerLEDAllocationsForController(ctx context.Context, cabinetID, drawerID, revision, controllerID int64, inputs []LEDAllocationInput) error {
+	if len(inputs) == 0 {
+		return s.SaveDrawerLEDAllocations(ctx, cabinetID, drawerID, revision, inputs)
+	}
+	if controllerID <= 0 {
+		return ErrLEDControllerConfiguration
+	}
+	var converted []LEDAllocationInput
+	if err := s.store.ExecTx(ctx, func(q db.Querier) error {
+		topology, err := cabinetpixels.Load(ctx, q, cabinetID)
+		if err != nil {
+			return err
+		}
+		var selected *cabinetpixels.Controller
+		for i := range topology.Controllers {
+			if topology.Controllers[i].Record.ID == controllerID {
+				selected = &topology.Controllers[i]
+				break
+			}
+		}
+		if selected == nil {
+			return ErrLEDControllerConfiguration
+		}
+		converted = append([]LEDAllocationInput(nil), inputs...)
+		for i := range converted {
+			end, err := ledAllocationEnd(converted[i].StartPixel, converted[i].PixelCount)
+			if err != nil || end > selected.Pixels {
+				return ErrLEDAllocationInvalid
+			}
+			converted[i].StartPixel += selected.Start - 1
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	return s.SaveDrawerLEDAllocations(ctx, cabinetID, drawerID, revision, converted)
 }

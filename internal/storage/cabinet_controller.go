@@ -5,14 +5,16 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
+	"reflect"
 
+	"github.com/tuxedocurly/wledger/internal/cabinetpixels"
 	"github.com/tuxedocurly/wledger/internal/db"
 )
 
 var ErrCabinetControllerInvalid = errors.New("invalid cabinet controller assignment")
 
-// SaveCabinetController is the backwards-compatible single-controller form of
-// SaveCabinetControllers. A zero id clears every cabinet controller assignment.
+// SaveCabinetController is the backwards-compatible single-controller form.
 func (s *LayoutService) SaveCabinetController(ctx context.Context, cabinetID, electricalRevision, controllerID int64) error {
 	if controllerID < 0 {
 		return ErrCabinetControllerInvalid
@@ -21,13 +23,18 @@ func (s *LayoutService) SaveCabinetController(ctx context.Context, cabinetID, el
 	if controllerID > 0 {
 		ids = []int64{controllerID}
 	}
-	return s.SaveCabinetControllers(ctx, cabinetID, electricalRevision, ids)
+	return s.SaveCabinetControllersConfirmed(ctx, cabinetID, electricalRevision, ids, false)
 }
 
-// SaveCabinetControllers replaces the cabinet's controller membership without
-// changing any drawer, bin, inventory or legacy electrical-container data.
-// Removed controllers must have their drawer ranges explicitly cleared first.
+// SaveCabinetControllers preserves the supplied controller order. If that
+// changes the physical destination of any saved cabinet-wide range, the caller
+// must obtain an explicit mapping-impact confirmation and call the confirmed
+// form.
 func (s *LayoutService) SaveCabinetControllers(ctx context.Context, cabinetID, electricalRevision int64, controllerIDs []int64) error {
+	return s.SaveCabinetControllersConfirmed(ctx, cabinetID, electricalRevision, controllerIDs, false)
+}
+
+func (s *LayoutService) SaveCabinetControllersConfirmed(ctx context.Context, cabinetID, electricalRevision int64, controllerIDs []int64, confirmMappingImpact bool) error {
 	if cabinetID <= 0 || len(controllerIDs) > 5 {
 		return ErrCabinetControllerInvalid
 	}
@@ -38,7 +45,6 @@ func (s *LayoutService) SaveCabinetControllers(ctx context.Context, cabinetID, e
 		}
 		desired[id] = true
 	}
-
 	return s.store.ExecImmediateTx(ctx, func(q db.Querier) error {
 		cabinet, err := q.GetCabinet(ctx, cabinetID)
 		if errors.Is(err, sql.ErrNoRows) {
@@ -59,27 +65,31 @@ func (s *LayoutService) SaveCabinetControllers(ctx context.Context, cabinetID, e
 		for _, member := range current {
 			currentByID[member.ControllerID] = member
 		}
-		if len(currentByID) == len(desired) {
-			unchanged := true
-			for id := range desired {
-				if _, ok := currentByID[id]; !ok {
+		unchanged := len(currentByID) == len(controllerIDs)
+		if unchanged {
+			for i, id := range controllerIDs {
+				if i >= len(current) || current[i].ControllerID != id {
 					unchanged = false
 					break
 				}
 			}
-			if unchanged {
-				return nil
-			}
+		}
+		if unchanged {
+			return nil
 		}
 
-		for id := range desired {
-			if _, exists := currentByID[id]; exists {
-				continue
-			}
-			if _, err := q.GetController(ctx, id); errors.Is(err, sql.ErrNoRows) {
+		controllers := make(map[int64]db.Controller, len(controllerIDs))
+		for _, id := range controllerIDs {
+			controller, err := q.GetController(ctx, id)
+			if errors.Is(err, sql.ErrNoRows) {
 				return fmt.Errorf("%w: controller #%d does not exist", ErrCabinetControllerInvalid, id)
-			} else if err != nil {
+			}
+			if err != nil {
 				return err
+			}
+			controllers[id] = controller
+			if _, existed := currentByID[id]; existed {
+				continue
 			}
 			otherCabinet, err := q.GetCabinetByAssignedController(ctx, id)
 			if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -90,63 +100,130 @@ func (s *LayoutService) SaveCabinetControllers(ctx context.Context, cabinetID, e
 			}
 		}
 
+		oldTopology, err := cabinetpixels.Load(ctx, q, cabinetID)
+		if err != nil {
+			return fmt.Errorf("%w: current cabinet pixel topology is invalid: %v", ErrUnsafeLayout, err)
+		}
+		allocations, err := q.ListDrawerLEDAllocationsByCabinet(ctx, cabinetID)
+		if err != nil {
+			return err
+		}
+		newCapacities := make([]cabinetpixels.Capacity, 0, len(controllerIDs))
+		for slot, id := range controllerIDs {
+			controller := controllers[id]
+			strings, err := q.ListCabinetLEDStringsByController(ctx, db.ListCabinetLEDStringsByControllerParams{CabinetID: cabinetID, ControllerID: id})
+			if _, existed := currentByID[id]; !existed {
+				strings = nil
+			}
+			if err != nil {
+				return err
+			}
+			capacity := controller.LedCount
+			member, configured := currentByID[id]
+			if configured && member.StringsConfigured == 1 {
+				capacity = 0
+				for _, stringRecord := range strings {
+					if stringRecord.PixelCount < 1 || stringRecord.PixelCount > math.MaxInt64-capacity {
+						return ErrCabinetControllerInvalid
+					}
+					capacity += stringRecord.PixelCount
+				}
+			}
+			newCapacities = append(newCapacities, cabinetpixels.Capacity{ControllerID: id, Order: int64(slot), Pixels: capacity})
+		}
+		newSpans, newTotal, err := cabinetpixels.BuildSpans(newCapacities)
+		if err != nil {
+			return fmt.Errorf("%w: %v", ErrCabinetControllerInvalid, err)
+		}
+		oldSpans := make([]cabinetpixels.Span, 0, len(oldTopology.Controllers))
+		for _, controller := range oldTopology.Controllers {
+			oldSpans = append(oldSpans, controller.Span)
+		}
+		mappingImpact := false
+		var changedDrawerIDs []int64
+		for _, allocation := range allocations {
+			before, splitErr := cabinetpixels.SplitRange(allocation.StartPixel, allocation.PixelCount, oldSpans)
+			if splitErr != nil {
+				return fmt.Errorf("%w: allocation #%d is outside the current cabinet capacity", ErrUnsafeLayout, allocation.ID)
+			}
+			after, splitErr := cabinetpixels.SplitRange(allocation.StartPixel, allocation.PixelCount, newSpans)
+			if splitErr != nil {
+				return fmt.Errorf("%w: the proposed controller order leaves drawer #%d range %d–%d outside the new cabinet capacity %d; adjust the range before changing controllers", ErrUnsafeLayout, allocation.DrawerID, allocation.StartPixel, allocation.StartPixel+allocation.PixelCount-1, newTotal)
+			}
+			if !reflect.DeepEqual(before, after) {
+				mappingImpact = true
+				changedDrawerIDs = append(changedDrawerIDs, allocation.DrawerID)
+			}
+		}
+		if mappingImpact && !confirmMappingImpact {
+			return fmt.Errorf("%w: changing controller order or membership changes physical destinations for saved drawer mappings %v; review the before/after preview and confirm explicitly", ErrUnsafeLayout, uniqueIDs(changedDrawerIDs))
+		}
+
 		for id := range currentByID {
 			if desired[id] {
 				continue
 			}
-			allocations, err := q.ListDrawerLEDAllocationsByController(ctx, id)
+			strings, err := q.ListCabinetLEDStringsByController(ctx, db.ListCabinetLEDStringsByControllerParams{CabinetID: cabinetID, ControllerID: id})
 			if err != nil {
 				return err
 			}
-			if len(allocations) != 0 {
-				return fmt.Errorf("%w: clear controller #%d's %d saved drawer LED range(s) before removing it from this cabinet", ErrUnsafeLayout, id, len(allocations))
+			if len(strings) != 0 {
+				return fmt.Errorf("%w: delete controller #%d's physical strings before removing it from this cabinet", ErrUnsafeLayout, id)
 			}
 			if _, err := q.DeleteCabinetController(ctx, db.DeleteCabinetControllerParams{CabinetID: cabinetID, ControllerID: id}); err != nil {
 				return err
 			}
 		}
 
-		usedSlots := make(map[int64]bool, len(current))
+		maxSlot := int64(-1)
 		for _, member := range current {
-			if desired[member.ControllerID] {
-				usedSlots[member.Slot] = true
+			if member.Slot > maxSlot {
+				maxSlot = member.Slot
 			}
 		}
-		for _, id := range controllerIDs {
-			if _, exists := currentByID[id]; exists {
+		if maxSlot > math.MaxInt64-int64(len(current)+len(controllerIDs))-2 {
+			return ErrCabinetControllerInvalid
+		}
+		temporaryBase := maxSlot + int64(len(current)+len(controllerIDs)) + 2
+		if err := q.CreateCabinetControllerReorderGuard(ctx, cabinetID); err != nil {
+			return err
+		}
+		for index, member := range current {
+			if !desired[member.ControllerID] {
 				continue
 			}
-			slot := int64(0)
-			for slot < 5 && usedSlots[slot] {
-				slot++
-			}
-			if slot == 5 {
-				return ErrCabinetControllerInvalid
-			}
-			if err := q.CreateCabinetController(ctx, db.CreateCabinetControllerParams{CabinetID: cabinetID, ControllerID: id, Slot: slot}); err != nil {
-				return fmt.Errorf("assign controller #%d: %w", id, err)
-			}
-			usedSlots[slot] = true
-		}
-
-		// Preserve the legacy pointer whenever it remains assigned. It is NULL
-		// when that controller is removed; secondary membership is not promoted
-		// implicitly because old clients interpret this column as a single mapping.
-		legacyPrimary := cabinet.ControllerID
-		if legacyPrimary.Valid && !desired[legacyPrimary.Int64] {
-			legacyPrimary = sql.NullInt64{}
-		}
-		if !legacyPrimary.Valid && len(controllerIDs) > 0 {
-			// The first selected controller becomes the primary only when no
-			// existing primary survives this edit.
-			legacyPrimary = sql.NullInt64{Int64: controllerIDs[0], Valid: true}
-		}
-		if legacyPrimary != cabinet.ControllerID {
-			if _, err := q.UpdateCabinetController(ctx, db.UpdateCabinetControllerParams{ControllerID: legacyPrimary, ID: cabinetID}); err != nil {
+			if _, err := q.UpdateCabinetControllerSlot(ctx, db.UpdateCabinetControllerSlotParams{Slot: temporaryBase + int64(index), CabinetID: cabinetID, ControllerID: member.ControllerID}); err != nil {
 				return err
 			}
 		}
+		for index, id := range controllerIDs {
+			if _, exists := currentByID[id]; exists {
+				continue
+			}
+			if err := q.CreateCabinetController(ctx, db.CreateCabinetControllerParams{CabinetID: cabinetID, ControllerID: id, Slot: temporaryBase + int64(len(current)+index)}); err != nil {
+				return fmt.Errorf("assign controller #%d: %w", id, err)
+			}
+		}
+		for slot, id := range controllerIDs {
+			rows, err := q.UpdateCabinetControllerSlot(ctx, db.UpdateCabinetControllerSlotParams{Slot: int64(slot), CabinetID: cabinetID, ControllerID: id})
+			if err != nil {
+				return err
+			}
+			if rows != 1 {
+				return ErrCabinetControllerInvalid
+			}
+		}
+		if err := q.DeleteCabinetControllerReorderGuard(ctx, cabinetID); err != nil {
+			return err
+		}
 
+		legacyPrimary := sql.NullInt64{}
+		if len(controllerIDs) > 0 {
+			legacyPrimary = sql.NullInt64{Int64: controllerIDs[0], Valid: true}
+		}
+		if _, err := q.UpdateCabinetController(ctx, db.UpdateCabinetControllerParams{ControllerID: legacyPrimary, ID: cabinetID}); err != nil {
+			return err
+		}
 		rows, err := q.AdvanceCabinetElectricalRevision(ctx, db.AdvanceCabinetElectricalRevisionParams{ID: cabinetID, ElectricalRevision: electricalRevision})
 		if err != nil {
 			return err
@@ -156,4 +233,16 @@ func (s *LayoutService) SaveCabinetControllers(ctx context.Context, cabinetID, e
 		}
 		return nil
 	})
+}
+
+func uniqueIDs(values []int64) []int64 {
+	seen := make(map[int64]bool, len(values))
+	out := make([]int64, 0, len(values))
+	for _, value := range values {
+		if !seen[value] {
+			seen[value] = true
+			out = append(out, value)
+		}
+	}
+	return out
 }

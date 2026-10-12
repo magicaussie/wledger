@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/tuxedocurly/wledger/internal/auth"
@@ -81,8 +82,9 @@ func (h *Handler) HandleCabinetControllerSave(w http.ResponseWriter, r *http.Req
 			controllerIDs = append(controllerIDs, id)
 		}
 	}
+	confirmMappingImpact := r.FormValue("confirm_mapping_impact") == "confirm"
 	save := func() error {
-		return h.layoutService().SaveCabinetControllers(r.Context(), cabinetID, revision, controllerIDs)
+		return h.layoutService().SaveCabinetControllersConfirmed(r.Context(), cabinetID, revision, controllerIDs, confirmMappingImpact)
 	}
 	var saveErr error
 	if h.Locator != nil {
@@ -122,12 +124,19 @@ func (h *Handler) HandleDrawerLEDAllocationsSave(w http.ResponseWriter, r *http.
 	if allocations == nil {
 		allocations = []storage.LEDAllocationInput{}
 	}
-	controllerID, controllerErr := strconv.ParseInt(r.FormValue("controller_id"), 10, 64)
-	if controllerErr != nil {
-		http.Error(w, "invalid controller id", http.StatusBadRequest)
-		return
+	controllerText := strings.TrimSpace(r.FormValue("controller_id"))
+	controllerID := int64(0)
+	if controllerText != "" {
+		controllerID, err = strconv.ParseInt(controllerText, 10, 64)
+		if err != nil || controllerID < 0 {
+			http.Error(w, "invalid controller id", http.StatusBadRequest)
+			return
+		}
 	}
 	save := func() error {
+		if r.FormValue("coordinate_space") == "cabinet" || controllerText == "" {
+			return h.layoutService().SaveDrawerLEDAllocations(r.Context(), cabinetID, drawerID, revision, allocations)
+		}
 		return h.layoutService().SaveDrawerLEDAllocationsForController(r.Context(), cabinetID, drawerID, revision, controllerID, allocations)
 	}
 	var saveErr error
@@ -142,6 +151,45 @@ func (h *Handler) HandleDrawerLEDAllocationsSave(w http.ResponseWriter, r *http.
 		return
 	}
 	http.Redirect(w, r, "/storage/cabinets/"+strconv.FormatInt(cabinetID, 10)+"/edit?led_saved=1", http.StatusSeeOther)
+}
+
+func (h *Handler) HandleCabinetWiringSave(w http.ResponseWriter, r *http.Request) {
+	cabinetID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil || cabinetID <= 0 {
+		http.Error(w, "invalid cabinet id", http.StatusBadRequest)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		layoutMutationError(w, r, cabinetID, fmt.Errorf("invalid wiring form: %w", err))
+		return
+	}
+	var input storage.CabinetWiringInput
+	if err := json.Unmarshal([]byte(r.FormValue("wiring")), &input); err != nil {
+		layoutMutationError(w, r, cabinetID, fmt.Errorf("invalid cabinet wiring data: %w", err))
+		return
+	}
+	revision, err := strconv.ParseInt(r.FormValue("electrical_revision"), 10, 64)
+	if err != nil {
+		layoutMutationError(w, r, cabinetID, errors.New("invalid electrical revision"))
+		return
+	}
+	input.Revision = revision
+	confirmMappingImpact := r.FormValue("confirm_mapping_impact") == "confirm"
+	save := func() error {
+		return h.layoutService().SaveCabinetWiring(r.Context(), cabinetID, input, confirmMappingImpact)
+	}
+	var saveErr error
+	if h.Locator != nil {
+		saveErr = h.Locator.WithoutActiveSession(r.Context(), save)
+	} else {
+		saveErr = save()
+	}
+	if saveErr != nil {
+		target := "/storage/cabinets/" + strconv.FormatInt(cabinetID, 10) + "/edit?wiring_error=" + url.QueryEscape(saveErr.Error())
+		http.Redirect(w, r, target, http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, "/storage/cabinets/"+strconv.FormatInt(cabinetID, 10)+"/edit?wiring_saved=1", http.StatusSeeOther)
 }
 
 func layoutRevision(r *http.Request) (int64, error) {

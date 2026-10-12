@@ -34,8 +34,8 @@ DELETE FROM cabinet_controllers WHERE cabinet_id = ? AND controller_id = ?;
 DELETE FROM cabinet_controllers;
 
 -- name: RestoreCabinetController :exec
-INSERT INTO cabinet_controllers (cabinet_id, controller_id, slot, created_at, updated_at)
-VALUES (?, ?, ?, ?, ?);
+INSERT INTO cabinet_controllers (cabinet_id, controller_id, slot, strings_configured, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?);
 
 -- name: ListCabinets :many
 SELECT * FROM cabinets
@@ -211,3 +211,111 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 -- name: RestoreBinDrawerAttachment :exec
 INSERT INTO bin_drawer_attachments (bin_id, drawer_id, x, y, width, height, display_order, created_at, updated_at)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- name: UpdateCabinetControllerSlot :execrows
+UPDATE cabinet_controllers SET slot = ?, updated_at = CURRENT_TIMESTAMP
+WHERE cabinet_id = ? AND controller_id = ?;
+
+-- name: UpdateCabinetControllerStringsConfigured :execrows
+UPDATE cabinet_controllers SET strings_configured = ?, updated_at = CURRENT_TIMESTAMP
+WHERE cabinet_id = ? AND controller_id = ?;
+
+-- name: CreateCabinetControllerReorderGuard :exec
+INSERT INTO cabinet_controller_reorder_guard (cabinet_id) VALUES (?);
+
+-- name: DeleteCabinetControllerReorderGuard :exec
+DELETE FROM cabinet_controller_reorder_guard WHERE cabinet_id = ?;
+
+-- name: ListCabinetLEDStrings :many
+SELECT s.* FROM cabinet_led_strings s
+JOIN cabinet_controllers cc ON cc.cabinet_id = s.cabinet_id AND cc.controller_id = s.controller_id
+WHERE s.cabinet_id = ?
+ORDER BY cc.slot ASC, s.display_order ASC, s.id ASC;
+
+-- name: ListCabinetLEDStringsByController :many
+SELECT * FROM cabinet_led_strings
+WHERE cabinet_id = ? AND controller_id = ?
+ORDER BY display_order ASC, id ASC;
+
+-- name: CreateCabinetLEDString :one
+INSERT INTO cabinet_led_strings (cabinet_id, controller_id, name, display_order, pixel_count, layout_complete)
+VALUES (?, ?, ?, ?, ?, ?)
+RETURNING id;
+
+-- name: UpdateCabinetLEDString :execrows
+UPDATE cabinet_led_strings
+SET name = ?, display_order = ?, pixel_count = ?, layout_complete = ?, updated_at = CURRENT_TIMESTAMP
+WHERE id = ? AND cabinet_id = ? AND controller_id = ?;
+
+-- name: DeleteCabinetLEDString :execrows
+DELETE FROM cabinet_led_strings WHERE id = ? AND cabinet_id = ? AND controller_id = ?;
+
+-- name: ListCabinetLEDPathSections :many
+SELECT p.* FROM cabinet_led_path_sections p
+JOIN cabinet_led_strings s ON s.id = p.string_id
+WHERE s.cabinet_id = ?
+ORDER BY s.controller_id ASC, s.display_order ASC, p.display_order ASC, p.id ASC;
+
+-- name: ListCabinetLEDPathSectionsByString :many
+SELECT * FROM cabinet_led_path_sections
+WHERE string_id = ?
+ORDER BY display_order ASC, id ASC;
+
+-- name: CreateCabinetLEDPathSection :one
+INSERT INTO cabinet_led_path_sections (string_id, display_order, pixel_count, points_json)
+VALUES (?, ?, ?, ?)
+RETURNING id;
+
+-- name: UpdateCabinetLEDPathSection :execrows
+UPDATE cabinet_led_path_sections
+SET display_order = ?, pixel_count = ?, points_json = ?, updated_at = CURRENT_TIMESTAMP
+WHERE id = ? AND string_id = ?;
+
+-- name: DeleteCabinetLEDPathSectionsByString :exec
+DELETE FROM cabinet_led_path_sections WHERE string_id = ?;
+
+-- name: RestoreCabinetLEDString :exec
+INSERT INTO cabinet_led_strings (id, cabinet_id, controller_id, name, display_order, pixel_count, layout_complete, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- name: RestoreCabinetLEDPathSection :exec
+INSERT INTO cabinet_led_path_sections (id, string_id, display_order, pixel_count, points_json, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+-- name: SetControllerLEDCapacityFromStrings :execrows
+UPDATE controllers SET led_count = ? WHERE id = ?;
+
+-- name: ListPhysicalLocateSessionTargets :many
+SELECT * FROM physical_locate_session_targets
+WHERE session_id = ?
+ORDER BY controller_id ASC;
+
+-- name: ClearPhysicalLocateSessionTargets :exec
+DELETE FROM physical_locate_session_targets WHERE session_id = ?;
+
+-- name: ClearPhysicalLocateSessionTargetsForPrimaryController :exec
+DELETE FROM physical_locate_session_targets
+WHERE physical_locate_session_targets.session_id = (
+    SELECT physical_locate_sessions.session_id FROM physical_locate_sessions
+    WHERE physical_locate_sessions.controller_id = ?
+);
+
+-- name: SavePhysicalLocateSessionTarget :exec
+INSERT INTO physical_locate_session_targets
+    (session_id, controller_id, controller_address, controller_port, ranges_json, commands_json, fingerprint, may_have_received, last_error)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- name: ListAllCabinetLEDStrings :many
+SELECT * FROM cabinet_led_strings
+ORDER BY cabinet_id ASC, controller_id ASC, display_order ASC, id ASC;
+
+-- name: ListAllCabinetLEDPathSections :many
+SELECT p.* FROM cabinet_led_path_sections p
+JOIN cabinet_led_strings s ON s.id = p.string_id
+ORDER BY s.cabinet_id ASC, s.controller_id ASC, s.display_order ASC, p.display_order ASC, p.id ASC;
+
+-- name: ClearCabinetLEDPathSections :exec
+DELETE FROM cabinet_led_path_sections;
+
+-- name: ClearCabinetLEDStrings :exec
+DELETE FROM cabinet_led_strings;
