@@ -5,6 +5,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
 const net = require('node:net');
+const http = require('node:http');
 
 let baseURL = process.env.WLEDGER_URL || 'http://127.0.0.1:8080';
 const email = process.env.WLEDGER_TEST_EMAIL || 'test@example.com';
@@ -13,12 +14,52 @@ const executablePath = process.env.CHROMIUM_PATH || '/bin/chromium';
 
 (async () => {
   if (process.env.WLEDGER_URL && process.env.WLEDGER_START_SERVER !== '0') throw new Error('set WLEDGER_START_SERVER=0 when targeting an external instance');
+  if (process.env.WLEDGER_START_SERVER === '0') throw new Error('physical Locate acceptance requires the disposable app database and local mock WLED server; external controllers are not supported');
   let server;
+  let mockController;
+  let mockHost;
+  let mockPort;
   let scratchDir;
   let databasePath;
   let browser;
+  const mockControllerRequests = [];
+  const mockControllerWrites = [];
   try {
     if (process.env.WLEDGER_START_SERVER !== '0') {
+      mockController = http.createServer(async (request, response) => {
+        mockControllerRequests.push(`${request.method} ${request.url}`);
+        response.setHeader('Content-Type', 'application/json');
+        if (request.method === 'GET' && request.url === '/json/info') {
+          response.end(JSON.stringify({ mac: '02:00:00:00:00:01', leds: { count: 200, rgbw: false } }));
+          return;
+        }
+        if (request.method === 'GET' && request.url === '/json/cfg') {
+          response.end(JSON.stringify({ hw: { led: { ins: [
+            { start: 0, len: 100, rev: false, skip: 0, type: 22, pin: [2, -1, -1] },
+            { start: 100, len: 100, rev: false, skip: 0, type: 22, pin: [4, -1, -1] },
+          ] } } }));
+          return;
+        }
+        if (request.method === 'GET' && request.url === '/json/state') {
+          response.end(JSON.stringify({ on: true, seg: [
+            { id: 10, start: 0, stop: 100, on: true, fx: 0, grp: 1, spc: 0, rev: false, mi: false, of: 0 },
+            { id: 20, start: 100, stop: 200, on: true, fx: 0, grp: 1, spc: 0, rev: false, mi: false, of: 0 },
+          ] }));
+          return;
+        }
+        if (request.method === 'POST' && request.url === '/json/state') {
+          let body = '';
+          for await (const chunk of request) body += chunk;
+          mockControllerWrites.push(JSON.parse(body));
+          response.end(JSON.stringify({ success: true }));
+          return;
+        }
+        response.statusCode = 404;
+        response.end(JSON.stringify({ error: 'not found' }));
+      });
+      await new Promise((resolve, reject) => mockController.once('error', reject).listen(0, '127.0.0.1', resolve));
+      mockPort = mockController.address().port;
+      mockHost = '127.0.0.1';
       const repoRoot = path.resolve(__dirname, '../..');
       let serverCwd;
       let serverBinary;
@@ -62,14 +103,14 @@ const executablePath = process.env.CHROMIUM_PATH || '/bin/chromium';
     const capacityPosts = [];
     const hardwareRequests = [];
     const lifecyclePaths = [];
-    page.on('pageerror', error => pageErrors.push(error.message));
+    page.on('pageerror', error => pageErrors.push({ url: page.url(), stack: error.stack || error.message }));
     page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()); });
     page.on('request', request => {
       if (request.method() === 'POST' && /\/storage\/cabinets\/\d+\/edit/.test(request.url())) layoutPosts.push({ url: request.url(), body: request.postData() || '' });
       if (request.method() === 'POST' && /\/storage\/cabinets\/\d+\/controller/.test(request.url())) controllerAssignmentPosts.push({ url: request.url(), body: request.postData() || '' });
       if (request.method() === 'POST' && /\/storage\/cabinets\/\d+\/drawers\/\d+\/led/.test(request.url())) ledMappingPosts.push({ url: request.url(), body: request.postData() || '' });
       if (request.method() === 'POST' && /\/hardware\/\d+\/capacity/.test(request.url())) capacityPosts.push({ url: request.url(), body: request.postData() || '' });
-      if (/\/hardware\/(?:off|\d+\/locate)|\/locate(?:\?|\/|$)|192\.0\.2\.99|\/json\/(?:state|info)/.test(request.url())) hardwareRequests.push(request.url());
+      if (/\/hardware\/(?:off(?:\?|\/|$)|\d+\/locate(?:\?|\/|$))|\/parts\/\d+\/locate-bin|\/storage\/drawers\/\d+\/(?:locate|stop)|\/locate(?:\?|\/|$)|\/json\/(?:state|info)/.test(request.url())) hardwareRequests.push(request.url());
       if (request.method() === 'POST' && request.url().includes('/storage/cabinets/')) lifecyclePaths.push(new URL(request.url()).pathname);
     });
     page.on('dialog', dialog => dialog.accept());
@@ -96,7 +137,7 @@ const executablePath = process.env.CHROMIUM_PATH || '/bin/chromium';
     await page.getByRole('button', { name: 'Create cabinet' }).click();
     await page.waitForURL(/\/storage\/cabinets\/\d+\/edit$/);
     const cabinetID = page.url().match(/cabinets\/(\d+)\/edit$/)[1];
-    const controllerSeed = spawnSync('python3', ['-c', `import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); c.execute("INSERT INTO controllers(id,name,ip_address,port,led_count) VALUES(?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,led_count=excluded.led_count", (99003, "Persistent Mapping Test Controller", "192.0.2.99", 80, 0)); c.execute("INSERT INTO containers(id,name,controller_id,segment_id,led_start,led_count) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET led_start=excluded.led_start,led_count=excluded.led_count", (99004, "Test electrical string", 99003, 0, 0, 64)); c.commit(); c.close()`, databasePath, cabinetID], { encoding: 'utf8' });
+    const controllerSeed = spawnSync('python3', ['-c', `import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); c.execute("INSERT INTO controllers(id,name,ip_address,port,led_count) VALUES(?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,ip_address=excluded.ip_address,port=excluded.port,led_count=excluded.led_count", (99003, "Persistent Mapping Test Controller", sys.argv[3], int(sys.argv[4]), 0)); c.execute("INSERT INTO containers(id,name,controller_id,segment_id,led_start,led_count) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET led_start=excluded.led_start,led_count=excluded.led_count", (99004, "Test electrical string", 99003, 0, 0, 64)); c.commit(); c.close()`, databasePath, cabinetID, mockHost, mockPort], { encoding: 'utf8' });
     assert.equal(controllerSeed.status, 0, controllerSeed.stderr);
     await page.goto(`${baseURL}/storage/cabinets/${cabinetID}/edit`);
     await page.locator('select[x-model="controllerDraft"]').selectOption('99003');
@@ -372,17 +413,76 @@ assert.equal(Number(await drawerX.inputValue()), 10);
     await page.getByRole('button', { name: 'Archive cabinet' }).click();
     await page.waitForURL(`${baseURL}/storage/cabinets`);
 
+    assert.deepEqual(mockControllerRequests, [], 'ordinary cabinet editing must not contact the WLED mock');
+    assert.deepEqual(hardwareRequests, [], 'ordinary cabinet editing must not issue a hardware action request');
+
+    const physicalSeed = spawnSync('python3', ['-c', `import json,sqlite3,sys; c=sqlite3.connect(sys.argv[1]); c.execute("PRAGMA foreign_keys=ON"); cabinet=int(sys.argv[2]); drawers=c.execute("SELECT id FROM drawers WHERE cabinet_id=? AND archived=0 ORDER BY display_order,id", (cabinet,)).fetchall(); assert len(drawers)>=2, drawers; d1,d2=drawers[0][0],drawers[1][0]; c.execute("INSERT INTO bins(id,name,container_id,led_index,width) VALUES(?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name", (99005,"Browser second location",None,None,1)); c.execute("INSERT INTO bins(id,name,container_id,led_index,width) VALUES(?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name", (99006,"Browser unplaced location",None,None,1)); c.execute("INSERT INTO part_assignments(part_id,bin_id,quantity) VALUES(?,?,?) ON CONFLICT(part_id,bin_id) DO UPDATE SET quantity=excluded.quantity", (99002,99005,3)); c.execute("INSERT INTO part_assignments(part_id,bin_id,quantity) VALUES(?,?,?) ON CONFLICT(part_id,bin_id) DO UPDATE SET quantity=excluded.quantity", (99002,99006,1)); c.execute("INSERT INTO bin_drawer_attachments(bin_id,drawer_id,x,y,width,height,display_order) VALUES(?,?,?,?,?,?,?) ON CONFLICT(bin_id) DO UPDATE SET drawer_id=excluded.drawer_id", (99001,d1,1,1,5,5,0)); c.execute("INSERT INTO bin_drawer_attachments(bin_id,drawer_id,x,y,width,height,display_order) VALUES(?,?,?,?,?,?,?) ON CONFLICT(bin_id) DO UPDATE SET drawer_id=excluded.drawer_id", (99005,d2,1,1,5,5,0)); c.execute("INSERT INTO drawer_led_allocations(cabinet_id,drawer_id,controller_id,start_pixel,pixel_count,display_order) VALUES(?,?,?,?,?,0)", (cabinet,d2,99003,10,2)); c.commit(); print(json.dumps({"drawer1":d1,"drawer2":d2})); c.close()`, databasePath, cabinetID], { encoding: 'utf8' });
+    assert.equal(physicalSeed.status, 0, physicalSeed.stderr);
+    const physicalDrawers = JSON.parse(physicalSeed.stdout.trim());
+
+    await page.goto(`${baseURL}/hardware/99003/grid`);
+    await page.locator('input[name="locate_mapping_verified"]').check();
+    await page.locator('input[name="locate_ranges_reserved"]').check();
+    await page.getByRole('button', { name: 'Save Locate safety setting' }).click();
+    await page.waitForURL(`${baseURL}/hardware/99003/grid`);
+    assert.match(await page.locator('body').innerText(), /Output configuration snapshot saved/);
+    assert.deepEqual(mockControllerRequests.slice(0, 2), ['GET /json/info', 'GET /json/cfg']);
+
+    await page.goto(`${baseURL}/parts/99002`);
+
+    const partLocationForms = page.locator('form[action="/parts/99002/locate-bin"]');
+    assert.equal(await partLocationForms.count(), 3, 'part detail should show all three inventory locations');
+    const binOneForm = partLocationForms.filter({ has: page.locator('input[name="bin_id"][value="99001"]') });
+    const writeStart = mockControllerWrites.length;
+    await binOneForm.locator('button[title="Locate this inventory location"]').click();
+    await page.waitForURL(`${baseURL}/storage/drawers/${physicalDrawers.drawer1}?bin_id=99001`);
+    await page.locator('.border-4.border-primary').waitFor();
+    assert.match(await page.locator('.border-4.border-primary').innerText(), /#99001/);
+    assert.equal(mockControllerWrites.length - writeStart, 3, '97–104 and 150–153 should be split across WLED segments');
+    const firstLocateCommands = mockControllerWrites.slice(writeStart, writeStart + 3).map(payload => {
+      const segment = payload.seg[0];
+      return [segment.id, segment.i[0], segment.i[1]];
+    });
+    assert.deepEqual(firstLocateCommands, [[10, 96, 100], [20, 0, 4], [20, 49, 53]]);
+    await page.getByRole('button', { name: 'Stop Locate / Turn Off Allocated LEDs' }).click();
+    await page.waitForURL(`${baseURL}/storage/drawers/${physicalDrawers.drawer1}?stopped=1`);
+    assert.equal(mockControllerWrites.slice(writeStart + 3, writeStart + 6).every(payload => payload.seg[0].i[2].every(channel => channel === 0)), true, 'Stop must black only the allocated ranges');
+
+    await page.goto(`${baseURL}/parts/99002`);
+    const binTwoForm = page.locator('form[action="/parts/99002/locate-bin"]').filter({ has: page.locator('input[name="bin_id"][value="99005"]') });
+    const secondWriteStart = mockControllerWrites.length;
+    await binTwoForm.locator('button[title="Locate this inventory location"]').click();
+    await page.waitForURL(`${baseURL}/storage/drawers/${physicalDrawers.drawer2}?bin_id=99005`);
+    await page.locator('.border-4.border-primary').waitFor();
+    assert.match(await page.locator('.border-4.border-primary').innerText(), /#99005/);
+    assert.equal(mockControllerWrites.length - secondWriteStart, 1);
+    assert.deepEqual([mockControllerWrites[secondWriteStart].seg[0].id, mockControllerWrites[secondWriteStart].seg[0].i[0], mockControllerWrites[secondWriteStart].seg[0].i[1]], [10, 9, 11]);
+    await page.getByRole('button', { name: 'Stop Locate / Turn Off Allocated LEDs' }).click();
+    await page.waitForURL(`${baseURL}/storage/drawers/${physicalDrawers.drawer2}?stopped=1`);
+
+    await page.goto(`${baseURL}/parts/99002`);
+    const missingDrawerForm = page.locator('form[action="/parts/99002/locate-bin"]').filter({ has: page.locator('input[name="bin_id"][value="99006"]') });
+    const writesBeforeInvalid = mockControllerWrites.length;
+    await missingDrawerForm.locator('button[title="Locate this inventory location"]').click();
+    await page.waitForURL(/\/parts\/99002\/locate-bin$/);
+    assert.match(await page.locator('body').innerText(), /no physical drawer association/i);
+    assert.equal(mockControllerWrites.length, writesBeforeInvalid, 'invalid physical location must not write to WLED');
+    assert.equal(mockControllerRequests.filter(path => path.startsWith('POST ')).length, 8, 'mock should receive only scoped activation and stop commands');
+
     assert.ok(layoutPosts.length >= 4);
     assert.ok(layoutPosts.every(post => new URLSearchParams(post.body).get('csrf_token')));
     assert.ok(lifecyclePaths.every(url => !url.includes('undefined')));
-    assert.deepEqual(pageErrors, []);
-    const runtimeConsoleErrors = consoleErrors.filter(message => !message.includes("Blocked attempt to show a 'beforeunload' confirmation panel"));
+    assert.deepEqual(pageErrors, [], JSON.stringify(pageErrors));
+    const validationResponseErrors = consoleErrors.filter(message => message.includes('409 (Conflict)'));
+    assert.ok(validationResponseErrors.length <= 1, 'only the expected unassociated-bin HTTP 409 may be logged');
+    const runtimeConsoleErrors = consoleErrors.filter(message => !message.includes("Blocked attempt to show a 'beforeunload' confirmation panel") && !message.includes('409 (Conflict)'));
     assert.deepEqual(runtimeConsoleErrors, []);
-    assert.deepEqual(hardwareRequests, [], 'configuration must not make WLED/hardware requests');
+    assert.equal(hardwareRequests.length, 5, 'only the expected Locate/Stop actions should reach hardware routes');
     console.log(JSON.stringify({ result: 'PASS', cabinetID, emptyID, archiveID, layoutSaves: layoutPosts.length, LEDMappingSaves: ledMappingPosts.length, hardwareRequests, lifecyclePaths, pageErrors, runtimeConsoleErrors, browserWarnings: consoleErrors.length - runtimeConsoleErrors.length }));
   } finally {
     if (browser) await browser.close();
     if (server) { server.kill('SIGTERM'); await new Promise(resolve => server.once('exit', resolve)); }
+    if (mockController) await new Promise(resolve => mockController.close(resolve));
     if (scratchDir) fs.rmSync(scratchDir, { recursive: true, force: true });
   }
 })().catch(error => { console.error(error); process.exit(1); });

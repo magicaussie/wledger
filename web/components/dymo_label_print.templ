@@ -41,7 +41,7 @@ templ DymoLabelPrint(prefix string, title, subtext, qrURL string) {
 		<div class="form-control w-full">
 			<label class="label"><span class="label-text">{ i18n.T(ctx, "DymoLabelSize") }</span></label>
 			<select
-				x-model={ fmt.Sprintf("sizes[selected] == sizes[selected] && selected") }
+				x-model="selected"
 				:value="selected"
 				@change="selected = $event.target.value; onSizeChange()"
 				class="select select-bordered w-full"

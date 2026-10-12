@@ -10,6 +10,10 @@ RETURNING id, name, ip_address, is_online, created_at;
 -- name: GetControllers :many
 SELECT * FROM controllers ORDER BY name;
 
+-- name: GetControllersForCompatibility :many
+SELECT id, name, ip_address, port, mac_address, is_online, led_count, created_at
+FROM controllers ORDER BY name;
+
 -- name: GetController :one
 SELECT * FROM controllers WHERE id = ?;
 
@@ -33,3 +37,8 @@ WHERE id = ?;
 UPDATE controllers
 SET led_count = ?
 WHERE id = ? AND led_count = ?;
+
+-- name: UpdateControllerLocateMappingVerification :execrows
+UPDATE controllers
+SET locate_mapping_verified = ?, locate_mapping_fingerprint = ?
+WHERE id = ?;

@@ -209,21 +209,8 @@ func TestService_GlobalOff(t *testing.T) {
 	}
 
 	svc := NewService(store, NewClient(), slog.New(slog.NewTextHandler(io.Discard, nil)))
-	if err := svc.GlobalOff(ctx); err != nil {
-		t.Fatalf("GlobalOff: %v", err)
-	}
-
-	// GlobalOff dispatches per controller in the background; wait for BOTH the
-	// healthy and the failing controller to be attempted, with a bounded timeout.
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		mu.Lock()
-		done := okHit && failHit
-		mu.Unlock()
-		if done {
-			break
-		}
-		time.Sleep(5 * time.Millisecond)
+	if err := svc.GlobalOff(ctx); err == nil {
+		t.Fatal("GlobalOff must return an error when a controller rejects power-off")
 	}
 
 	mu.Lock()

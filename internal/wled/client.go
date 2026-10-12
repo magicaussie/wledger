@@ -5,11 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/tuxedocurly/wledger/internal/db"
 )
 
 const CacheDuration = 5 * time.Second
@@ -18,6 +21,113 @@ const CacheDuration = 5 * time.Second
 type Client struct {
 	httpClient *http.Client
 	cache      sync.Map
+}
+
+type controllerWriteGate struct {
+	mu       sync.Mutex
+	reserved bool
+}
+
+var (
+	controllerWriteGates   sync.Map
+	controllerIDWriteGates sync.Map
+	hardwareWriteLease     struct {
+		mu             sync.Mutex
+		physicalOwners map[string]struct{}
+	}
+)
+
+func writeGate(address string, port int64) *controllerWriteGate {
+	host := strings.TrimSpace(address)
+	if parsedHost, parsedPort, err := net.SplitHostPort(host); err == nil {
+		host = parsedHost
+		if value, parseErr := strconv.ParseInt(parsedPort, 10, 64); parseErr == nil && value > 0 {
+			port = value
+		}
+	} else if strings.HasPrefix(host, "[") && strings.HasSuffix(host, "]") {
+		host = host[1 : len(host)-1]
+	}
+	if port <= 0 {
+		port = 80
+	}
+	key := net.JoinHostPort(host, strconv.FormatInt(port, 10))
+	gate, _ := controllerWriteGates.LoadOrStore(key, &controllerWriteGate{})
+	return gate.(*controllerWriteGate)
+}
+
+func controllerPort(controller db.Controller) int64 {
+	if _, parsedPort, err := net.SplitHostPort(strings.TrimSpace(controller.IpAddress)); err == nil {
+		if value, parseErr := strconv.ParseInt(parsedPort, 10, 64); parseErr == nil && value > 0 {
+			return value
+		}
+	}
+	if controller.Port.Valid && controller.Port.Int64 > 0 {
+		return controller.Port.Int64
+	}
+	return 80
+}
+
+func controllerIDGate(controllerID int64) *controllerWriteGate {
+	gate, _ := controllerIDWriteGates.LoadOrStore(controllerID, &controllerWriteGate{})
+	return gate.(*controllerWriteGate)
+}
+
+// setPhysicalReservation is process-local arbitration. Reservations are keyed
+// both by stable database identity and the configured endpoint so legacy routes
+// remain blocked if an administrator changes a controller address mid-session.
+// Separate WLEDger processes must not share a controller while Locate is enabled.
+func setPhysicalReservation(sessionID string, controllerID int64, address string, port int64, reserved bool) {
+	hardwareWriteLease.mu.Lock()
+	defer hardwareWriteLease.mu.Unlock()
+	idGate := controllerIDGate(controllerID)
+	endpointGate := writeGate(address, port)
+	idGate.mu.Lock()
+	endpointGate.mu.Lock()
+	if hardwareWriteLease.physicalOwners == nil {
+		hardwareWriteLease.physicalOwners = make(map[string]struct{})
+	}
+	if reserved {
+		hardwareWriteLease.physicalOwners[sessionID] = struct{}{}
+	} else {
+		delete(hardwareWriteLease.physicalOwners, sessionID)
+	}
+	idGate.reserved = reserved
+	endpointGate.reserved = reserved
+	endpointGate.mu.Unlock()
+	idGate.mu.Unlock()
+}
+
+func withLegacyWrite(address string, port int64, action func() error) error {
+	hardwareWriteLease.mu.Lock()
+	defer hardwareWriteLease.mu.Unlock()
+	if len(hardwareWriteLease.physicalOwners) > 0 {
+		return ErrHardwareBusy
+	}
+	gate := writeGate(address, port)
+	gate.mu.Lock()
+	defer gate.mu.Unlock()
+	if gate.reserved {
+		return ErrHardwareBusy
+	}
+	return action()
+}
+
+func withLegacyController(controller db.Controller, action func() error) error {
+	hardwareWriteLease.mu.Lock()
+	defer hardwareWriteLease.mu.Unlock()
+	if len(hardwareWriteLease.physicalOwners) > 0 {
+		return ErrHardwareBusy
+	}
+	idGate := controllerIDGate(controller.ID)
+	endpointGate := writeGate(controller.IpAddress, controllerPort(controller))
+	idGate.mu.Lock()
+	endpointGate.mu.Lock()
+	defer idGate.mu.Unlock()
+	defer endpointGate.mu.Unlock()
+	if idGate.reserved || endpointGate.reserved {
+		return ErrHardwareBusy
+	}
+	return action()
 }
 
 type cachedResult struct {
@@ -67,51 +177,80 @@ func (c *Client) Ping(ctx context.Context, ip string) (bool, error) {
 
 // SetState updates the WLED state with a custom payload
 func (c *Client) SetState(ctx context.Context, ip string, payload map[string]any) error {
+	return c.setStateAt(ctx, ip, 80, payload)
+}
+
+func (c *Client) setStateAt(ctx context.Context, address string, port int64, payload map[string]any) error {
+	return withLegacyWrite(address, port, func() error {
+		return c.postStateAt(ctx, address, port, payload)
+	})
+}
+
+func (c *Client) setControllerState(ctx context.Context, controller db.Controller, payload map[string]any) error {
+	return withLegacyController(controller, func() error {
+		return c.postStateAt(ctx, controller.IpAddress, controllerPort(controller), payload)
+	})
+}
+
+func (c *Client) postStateAt(ctx context.Context, address string, port int64, payload map[string]any) error {
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return err
 	}
-
-	url := fmt.Sprintf("http://%s/json/state", ip)
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(data))
+	url := controllerURLForAddress(address, port, "/json/state")
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(data))
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
-
-	if resp.StatusCode >= 400 {
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("wled returned status: %d", resp.StatusCode)
 	}
-
 	return nil
+}
+
+func controllerURLForAddress(address string, port int64, path string) string {
+	host := strings.TrimSpace(address)
+	if parsedHost, parsedPort, err := net.SplitHostPort(host); err == nil {
+		return "http://" + net.JoinHostPort(parsedHost, parsedPort) + path
+	}
+	if strings.HasPrefix(host, "[") && !strings.HasSuffix(host, "]") {
+		return "http://" + host + path
+	}
+	if strings.HasPrefix(host, "[") && strings.HasSuffix(host, "]") {
+		host = host[1 : len(host)-1]
+	}
+	if port <= 0 {
+		port = 80
+	}
+	return "http://" + net.JoinHostPort(host, strconv.FormatInt(port, 10)) + path
 }
 
 // LightUp uses the individual LED ('i') API to light up a range
 func (c *Client) LightUp(ctx context.Context, ip string, segmentID int, index int, count int, hexColor string) error {
+	return c.lightUpAt(ctx, ip, 80, segmentID, index, count, hexColor)
+}
+
+func (c *Client) lightUpAt(ctx context.Context, address string, port int64, segmentID, index, count int, hexColor string) error {
 	rgb, err := HexToRGB(hexColor)
 	if err != nil {
 		rgb = []int{255, 255, 255}
 	}
-
 	payload := map[string]any{
 		"on": true,
 		"tt": 0,
-		"seg": []map[string]any{
-			{
-				"id": segmentID,
-				"on": true,
-				"i":  []any{index, index + count, rgb},
-			},
-		},
+		"seg": []map[string]any{{
+			"id": segmentID,
+			"on": true,
+			"i":  []any{index, index + count, rgb},
+		}},
 	}
-
-	return c.SetState(ctx, ip, payload)
+	return c.setStateAt(ctx, address, port, payload)
 }
 
 // Clear turns the controller's LEDs off. It uses the device-wide power state
@@ -120,13 +259,16 @@ func (c *Client) LightUp(ctx context.Context, ip string, segmentID int, index in
 // the transition. No segment or individual-pixel data is sent, so unrelated
 // segment configuration and effects are left untouched.
 func (c *Client) Clear(ctx context.Context, ip string) error {
-	payload := map[string]any{
-		"on":   false,
-		"live": false,
-		"tt":   0,
-	}
+	return c.clearAt(ctx, ip, 80)
+}
 
-	return c.SetState(ctx, ip, payload)
+func (c *Client) ClearController(ctx context.Context, controller db.Controller) error {
+	return c.setControllerState(ctx, controller, map[string]any{"on": false, "live": false, "tt": 0})
+}
+
+func (c *Client) clearAt(ctx context.Context, address string, port int64) error {
+	payload := map[string]any{"on": false, "live": false, "tt": 0}
+	return c.setStateAt(ctx, address, port, payload)
 }
 
 // LED modes for State.
@@ -148,37 +290,84 @@ var (
 	flashInterval = 250 * time.Millisecond
 )
 
-// Apply lights a range of LEDs according to the state. Solid states are applied
-// immediately; flash states run a bounded blink loop in the background so the
-// caller is not blocked.
+// Apply lights a range according to the state. A flash runs synchronously so
+// every state write is acknowledged before the caller reports success.
 func (c *Client) Apply(ctx context.Context, ip string, segmentID, index, count int, state State) error {
-	if state.Mode == ModeFlash {
-		go c.flash(ip, segmentID, index, count, state.Color, flashTimes, flashInterval)
-		return nil
-	}
-	return c.LightUp(ctx, ip, segmentID, index, count, state.Color)
+	return c.applyAt(ctx, ip, 80, segmentID, index, count, state)
 }
 
-// flash blinks a range between the colour and off `times` times, then leaves it
-// off. Best-effort: it stops on the first error or when the deadline passes.
-func (c *Client) flash(ip string, segmentID, index, count int, hexColor string, times int, interval time.Duration) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(times)*2*interval+time.Second)
-	defer cancel()
+func (c *Client) ApplyController(ctx context.Context, controller db.Controller, segmentID, index, count int, state State) error {
+	return withLegacyController(controller, func() error {
+		return c.applyUnlocked(ctx, controller.IpAddress, controllerPort(controller), segmentID, index, count, state)
+	})
+}
 
+func (c *Client) applyAt(ctx context.Context, address string, port int64, segmentID, index, count int, state State) error {
+	return withLegacyWrite(address, port, func() error {
+		return c.applyUnlocked(ctx, address, port, segmentID, index, count, state)
+	})
+}
+
+func (c *Client) applyUnlocked(ctx context.Context, address string, port int64, segmentID, index, count int, state State) error {
+	if state.Mode != ModeFlash {
+		return c.lightUpUnlocked(ctx, address, port, segmentID, index, count, state.Color)
+	}
+	return c.flashUnlocked(ctx, address, port, segmentID, index, count, state.Color, flashTimes, flashInterval)
+}
+
+func (c *Client) lightUpController(ctx context.Context, controller db.Controller, segmentID, index, count int, color string) error {
+	return withLegacyController(controller, func() error {
+		return c.lightUpUnlocked(ctx, controller.IpAddress, controllerPort(controller), segmentID, index, count, color)
+	})
+}
+
+func (c *Client) lightUpUnlocked(ctx context.Context, address string, port int64, segmentID, index, count int, hexColor string) error {
+	rgb, err := HexToRGB(hexColor)
+	if err != nil {
+		rgb = []int{255, 255, 255}
+	}
+	payload := map[string]any{"on": true, "tt": 0, "seg": []map[string]any{{
+		"id": segmentID, "on": true, "i": []any{index, index + count, rgb},
+	}}}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, controllerURLForAddress(address, port, "/json/state"), bytes.NewBuffer(data))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("wled returned status: %d", resp.StatusCode)
+	}
+	return nil
+}
+
+// Flash runs synchronously and holds the controller write gate for its complete
+// duration, so a physical session cannot begin between blink frames. Failures
+// are returned to the caller rather than reported as a successful background job.
+func (c *Client) flashUnlocked(ctx context.Context, address string, port int64, segmentID, index, count int, hexColor string, times int, interval time.Duration) error {
 	for i := 0; i < times; i++ {
-		if err := c.LightUp(ctx, ip, segmentID, index, count, hexColor); err != nil {
-			return
+		if err := c.lightUpUnlocked(ctx, address, port, segmentID, index, count, hexColor); err != nil {
+			return err
 		}
 		if !sleepCtx(ctx, interval) {
-			return
+			return ctx.Err()
 		}
-		if err := c.LightUp(ctx, ip, segmentID, index, count, "#000000"); err != nil {
-			return
+		if err := c.lightUpUnlocked(ctx, address, port, segmentID, index, count, "#000000"); err != nil {
+			return err
 		}
 		if !sleepCtx(ctx, interval) {
-			return
+			return ctx.Err()
 		}
 	}
+	return nil
 }
 
 func sleepCtx(ctx context.Context, d time.Duration) bool {

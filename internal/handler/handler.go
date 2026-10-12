@@ -27,6 +27,7 @@ type Handler struct {
 	Queries     db.Store
 	Session     *scs.SessionManager
 	WLED        wled.Service
+	Locator     *wled.PhysicalLocateService
 	Database    *sql.DB
 	Backup      backup.Service
 	Parts       parts.Service
@@ -67,6 +68,7 @@ func New(
 		Queries:     queries,
 		Session:     session,
 		WLED:        wledService,
+		Locator:     wled.NewPhysicalLocateService(queries, wled.NewClient()),
 		Database:    database,
 		Backup:      backupService,
 		Parts:       partsService,

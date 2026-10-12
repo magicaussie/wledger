@@ -7,25 +7,14 @@ import (
 	"github.com/tuxedocurly/wledger/internal/csrf"
 	"github.com/tuxedocurly/wledger/internal/i18n"
 	"github.com/tuxedocurly/wledger/internal/storage"
+	"github.com/tuxedocurly/wledger/internal/wled"
 	"github.com/tuxedocurly/wledger/web/components"
 	"github.com/tuxedocurly/wledger/web/layouts"
 )
 
-// Physical browsing (M6) — read-only.
-//
-// These three pages walk the PHYSICAL storage layout: cabinet -> drawer ->
-// attached bin -> stocked parts. The grouping is physical throughout: a drawer
-// belongs to its cabinet and a bin is listed only because a
-// bin_drawer_attachments row attaches it to that drawer. Nothing on these pages
-// groups by, filters on, or infers anything from a bin's legacy container_id;
-// that column is an ELECTRICAL association and is presented (if at all) as a
-// separate, clearly-labelled concept.
-//
-// Physical placement and electrical mapping are kept visually distinct: a
-// "Physical placement" badge marks the geometry read from the physical tables,
-// and an "Electrical mapping" note explains that LED behaviour is managed
-// elsewhere and is not changed here. These pages are browsing only — they add
-// no editing, drag/resize or reassignment controls and no Locate action.
+// Physical browsing reads drawer/bin placement only from the physical storage
+// tables. The drawer page also offers a separately authorized, session-owned
+// Locate action using saved controller-wide LED allocations.
 
 templ StorageCabinets(cabinets []storage.BrowseCabinet, user auth.User) {
 	@layouts.Base(i18n.T(ctx, "M6Storage"), user) {
@@ -205,9 +194,9 @@ templ StorageCabinet(cabinet storage.BrowseCabinet, user auth.User) {
 	}
 }
 
-templ StorageDrawer(detail storage.BrowseDrawerDetail, user auth.User) {
+templ StorageDrawer(detail storage.BrowseDrawerDetail, cabinetName string, user auth.User, selectedBinID int64, session *wled.PhysicalLocateSession, stopped bool) {
 	@layouts.Base(drawerName(detail.Drawer, i18n.T(ctx, "M6Drawer")), user) {
-		<div class="max-w-6xl mx-auto w-full" x-data="{ presentation: 'grid', layout: false }">
+		<div class="max-w-6xl mx-auto w-full" x-data={ drawerInitialState(selectedBinID) }>
 			@components.PageHeader(
 				drawerName(detail.Drawer, i18n.T(ctx, "M6Drawer")),
 				i18n.T(ctx, "M6DrawerDetailDescription"),
@@ -217,7 +206,34 @@ templ StorageDrawer(detail storage.BrowseDrawerDetail, user auth.User) {
 					{Label: drawerName(detail.Drawer, i18n.T(ctx, "M6Drawer"))},
 				},
 			) {
-				<span class="badge badge-ghost badge-md font-mono">{ i18n.T(ctx, "M6Drawer") } #{ fmt.Sprintf("%d", detail.Drawer.ID) }</span>
+				<div class="flex flex-wrap items-center gap-2">
+					<span class="badge badge-ghost badge-md font-mono">{ i18n.T(ctx, "M6Drawer") } #{ fmt.Sprintf("%d", detail.Drawer.ID) }</span>
+					<span class="badge badge-outline">{ cabinetName }</span>
+				</div>
+			}
+
+			if session != nil && session.DrawerID == detail.Drawer.ID {
+				<div class={ locateAlertClass(session.State) }>
+					<div class="min-w-0">
+						<strong>LED activation status: { session.State }</strong>
+						<p class="text-sm">Cabinet { session.CabinetName } · { session.DrawerName } · Bin #{ fmt.Sprintf("%d", session.BinID) } · { session.Color } · brightness { fmt.Sprintf("%d", session.Brightness) }/255</p>
+						<p class="text-xs">{ session.LastOperation } · { session.LastOperationAt.Format("2006-01-02 15:04:05 MST") }</p>
+						if session.LastSuccessfulAt != "" {
+							<p class="text-xs">Last WLED command acknowledged: { session.LastSuccessfulOperation } · { session.LastSuccessfulAt }</p>
+						}
+						if session.LastError != "" {
+						<p class="text-sm font-semibold">{ session.LastError }</p>
+						}
+					</div>
+					if user.CanWrite() && user.ID == session.OwnerID && (session.State == "active" || session.State == "partial" || session.State == "stopping") {
+						<form method="POST" action={ templ.SafeURL(fmt.Sprintf("/storage/drawers/%d/stop", detail.Drawer.ID)) }>
+							<input type="hidden" name="csrf_token" value={ csrf.TokenFromContext(ctx) }/>
+							<button class="btn btn-error" type="submit">Stop Locate / Turn Off Allocated LEDs</button>
+						</form>
+					}
+				</div>
+			} else if stopped {
+				<div class="alert alert-info mb-6" role="status">No application-owned drawer Locate session is active. Repeated Stop is safe.</div>
 			}
 
 			<div class="card bg-base-200 shadow-xl border border-base-300 mb-6">
@@ -266,7 +282,16 @@ templ StorageDrawer(detail storage.BrowseDrawerDetail, user auth.User) {
 			<div x-show="layout" x-cloak>
 				<div class="relative bg-base-200 border border-base-300 rounded-lg mb-6" style={ templ.SafeCSS(fmt.Sprintf("aspect-ratio: %g / %g", detail.Drawer.Width, detail.Drawer.Height)) }>
 					for _, bin := range detail.Bins {
-						<a href={ templ.SafeURL(fmt.Sprintf("/parts?bin=%d", bin.BinID)) } class="absolute border border-base-content bg-base-100 text-base-content overflow-auto p-2 focus-visible:outline-2 focus-visible:outline-primary" style={ templ.SafeCSS(fmt.Sprintf("left:%g%%;top:%g%%;width:%g%%;height:%g%%", 100*bin.X/detail.Drawer.Width, 100*bin.Y/detail.Drawer.Height, 100*bin.Width/detail.Drawer.Width, 100*bin.Height/detail.Drawer.Height)) }>{ bin.Name } · #{ fmt.Sprintf("%d", bin.BinID) }</a>
+						<div class={ drawerBinClass(bin.BinID, selectedBinID) } style={ templ.SafeCSS(fmt.Sprintf("left:%g%%;top:%g%%;width:%g%%;height:%g%%", 100*bin.X/detail.Drawer.Width, 100*bin.Y/detail.Drawer.Height, 100*bin.Width/detail.Drawer.Width, 100*bin.Height/detail.Drawer.Height)) }>
+							<a href={ templ.SafeURL(fmt.Sprintf("/parts?bin=%d", bin.BinID)) } class="block truncate">{ bin.Name } · #{ fmt.Sprintf("%d", bin.BinID) }</a>
+							if user.CanWrite() {
+								<form method="POST" action={ templ.SafeURL(fmt.Sprintf("/storage/drawers/%d/locate", detail.Drawer.ID)) }>
+									<input type="hidden" name="csrf_token" value={ csrf.TokenFromContext(ctx) }/>
+									<input type="hidden" name="bin_id" value={ fmt.Sprintf("%d", bin.BinID) }/>
+									<button type="submit" class="btn btn-xs btn-primary mt-1">Locate this bin</button>
+								</form>
+							}
+						</div>
 					}
 				</div>
 			</div>
@@ -279,7 +304,7 @@ templ StorageDrawer(detail storage.BrowseDrawerDetail, user auth.User) {
 							<div class="card-body p-4">
 								<div class="flex items-start justify-between gap-2">
 									<div class="min-w-0">
-										<h3 class="font-bold truncate">
+										<h3 id={ fmt.Sprintf("bin-%d", bin.BinID) } class="font-bold truncate">
 											if bin.Name != "" {
 												{ bin.Name }
 											} else {
@@ -332,6 +357,28 @@ func drawerName(drawer storage.BrowseDrawer, fallback string) string {
 		return drawer.Label
 	}
 	return fmt.Sprintf("%s #%d", fallback, drawer.ID)
+}
+
+func drawerInitialState(selectedBinID int64) string {
+	return fmt.Sprintf("{ presentation: 'grid', layout: %t }", selectedBinID > 0)
+}
+
+func drawerBinClass(binID, selectedBinID int64) string {
+	if binID == selectedBinID && selectedBinID != 0 {
+		return "absolute border-4 border-primary bg-primary/30 text-base-content overflow-auto p-2 font-bold shadow-lg z-10"
+	}
+	return "absolute border border-base-content bg-base-100 text-base-content overflow-auto p-2"
+}
+
+func locateAlertClass(state string) string {
+	switch state {
+	case "active":
+		return "alert alert-success shadow-sm mb-6"
+	case "partial", "stopping":
+		return "alert alert-warning shadow-sm mb-6"
+	default:
+		return "alert alert-info shadow-sm mb-6"
+	}
 }
 
 func drawerPartLocations(bins []storage.BrowseBin) int {

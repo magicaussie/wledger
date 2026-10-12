@@ -72,25 +72,23 @@ func resolveCoordinateSpace(ctx context.Context, q db.Querier) (string, error) {
 	return space, nil
 }
 
+// GlobalOff is an explicit controller-wide power-off command. It can turn off
+// unrelated LEDs, so it is rejected while any physical Locate session owns a
+// controller. Each request is synchronous and any controller failure is returned.
 func (s *service) GlobalOff(ctx context.Context) error {
 	controllers, err := s.store.GetControllers(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to fetch controllers: %w", err)
 	}
-
-	for _, c := range controllers {
-		go func(ctrlName, ip string) {
-			bgCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-			defer cancel()
-
-			err := s.client.Clear(bgCtx, ip)
-			if err != nil {
-				s.logger.Error("failed to clear controller", "name", ctrlName, "ip", ip, "err", err)
-			}
-		}(c.Name, c.IpAddress)
+	var failures []error
+	for _, controller := range controllers {
+		if err := s.client.ClearController(ctx, controller); err != nil {
+			wrapped := fmt.Errorf("global off failed for controller %q: %w", controller.Name, err)
+			s.logger.Error("failed to clear controller", "name", controller.Name, "ip", controller.IpAddress, "err", err)
+			failures = append(failures, wrapped)
+		}
 	}
-
-	return nil
+	return errors.Join(failures...)
 }
 
 func (s *service) LocatePart(ctx context.Context, partID int64) error {
@@ -99,10 +97,10 @@ func (s *service) LocatePart(ctx context.Context, partID int64) error {
 	// read from one consistent snapshot. The WLED commands are sent afterwards so
 	// network I/O never holds the transaction open.
 	type locateTarget struct {
-		ip    string
-		segID int
-		index int
-		width int
+		controller db.Controller
+		segID      int
+		index      int
+		width      int
 	}
 	var targets []locateTarget
 
@@ -129,6 +127,11 @@ func (s *service) LocatePart(ctx context.Context, partID int64) error {
 				continue
 			}
 
+			controller, err := q.GetController(ctx, a.ControllerID.Int64)
+			if err != nil {
+				return fmt.Errorf("failed to resolve controller for part locate: %w", err)
+			}
+
 			// Construct db.Bin from assignment row
 			bin := db.Bin{
 				ID:          a.BinID.Int64,
@@ -144,10 +147,10 @@ func (s *service) LocatePart(ctx context.Context, partID int64) error {
 			}
 
 			targets = append(targets, locateTarget{
-				ip:    a.ControllerIp.String,
-				segID: int(segID),
-				index: int(globalIdx),
-				width: int(a.Width.Int64),
+				controller: controller,
+				segID:      int(segID),
+				index:      int(globalIdx),
+				width:      int(a.Width.Int64),
 			})
 		}
 		return nil
@@ -166,13 +169,14 @@ func (s *service) LocatePart(ctx context.Context, partID int64) error {
 		settings.ColorLocate.String = "#0000FF" // Fallback
 	}
 
-	for _, t := range targets {
-		if err := s.triggerLocate(ctx, t.ip, t.segID, t.index, t.width, settings); err != nil {
-			s.logger.Error("failed to locate assignment", "err", err)
+	var failures []error
+	for _, target := range targets {
+		if err := s.triggerLocate(ctx, target.controller, target.segID, target.index, target.width, settings); err != nil {
+			s.logger.Error("failed to locate assignment", "controller_id", target.controller.ID, "err", err)
+			failures = append(failures, err)
 		}
 	}
-
-	return nil
+	return errors.Join(failures...)
 }
 
 func (s *service) LocateBin(ctx context.Context, controllerID, binID int64) error {
@@ -222,7 +226,7 @@ func (s *service) LocateBin(ctx context.Context, controllerID, binID int64) erro
 		settings.ColorLocate.String = "#0000FF"
 	}
 
-	return s.triggerLocate(ctx, controller.IpAddress, int(segID), int(globalIdx), int(width), settings)
+	return s.triggerLocate(ctx, controller, int(segID), int(globalIdx), int(width), settings)
 }
 
 // LocateDrawer lights up a drawer's full LED range so it can be found
@@ -250,11 +254,11 @@ func (s *service) LocateDrawer(ctx context.Context, controllerID, containerID in
 		color = "#0000FF"
 	}
 
-	return s.client.Apply(ctx, controller.IpAddress, int(container.SegmentID), int(container.LedStart), int(container.LedCount), State{Color: color, Mode: ModeSolid})
+	return s.client.ApplyController(ctx, controller, int(container.SegmentID), int(container.LedStart), int(container.LedCount), State{Color: color, Mode: ModeSolid})
 }
 
 // FlashError flashes a bin's LEDs in the configured error colour (default red)
-// to signal a failed action. Best-effort.
+// and returns only after every WLED command is acknowledged.
 func (s *service) FlashError(ctx context.Context, controllerID, binID int64) error {
 	// Read the coordinate space, bin mapping and drawer allocation from one
 	// consistent snapshot so a concurrent grid save cannot produce a mixed view.
@@ -310,17 +314,17 @@ func (s *service) FlashError(ctx context.Context, controllerID, binID int64) err
 		color = "#FF0000"
 	}
 
-	return s.client.Apply(ctx, controller.IpAddress, int(segID), int(globalIdx), int(width), State{Color: color, Mode: ModeFlash})
+	return s.client.ApplyController(ctx, controller, int(segID), int(globalIdx), int(width), State{Color: color, Mode: ModeFlash})
 }
 
-func (s *service) triggerLocate(ctx context.Context, ip string, segmentID, index, width int, settings db.Setting) error {
+func (s *service) triggerLocate(ctx context.Context, controller db.Controller, segmentID, index, width int, settings db.Setting) error {
 	if width < 1 {
 		width = 1
 	}
 
 	// Light Up
 	state := State{Color: settings.ColorLocate.String, Mode: ModeSolid}
-	err := s.client.Apply(ctx, ip, segmentID, index, width, state)
+	err := s.client.ApplyController(ctx, controller, segmentID, index, width, state)
 	if err != nil {
 		return err
 	}
@@ -329,13 +333,15 @@ func (s *service) triggerLocate(ctx context.Context, ip string, segmentID, index
 	if settings.EnableLocateTimeout.Bool && settings.LocateTimeoutSeconds.Int64 > 0 {
 		timeoutDuration := time.Duration(settings.LocateTimeoutSeconds.Int64) * time.Second
 
-		go func(ipAddr string, sID, idx, count int, duration time.Duration) {
+		go func(controller db.Controller, sID, idx, count int, duration time.Duration) {
 			time.Sleep(duration)
 			bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
-			_ = s.client.LightUp(bgCtx, ipAddr, sID, idx, count, "#000000")
-		}(ip, segmentID, index, width, timeoutDuration)
+			if err := s.client.lightUpController(bgCtx, controller, sID, idx, count, "#000000"); err != nil {
+				s.logger.Warn("legacy Locate auto-off was not applied", "controller_id", controller.ID, "err", err)
+			}
+		}(controller, segmentID, index, width, timeoutDuration)
 	}
 
 	return nil

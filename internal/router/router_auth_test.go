@@ -53,7 +53,10 @@ func (f *fakeWLED) total() int {
 var hardwareActionPaths = []string{
 	"/hardware/1/locate",
 	"/parts/1/locate",
+	"/parts/1/locate-bin",
 	"/drawers/1/locate",
+	"/storage/drawers/1/locate",
+	"/storage/drawers/1/stop",
 	"/hardware/off",
 }
 
@@ -183,16 +186,17 @@ func TestDrawerLEDConfigurationWritesRequireAdminAndCSRF(t *testing.T) {
 	mappingPath := "/storage/cabinets/1/drawers/1/led"
 	assignmentPath := "/storage/cabinets/1/controller"
 	capacityPath := "/hardware/1/capacity"
+	locateMappingPath := "/hardware/1/locate-mapping"
 
 	viewerCookies := env.login(t, "viewer@test.com")
-	for _, path := range []string{mappingPath, assignmentPath, capacityPath} {
+	for _, path := range []string{mappingPath, assignmentPath, capacityPath, locateMappingPath} {
 		if rr := env.post(path, viewerCookies); rr.Code != http.StatusForbidden {
 			t.Errorf("viewer POST %s = %d, want 403", path, rr.Code)
 		}
 	}
 
 	editorCookies := env.login(t, "editor@test.com")
-	for _, path := range []string{assignmentPath, capacityPath} {
+	for _, path := range []string{assignmentPath, capacityPath, locateMappingPath} {
 		if rr := env.post(path, editorCookies); rr.Code != http.StatusForbidden {
 			t.Errorf("editor POST %s = %d, want admin-only 403", path, rr.Code)
 		}
@@ -202,7 +206,7 @@ func TestDrawerLEDConfigurationWritesRequireAdminAndCSRF(t *testing.T) {
 	}
 
 	adminCookies := env.login(t, "admin@test.com")
-	for _, path := range []string{mappingPath, assignmentPath, capacityPath} {
+	for _, path := range []string{mappingPath, assignmentPath, capacityPath, locateMappingPath} {
 		if rr := env.post(path, adminCookies); rr.Code != http.StatusForbidden {
 			t.Errorf("admin POST %s without CSRF = %d, want 403", path, rr.Code)
 		}

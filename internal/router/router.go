@@ -135,6 +135,9 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 
 			r.Post("/hardware/{id}/locate", h.HandleHardwareLocate)
 			r.Post("/parts/{id}/locate", h.HandlePartLocate)
+			r.Post("/parts/{id}/locate-bin", h.HandlePhysicalPartLocate)
+			r.Post("/storage/drawers/{id}/locate", h.HandlePhysicalDrawerLocate)
+			r.Post("/storage/drawers/{id}/stop", h.HandlePhysicalDrawerStop)
 			r.Post("/drawers/{id}/locate", h.HandleDrawerLocate)
 			r.Post("/hardware/off", h.HandleGlobalOff)
 		})
@@ -151,6 +154,7 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 				r.Use(mw.RequireRole("admin"))
 				r.Use(mw.RequireCSRF)
 				r.Post("/storage/cabinets/{id}/controller", h.HandleCabinetControllerSave)
+				r.Post("/hardware/{id}/locate-mapping", h.HandleControllerLocateMappingSave)
 			})
 			r.Group(func(r chi.Router) {
 				r.Use(mw.RequireCSRF)

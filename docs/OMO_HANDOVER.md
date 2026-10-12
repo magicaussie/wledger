@@ -6,24 +6,24 @@ This is the single active development handover document. `AGENTS.md` defines
 development policy; the root `ROADMAP.md` records product requirements and design
 updates. Historical handovers are references, not active instructions.
 
-Current task: Task 046 — Permanent Drawer LED Allocation, an explicitly
-authorized database-backed extension to the M6/M7 Cabinet Designer scope.
+Current task: Task 047 — Drawer LED Locate and Hardware Control.
 
-Status at baseline: branch `development/chatgpt-m6-m7` was clean at
-`c65240efe4bef607d4acc5d1d0f54126f65d71c7`, synchronized with its origin branch.
-Task implementation adds persistent drawer LED ranges separately from physical
-layout; code, full verification, browser coverage and the local commit are complete.
-The approved push to the development branch is pending. Earlier M7
-browser-local draft notes in this handover are historical and superseded by the
-Task 046 section; those values are deliberately not imported or deleted.
+Baseline: branch `development/chatgpt-m6-m7` at
+`8e078fa509bb960b5cd80285cc614e0a9ba4ddad` (the Task 046 allocation commit),
+with a clean working tree and no observed ahead/behind status against its
+tracking ref. The owner authorizes feature implementation and tests using mock
+WLED HTTP servers, plus a local commit and push ONLY to
+`development/chatgpt-m6-m7`. This does not authorize contacting real
+controllers, activating production LEDs, deploying, production migrations or
+restores, merging to main, or modifying the archival checkout.
 
-The current owner instruction authorizes implementation, tests, documentation,
-a local commit and push ONLY to `development/chatgpt-m6-m7`. It does not
-authorize merge to main, deployment, production migration/restore, changes to
-existing live mappings, hardware activation or edits to the archival checkout.
-The implementation is additive: it does not backfill or rewrite legacy LED,
-bin, container, inventory or Locate data.
-Older authorization statements below are historical, not the current scope.
+Task 047 consumes the saved physical-drawer ranges without repurposing legacy
+containers or bin indices. Hardware activation stays disabled until an admin
+explicitly attests the controller-wide output mapping; every activation then
+re-reads WLED configuration and fails closed on unsupported topology. No real
+controller was contacted during implementation. Verification and publication
+status are recorded in the Task 047 entry below; older authorization statements
+below are historical.
 
 ## Task 046 — Permanent Drawer LED Allocation — 2026-10-12
 
@@ -98,6 +98,112 @@ Older authorization statements below are historical, not the current scope.
   field unknown to older binaries; restoring new exports requires this or a newer
   build. The new build accepts old backups but refuses old snapshots over saved
   drawer allocations so they cannot silently erase unmappable data.
+
+## Task 047 — Drawer LED Locate and Hardware Control — 2026-10-12
+
+- **Git baseline:** `development/chatgpt-m6-m7` at
+  `8e078fa509bb960b5cd80285cc614e0a9ba4ddad`; starting tree was clean.
+  User authorized implementation/testing and commit/push only to this branch;
+  real WLED requests, production LED activation, deployment, production DB
+  changes, and merging to main are prohibited.
+- **Resolution:** a selected inventory part/bin is validated against the part's
+  current assignment, then resolved through `bin_drawer_attachments` to the
+  physical drawer, cabinet controller and saved `drawer_led_allocations` inside
+  a consistent DB snapshot. Legacy `containers`, `segment_id`, and
+  `bins.led_index` are not used for this path.
+- **Safety/configuration:** migration 016 adds an admin-only, default-disabled
+  controller mapping/ownership attestation. Both output-order verification and an
+  explicit reservation of saved drawer ranges for exclusive WLEDger Locate use
+  are required. The admin confirmation reads `/json/info` and
+  `/json/cfg` and persists a fingerprint of controller identity, explicit
+  contiguous output starts, lengths, types, pins/order, and supported linear
+  mapping settings. Every Locate re-reads `/json/info`, `/json/cfg`, and
+  `/json/state` and refuses a changed fingerprint before writes; capacity/MAC,
+  matrix/custom maps, segment offsets/coverage/IDs, and target segment mode are
+  checked. WLED configurations that omit explicit start/pin geometry remain
+  disabled rather than receiving an inferred mapping. Only gap-free segment
+  geometry covering the complete configured controller is translated.
+  Unsupported RGBW, matrix/custom maps, reversed or skipped outputs,
+  grouping/spacing/reversal, active effects, missing state, or stale configuration
+  fail without a pixel write.
+- **WLED command contract:** 1-based controller ranges are converted to
+  zero-based global intervals, intersected with WLED segment `[start, stop)`
+  intervals, then emitted as one bounded `i` command per intersection. Example
+  for range 97–104 across segment 10 `[0,100)` and segment 20 `[100,200)`:
+  `POST /json/state {"seg":[{"id":10,"i":[96,100,[R,G,B]]}]}` and
+  `POST /json/state {"seg":[{"id":20,"i":[0,4,[R,G,B]]}]}`. No global power,
+  segment definitions, effects, or full pixel arrays are written. Stop sends
+  black only over explicitly reserved app-owned ranges and reports completion
+  only after positive WLED acknowledgements; it does not restore previous
+  per-pixel overrides or claim the whole controller is off.
+- **Legacy hardware arbitration:** a process-wide write lease plus controller
+  identity/endpoint gates are shared across separate `Client` instances. A
+  durable physical session reserves the app-wide lease from activation through
+  confirmed Stop/failure cleanup, including interrupted-session recovery. While
+  any physical session is active, legacy LocatePart/LocateBin/LocateDrawer,
+  FlashError, GlobalOff, generic JSON state writes and delayed legacy Locate
+  auto-off are serialized/rejected with `ErrHardwareBusy` rather than able to
+  overwrite the session, including through another configured endpoint in this
+  process. The lease mutex spans the complete request/flash sequence, so legacy
+  writes across different controllers serialize and a slow request can delay a
+  physical Locate start or another legacy write. FlashError performs its blink
+  synchronously and reports request failures. GlobalOff remains an explicit
+  controller-wide `on:false` power-off:
+  it cannot issue any write while a physical session is active, can affect
+  unrelated LED activity when no session is active, and returns aggregated
+  failures truthfully if one or more controller commands fail. If a physical
+  session starts during a multi-controller GlobalOff run, earlier controllers
+  may already have been powered off before later requests are rejected.
+- **Session/cleanup:** session ownership, selected drawer/bin/controller,
+  allocated ranges, color/brightness, topology fingerprint, last successful
+  operation, state and error are persisted. One active app session is enforced;
+  Locate switches only after cleanup of the previous highlight. The two-minute
+  timeout, restart recovery and bounded HTTP failures use safe range-off attempts;
+  configuration mismatch or missing confirmation leaves an explicit `partial`
+  state and withholds unsafe cleanup writes.
+- **UI/security:** part-detail Locate is per inventory row/bin; it redirects to
+  the physical drawer view with the selected bin layout opened and highlighted.
+  Drawer layout also has per-bin Locate and owner-only Stop/Turn Off controls.
+  Hardware action routes use editor/admin authorization plus CSRF; the mapping
+  attestation route is admin-only plus CSRF.
+- **Tests/acceptance:** mock-only WLED tests cover the 97–104 split, disjoint
+  ranges, exact segment-relative `i` payloads and exclusive stops, segment
+  protection, multiple locations, missing physical association, mapping
+  attestation/fingerprint changes, missing output geometry, offline controller,
+  active effects/segment offsets, partial failures, damaged recovery commands,
+  repeat Stop, timeout, drawer switching, concurrency, restart recovery, and
+  legacy Locate/FlashError/GlobalOff/raw-state conflicts across independent
+  `Client` instances. Go 1.25.5 was found and verified at both
+  `/home/spetchal/gotoolchain/go/bin/go` and
+  `/home/spetchal/.local/go-sdk/go/bin/go`; both report `go1.25.5 linux/amd64`.
+  Full `CGO_ENABLED=1 go test -tags fts5 -count=1 ./...`, `go vet`, and `go
+  build` pass. `npm test` passes all 20 JS behavior tests. The full Chromium
+  workflow passes against the disposable database and mock controller: regular
+  editing made zero WLED requests; part Locate selected bin 99001 in drawer 1
+  and bin 99005 in drawer 2, verified the exact cross-segment allocations,
+  highlighted each bin, stopped both ranges, and displayed the missing physical
+  association error without any WLED write. It reported no page/runtime errors;
+  one expected browser warning came from that intentional HTTP 409. `sqlc
+  generate`, `templ generate`, and `git diff --check` pass. No production
+  controller was contacted.
+- **Publication/limitations:** verified implementation is ready for the
+  authorized branch commit/push; no hardware/production operation was performed.
+  No real controller topology was inspected; activation remains disabled per
+  controller until an administrator explicitly attests it and live read-only
+  checks continue to match. The hardware gate is process-local, not a
+  multi-process lock: run one WLEDger hardware-control process per controller/
+  database while physical Locate is enabled. Another process or external WLED
+  writer can still interfere; cross-process/external arbitration remains a
+  separate architectural task. A stale/offline `partial` session retains the
+  process-wide lease and currently retries cleanup every 15 seconds without a
+  retry cap, so legacy hardware writes remain unavailable until cleanup is
+  confirmed or the stale session is explicitly resolved. Stop blackens only
+  app-owned ranges and does not restore preexisting per-pixel state; a blocked
+  legacy auto-off can therefore leave its prior unrelated legacy indication on.
+  GlobalOff is deliberately a global
+  controller power-off on unreserved controllers and may affect unrelated LED
+  activity; it refuses to write to a reserved controller and reports partial
+  failures truthfully.
 
 ## M7 LED sidebar authorization boundary — 2026-10-12
 

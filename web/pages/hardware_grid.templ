@@ -1,7 +1,10 @@
 package pages
 
 import (
+	"fmt"
+
 	"github.com/tuxedocurly/wledger/internal/auth"
+	"github.com/tuxedocurly/wledger/internal/csrf"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/i18n"
 	"github.com/tuxedocurly/wledger/web/components"
@@ -18,6 +21,34 @@ templ HardwareGrid(user auth.User, c db.Controller, containers []db.Container, b
 			<h1 class="text-3xl font-bold mt-2">{ i18n.TD(ctx, "ConfigureController", map[string]interface{}{"Name": c.Name}) }</h1>
 			<p class="opacity-70">{ i18n.T(ctx, "MapLEDsToBins") }</p>
 		</div>
+
+		if user.IsAdmin() {
+			<div class="card bg-base-100 border border-warning shadow-sm mb-6">
+				<div class="card-body p-4">
+					<h2 class="font-bold">Physical drawer Locate safety</h2>
+					<p class="text-sm">Enable only after verifying the physical outputs form continuous controller-wide logical order. Saving performs read-only WLED /json/info and /json/cfg requests and fingerprints reported output starts and pins; verification fails closed if those are missing, non-contiguous, reversed, skipped, matrix-mapped, or custom-mapped. Each Locate also checks segment coverage and mode. Do not assign ranges used by another feature: WLEDger takes exclusive ownership of saved drawer ranges during Locate. Stop sends black only to those allocated ranges, and never powers off unrelated segments. The previous per-pixel color is not restored.</p>
+					<form method="POST" action={ templ.SafeURL(fmt.Sprintf("/hardware/%d/locate-mapping", c.ID)) } class="flex flex-wrap items-center gap-3">
+						<input type="hidden" name="csrf_token" value={ csrf.TokenFromContext(ctx) }/>
+						<label class="label cursor-pointer justify-start gap-3">
+							<input type="checkbox" class="checkbox checkbox-warning" name="locate_mapping_verified" value="verified" checked={ c.LocateMappingVerified }/>
+							<span>Administrator verified this controller-wide output mapping</span>
+						</label>
+						<label class="label cursor-pointer justify-start gap-3">
+							<input type="checkbox" class="checkbox checkbox-warning" name="locate_ranges_reserved" value="reserved" checked={ c.LocateMappingVerified }/>
+							<span>Administrator reserves saved drawer LED ranges exclusively for WLEDger Locate</span>
+						</label>
+						<button class="btn btn-sm btn-warning" type="submit">Save Locate safety setting</button>
+					</form>
+					<p class="text-xs">Current setting:
+						if c.LocateMappingVerified {
+							<strong>Output configuration snapshot saved; runtime checks it before every Locate</strong>
+						} else {
+							<strong>Disabled — hardware activation is blocked</strong>
+						}
+					</p>
+				</div>
+			</div>
+		}
 
 		if binIndexSpace == "unresolved" {
 			<div class="alert alert-warning shadow-sm mb-6 flex-col items-start gap-2">

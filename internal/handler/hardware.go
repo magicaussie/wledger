@@ -197,7 +197,11 @@ func (h *Handler) HandleHardwareGridSave(w http.ResponseWriter, r *http.Request)
 func (h *Handler) HandleGlobalOff(w http.ResponseWriter, r *http.Request) {
 	err := h.WLED.GlobalOff(r.Context())
 	if err != nil {
-		h.UIError.Respond(w, r, err, "Failed to trigger global off", http.StatusInternalServerError)
+		status := http.StatusInternalServerError
+		if errors.Is(err, wled.ErrHardwareBusy) {
+			status = http.StatusConflict
+		}
+		h.UIError.Respond(w, r, err, "Failed to trigger global off", status)
 		return
 	}
 
@@ -212,8 +216,8 @@ func (h *Handler) HandleHardwareLocate(w http.ResponseWriter, r *http.Request) {
 
 	err := h.WLED.LocateBin(r.Context(), int64(cid), int64(binID))
 	if err != nil {
-		if errors.Is(err, wled.ErrCoordinateSpaceUnresolved) {
-			h.UIError.Respond(w, r, err, "Locate unavailable: LED coordinate space is unresolved", http.StatusConflict)
+		if errors.Is(err, wled.ErrCoordinateSpaceUnresolved) || errors.Is(err, wled.ErrHardwareBusy) {
+			h.UIError.Respond(w, r, err, "Locate unavailable while this controller has an active physical Locate", http.StatusConflict)
 			return
 		}
 		h.UIError.Respond(w, r, err, "Locate failed", http.StatusInternalServerError)

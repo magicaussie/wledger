@@ -938,7 +938,11 @@ func (s *service) restoreData(ctx context.Context, qtx db.Querier, manifest Mani
 		}
 	}
 	for _, c := range manifest.Controllers {
-		if err := qtx.RestoreController(ctx, db.RestoreControllerParams(c)); err != nil {
+		if err := qtx.RestoreController(ctx, db.RestoreControllerParams{
+			ID: c.ID, Name: c.Name, IpAddress: c.IpAddress, Port: c.Port,
+			MacAddress: c.MacAddress, IsOnline: c.IsOnline, LedCount: c.LedCount,
+			CreatedAt: c.CreatedAt,
+		}); err != nil {
 			return fmt.Errorf("controller restore: %w", err)
 		}
 	}

@@ -151,6 +151,7 @@ type Querier interface {
 	GetController(ctx context.Context, id int64) (Controller, error)
 	GetControllerByIP(ctx context.Context, ipAddress string) (Controller, error)
 	GetControllers(ctx context.Context) ([]Controller, error)
+	GetControllersForCompatibility(ctx context.Context) ([]GetControllersForCompatibilityRow, error)
 	// Drive from controllers so a controller with no containers (or a container with
 	// no grid-mapped bins) still appears on the dashboard. The grid filter lives in
 	// the bins LEFT JOIN so unmapped bins are dropped without dropping their
@@ -218,6 +219,7 @@ type Querier interface {
 	// unconfigured parts are not flagged. Ordered by the largest shortfall first.
 	ListLowStockParts(ctx context.Context) ([]ListLowStockPartsRow, error)
 	ListParts(ctx context.Context, arg ListPartsParams) ([]ListPartsRow, error)
+	ListPhysicalLocateSessions(ctx context.Context) ([]PhysicalLocateSession, error)
 	ListUnattachedBins(ctx context.Context) ([]ListUnattachedBinsRow, error)
 	ListUsers(ctx context.Context) ([]ListUsersRow, error)
 	MarkInspirationSeedsApplied(ctx context.Context) error
@@ -257,6 +259,7 @@ type Querier interface {
 	RestoreUser(ctx context.Context, arg RestoreUserParams) error
 	RestoreWall(ctx context.Context, arg RestoreWallParams) error
 	RestoreWallCard(ctx context.Context, arg RestoreWallCardParams) error
+	SavePhysicalLocateSession(ctx context.Context, arg SavePhysicalLocateSessionParams) (int64, error)
 	SearchParts(ctx context.Context, arg SearchPartsParams) ([]SearchPartsRow, error)
 	SetControllerOnlineStatus(ctx context.Context, arg SetControllerOnlineStatusParams) error
 	SetFlag(ctx context.Context, arg SetFlagParams) error
@@ -278,6 +281,7 @@ type Querier interface {
 	UpdateContainerAllocation(ctx context.Context, arg UpdateContainerAllocationParams) error
 	UpdateContainerConfig(ctx context.Context, arg UpdateContainerConfigParams) error
 	UpdateControllerLedCount(ctx context.Context, arg UpdateControllerLedCountParams) (int64, error)
+	UpdateControllerLocateMappingVerification(ctx context.Context, arg UpdateControllerLocateMappingVerificationParams) (int64, error)
 	UpdateControllerStatus(ctx context.Context, arg UpdateControllerStatusParams) error
 	UpdateDrawer(ctx context.Context, arg UpdateDrawerParams) (int64, error)
 	UpdateDrawerGeometry(ctx context.Context, arg UpdateDrawerGeometryParams) (int64, error)

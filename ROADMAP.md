@@ -1,9 +1,9 @@
 # WLEDger — Product Roadmap
 
-Last updated: 2026-10-11
+Last updated: 2026-10-12
 Status: Living design document — requirements discussion, not implementation authorization
 Owner: WLEDger project
-Working branch: `docs/storage-roadmap`
+Working branch: `development/chatgpt-m6-m7`
 
 ## Purpose
 
@@ -265,3 +265,78 @@ it must not infer this relationship from container names or IDs.
 **Roadmap changelog:** v0.6 — confirmed persistent controller-wide drawer
 allocation coordinates, cross-string range behavior, and separation from legacy
 segment mappings.
+
+
+## Implementation update — 2026-10-12: drawer LED Locate and hardware control
+
+**Status:** Implementation and requested mock-only Go/JavaScript/Chromium
+acceptance gates pass on `development/chatgpt-m6-m7`. This update supersedes the
+earlier statement above that Locate conversion was not implemented, but it does
+not authorize production operation.
+
+- Locate starts from a selected current part/bin assignment, follows the explicit
+  physical bin attachment to drawer/cabinet/controller, and reads only that
+  drawer's saved controller-wide LED ranges. Missing physical association,
+  missing allocation, or missing controller fails before a pixel write.
+- The conversion is controller-global 1-based to WLED segment-relative 0-based.
+  Each saved range is intersected with verified WLED segment bounds; ranges are
+  split only at those bounds. For the two-100-pixel-string example, 97–104 is
+  emitted as segment 10 `[96,100)` plus segment 20 `[0,4)` if current WLED
+  segments exactly cover `[0,200)` with those bounds.
+- Admins explicitly attest each controller's linear physical output order and
+  reserve its saved drawer ranges exclusively for WLEDger Locate. The admin
+  confirmation reads WLED `/json/info` and `/json/cfg` and saves a fingerprint
+  of controller identity and explicit contiguous output starts, lengths, types,
+  pins and ordering. Every Locate rereads `/json/info`,
+  `/json/cfg`, and `/json/state`; missing output starts/pins or a changed
+  fingerprint disables activation until re-attested. Runtime checks also reject
+  capacity mismatch, RGBW, matrix/custom maps, reversal/skips, unsupported
+  segment offsets, incomplete/overlapping segment coverage, non-solid target
+  effects, grouping/spacing/reversal, and controller-off state. Controllers
+  default to disabled.
+- State writes use only the JSON segment `i` range command, e.g.
+  `{"seg":[{"id":10,"i":[96,100,[R,G,B]]}]}`. No permanent per-drawer WLED
+  segments, global power toggle, user effect writes, or continuous pixel arrays
+  are used. Stop sends black only over the application-owned drawer ranges and
+  is not a global power-off command. Prior per-pixel overrides are not restored;
+  those ranges must be reserved for WLEDger Locate.
+- The active app-owned session is persisted, owned by the initiating user, and
+  records ranges, bin/drawer/controller, color/brightness, state and last
+  acknowledged WLED command. Drawer switching first confirms range-off for the
+  previous session. Stop is idempotent; timeout/restart cleanup retries
+  conservatively.
+  If topology or controller identity changed, cleanup is withheld and the session
+  remains visibly partial instead of claiming the LEDs are off. A process-wide
+  write lease and controller identity/endpoint gates serialize app writes across
+  all WLED client instances. While any physical session is active, all legacy
+  Locate, FlashError, GlobalOff, raw JSON state writes, and delayed auto-off writes
+  fail with a conflict; the lease remains reserved through confirmed cleanup.
+  The lease spans each legacy HTTP request/flash sequence, so writes across
+  controllers serialize and slow requests can delay a Locate start. FlashError
+  completes synchronously and propagates controller failures.
+  GlobalOff is an explicit device-wide power-off that may turn off unrelated LEDs
+  when no physical session is active; it reports failures synchronously and may
+  partially affect other controllers if a physical session starts during its
+  multi-controller run. This arbitration is process-local only: operate one
+  WLEDger hardware-control process per controller/database while physical Locate
+  is enabled; cross-process/external-writer arbitration is not implemented. A
+  stale/offline `partial` session retains the process-wide lease and retries
+  cleanup every 15 seconds without a retry cap, so legacy hardware writes remain
+  unavailable until cleanup is confirmed or the stale session is explicitly
+  resolved.
+- The inventory detail view offers Locate for each stocked bin; the drawer view
+  opens with the selected bin layout highlighted and exposes per-bin Locate and
+  Stop/Turn Off. Hardware actions use editor/admin authorization and CSRF; mapping
+  attestation is admin-only and CSRF-protected.
+- Tests use mocked WLED HTTP endpoints only. Go 1.25.5 is available from both
+  workstation toolchain paths; full `CGO_ENABLED=1 go test -tags fts5 -count=1
+  ./...`, `go vet`, and `go build` pass. `npm test` passes all 20 JavaScript
+  behavior tests. `npm run test:layout-browser` passes on a disposable database
+  and mock controller: normal editing emitted zero WLED requests; the browser
+  verified selected part/bin locations in two drawers, the 97–104 cross-segment
+  payload and a second range, exact range-off Stop, and a no-association error
+  with no pixel write. It reported zero page/runtime errors; its sole expected
+  browser warning was the deliberately exercised HTTP 409. `sqlc generate`,
+  `templ generate`, and `git diff --check` pass. No real WLED hardware was
+  contacted. Independent published-source review remains required before
+  acceptance; production activation is still unauthorized.

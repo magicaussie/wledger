@@ -15,25 +15,14 @@ import (
 	"github.com/tuxedocurly/wledger/internal/csrf"
 	"github.com/tuxedocurly/wledger/internal/i18n"
 	"github.com/tuxedocurly/wledger/internal/storage"
+	"github.com/tuxedocurly/wledger/internal/wled"
 	"github.com/tuxedocurly/wledger/web/components"
 	"github.com/tuxedocurly/wledger/web/layouts"
 )
 
-// Physical browsing (M6) — read-only.
-//
-// These three pages walk the PHYSICAL storage layout: cabinet -> drawer ->
-// attached bin -> stocked parts. The grouping is physical throughout: a drawer
-// belongs to its cabinet and a bin is listed only because a
-// bin_drawer_attachments row attaches it to that drawer. Nothing on these pages
-// groups by, filters on, or infers anything from a bin's legacy container_id;
-// that column is an ELECTRICAL association and is presented (if at all) as a
-// separate, clearly-labelled concept.
-//
-// Physical placement and electrical mapping are kept visually distinct: a
-// "Physical placement" badge marks the geometry read from the physical tables,
-// and an "Electrical mapping" note explains that LED behaviour is managed
-// elsewhere and is not changed here. These pages are browsing only — they add
-// no editing, drag/resize or reassignment controls and no Locate action.
+// Physical browsing reads drawer/bin placement only from the physical storage
+// tables. The drawer page also offers a separately authorized, session-owned
+// Locate action using saved controller-wide LED allocations.
 func StorageCabinets(cabinets []storage.BrowseCabinet, user auth.User) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -91,7 +80,7 @@ func StorageCabinets(cabinets []storage.BrowseCabinet, user auth.User) templ.Com
 					var templ_7745c5c3_Var4 string
 					templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(csrf.TokenFromContext(ctx))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 41, Col: 79}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 30, Col: 79}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 					if templ_7745c5c3_Err != nil {
@@ -130,7 +119,7 @@ func StorageCabinets(cabinets []storage.BrowseCabinet, user auth.User) templ.Com
 					var templ_7745c5c3_Var5 string
 					templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(cabinet.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 56, Col: 63}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 45, Col: 63}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 					if templ_7745c5c3_Err != nil {
@@ -143,7 +132,7 @@ func StorageCabinets(cabinets []storage.BrowseCabinet, user auth.User) templ.Com
 					var templ_7745c5c3_Var6 string
 					templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6CabinetNumber"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 58, Col: 121}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 47, Col: 121}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 					if templ_7745c5c3_Err != nil {
@@ -156,7 +145,7 @@ func StorageCabinets(cabinets []storage.BrowseCabinet, user auth.User) templ.Com
 					var templ_7745c5c3_Var7 string
 					templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", cabinet.ID))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 58, Col: 156}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 47, Col: 156}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 					if templ_7745c5c3_Err != nil {
@@ -169,7 +158,7 @@ func StorageCabinets(cabinets []storage.BrowseCabinet, user auth.User) templ.Com
 					var templ_7745c5c3_Var8 string
 					templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6PhysicalPlacement"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 61, Col: 111}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 50, Col: 111}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 					if templ_7745c5c3_Err != nil {
@@ -187,7 +176,7 @@ func StorageCabinets(cabinets []storage.BrowseCabinet, user auth.User) templ.Com
 						var templ_7745c5c3_Var9 string
 						templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6Archived"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 63, Col: 80}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 52, Col: 80}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 						if templ_7745c5c3_Err != nil {
@@ -205,7 +194,7 @@ func StorageCabinets(cabinets []storage.BrowseCabinet, user auth.User) templ.Com
 					var templ_7745c5c3_Var10 string
 					templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6ActiveDrawers"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 69, Col: 100}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 58, Col: 100}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 					if templ_7745c5c3_Err != nil {
@@ -218,7 +207,7 @@ func StorageCabinets(cabinets []storage.BrowseCabinet, user auth.User) templ.Com
 					var templ_7745c5c3_Var11 string
 					templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", len(cabinet.Drawers)))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 70, Col: 81}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 59, Col: 81}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 					if templ_7745c5c3_Err != nil {
@@ -231,7 +220,7 @@ func StorageCabinets(cabinets []storage.BrowseCabinet, user auth.User) templ.Com
 					var templ_7745c5c3_Var12 string
 					templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6CoordinateSystem"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 73, Col: 103}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 62, Col: 103}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 					if templ_7745c5c3_Err != nil {
@@ -244,7 +233,7 @@ func StorageCabinets(cabinets []storage.BrowseCabinet, user auth.User) templ.Com
 					var templ_7745c5c3_Var13 string
 					templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(cabinet.CoordinateSystem)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 74, Col: 75}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 63, Col: 75}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 					if templ_7745c5c3_Err != nil {
@@ -257,7 +246,7 @@ func StorageCabinets(cabinets []storage.BrowseCabinet, user auth.User) templ.Com
 					var templ_7745c5c3_Var14 string
 					templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6LayoutRevision"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 77, Col: 101}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 66, Col: 101}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 					if templ_7745c5c3_Err != nil {
@@ -270,7 +259,7 @@ func StorageCabinets(cabinets []storage.BrowseCabinet, user auth.User) templ.Com
 					var templ_7745c5c3_Var15 string
 					templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", cabinet.LayoutRevision))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 78, Col: 83}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 67, Col: 83}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 					if templ_7745c5c3_Err != nil {
@@ -283,7 +272,7 @@ func StorageCabinets(cabinets []storage.BrowseCabinet, user auth.User) templ.Com
 					var templ_7745c5c3_Var16 string
 					templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6ElectricalController"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 81, Col: 107}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 70, Col: 107}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 					if templ_7745c5c3_Err != nil {
@@ -297,7 +286,7 @@ func StorageCabinets(cabinets []storage.BrowseCabinet, user auth.User) templ.Com
 						var templ_7745c5c3_Var17 string
 						templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("#%d", cabinet.ControllerID.Int64))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 84, Col: 60}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 73, Col: 60}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 						if templ_7745c5c3_Err != nil {
@@ -307,7 +296,7 @@ func StorageCabinets(cabinets []storage.BrowseCabinet, user auth.User) templ.Com
 						var templ_7745c5c3_Var18 string
 						templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6None"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 86, Col: 35}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 75, Col: 35}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 						if templ_7745c5c3_Err != nil {
@@ -321,7 +310,7 @@ func StorageCabinets(cabinets []storage.BrowseCabinet, user auth.User) templ.Com
 					var templ_7745c5c3_Var19 templ.SafeURL
 					templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/storage/cabinets/%d", cabinet.ID)))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 92, Col: 81}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 81, Col: 81}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 					if templ_7745c5c3_Err != nil {
@@ -334,7 +323,7 @@ func StorageCabinets(cabinets []storage.BrowseCabinet, user auth.User) templ.Com
 					var templ_7745c5c3_Var20 string
 					templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "View"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 93, Col: 31}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 82, Col: 31}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 					if templ_7745c5c3_Err != nil {
@@ -420,7 +409,7 @@ func StorageCabinet(cabinet storage.BrowseCabinet, user auth.User) templ.Compone
 				var templ_7745c5c3_Var24 string
 				templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6CabinetNumber"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 117, Col: 88}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 106, Col: 88}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 				if templ_7745c5c3_Err != nil {
@@ -433,7 +422,7 @@ func StorageCabinet(cabinet storage.BrowseCabinet, user auth.User) templ.Compone
 				var templ_7745c5c3_Var25 string
 				templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", cabinet.ID))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 117, Col: 123}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 106, Col: 123}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 				if templ_7745c5c3_Err != nil {
@@ -451,7 +440,7 @@ func StorageCabinet(cabinet storage.BrowseCabinet, user auth.User) templ.Compone
 					var templ_7745c5c3_Var26 templ.SafeURL
 					templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/storage/cabinets/%d/edit", cabinet.ID)))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 119, Col: 114}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 108, Col: 114}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 					if templ_7745c5c3_Err != nil {
@@ -486,7 +475,7 @@ func StorageCabinet(cabinet storage.BrowseCabinet, user auth.User) templ.Compone
 			var templ_7745c5c3_Var27 string
 			templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6PhysicalPlacement"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 127, Col: 108}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 116, Col: 108}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 			if templ_7745c5c3_Err != nil {
@@ -504,7 +493,7 @@ func StorageCabinet(cabinet storage.BrowseCabinet, user auth.User) templ.Compone
 				var templ_7745c5c3_Var28 string
 				templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6Archived"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 129, Col: 77}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 118, Col: 77}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 				if templ_7745c5c3_Err != nil {
@@ -522,7 +511,7 @@ func StorageCabinet(cabinet storage.BrowseCabinet, user auth.User) templ.Compone
 			var templ_7745c5c3_Var29 string
 			templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6ElectricalMappingNotice"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 133, Col: 48}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 122, Col: 48}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 			if templ_7745c5c3_Err != nil {
@@ -535,7 +524,7 @@ func StorageCabinet(cabinet storage.BrowseCabinet, user auth.User) templ.Compone
 			var templ_7745c5c3_Var30 string
 			templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6CoordinateSystem"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 138, Col: 100}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 127, Col: 100}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 			if templ_7745c5c3_Err != nil {
@@ -548,7 +537,7 @@ func StorageCabinet(cabinet storage.BrowseCabinet, user auth.User) templ.Compone
 			var templ_7745c5c3_Var31 string
 			templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(cabinet.CoordinateSystem)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 139, Col: 72}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 128, Col: 72}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
 			if templ_7745c5c3_Err != nil {
@@ -561,7 +550,7 @@ func StorageCabinet(cabinet storage.BrowseCabinet, user auth.User) templ.Compone
 			var templ_7745c5c3_Var32 string
 			templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6LayoutRevision"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 142, Col: 98}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 131, Col: 98}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
 			if templ_7745c5c3_Err != nil {
@@ -574,7 +563,7 @@ func StorageCabinet(cabinet storage.BrowseCabinet, user auth.User) templ.Compone
 			var templ_7745c5c3_Var33 string
 			templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", cabinet.LayoutRevision))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 143, Col: 80}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 132, Col: 80}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
 			if templ_7745c5c3_Err != nil {
@@ -587,7 +576,7 @@ func StorageCabinet(cabinet storage.BrowseCabinet, user auth.User) templ.Compone
 			var templ_7745c5c3_Var34 string
 			templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6ElectricalRevision"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 146, Col: 102}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 135, Col: 102}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 			if templ_7745c5c3_Err != nil {
@@ -600,7 +589,7 @@ func StorageCabinet(cabinet storage.BrowseCabinet, user auth.User) templ.Compone
 			var templ_7745c5c3_Var35 string
 			templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", cabinet.ElectricalRevision))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 147, Col: 84}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 136, Col: 84}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
 			if templ_7745c5c3_Err != nil {
@@ -613,7 +602,7 @@ func StorageCabinet(cabinet storage.BrowseCabinet, user auth.User) templ.Compone
 			var templ_7745c5c3_Var36 string
 			templ_7745c5c3_Var36, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6ElectricalController"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 150, Col: 104}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 139, Col: 104}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var36))
 			if templ_7745c5c3_Err != nil {
@@ -627,7 +616,7 @@ func StorageCabinet(cabinet storage.BrowseCabinet, user auth.User) templ.Compone
 				var templ_7745c5c3_Var37 string
 				templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("#%d", cabinet.ControllerID.Int64))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 153, Col: 57}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 142, Col: 57}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var37))
 				if templ_7745c5c3_Err != nil {
@@ -637,7 +626,7 @@ func StorageCabinet(cabinet storage.BrowseCabinet, user auth.User) templ.Compone
 				var templ_7745c5c3_Var38 string
 				templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6None"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 155, Col: 32}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 144, Col: 32}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var38))
 				if templ_7745c5c3_Err != nil {
@@ -656,7 +645,7 @@ func StorageCabinet(cabinet storage.BrowseCabinet, user auth.User) templ.Compone
 				var templ_7745c5c3_Var39 string
 				templ_7745c5c3_Var39, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues(templ.SafeCSS(fmt.Sprintf("aspect-ratio: %g / %g", cabinet.LayoutWidth, cabinet.LayoutHeight)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 164, Col: 179}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 153, Col: 179}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var39))
 				if templ_7745c5c3_Err != nil {
@@ -674,7 +663,7 @@ func StorageCabinet(cabinet storage.BrowseCabinet, user auth.User) templ.Compone
 					var templ_7745c5c3_Var40 templ.SafeURL
 					templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/storage/drawers/%d", drawer.ID)))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 166, Col: 76}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 155, Col: 76}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var40))
 					if templ_7745c5c3_Err != nil {
@@ -687,7 +676,7 @@ func StorageCabinet(cabinet storage.BrowseCabinet, user auth.User) templ.Compone
 					var templ_7745c5c3_Var41 string
 					templ_7745c5c3_Var41, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues(templ.SafeCSS(fmt.Sprintf("left:%g%%;top:%g%%;width:%g%%;height:%g%%", 100*drawer.X/cabinet.LayoutWidth, 100*drawer.Y/cabinet.LayoutHeight, 100*drawer.Width/cabinet.LayoutWidth, 100*drawer.Height/cabinet.LayoutHeight)))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 166, Col: 442}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 155, Col: 442}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var41))
 					if templ_7745c5c3_Err != nil {
@@ -700,7 +689,7 @@ func StorageCabinet(cabinet storage.BrowseCabinet, user auth.User) templ.Compone
 					var templ_7745c5c3_Var42 string
 					templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.JoinStringErrs(drawerName(drawer, i18n.T(ctx, "M6Drawer")))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 166, Col: 489}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 155, Col: 489}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var42))
 					if templ_7745c5c3_Err != nil {
@@ -723,7 +712,7 @@ func StorageCabinet(cabinet storage.BrowseCabinet, user auth.User) templ.Compone
 			var templ_7745c5c3_Var43 string
 			templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6DrawersLabel"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 172, Col: 35}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 161, Col: 35}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var43))
 			if templ_7745c5c3_Err != nil {
@@ -736,7 +725,7 @@ func StorageCabinet(cabinet storage.BrowseCabinet, user auth.User) templ.Compone
 			var templ_7745c5c3_Var44 string
 			templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", len(cabinet.Drawers)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 172, Col: 82}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 161, Col: 82}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var44))
 			if templ_7745c5c3_Err != nil {
@@ -764,7 +753,7 @@ func StorageCabinet(cabinet storage.BrowseCabinet, user auth.User) templ.Compone
 					var templ_7745c5c3_Var45 templ.SafeURL
 					templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/storage/drawers/%d", drawer.ID)))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 181, Col: 74}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 170, Col: 74}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var45))
 					if templ_7745c5c3_Err != nil {
@@ -778,7 +767,7 @@ func StorageCabinet(cabinet storage.BrowseCabinet, user auth.User) templ.Compone
 						var templ_7745c5c3_Var46 string
 						templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.JoinStringErrs(drawer.Label)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 188, Col: 25}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 177, Col: 25}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var46))
 						if templ_7745c5c3_Err != nil {
@@ -788,7 +777,7 @@ func StorageCabinet(cabinet storage.BrowseCabinet, user auth.User) templ.Compone
 						var templ_7745c5c3_Var47 string
 						templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6Drawer"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 190, Col: 36}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 179, Col: 36}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var47))
 						if templ_7745c5c3_Err != nil {
@@ -802,7 +791,7 @@ func StorageCabinet(cabinet storage.BrowseCabinet, user auth.User) templ.Compone
 					var templ_7745c5c3_Var48 string
 					templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", drawer.ID))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 193, Col: 102}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 182, Col: 102}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var48))
 					if templ_7745c5c3_Err != nil {
@@ -815,7 +804,7 @@ func StorageCabinet(cabinet storage.BrowseCabinet, user auth.User) templ.Compone
 					var templ_7745c5c3_Var49 string
 					templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%g × %g", drawer.Width, drawer.Height))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 196, Col: 63}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 185, Col: 63}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var49))
 					if templ_7745c5c3_Err != nil {
@@ -828,7 +817,7 @@ func StorageCabinet(cabinet storage.BrowseCabinet, user auth.User) templ.Compone
 					var templ_7745c5c3_Var50 string
 					templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%g, %g", drawer.X, drawer.Y))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 196, Col: 116}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 185, Col: 116}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var50))
 					if templ_7745c5c3_Err != nil {
@@ -841,7 +830,7 @@ func StorageCabinet(cabinet storage.BrowseCabinet, user auth.User) templ.Compone
 					var templ_7745c5c3_Var51 string
 					templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6OpenDrawerToViewBins"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 198, Col: 92}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 187, Col: 92}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var51))
 					if templ_7745c5c3_Err != nil {
@@ -871,7 +860,7 @@ func StorageCabinet(cabinet storage.BrowseCabinet, user auth.User) templ.Compone
 	})
 }
 
-func StorageDrawer(detail storage.BrowseDrawerDetail, user auth.User) templ.Component {
+func StorageDrawer(detail storage.BrowseDrawerDetail, cabinetName string, user auth.User, selectedBinID int64, session *wled.PhysicalLocateSession, stopped bool) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -904,11 +893,24 @@ func StorageDrawer(detail storage.BrowseDrawerDetail, user auth.User) templ.Comp
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 66, "<div class=\"max-w-6xl mx-auto w-full\" x-data=\"{ presentation: 'grid', layout: false }\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 66, "<div class=\"max-w-6xl mx-auto w-full\" x-data=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Var54 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+			var templ_7745c5c3_Var54 string
+			templ_7745c5c3_Var54, templ_7745c5c3_Err = templ.JoinStringErrs(drawerInitialState(selectedBinID))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 199, Col: 82}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var54))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 67, "\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Var55 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 				templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 				templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
 				if !templ_7745c5c3_IsBuffer {
@@ -920,33 +922,46 @@ func StorageDrawer(detail storage.BrowseDrawerDetail, user auth.User) templ.Comp
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 67, "<span class=\"badge badge-ghost badge-md font-mono\">")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var55 string
-				templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6Drawer"))
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 220, Col: 80}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var55))
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 68, " #")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 68, "<div class=\"flex flex-wrap items-center gap-2\"><span class=\"badge badge-ghost badge-md font-mono\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var56 string
-				templ_7745c5c3_Var56, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", detail.Drawer.ID))
+				templ_7745c5c3_Var56, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6Drawer"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 220, Col: 121}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 210, Col: 81}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var56))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 69, "</span>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 69, " #")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var57 string
+				templ_7745c5c3_Var57, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", detail.Drawer.ID))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 210, Col: 122}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var57))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 70, "</span> <span class=\"badge badge-outline\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var58 string
+				templ_7745c5c3_Var58, templ_7745c5c3_Err = templ.JoinStringErrs(cabinetName)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 211, Col: 52}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var58))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 71, "</span></div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -960,206 +975,430 @@ func StorageDrawer(detail storage.BrowseDrawerDetail, user auth.User) templ.Comp
 					{Label: fmt.Sprintf("%s #%d", i18n.T(ctx, "M6CabinetNumber"), detail.Drawer.CabinetID), URL: fmt.Sprintf("/storage/cabinets/%d", detail.Drawer.CabinetID)},
 					{Label: drawerName(detail.Drawer, i18n.T(ctx, "M6Drawer"))},
 				},
-			).Render(templ.WithChildren(ctx, templ_7745c5c3_Var54), templ_7745c5c3_Buffer)
+			).Render(templ.WithChildren(ctx, templ_7745c5c3_Var55), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 70, "<div class=\"card bg-base-200 shadow-xl border border-base-300 mb-6\"><div class=\"card-body p-5\"><div class=\"flex flex-wrap items-center gap-2\"><span class=\"badge badge-ghost badge-sm uppercase tracking-wider\">")
+			if session != nil && session.DrawerID == detail.Drawer.ID {
+				var templ_7745c5c3_Var59 = []any{locateAlertClass(session.State)}
+				templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var59...)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 72, "<div class=\"")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var60 string
+				templ_7745c5c3_Var60, templ_7745c5c3_Err = templ.JoinStringErrs(templ.CSSClasses(templ_7745c5c3_Var59).String())
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 1, Col: 0}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var60))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 73, "\"><div class=\"min-w-0\"><strong>LED activation status: ")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var61 string
+				templ_7745c5c3_Var61, templ_7745c5c3_Err = templ.JoinStringErrs(session.State)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 218, Col: 52}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var61))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 74, "</strong><p class=\"text-sm\">Cabinet ")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var62 string
+				templ_7745c5c3_Var62, templ_7745c5c3_Err = templ.JoinStringErrs(session.CabinetName)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 219, Col: 54}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var62))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 75, " · ")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var63 string
+				templ_7745c5c3_Var63, templ_7745c5c3_Err = templ.JoinStringErrs(session.DrawerName)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 219, Col: 80}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var63))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 76, " · Bin #")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var64 string
+				templ_7745c5c3_Var64, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", session.BinID))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 219, Col: 125}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var64))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 77, " · ")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var65 string
+				templ_7745c5c3_Var65, templ_7745c5c3_Err = templ.JoinStringErrs(session.Color)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 219, Col: 146}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var65))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 78, " · brightness ")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var66 string
+				templ_7745c5c3_Var66, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", session.Brightness))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 219, Col: 202}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var66))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 79, "/255</p><p class=\"text-xs\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var67 string
+				templ_7745c5c3_Var67, templ_7745c5c3_Err = templ.JoinStringErrs(session.LastOperation)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 220, Col: 48}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var67))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 80, " · ")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var68 string
+				templ_7745c5c3_Var68, templ_7745c5c3_Err = templ.JoinStringErrs(session.LastOperationAt.Format("2006-01-02 15:04:05 MST"))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 220, Col: 113}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var68))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 81, "</p>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				if session.LastSuccessfulAt != "" {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 82, "<p class=\"text-xs\">Last WLED command acknowledged: ")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var69 string
+					templ_7745c5c3_Var69, templ_7745c5c3_Err = templ.JoinStringErrs(session.LastSuccessfulOperation)
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 222, Col: 91}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var69))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 83, " · ")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var70 string
+					templ_7745c5c3_Var70, templ_7745c5c3_Err = templ.JoinStringErrs(session.LastSuccessfulAt)
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 222, Col: 123}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var70))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 84, "</p>")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+				}
+				if session.LastError != "" {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 85, "<p class=\"text-sm font-semibold\">")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var71 string
+					templ_7745c5c3_Var71, templ_7745c5c3_Err = templ.JoinStringErrs(session.LastError)
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 225, Col: 58}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var71))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 86, "</p>")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 87, "</div>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				if user.CanWrite() && user.ID == session.OwnerID && (session.State == "active" || session.State == "partial" || session.State == "stopping") {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 88, "<form method=\"POST\" action=\"")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var72 templ.SafeURL
+					templ_7745c5c3_Var72, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/storage/drawers/%d/stop", detail.Drawer.ID)))
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 229, Col: 107}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var72))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 89, "\"><input type=\"hidden\" name=\"csrf_token\" value=\"")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var73 string
+					templ_7745c5c3_Var73, templ_7745c5c3_Err = templ.JoinStringErrs(csrf.TokenFromContext(ctx))
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 230, Col: 80}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var73))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 90, "\"> <button class=\"btn btn-error\" type=\"submit\">Stop Locate / Turn Off Allocated LEDs</button></form>")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 91, "</div>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			} else if stopped {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 92, "<div class=\"alert alert-info mb-6\" role=\"status\">No application-owned drawer Locate session is active. Repeated Stop is safe.</div>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 93, "<div class=\"card bg-base-200 shadow-xl border border-base-300 mb-6\"><div class=\"card-body p-5\"><div class=\"flex flex-wrap items-center gap-2\"><span class=\"badge badge-ghost badge-sm uppercase tracking-wider\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var57 string
-			templ_7745c5c3_Var57, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6PhysicalPlacement"))
+			var templ_7745c5c3_Var74 string
+			templ_7745c5c3_Var74, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6PhysicalPlacement"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 226, Col: 108}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 242, Col: 108}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var57))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 71, "</span> <span class=\"badge badge-outline badge-sm uppercase tracking-wider\">")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var74))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var58 string
-			templ_7745c5c3_Var58, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6ElectricalMappingSeparate"))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 227, Col: 118}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var58))
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 94, "</span> <span class=\"badge badge-outline badge-sm uppercase tracking-wider\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 72, "</span> <span class=\"badge badge-ghost badge-sm font-mono\">")
+			var templ_7745c5c3_Var75 string
+			templ_7745c5c3_Var75, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6ElectricalMappingSeparate"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 243, Col: 118}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var75))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var59 string
-			templ_7745c5c3_Var59, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6BinCountLabel"))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 228, Col: 89}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var59))
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 95, "</span> <span class=\"badge badge-ghost badge-sm font-mono\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 73, ": ")
+			var templ_7745c5c3_Var76 string
+			templ_7745c5c3_Var76, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6BinCountLabel"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 244, Col: 89}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var76))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var60 string
-			templ_7745c5c3_Var60, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", len(detail.Bins)))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 228, Col: 130}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var60))
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 96, ": ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 74, " · ")
+			var templ_7745c5c3_Var77 string
+			templ_7745c5c3_Var77, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", len(detail.Bins)))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 244, Col: 130}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var77))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var61 string
-			templ_7745c5c3_Var61, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6UnitCountLabel"))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 228, Col: 169}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var61))
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 97, " · ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 75, ": ")
+			var templ_7745c5c3_Var78 string
+			templ_7745c5c3_Var78, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6UnitCountLabel"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 244, Col: 169}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var78))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var62 string
-			templ_7745c5c3_Var62, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", totalUnits(detail.Bins)))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 228, Col: 217}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var62))
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 98, ": ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 76, "</span></div><p class=\"text-sm text-base-content/80 mt-2\">")
+			var templ_7745c5c3_Var79 string
+			templ_7745c5c3_Var79, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", totalUnits(detail.Bins)))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 244, Col: 217}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var79))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var63 string
-			templ_7745c5c3_Var63, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6PhysicalVsElectricalExplanation"))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 231, Col: 56}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var63))
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 99, "</span></div><p class=\"text-sm text-base-content/80 mt-2\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 77, "</p><div class=\"divider my-2\"></div><p class=\"text-xs font-mono text-base-content/80\">")
+			var templ_7745c5c3_Var80 string
+			templ_7745c5c3_Var80, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6PhysicalVsElectricalExplanation"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 247, Col: 56}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var80))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var64 string
-			templ_7745c5c3_Var64, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6DrawerGeometry"))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 235, Col: 39}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var64))
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 100, "</p><div class=\"divider my-2\"></div><p class=\"text-xs font-mono text-base-content/80\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 78, ": ")
+			var templ_7745c5c3_Var81 string
+			templ_7745c5c3_Var81, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6DrawerGeometry"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 251, Col: 39}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var81))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var65 string
-			templ_7745c5c3_Var65, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%g × %g", detail.Drawer.Width, detail.Drawer.Height))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 235, Col: 111}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var65))
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 101, ": ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 79, " ")
+			var templ_7745c5c3_Var82 string
+			templ_7745c5c3_Var82, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%g × %g", detail.Drawer.Width, detail.Drawer.Height))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 251, Col: 111}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var82))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var66 string
-			templ_7745c5c3_Var66, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6CoordinateAt"))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 235, Col: 145}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var66))
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 102, " ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 80, " (")
+			var templ_7745c5c3_Var83 string
+			templ_7745c5c3_Var83, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6CoordinateAt"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 251, Col: 145}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var83))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var67 string
-			templ_7745c5c3_Var67, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%g, %g", detail.Drawer.X, detail.Drawer.Y))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 235, Col: 206}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var67))
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 103, " (")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 81, ")</p></div></div><div class=\"flex flex-wrap gap-2 mb-6\" role=\"group\" aria-label=\"")
+			var templ_7745c5c3_Var84 string
+			templ_7745c5c3_Var84, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%g, %g", detail.Drawer.X, detail.Drawer.Y))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 251, Col: 206}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var84))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var68 string
-			templ_7745c5c3_Var68, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6Presentation"))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 240, Col: 97}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var68))
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 104, ")</p></div></div><div class=\"flex flex-wrap gap-2 mb-6\" role=\"group\" aria-label=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 82, "\"><button type=\"button\" class=\"btn btn-outline\" x-on:click=\"layout = false; presentation = 'grid'\" x-bind:aria-pressed=\"!layout && presentation === 'grid'\">")
+			var templ_7745c5c3_Var85 string
+			templ_7745c5c3_Var85, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6Presentation"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 256, Col: 97}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var85))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var69 string
-			templ_7745c5c3_Var69, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6Grid"))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 241, Col: 181}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var69))
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 105, "\"><button type=\"button\" class=\"btn btn-outline\" x-on:click=\"layout = false; presentation = 'grid'\" x-bind:aria-pressed=\"!layout && presentation === 'grid'\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 83, "</button> <button type=\"button\" class=\"btn btn-outline\" x-on:click=\"layout = false; presentation = 'list'\" x-bind:aria-pressed=\"!layout && presentation === 'list'\">")
+			var templ_7745c5c3_Var86 string
+			templ_7745c5c3_Var86, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6Grid"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 257, Col: 181}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var86))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var70 string
-			templ_7745c5c3_Var70, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6List"))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 242, Col: 181}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var70))
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 106, "</button> <button type=\"button\" class=\"btn btn-outline\" x-on:click=\"layout = false; presentation = 'list'\" x-bind:aria-pressed=\"!layout && presentation === 'list'\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 84, "</button> <button type=\"button\" class=\"btn btn-outline\" x-on:click=\"layout = !layout\" x-bind:aria-pressed=\"layout\">")
+			var templ_7745c5c3_Var87 string
+			templ_7745c5c3_Var87, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6List"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 258, Col: 181}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var87))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var71 string
-			templ_7745c5c3_Var71, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6ViewBinLayout"))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 243, Col: 141}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var71))
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 107, "</button> <button type=\"button\" class=\"btn btn-outline\" x-on:click=\"layout = !layout\" x-bind:aria-pressed=\"layout\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 85, "</button></div><div x-show=\"!layout\">")
+			var templ_7745c5c3_Var88 string
+			templ_7745c5c3_Var88, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6ViewBinLayout"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 259, Col: 141}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var88))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 108, "</button></div><div x-show=\"!layout\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1169,195 +1408,262 @@ func StorageDrawer(detail storage.BrowseDrawerDetail, user auth.User) templ.Comp
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 86, "<div x-bind:class=\"presentation === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6' : 'flex flex-col gap-4 mb-6'\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 109, "<div x-bind:class=\"presentation === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6' : 'flex flex-col gap-4 mb-6'\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			for _, bin := range detail.Bins {
 				for _, part := range bin.Contents {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 87, "<article class=\"card bg-base-200 border border-base-300\"><div class=\"card-body p-4\">")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 110, "<article class=\"card bg-base-200 border border-base-300\"><div class=\"card-body p-4\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					if part.ImagePath.Valid && part.ImagePath.String != "" {
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 88, "<img src=\"")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 111, "<img src=\"")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						var templ_7745c5c3_Var72 string
-						templ_7745c5c3_Var72, templ_7745c5c3_Err = templ.JoinStringErrs(part.ImagePath.String)
+						var templ_7745c5c3_Var89 string
+						templ_7745c5c3_Var89, templ_7745c5c3_Err = templ.JoinStringErrs(part.ImagePath.String)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 255, Col: 42}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 271, Col: 42}
 						}
-						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var72))
-						if templ_7745c5c3_Err != nil {
-							return templ_7745c5c3_Err
-						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 89, "\" alt=\"\" class=\"w-20 h-20 object-contain\" loading=\"lazy\" onerror=\"this.hidden = true\"> ")
+						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var89))
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 112, "\" alt=\"\" class=\"w-20 h-20 object-contain\" loading=\"lazy\" onerror=\"this.hidden = true\"> ")
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 90, "<a href=\"")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 113, "<a href=\"")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					var templ_7745c5c3_Var73 templ.SafeURL
-					templ_7745c5c3_Var73, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/parts/%d", part.PartID)))
+					var templ_7745c5c3_Var90 templ.SafeURL
+					templ_7745c5c3_Var90, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/parts/%d", part.PartID)))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 257, Col: 71}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 273, Col: 71}
 					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var73))
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 91, "\" class=\"link font-bold break-words\">")
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var90))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					var templ_7745c5c3_Var74 string
-					templ_7745c5c3_Var74, templ_7745c5c3_Err = templ.JoinStringErrs(part.Name)
-					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 257, Col: 120}
-					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var74))
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 114, "\" class=\"link font-bold break-words\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 92, "</a> <a href=\"")
+					var templ_7745c5c3_Var91 string
+					templ_7745c5c3_Var91, templ_7745c5c3_Err = templ.JoinStringErrs(part.Name)
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 273, Col: 120}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var91))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					var templ_7745c5c3_Var75 templ.SafeURL
-					templ_7745c5c3_Var75, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/parts?bin=%d", bin.BinID)))
-					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 258, Col: 73}
-					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var75))
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 115, "</a> <a href=\"")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 93, "\" class=\"link\">")
+					var templ_7745c5c3_Var92 templ.SafeURL
+					templ_7745c5c3_Var92, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/parts?bin=%d", bin.BinID)))
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 274, Col: 73}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var92))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					var templ_7745c5c3_Var76 string
-					templ_7745c5c3_Var76, templ_7745c5c3_Err = templ.JoinStringErrs(bin.Name)
-					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 258, Col: 99}
-					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var76))
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 116, "\" class=\"link\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 94, " · #")
+					var templ_7745c5c3_Var93 string
+					templ_7745c5c3_Var93, templ_7745c5c3_Err = templ.JoinStringErrs(bin.Name)
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 274, Col: 99}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var93))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					var templ_7745c5c3_Var77 string
-					templ_7745c5c3_Var77, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", bin.BinID))
-					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 258, Col: 136}
-					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var77))
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 117, " · #")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 95, "</a> <span class=\"font-mono\">×")
+					var templ_7745c5c3_Var94 string
+					templ_7745c5c3_Var94, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", bin.BinID))
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 274, Col: 136}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var94))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					var templ_7745c5c3_Var78 string
-					templ_7745c5c3_Var78, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", part.Quantity))
-					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 259, Col: 69}
-					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var78))
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 118, "</a> <span class=\"font-mono\">×")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 96, "</span></div></article>")
+					var templ_7745c5c3_Var95 string
+					templ_7745c5c3_Var95, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", part.Quantity))
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 275, Col: 69}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var95))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 119, "</span></div></article>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 97, "</div></div><div x-show=\"layout\" x-cloak><div class=\"relative bg-base-200 border border-base-300 rounded-lg mb-6\" style=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 120, "</div></div><div x-show=\"layout\" x-cloak><div class=\"relative bg-base-200 border border-base-300 rounded-lg mb-6\" style=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var79 string
-			templ_7745c5c3_Var79, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues(templ.SafeCSS(fmt.Sprintf("aspect-ratio: %g / %g", detail.Drawer.Width, detail.Drawer.Height)))
+			var templ_7745c5c3_Var96 string
+			templ_7745c5c3_Var96, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues(templ.SafeCSS(fmt.Sprintf("aspect-ratio: %g / %g", detail.Drawer.Width, detail.Drawer.Height)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 267, Col: 179}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 283, Col: 179}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var79))
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var96))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 98, "\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 121, "\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			for _, bin := range detail.Bins {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 99, "<a href=\"")
+				var templ_7745c5c3_Var97 = []any{drawerBinClass(bin.BinID, selectedBinID)}
+				templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var97...)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				var templ_7745c5c3_Var80 templ.SafeURL
-				templ_7745c5c3_Var80, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/parts?bin=%d", bin.BinID)))
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 269, Col: 70}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var80))
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 122, "<div class=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 100, "\" class=\"absolute border border-base-content bg-base-100 text-base-content overflow-auto p-2 focus-visible:outline-2 focus-visible:outline-primary\" style=\"")
+				var templ_7745c5c3_Var98 string
+				templ_7745c5c3_Var98, templ_7745c5c3_Err = templ.JoinStringErrs(templ.CSSClasses(templ_7745c5c3_Var97).String())
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 1, Col: 0}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var98))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				var templ_7745c5c3_Var81 string
-				templ_7745c5c3_Var81, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues(templ.SafeCSS(fmt.Sprintf("left:%g%%;top:%g%%;width:%g%%;height:%g%%", 100*bin.X/detail.Drawer.Width, 100*bin.Y/detail.Drawer.Height, 100*bin.Width/detail.Drawer.Width, 100*bin.Height/detail.Drawer.Height)))
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 269, Col: 433}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var81))
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 123, "\" style=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 101, "\">")
+				var templ_7745c5c3_Var99 string
+				templ_7745c5c3_Var99, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues(templ.SafeCSS(fmt.Sprintf("left:%g%%;top:%g%%;width:%g%%;height:%g%%", 100*bin.X/detail.Drawer.Width, 100*bin.Y/detail.Drawer.Height, 100*bin.Width/detail.Drawer.Width, 100*bin.Height/detail.Drawer.Height)))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 285, Col: 276}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var99))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				var templ_7745c5c3_Var82 string
-				templ_7745c5c3_Var82, templ_7745c5c3_Err = templ.JoinStringErrs(bin.Name)
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 269, Col: 446}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var82))
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 124, "\"><a href=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 102, " · #")
+				var templ_7745c5c3_Var100 templ.SafeURL
+				templ_7745c5c3_Var100, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/parts?bin=%d", bin.BinID)))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 286, Col: 71}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var100))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				var templ_7745c5c3_Var83 string
-				templ_7745c5c3_Var83, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", bin.BinID))
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 269, Col: 483}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var83))
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 125, "\" class=\"block truncate\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 103, "</a>")
+				var templ_7745c5c3_Var101 string
+				templ_7745c5c3_Var101, templ_7745c5c3_Err = templ.JoinStringErrs(bin.Name)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 286, Col: 107}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var101))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 126, " · #")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var102 string
+				templ_7745c5c3_Var102, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", bin.BinID))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 286, Col: 144}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var102))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 127, "</a> ")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				if user.CanWrite() {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 128, "<form method=\"POST\" action=\"")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var103 templ.SafeURL
+					templ_7745c5c3_Var103, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/storage/drawers/%d/locate", detail.Drawer.ID)))
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 288, Col: 111}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var103))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 129, "\"><input type=\"hidden\" name=\"csrf_token\" value=\"")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var104 string
+					templ_7745c5c3_Var104, templ_7745c5c3_Err = templ.JoinStringErrs(csrf.TokenFromContext(ctx))
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 289, Col: 82}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var104))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 130, "\"> <input type=\"hidden\" name=\"bin_id\" value=\"")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var105 string
+					templ_7745c5c3_Var105, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", bin.BinID))
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 290, Col: 80}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var105))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 131, "\"> <button type=\"submit\" class=\"btn btn-xs btn-primary mt-1\">Locate this bin</button></form>")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 132, "</div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 104, "</div></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 133, "</div></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1367,277 +1673,290 @@ func StorageDrawer(detail storage.BrowseDrawerDetail, user auth.User) templ.Comp
 					return templ_7745c5c3_Err
 				}
 			} else {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 105, "<div x-show=\"layout\" x-cloak class=\"grid grid-cols-1 md:grid-cols-2 gap-4 pb-12 items-start\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 134, "<div x-show=\"layout\" x-cloak class=\"grid grid-cols-1 md:grid-cols-2 gap-4 pb-12 items-start\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				for _, bin := range detail.Bins {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 106, "<div class=\"card bg-base-200 shadow-md border border-base-300\"><div class=\"card-body p-4\"><div class=\"flex items-start justify-between gap-2\"><div class=\"min-w-0\"><h3 class=\"font-bold truncate\">")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 135, "<div class=\"card bg-base-200 shadow-md border border-base-300\"><div class=\"card-body p-4\"><div class=\"flex items-start justify-between gap-2\"><div class=\"min-w-0\"><h3 id=\"")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var106 string
+					templ_7745c5c3_Var106, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("bin-%d", bin.BinID))
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 307, Col: 51}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var106))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 136, "\" class=\"font-bold truncate\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					if bin.Name != "" {
-						var templ_7745c5c3_Var84 string
-						templ_7745c5c3_Var84, templ_7745c5c3_Err = templ.JoinStringErrs(bin.Name)
+						var templ_7745c5c3_Var107 string
+						templ_7745c5c3_Var107, templ_7745c5c3_Err = templ.JoinStringErrs(bin.Name)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 284, Col: 22}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 309, Col: 22}
 						}
-						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var84))
+						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var107))
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
 					} else {
-						var templ_7745c5c3_Var85 string
-						templ_7745c5c3_Var85, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6Bin"))
+						var templ_7745c5c3_Var108 string
+						templ_7745c5c3_Var108, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6Bin"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 286, Col: 34}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 311, Col: 34}
 						}
-						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var85))
+						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var108))
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 107, "</h3></div><span class=\"badge badge-sm badge-outline font-mono shrink-0\">")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 137, "</h3></div><span class=\"badge badge-sm badge-outline font-mono shrink-0\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					var templ_7745c5c3_Var86 string
-					templ_7745c5c3_Var86, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6BinNumber"))
+					var templ_7745c5c3_Var109 string
+					templ_7745c5c3_Var109, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6BinNumber"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 290, Col: 99}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 315, Col: 99}
 					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var86))
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 108, " #")
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var109))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					var templ_7745c5c3_Var87 string
-					templ_7745c5c3_Var87, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", bin.BinID))
-					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 290, Col: 133}
-					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var87))
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 138, " #")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 109, "</span></div><p class=\"text-xs text-base-content/80 font-mono mt-1\">")
+					var templ_7745c5c3_Var110 string
+					templ_7745c5c3_Var110, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", bin.BinID))
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 315, Col: 133}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var110))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					var templ_7745c5c3_Var88 string
-					templ_7745c5c3_Var88, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%g × %g", bin.Width, bin.Height))
-					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 293, Col: 57}
-					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var88))
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 139, "</span></div><p class=\"text-xs text-base-content/80 font-mono mt-1\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 110, " ")
+					var templ_7745c5c3_Var111 string
+					templ_7745c5c3_Var111, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%g × %g", bin.Width, bin.Height))
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 318, Col: 57}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var111))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					var templ_7745c5c3_Var89 string
-					templ_7745c5c3_Var89, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6CoordinateAt"))
-					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 293, Col: 91}
-					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var89))
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 140, " ")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 111, " (")
+					var templ_7745c5c3_Var112 string
+					templ_7745c5c3_Var112, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6CoordinateAt"))
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 318, Col: 91}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var112))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					var templ_7745c5c3_Var90 string
-					templ_7745c5c3_Var90, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%g, %g", bin.X, bin.Y))
-					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 293, Col: 132}
-					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var90))
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 141, " (")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 112, ")</p><div class=\"divider my-2\"></div>")
+					var templ_7745c5c3_Var113 string
+					templ_7745c5c3_Var113, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%g, %g", bin.X, bin.Y))
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 318, Col: 132}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var113))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 142, ")</p><div class=\"divider my-2\"></div>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					if len(bin.Contents) == 0 {
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 113, "<div class=\"flex items-center justify-between\"><span class=\"text-xs text-base-content/80\">")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 143, "<div class=\"flex items-center justify-between\"><span class=\"text-xs text-base-content/80\">")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						var templ_7745c5c3_Var91 string
-						templ_7745c5c3_Var91, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "EmptyBin"))
+						var templ_7745c5c3_Var114 string
+						templ_7745c5c3_Var114, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "EmptyBin"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 298, Col: 78}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 323, Col: 78}
 						}
-						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var91))
-						if templ_7745c5c3_Err != nil {
-							return templ_7745c5c3_Err
-						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 114, "</span> <a href=\"")
+						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var114))
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						var templ_7745c5c3_Var92 templ.SafeURL
-						templ_7745c5c3_Var92, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/parts?bin=%d", bin.BinID)))
-						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 299, Col: 74}
-						}
-						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var92))
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 144, "</span> <a href=\"")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 115, "\" class=\"btn btn-ghost btn-xs\">")
+						var templ_7745c5c3_Var115 templ.SafeURL
+						templ_7745c5c3_Var115, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/parts?bin=%d", bin.BinID)))
+						if templ_7745c5c3_Err != nil {
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 324, Col: 74}
+						}
+						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var115))
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						var templ_7745c5c3_Var93 string
-						templ_7745c5c3_Var93, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "View"))
-						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 299, Col: 127}
-						}
-						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var93))
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 145, "\" class=\"btn btn-ghost btn-xs\">")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 116, "</a></div>")
+						var templ_7745c5c3_Var116 string
+						templ_7745c5c3_Var116, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "View"))
+						if templ_7745c5c3_Err != nil {
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 324, Col: 127}
+						}
+						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var116))
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 146, "</a></div>")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
 					} else {
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 117, "<ul class=\"space-y-2\">")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 147, "<ul class=\"space-y-2\">")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
 						for _, part := range bin.Contents {
-							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 118, "<li class=\"flex items-center justify-between gap-3\"><div class=\"min-w-0\"><a href=\"")
+							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 148, "<li class=\"flex items-center justify-between gap-3\"><div class=\"min-w-0\"><a href=\"")
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
-							var templ_7745c5c3_Var94 templ.SafeURL
-							templ_7745c5c3_Var94, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/parts/%d", part.PartID)))
+							var templ_7745c5c3_Var117 templ.SafeURL
+							templ_7745c5c3_Var117, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/parts/%d", part.PartID)))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 306, Col: 75}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 331, Col: 75}
 							}
-							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var94))
-							if templ_7745c5c3_Err != nil {
-								return templ_7745c5c3_Err
-							}
-							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 119, "\" class=\"link-hover font-medium truncate block\">")
+							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var117))
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
-							var templ_7745c5c3_Var95 string
-							templ_7745c5c3_Var95, templ_7745c5c3_Err = templ.JoinStringErrs(part.Name)
-							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 306, Col: 135}
-							}
-							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var95))
+							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 149, "\" class=\"link-hover font-medium truncate block\">")
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
-							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 120, "</a> ")
+							var templ_7745c5c3_Var118 string
+							templ_7745c5c3_Var118, templ_7745c5c3_Err = templ.JoinStringErrs(part.Name)
+							if templ_7745c5c3_Err != nil {
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 331, Col: 135}
+							}
+							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var118))
+							if templ_7745c5c3_Err != nil {
+								return templ_7745c5c3_Err
+							}
+							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 150, "</a> ")
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
 							if part.PartNumber.Valid && part.PartNumber.String != "" {
-								templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 121, "<span class=\"text-[11px] font-mono text-base-content/80\">")
+								templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 151, "<span class=\"text-[11px] font-mono text-base-content/80\">")
 								if templ_7745c5c3_Err != nil {
 									return templ_7745c5c3_Err
 								}
-								var templ_7745c5c3_Var96 string
-								templ_7745c5c3_Var96, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6PartNumber"))
+								var templ_7745c5c3_Var119 string
+								templ_7745c5c3_Var119, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6PartNumber"))
 								if templ_7745c5c3_Err != nil {
-									return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 308, Col: 100}
+									return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 333, Col: 100}
 								}
-								_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var96))
-								if templ_7745c5c3_Err != nil {
-									return templ_7745c5c3_Err
-								}
-								templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 122, " ")
+								_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var119))
 								if templ_7745c5c3_Err != nil {
 									return templ_7745c5c3_Err
 								}
-								var templ_7745c5c3_Var97 string
-								templ_7745c5c3_Var97, templ_7745c5c3_Err = templ.JoinStringErrs(part.PartNumber.String)
-								if templ_7745c5c3_Err != nil {
-									return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 308, Col: 127}
-								}
-								_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var97))
+								templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 152, " ")
 								if templ_7745c5c3_Err != nil {
 									return templ_7745c5c3_Err
 								}
-								templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 123, "</span>")
+								var templ_7745c5c3_Var120 string
+								templ_7745c5c3_Var120, templ_7745c5c3_Err = templ.JoinStringErrs(part.PartNumber.String)
+								if templ_7745c5c3_Err != nil {
+									return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 333, Col: 127}
+								}
+								_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var120))
+								if templ_7745c5c3_Err != nil {
+									return templ_7745c5c3_Err
+								}
+								templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 153, "</span>")
 								if templ_7745c5c3_Err != nil {
 									return templ_7745c5c3_Err
 								}
 							}
-							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 124, "</div><span class=\"font-mono text-base-content/80 shrink-0\">×")
+							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 154, "</div><span class=\"font-mono text-base-content/80 shrink-0\">×")
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
-							var templ_7745c5c3_Var98 string
-							templ_7745c5c3_Var98, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", part.Quantity))
+							var templ_7745c5c3_Var121 string
+							templ_7745c5c3_Var121, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", part.Quantity))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 311, Col: 102}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 336, Col: 102}
 							}
-							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var98))
-							if templ_7745c5c3_Err != nil {
-								return templ_7745c5c3_Err
-							}
-							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 125, "</span></li>")
+							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var121))
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
+							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 155, "</span></li>")
+							if templ_7745c5c3_Err != nil {
+								return templ_7745c5c3_Err
+							}
 						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 126, "</ul><div class=\"card-actions justify-end mt-3\"><a href=\"")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 156, "</ul><div class=\"card-actions justify-end mt-3\"><a href=\"")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						var templ_7745c5c3_Var99 templ.SafeURL
-						templ_7745c5c3_Var99, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/parts?bin=%d", bin.BinID)))
+						var templ_7745c5c3_Var122 templ.SafeURL
+						templ_7745c5c3_Var122, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/parts?bin=%d", bin.BinID)))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 316, Col: 74}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 341, Col: 74}
 						}
-						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var99))
-						if templ_7745c5c3_Err != nil {
-							return templ_7745c5c3_Err
-						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 127, "\" class=\"btn btn-ghost btn-xs\">")
+						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var122))
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						var templ_7745c5c3_Var100 string
-						templ_7745c5c3_Var100, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "View"))
-						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 316, Col: 127}
-						}
-						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var100))
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 157, "\" class=\"btn btn-ghost btn-xs\">")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 128, "</a></div>")
+						var templ_7745c5c3_Var123 string
+						templ_7745c5c3_Var123, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "View"))
+						if templ_7745c5c3_Err != nil {
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/physical_storage.templ`, Line: 341, Col: 127}
+						}
+						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var123))
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 158, "</a></div>")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 129, "</div></div>")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 159, "</div></div>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 130, "</div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 160, "</div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 131, "</div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 161, "</div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1658,6 +1977,28 @@ func drawerName(drawer storage.BrowseDrawer, fallback string) string {
 		return drawer.Label
 	}
 	return fmt.Sprintf("%s #%d", fallback, drawer.ID)
+}
+
+func drawerInitialState(selectedBinID int64) string {
+	return fmt.Sprintf("{ presentation: 'grid', layout: %t }", selectedBinID > 0)
+}
+
+func drawerBinClass(binID, selectedBinID int64) string {
+	if binID == selectedBinID && selectedBinID != 0 {
+		return "absolute border-4 border-primary bg-primary/30 text-base-content overflow-auto p-2 font-bold shadow-lg z-10"
+	}
+	return "absolute border border-base-content bg-base-100 text-base-content overflow-auto p-2"
+}
+
+func locateAlertClass(state string) string {
+	switch state {
+	case "active":
+		return "alert alert-success shadow-sm mb-6"
+	case "partial", "stopping":
+		return "alert alert-warning shadow-sm mb-6"
+	default:
+		return "alert alert-info shadow-sm mb-6"
+	}
 }
 
 func drawerPartLocations(bins []storage.BrowseBin) int {

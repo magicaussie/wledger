@@ -2,11 +2,13 @@ package handler
 
 import (
 	"database/sql"
+	"errors"
 	"net/http"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/tuxedocurly/wledger/internal/auth"
+	"github.com/tuxedocurly/wledger/internal/wled"
 	"github.com/tuxedocurly/wledger/web/pages"
 )
 
@@ -69,7 +71,11 @@ func (h *Handler) HandleDrawerLocate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.WLED.LocateDrawer(r.Context(), drawer.ControllerID, id); err != nil {
-		h.UIError.Respond(w, r, err, "Locate failed", http.StatusInternalServerError)
+		status := http.StatusInternalServerError
+		if errors.Is(err, wled.ErrHardwareBusy) {
+			status = http.StatusConflict
+		}
+		h.UIError.Respond(w, r, err, "Locate failed", status)
 		return
 	}
 

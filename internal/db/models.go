@@ -73,14 +73,16 @@ type Container struct {
 }
 
 type Controller struct {
-	ID         int64          `json:"id"`
-	Name       string         `json:"name"`
-	IpAddress  string         `json:"ip_address"`
-	Port       sql.NullInt64  `json:"port"`
-	MacAddress sql.NullString `json:"mac_address"`
-	IsOnline   sql.NullBool   `json:"is_online"`
-	LedCount   int64          `json:"led_count"`
-	CreatedAt  sql.NullTime   `json:"created_at"`
+	ID                       int64          `json:"id"`
+	Name                     string         `json:"name"`
+	IpAddress                string         `json:"ip_address"`
+	Port                     sql.NullInt64  `json:"port"`
+	MacAddress               sql.NullString `json:"mac_address"`
+	IsOnline                 sql.NullBool   `json:"is_online"`
+	LedCount                 int64          `json:"led_count"`
+	CreatedAt                sql.NullTime   `json:"created_at"`
+	LocateMappingVerified    bool           `json:"locate_mapping_verified"`
+	LocateMappingFingerprint string         `json:"locate_mapping_fingerprint"`
 }
 
 type Drawer struct {
@@ -204,6 +206,27 @@ type PartsFt struct {
 	PartsFts     sql.NullString  `json:"parts_fts"`
 	Rowid        sql.NullInt64   `json:"rowid"`
 	Rank         sql.NullFloat64 `json:"rank"`
+}
+
+type PhysicalLocateSession struct {
+	ControllerID            int64     `json:"controller_id"`
+	ControllerAddress       string    `json:"controller_address"`
+	ControllerPort          int64     `json:"controller_port"`
+	SessionID               string    `json:"session_id"`
+	DrawerID                int64     `json:"drawer_id"`
+	BinID                   int64     `json:"bin_id"`
+	OwnerID                 int64     `json:"owner_id"`
+	State                   string    `json:"state"`
+	RangesJson              string    `json:"ranges_json"`
+	CommandsJson            string    `json:"commands_json"`
+	Fingerprint             string    `json:"fingerprint"`
+	Color                   string    `json:"color"`
+	Brightness              int64     `json:"brightness"`
+	LastOperation           string    `json:"last_operation"`
+	LastOperationAt         time.Time `json:"last_operation_at"`
+	LastSuccessfulOperation string    `json:"last_successful_operation"`
+	LastSuccessfulAt        string    `json:"last_successful_at"`
+	LastError               string    `json:"last_error"`
 }
 
 type PriceHistory struct {

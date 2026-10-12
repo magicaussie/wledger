@@ -87,108 +87,95 @@ func DymoLabelPrint(prefix string, title, subtext, qrURL string) templ.Component
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</span></label> <select x-model=\"")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var4 string
-		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("sizes[selected] == sizes[selected] && selected"))
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/dymo_label_print.templ`, Line: 44, Col: 75}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\" :value=\"selected\" @change=\"selected = $event.target.value; onSizeChange()\" class=\"select select-bordered w-full\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</span></label> <select x-model=\"selected\" :value=\"selected\" @change=\"selected = $event.target.value; onSizeChange()\" class=\"select select-bordered w-full\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		for i, s := range dymoSizes {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<option value=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<option value=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var4 string
+			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", i))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/dymo_label_print.templ`, Line: 50, Col: 41}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var5 string
-			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", i))
+			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%s  (%g x %g mm)", s.Name, s.W, s.H))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/dymo_label_print.templ`, Line: 50, Col: 41}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/dymo_label_print.templ`, Line: 50, Col: 95}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\">")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var6 string
-			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%s  (%g x %g mm)", s.Name, s.W, s.H))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/dymo_label_print.templ`, Line: 50, Col: 95}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</option>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</option>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</select></div><!-- Screen preview (approximate scale) --><div class=\"flex justify-center bg-base-300/40 rounded-lg p-4\"><div class=\"bg-white text-black rounded-sm shadow-lg flex flex-col items-center justify-center overflow-hidden\" :style=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</select></div><!-- Screen preview (approximate scale) --><div class=\"flex justify-center bg-base-300/40 rounded-lg p-4\"><div class=\"bg-white text-black rounded-sm shadow-lg flex flex-col items-center justify-center overflow-hidden\" :style=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var6 string
+		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("`width:${sizes[selected].w * 3}px;height:${sizes[selected].h * 3}px;`"))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/dymo_label_print.templ`, Line: 59, Col: 97}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\"><img :src=\"qrSrc\" alt=\"QR code\" class=\"object-contain\" :style=\"`height:${Math.min(sizes[selected].w, sizes[selected].h) * 2.4}px;`\"> <span x-show=\"sizes[selected].h >= 30\" class=\"font-bold text-center leading-tight px-1\" :style=\"`font-size:${Math.max(6, sizes[selected].w * 0.18)}px;`\" x-text=\"title\"></span> <span x-show=\"sizes[selected].h >= 30 && subtext\" class=\"text-center font-mono leading-tight px-1 opacity-70\" :style=\"`font-size:${Math.max(5, sizes[selected].w * 0.13)}px;`\" x-text=\"subtext\"></span></div></div><!-- Print-only label at true physical size --><div id=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var7 string
-		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("`width:${sizes[selected].w * 3}px;height:${sizes[selected].h * 3}px;`"))
+		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("dymo-print-%s", prefix))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/dymo_label_print.templ`, Line: 59, Col: 97}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/dymo_label_print.templ`, Line: 73, Col: 48}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\"><img :src=\"qrSrc\" alt=\"QR code\" class=\"object-contain\" :style=\"`height:${Math.min(sizes[selected].w, sizes[selected].h) * 2.4}px;`\"> <span x-show=\"sizes[selected].h >= 30\" class=\"font-bold text-center leading-tight px-1\" :style=\"`font-size:${Math.max(6, sizes[selected].w * 0.18)}px;`\" x-text=\"title\"></span> <span x-show=\"sizes[selected].h >= 30 && subtext\" class=\"text-center font-mono leading-tight px-1 opacity-70\" :style=\"`font-size:${Math.max(5, sizes[selected].w * 0.13)}px;`\" x-text=\"subtext\"></span></div></div><!-- Print-only label at true physical size --><div id=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\" x-cloak><style id=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var8 string
-		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("dymo-print-%s", prefix))
+		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("dymo-page-%s", prefix))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/dymo_label_print.templ`, Line: 73, Col: 48}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/dymo_label_print.templ`, Line: 74, Col: 50}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "\" x-cloak><style id=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "\" x-html=\"printStyle()\"></style><div class=\"dymo-label bg-white text-black flex flex-col items-center justify-center overflow-hidden\" :style=\"`width:${sizes[selected].w}mm;height:${sizes[selected].h}mm;`\"><img :src=\"qrSrc\" alt=\"QR code\" class=\"object-contain\" :style=\"`height:${Math.min(sizes[selected].w, sizes[selected].h) - 6}mm;`\"> <span x-show=\"sizes[selected].h >= 25\" class=\"font-bold text-center leading-tight px-0.5 w-full\" :style=\"`font-size:${Math.max(2.5, sizes[selected].w * 0.14)}mm;`\" x-text=\"title\"></span> <span x-show=\"sizes[selected].h >= 38 && subtext\" class=\"text-center font-mono leading-tight px-0.5 w-full opacity-70\" :style=\"`font-size:${Math.max(2, sizes[selected].w * 0.10)}mm;`\" x-text=\"subtext\"></span></div></div><div class=\"flex justify-end gap-2\"><button @click=\"doPrint()\" class=\"btn btn-primary\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var9 string
-		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("dymo-page-%s", prefix))
+		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "PrintLabels"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/dymo_label_print.templ`, Line: 74, Col: 50}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/dymo_label_print.templ`, Line: 86, Col: 82}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "\" x-html=\"printStyle()\"></style><div class=\"dymo-label bg-white text-black flex flex-col items-center justify-center overflow-hidden\" :style=\"`width:${sizes[selected].w}mm;height:${sizes[selected].h}mm;`\"><img :src=\"qrSrc\" alt=\"QR code\" class=\"object-contain\" :style=\"`height:${Math.min(sizes[selected].w, sizes[selected].h) - 6}mm;`\"> <span x-show=\"sizes[selected].h >= 25\" class=\"font-bold text-center leading-tight px-0.5 w-full\" :style=\"`font-size:${Math.max(2.5, sizes[selected].w * 0.14)}mm;`\" x-text=\"title\"></span> <span x-show=\"sizes[selected].h >= 38 && subtext\" class=\"text-center font-mono leading-tight px-0.5 w-full opacity-70\" :style=\"`font-size:${Math.max(2, sizes[selected].w * 0.10)}mm;`\" x-text=\"subtext\"></span></div></div><div class=\"flex justify-end gap-2\"><button @click=\"doPrint()\" class=\"btn btn-primary\">")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var10 string
-		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "PrintLabels"))
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/dymo_label_print.templ`, Line: 86, Col: 82}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</button></div></div><script src=\"/static/js/dymo_label.js\"></script>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</button></div></div><script src=\"/static/js/dymo_label.js\"></script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

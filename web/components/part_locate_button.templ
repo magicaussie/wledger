@@ -6,13 +6,12 @@ import (
 )
 
 templ PartLocateButton(partID int64, className string) {
-	<button
-		hx-post={ fmt.Sprintf("/parts/%d/locate", partID) }
-		hx-swap="none"
+	<a
+		href={ templ.SafeURL(fmt.Sprintf("/parts/%d#locations", partID)) }
 		class={ "btn btn-outline text-accent z-10", className }
-		title="Locate all assignments"
+		title="Choose an inventory location to locate"
 		onclick="event.stopPropagation()"
 	>
 		@icons.Eye(templ.Attributes{"class": "w-5 h-5"})
-	</button>
+	</a>
 }

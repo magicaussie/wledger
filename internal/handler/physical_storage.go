@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/internal/storage"
+	"github.com/tuxedocurly/wledger/internal/wled"
 	"github.com/tuxedocurly/wledger/web/pages"
 )
 
@@ -79,5 +80,25 @@ func (h *Handler) HandleStorageDrawer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pages.StorageDrawer(detail, user).Render(r.Context(), w)
+	cabinet, err := h.Queries.GetCabinet(r.Context(), detail.Drawer.CabinetID)
+	if err != nil {
+		h.UIError.Respond(w, r, err, "Failed to load cabinet", http.StatusInternalServerError)
+		return
+	}
+	var selectedBinID int64
+	if parsed, parseErr := strconv.ParseInt(r.URL.Query().Get("bin_id"), 10, 64); parseErr == nil && parsed > 0 {
+		selectedBinID = parsed
+	}
+	var session *wled.PhysicalLocateSession
+	if h.Locator != nil {
+		current, ok, sessionErr := h.Locator.SessionStatusForDrawer(r.Context(), id)
+		if sessionErr != nil {
+			h.UIError.Respond(w, r, sessionErr, "Locate cleanup state is unavailable; LED state is unknown", http.StatusInternalServerError)
+			return
+		}
+		if ok {
+			session = &current
+		}
+	}
+	pages.StorageDrawer(detail, cabinet.Name, user, selectedBinID, session, r.URL.Query().Get("stopped") == "1").Render(r.Context(), w)
 }

@@ -246,6 +246,20 @@ func TestClient_ClearUnavailableController(t *testing.T) {
 // TestClient_ApplyDoesNotPowerOff ensures locate-style highlighting still turns
 // the device on and paints a segment-relative range, i.e. it stays distinct
 // from Clear and keeps working with nonzero segment IDs and offsets.
+func TestControllerEndpointCanonicalizesBracketedIPv6AndPorts(t *testing.T) {
+	got := controllerURLForAddress("[2001:db8::1]:8080", 80, "/json/state")
+	if want := "http://[2001:db8::1]:8080/json/state"; got != want {
+		t.Fatalf("controller URL = %q, want %q", got, want)
+	}
+	if writeGate("[2001:db8::1]:8080", 80) != writeGate("2001:db8::1", 8080) {
+		t.Fatal("bracketed host:port and equivalent IPv6 endpoint must share the same gate")
+	}
+	controller := db.Controller{IpAddress: "[2001:db8::1]:8080", Port: sql.NullInt64{Int64: 80, Valid: true}}
+	if got := controllerPort(controller); got != 8080 {
+		t.Fatalf("controllerPort = %d, want address-embedded port 8080", got)
+	}
+}
+
 func TestClient_ApplyDoesNotPowerOff(t *testing.T) {
 	var mu sync.Mutex
 	var body string

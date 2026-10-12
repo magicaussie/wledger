@@ -368,8 +368,8 @@ func TestCompatibilityBaselineSegmentSnapshot(t *testing.T) {
 	if target.SegmentID != 0 || target.Start != 3 || target.Count != 1 {
 		t.Errorf("mapped bin target = %+v, want segment 0 start 3 count 1", target)
 	}
-	if target.Address != "10.0.0.7" || target.ControllerID != controller {
-		t.Errorf("mapped bin target = %+v, want controller %d at 10.0.0.7", target, controller)
+	if target.Address != "10.0.0.7:8080" || target.ControllerID != controller {
+		t.Errorf("mapped bin target = %+v, want controller %d at 10.0.0.7:8080", target, controller)
 	}
 	if target.RawWidth.Valid {
 		t.Errorf("target raw width = %+v, want SQL NULL preserved", target.RawWidth)
@@ -421,27 +421,30 @@ func TestCompatibilityBaselineTargetAddressUsesControllerIP(t *testing.T) {
 		t.Errorf("raw port = %+v, want the stored 80", port)
 	}
 
-	// The raw port is preserved for review and drives no endpoint, so a port
-	// change must move the mapping fingerprint and leave the LED targets alone.
+	// The configured non-default port is part of the wire endpoint and therefore
+	// changes the target fingerprint as well as the controller mapping fingerprint.
 	f.exec("UPDATE controllers SET port = ? WHERE id = ?", 8080, controller)
 	reported := f.capture()
 	compatAssertDelta(t,
 		compatDomainDelta{Domain: "inventory", Before: before.InventoryFingerprint, After: reported.InventoryFingerprint},
 		compatDomainDelta{Domain: "mapping", Before: before.MappingFingerprint, After: reported.MappingFingerprint, Changed: true},
-		compatDomainDelta{Domain: "targets", Before: before.TargetsFingerprint, After: reported.TargetsFingerprint},
+		compatDomainDelta{Domain: "targets", Before: before.TargetsFingerprint, After: reported.TargetsFingerprint, Changed: true},
 	)
 	if port := reported.Raw.Controllers[0].Port; !port.Valid || port.Int64 != 8080 {
 		t.Errorf("raw port after the change = %+v, want 8080", port)
 	}
+	if target := compatTarget(t, reported, bin); target.Address != "192.168.1.50:8080" {
+		t.Errorf("target address after the port change = %q, want configured endpoint", target.Address)
+	}
 
-	// The address is the wire-targeting endpoint, so changing it moves the target.
+	// The address is also part of the wire-targeting endpoint.
 	f.exec("UPDATE controllers SET ip_address = ? WHERE id = ?", "192.168.1.51", controller)
 	moved := f.capture()
 	compatAssertDelta(t,
 		compatDomainDelta{Domain: "targets", Before: before.TargetsFingerprint, After: moved.TargetsFingerprint, Changed: true},
 	)
-	if target := compatTarget(t, moved, bin); target.Address != "192.168.1.51" {
-		t.Errorf("target address = %q, want the updated IpAddress", target.Address)
+	if target := compatTarget(t, moved, bin); target.Address != "192.168.1.51:8080" {
+		t.Errorf("target address = %q, want the updated address with configured port", target.Address)
 	}
 }
 
@@ -1499,7 +1502,7 @@ func TestCompatibilityBaselineOverlappingAllocations(t *testing.T) {
 }
 
 func TestCompatibilityBaselineControllerEndpointDiagnostics(t *testing.T) {
-	for _, address := range []string{"10.0.0.7", "wled.local", "10.0.0.7:8080", "[2001:db8::1]", "[::1]:8080", "[fe80::1%25eth0]:80"} {
+	for _, address := range []string{"10.0.0.7", "wled.local", "10.0.0.7:8080", "[2001:db8::1]", "2001:db8::1", "[::1]:8080", "[fe80::1%25eth0]:80"} {
 		t.Run("valid "+address, func(t *testing.T) {
 			f := setupCompatFixture(t, "compat_endpoint_valid")
 			controller := f.controller(compatControllerSpec{Name: "Ctrl", IP: address, Port: validInt64(8080)})
@@ -1511,10 +1514,15 @@ func TestCompatibilityBaselineControllerEndpointDiagnostics(t *testing.T) {
 				t.Errorf("diagnostics = %+v, want a usable endpoint for %q", baseline.Diagnostics, address)
 			}
 			target := compatTarget(t, baseline, bin)
-			if !target.Resolved || target.Address != address {
-				t.Errorf("target = %+v, want a resolved target at the unchanged stored address %q", target, address)
+			expectedAddress := controllerTargetAddress(db.Controller{IpAddress: address, Port: validInt64(8080)})
+			if !target.Resolved || target.Address != expectedAddress {
+				t.Errorf("target = %+v, want a resolved target at configured endpoint %q", target, expectedAddress)
 			}
-			// The legacy Port is preserved for review but never appended to the address.
+			if address == "2001:db8::1" && target.Address != "[2001:db8::1]:8080" {
+				t.Errorf("bare IPv6 target address = %q, want bracketed configured endpoint", target.Address)
+			}
+			// The raw address and port remain separately preserved; the target above
+			// uses the effective authority sent by the WLED client.
 			if raw := baseline.Raw.Controllers[0]; raw.IpAddress != address || !raw.Port.Valid || raw.Port.Int64 != 8080 {
 				t.Errorf("raw controller = %+v, want the stored address and port preserved", raw)
 			}
@@ -1535,7 +1543,7 @@ func TestCompatibilityBaselineControllerEndpointDiagnostics(t *testing.T) {
 		{"scheme", "http://10.0.0.7", CodeControllerEndpointInvalid},
 		{"bad-port", "10.0.0.7:notaport", CodeControllerEndpointInvalid},
 		{"out-of-range-port", "10.0.0.7:65536", CodeControllerEndpointInvalid},
-		{"unbracketed-ipv6", "2001:db8::1", CodeControllerEndpointInvalid},
+
 		{"invalid-ipv6-literal", "[not-an-ip]", CodeControllerEndpointInvalid},
 		{"unclosed-ipv6", "[::1", CodeControllerEndpointInvalid},
 		{"missing-host", ":8080", CodeControllerEndpointInvalid},
@@ -1722,6 +1730,12 @@ func compatRead[T any](hooks *compatHooks, method string, read func() ([]T, erro
 
 func (q *compatQuerier) GetControllers(ctx context.Context) ([]db.Controller, error) {
 	return compatRead(q.hooks, "GetControllers", func() ([]db.Controller, error) { return q.Querier.GetControllers(ctx) })
+}
+
+func (q *compatQuerier) GetControllersForCompatibility(ctx context.Context) ([]db.GetControllersForCompatibilityRow, error) {
+	return compatRead(q.hooks, "GetControllers", func() ([]db.GetControllersForCompatibilityRow, error) {
+		return q.Querier.GetControllersForCompatibility(ctx)
+	})
 }
 
 func (q *compatQuerier) GetAllContainers(ctx context.Context) ([]db.Container, error) {

@@ -53,7 +53,7 @@ func (q *Queries) DeleteController(ctx context.Context, id int64) error {
 }
 
 const getController = `-- name: GetController :one
-SELECT id, name, ip_address, port, mac_address, is_online, led_count, created_at FROM controllers WHERE id = ?
+SELECT id, name, ip_address, port, mac_address, is_online, led_count, created_at, locate_mapping_verified, locate_mapping_fingerprint FROM controllers WHERE id = ?
 `
 
 func (q *Queries) GetController(ctx context.Context, id int64) (Controller, error) {
@@ -68,12 +68,14 @@ func (q *Queries) GetController(ctx context.Context, id int64) (Controller, erro
 		&i.IsOnline,
 		&i.LedCount,
 		&i.CreatedAt,
+		&i.LocateMappingVerified,
+		&i.LocateMappingFingerprint,
 	)
 	return i, err
 }
 
 const getControllerByIP = `-- name: GetControllerByIP :one
-SELECT id, name, ip_address, port, mac_address, is_online, led_count, created_at FROM controllers WHERE ip_address = ?
+SELECT id, name, ip_address, port, mac_address, is_online, led_count, created_at, locate_mapping_verified, locate_mapping_fingerprint FROM controllers WHERE ip_address = ?
 `
 
 func (q *Queries) GetControllerByIP(ctx context.Context, ipAddress string) (Controller, error) {
@@ -88,12 +90,14 @@ func (q *Queries) GetControllerByIP(ctx context.Context, ipAddress string) (Cont
 		&i.IsOnline,
 		&i.LedCount,
 		&i.CreatedAt,
+		&i.LocateMappingVerified,
+		&i.LocateMappingFingerprint,
 	)
 	return i, err
 }
 
 const getControllers = `-- name: GetControllers :many
-SELECT id, name, ip_address, port, mac_address, is_online, led_count, created_at FROM controllers ORDER BY name
+SELECT id, name, ip_address, port, mac_address, is_online, led_count, created_at, locate_mapping_verified, locate_mapping_fingerprint FROM controllers ORDER BY name
 `
 
 func (q *Queries) GetControllers(ctx context.Context) ([]Controller, error) {
@@ -105,6 +109,56 @@ func (q *Queries) GetControllers(ctx context.Context) ([]Controller, error) {
 	var items []Controller
 	for rows.Next() {
 		var i Controller
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.IpAddress,
+			&i.Port,
+			&i.MacAddress,
+			&i.IsOnline,
+			&i.LedCount,
+			&i.CreatedAt,
+			&i.LocateMappingVerified,
+			&i.LocateMappingFingerprint,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getControllersForCompatibility = `-- name: GetControllersForCompatibility :many
+SELECT id, name, ip_address, port, mac_address, is_online, led_count, created_at
+FROM controllers ORDER BY name
+`
+
+type GetControllersForCompatibilityRow struct {
+	ID         int64          `json:"id"`
+	Name       string         `json:"name"`
+	IpAddress  string         `json:"ip_address"`
+	Port       sql.NullInt64  `json:"port"`
+	MacAddress sql.NullString `json:"mac_address"`
+	IsOnline   sql.NullBool   `json:"is_online"`
+	LedCount   int64          `json:"led_count"`
+	CreatedAt  sql.NullTime   `json:"created_at"`
+}
+
+func (q *Queries) GetControllersForCompatibility(ctx context.Context) ([]GetControllersForCompatibilityRow, error) {
+	rows, err := q.query(ctx, q.getControllersForCompatibilityStmt, getControllersForCompatibility)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetControllersForCompatibilityRow
+	for rows.Next() {
+		var i GetControllersForCompatibilityRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
@@ -188,6 +242,26 @@ type UpdateControllerLedCountParams struct {
 
 func (q *Queries) UpdateControllerLedCount(ctx context.Context, arg UpdateControllerLedCountParams) (int64, error) {
 	result, err := q.exec(ctx, q.updateControllerLedCountStmt, updateControllerLedCount, arg.LedCount, arg.ID, arg.LedCount_2)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const updateControllerLocateMappingVerification = `-- name: UpdateControllerLocateMappingVerification :execrows
+UPDATE controllers
+SET locate_mapping_verified = ?, locate_mapping_fingerprint = ?
+WHERE id = ?
+`
+
+type UpdateControllerLocateMappingVerificationParams struct {
+	LocateMappingVerified    bool   `json:"locate_mapping_verified"`
+	LocateMappingFingerprint string `json:"locate_mapping_fingerprint"`
+	ID                       int64  `json:"id"`
+}
+
+func (q *Queries) UpdateControllerLocateMappingVerification(ctx context.Context, arg UpdateControllerLocateMappingVerificationParams) (int64, error) {
+	result, err := q.exec(ctx, q.updateControllerLocateMappingVerificationStmt, updateControllerLocateMappingVerification, arg.LocateMappingVerified, arg.LocateMappingFingerprint, arg.ID)
 	if err != nil {
 		return 0, err
 	}

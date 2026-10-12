@@ -3,6 +3,7 @@ package pages
 import (
 	"fmt"
 	"github.com/tuxedocurly/wledger/internal/auth"
+	"github.com/tuxedocurly/wledger/internal/csrf"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/i18n"
 	"github.com/tuxedocurly/wledger/internal/utils"
@@ -175,7 +176,7 @@ if user.CanWrite() {
 					</div>
 					<div class="card bg-base-200 shadow-xl border border-base-300">
 						<div class="card-body p-0">
-							<div class="p-4 border-b border-base-300 flex justify-between items-center">
+							<div id="locations" class="p-4 border-b border-base-300 flex justify-between items-center">
 								<h3 class="font-bold">{ i18n.T(ctx, "Locations") }</h3>
 								if user.CanWrite() {
 									<button onclick="stock_modal.showModal()" class="btn btn-sm btn-primary">
@@ -351,8 +352,12 @@ templ StockRow(partID int64, s db.GetPartAssignmentsRow, user auth.User, control
 		</td>
 		<td class="text-right">
 			<div class="flex justify-end gap-1">
-				if s.ControllerID.Valid && s.BinID.Valid {
-					@components.LocateButton(s.ControllerID.Int64, s.BinID.Int64, "btn-xs")
+				if user.CanWrite() && s.BinID.Valid {
+					<form method="POST" action={ templ.SafeURL(fmt.Sprintf("/parts/%d/locate-bin", partID)) }>
+						<input type="hidden" name="csrf_token" value={ csrf.TokenFromContext(ctx) }/>
+						<input type="hidden" name="bin_id" value={ fmt.Sprintf("%d", s.BinID.Int64) }/>
+						<button class="btn btn-xs btn-primary" type="submit" title="Locate this inventory location">Locate</button>
+					</form>
 				}
 				if user.CanWrite() {
 					if !s.BinName.Valid || !s.ControllerID.Valid {

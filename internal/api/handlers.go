@@ -88,7 +88,11 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 // globalOff turns off all LEDs on all controllers.
 func (h *Handler) globalOff(w http.ResponseWriter, r *http.Request) {
 	if err := h.wled.GlobalOff(r.Context()); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to turn off LEDs: "+err.Error())
+		status := http.StatusInternalServerError
+		if errors.Is(err, wled.ErrHardwareBusy) {
+			status = http.StatusConflict
+		}
+		writeError(w, status, "failed to turn off LEDs: "+err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
@@ -102,7 +106,7 @@ func (h *Handler) locatePart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.wled.LocatePart(r.Context(), id); err != nil {
-		if errors.Is(err, wled.ErrCoordinateSpaceUnresolved) {
+		if errors.Is(err, wled.ErrCoordinateSpaceUnresolved) || errors.Is(err, wled.ErrHardwareBusy) {
 			writeError(w, http.StatusConflict, "locate unavailable: "+err.Error())
 			return
 		}
@@ -135,7 +139,7 @@ func (h *Handler) locateBin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.wled.LocateBin(r.Context(), container.ControllerID, id); err != nil {
-		if errors.Is(err, wled.ErrCoordinateSpaceUnresolved) {
+		if errors.Is(err, wled.ErrCoordinateSpaceUnresolved) || errors.Is(err, wled.ErrHardwareBusy) {
 			writeError(w, http.StatusConflict, "locate unavailable: "+err.Error())
 			return
 		}

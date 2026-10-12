@@ -254,9 +254,17 @@ func CaptureCompatibilityBaseline(ctx context.Context, store db.Store) (Compatib
 // readCompatibilitySnapshot reads every captured row through the given querier,
 // so a caller inside a transaction observes one consistent snapshot.
 func readCompatibilitySnapshot(ctx context.Context, q db.Querier) (CompatibilityRaw, CompatibilityFlags, error) {
-	controllers, err := q.GetControllers(ctx)
+	legacyControllers, err := q.GetControllersForCompatibility(ctx)
 	if err != nil {
 		return CompatibilityRaw{}, CompatibilityFlags{}, fmt.Errorf("read controllers: %w", err)
+	}
+	controllers := make([]db.Controller, 0, len(legacyControllers))
+	for _, controller := range legacyControllers {
+		controllers = append(controllers, db.Controller{
+			ID: controller.ID, Name: controller.Name, IpAddress: controller.IpAddress,
+			Port: controller.Port, MacAddress: controller.MacAddress, IsOnline: controller.IsOnline,
+			LedCount: controller.LedCount, CreatedAt: controller.CreatedAt,
+		})
 	}
 	containers, err := q.GetAllContainers(ctx)
 	if err != nil {
@@ -452,7 +460,7 @@ func (v compatibilityView) resolveTargets() []CompatibilityBinTarget {
 			// preserved in the mapping fingerprint and is not used here.
 			if controller, ok := v.controllers[container.ControllerID]; ok {
 				hasController = true
-				target.Address = controller.IpAddress
+				target.Address = controllerTargetAddress(controller)
 			}
 		}
 		switch {
@@ -710,10 +718,9 @@ func (v compatibilityView) allocationOverlapDiagnostics() []CompatibilityDiagnos
 	return diagnostics
 }
 
-// controllerEndpointDiagnostics reports controllers whose stored address cannot
-// form the legacy http://<IpAddress>/json/state endpoint. It performs no network
-// access, never trims or rewrites the stored address and ignores the legacy Port
-// field exactly as wire targeting does.
+// controllerEndpointDiagnostics reports controllers whose stored address and
+// configured port cannot form the WLED http://<host[:port]>/json/state endpoint.
+// It performs no network access and never rewrites the raw controller row.
 func (v compatibilityView) controllerEndpointDiagnostics() []CompatibilityDiagnostic {
 	var diagnostics []CompatibilityDiagnostic
 	for _, controller := range v.raw.Controllers {
@@ -724,19 +731,41 @@ func (v compatibilityView) controllerEndpointDiagnostics() []CompatibilityDiagno
 	return diagnostics
 }
 
-// controllerEndpointDiagnostic classifies one controller address against the
-// legacy construction http://<IpAddress>/json/state. An empty or blank address is
-// reported as missing; an address the construction cannot turn into a real
-// nonempty hostname with no credentials, the exact path /json/state and no query
-// or fragment is reported as invalid. Valid IPv4, hostname, host:port and
-// bracketed IPv6 authorities are preserved.
+// controllerTargetAddress returns the effective configured WLED authority while
+// preserving an explicitly stored host:port. It brackets bare IPv6 literals and
+// appends a separate configured port when one is needed to build the wire URL.
+func controllerTargetAddress(controller db.Controller) string {
+	address := controller.IpAddress
+	if _, _, err := net.SplitHostPort(address); err == nil {
+		return address
+	}
+	if strings.HasPrefix(address, "[") && !strings.HasSuffix(address, "]") {
+		return address
+	}
+	port := int64(80)
+	if controller.Port.Valid && controller.Port.Int64 > 0 {
+		port = controller.Port.Int64
+	}
+	host := strings.Trim(address, "[]")
+	if port == 80 && !strings.Contains(host, ":") {
+		return address
+	}
+	return net.JoinHostPort(host, strconv.FormatInt(port, 10))
+}
+
+// controllerEndpointDiagnostic classifies one effective controller endpoint.
+// An empty or blank address is reported as missing; an address the URL parser
+// cannot turn into a real nonempty hostname with no credentials, the exact path
+// /json/state and no query or fragment is reported as invalid. Valid IPv4,
+// hostname, explicit host:port, bracketed IPv6 and bare IPv6 authorities are
+// normalized to the effective wire endpoint.
 func controllerEndpointDiagnostic(controller db.Controller) (CompatibilityDiagnostic, bool) {
 	diagnostic := CompatibilityDiagnostic{Severity: CompatibilitySeverityWarning, ControllerID: controller.ID}
 	if strings.TrimSpace(controller.IpAddress) == "" {
 		diagnostic.Code = CodeControllerEndpointMissing
 		return diagnostic, true
 	}
-	endpoint, err := url.Parse("http://" + controller.IpAddress + "/json/state")
+	endpoint, err := url.Parse("http://" + controllerTargetAddress(controller) + "/json/state")
 	if err != nil || endpoint.User != nil || endpoint.Host == "" || endpoint.Hostname() == "" ||
 		endpoint.Path != "/json/state" || endpoint.RawQuery != "" || endpoint.Fragment != "" {
 		diagnostic.Code = CodeControllerEndpointInvalid
