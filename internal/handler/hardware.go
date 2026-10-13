@@ -278,6 +278,11 @@ func (h *Handler) HandleHardwareExport(w http.ResponseWriter, r *http.Request) {
 // POST /hardware/import — create a new controller (with its grid layout) from a
 // JSON config file. Optional name/ip/port override fields take precedence.
 func (h *Handler) HandleHardwareImport(w http.ResponseWriter, r *http.Request) {
+	// ParseMultipartForm's maxMemory is only a memory threshold; cap the complete
+	// request body so a large file cannot be spooled without bound.
+	if !limitRequestBody(w, r, config.MaxUploadSizeImport) {
+		return
+	}
 	err := r.ParseMultipartForm(config.MaxUploadSizeImport)
 	if err != nil {
 		h.UIError.Respond(w, r, err, "Upload too large or invalid", http.StatusBadRequest)

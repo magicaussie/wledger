@@ -72,8 +72,12 @@ func (h *Handler) HandleBackupRestore(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse Upload
-	err := r.ParseMultipartForm(config.MaxUploadSizeBackup) // 100 MB memory buffer
+	// ParseMultipartForm's maxMemory is only a memory threshold; this applies a
+	// hard limit to the complete multipart request body.
+	if !limitRequestBody(w, r, config.MaxUploadSizeBackup) {
+		return
+	}
+	err := r.ParseMultipartForm(config.MaxUploadSizeBackup)
 	if err != nil {
 		h.Logger.Error("failed to parse multipart form for backup restore", "err", err)
 		components.ImportResult(false, "Upload too large or invalid: "+err.Error(), nil).Render(r.Context(), w)

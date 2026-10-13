@@ -11,6 +11,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -20,6 +21,14 @@ import (
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/hardware"
 	"github.com/tuxedocurly/wledger/internal/ledspace"
+)
+
+const (
+	maxRestoreArchiveBytes   = 100 << 20
+	maxRestoreArchiveEntries = 10_000
+	maxRestoreManifestBytes  = 32 << 20
+	maxRestoreFileBytes      = 50 << 20
+	maxRestoreUploadsBytes   = 512 << 20
 )
 
 type Service interface {
@@ -514,9 +523,15 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 	s.restoreMu.Lock()
 	defer s.restoreMu.Unlock()
 
+	if size <= 0 || size > maxRestoreArchiveBytes {
+		return fmt.Errorf("invalid ZIP file size %d (maximum %d bytes)", size, maxRestoreArchiveBytes)
+	}
 	zr, err := zip.NewReader(zipReader, size)
 	if err != nil {
 		return fmt.Errorf("invalid ZIP file: %w", err)
+	}
+	if err := validateRestoreArchive(zr); err != nil {
+		return err
 	}
 
 	// Validate the archive envelope before any state is changed: exactly one
@@ -645,17 +660,17 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 		return fmt.Errorf("failed to create temp restore dir: %w", err)
 	}
 
+	var extractedBytes uint64
 	for _, f := range zr.File {
 		if strings.HasPrefix(f.Name, "uploads/") && !f.FileInfo().IsDir() {
 			relPath := strings.TrimPrefix(f.Name, "uploads/")
-			targetPath := filepath.Join(tempDir, relPath)
+			targetPath := filepath.Join(tempDir, filepath.FromSlash(relPath))
 
 			// Security check: reject any entry that would resolve outside the
 			// staging directory. A relative-path test avoids the sibling-prefix
 			// false negative of a raw string prefix comparison.
 			if !withinDir(tempDir, targetPath) {
-				s.logger.Warn("security block: zip entry attempts to escape temp directory", "entry", f.Name)
-				continue
+				return fmt.Errorf("invalid backup: upload path escapes staging directory: %q", f.Name)
 			}
 
 			s.logger.Debug("extracting file", "zip_path", f.Name, "target_path", targetPath)
@@ -676,9 +691,20 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 				s.logger.Error("failed to open zip file entry for restore", "err", err, "name", f.Name)
 				return fmt.Errorf("failed to open zip file entry: %w", err)
 			}
-			_, err = io.Copy(outFile, rc)
+			written, copyErr := io.Copy(outFile, io.LimitReader(rc, maxRestoreFileBytes+1))
 			rc.Close()
-			outFile.Close()
+			closeErr := outFile.Close()
+			if copyErr != nil {
+				err = copyErr
+			} else if closeErr != nil {
+				err = closeErr
+			} else if written > maxRestoreFileBytes {
+				err = fmt.Errorf("extracted upload exceeds %d bytes", maxRestoreFileBytes)
+			} else if extractedBytes+uint64(written) > maxRestoreUploadsBytes {
+				err = fmt.Errorf("extracted uploads exceed %d bytes", maxRestoreUploadsBytes)
+			} else {
+				extractedBytes += uint64(written)
+			}
 			if err != nil {
 				s.logger.Error("failed to write temp restore file", "err", err, "path", targetPath)
 				return fmt.Errorf("failed to write temp file: %w", err)
@@ -994,6 +1020,47 @@ func resolveBinIndexSpace(m Manifest) (string, error) {
 	default:
 		return "", fmt.Errorf("unsupported backup bin_index_space %q", m.BinIndexSpace)
 	}
+}
+
+func validateRestoreArchive(zr *zip.Reader) error {
+	if len(zr.File) > maxRestoreArchiveEntries {
+		return fmt.Errorf("invalid backup: archive has %d entries (maximum %d)", len(zr.File), maxRestoreArchiveEntries)
+	}
+
+	seenUploads := make(map[string]struct{})
+	var declaredUploads uint64
+	for _, entry := range zr.File {
+		mode := entry.Mode()
+		if mode&os.ModeType != 0 && !mode.IsRegular() && !mode.IsDir() {
+			return fmt.Errorf("invalid backup: unsupported archive entry type for %q", entry.Name)
+		}
+		if entry.Name == legacyManifestName || entry.Name == currentStorageManifestName {
+			if entry.UncompressedSize64 > maxRestoreManifestBytes {
+				return fmt.Errorf("invalid backup: manifest exceeds %d bytes", maxRestoreManifestBytes)
+			}
+		}
+		if !strings.HasPrefix(entry.Name, "uploads/") || entry.FileInfo().IsDir() {
+			continue
+		}
+
+		rel := strings.TrimPrefix(entry.Name, "uploads/")
+		clean := path.Clean(rel)
+		if rel == "" || clean == "." || clean == ".." || strings.HasPrefix(clean, "../") || path.IsAbs(clean) || strings.Contains(rel, "\\") || clean != rel {
+			return fmt.Errorf("invalid backup: unsafe upload path %q", entry.Name)
+		}
+		if _, exists := seenUploads[clean]; exists {
+			return fmt.Errorf("invalid backup: duplicate upload path %q", entry.Name)
+		}
+		seenUploads[clean] = struct{}{}
+		if entry.UncompressedSize64 > maxRestoreFileBytes {
+			return fmt.Errorf("invalid backup: upload %q exceeds %d bytes", entry.Name, maxRestoreFileBytes)
+		}
+		declaredUploads += entry.UncompressedSize64
+		if declaredUploads > maxRestoreUploadsBytes {
+			return fmt.Errorf("invalid backup: extracted uploads exceed %d bytes", maxRestoreUploadsBytes)
+		}
+	}
+	return nil
 }
 
 func (s *service) restoreData(ctx context.Context, qtx db.Querier, manifest Manifest) error {

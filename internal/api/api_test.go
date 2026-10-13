@@ -95,6 +95,50 @@ func TestTokenFromEnv(t *testing.T) {
 	}
 }
 
+func TestHealthAuthRejectsMalformedOrAmbiguousAuthorization(t *testing.T) {
+	_, _, store := setupAPI(t)
+	h := NewHandler(store, &fakeWLED{}, nil)
+	route := h.Routes()
+	cases := []struct {
+		name   string
+		values []string
+	}{
+		{name: "duplicate", values: []string{"Bearer testtoken", "Bearer testtoken"}},
+		{name: "wrong scheme", values: []string{"Basic testtoken"}},
+		{name: "raw token", values: []string{"testtoken"}},
+		{name: "multiple credentials", values: []string{"Bearer testtoken, Bearer testtoken"}},
+		{name: "empty credential", values: []string{"Bearer "}},
+		{name: "unsupported token scheme", values: []string{"Token testtoken"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/health", nil)
+			for _, value := range tc.values {
+				req.Header.Add("Authorization", value)
+			}
+			rec := httptest.NewRecorder()
+			route.ServeHTTP(rec, req)
+			if rec.Code != http.StatusUnauthorized {
+				t.Fatalf("status = %d, want 401", rec.Code)
+			}
+		})
+	}
+}
+
+func TestHealthAuthAcceptsDocumentedBearerSchemeCaseInsensitively(t *testing.T) {
+	_, _, store := setupAPI(t)
+	route := NewHandler(store, &fakeWLED{}, nil).Routes()
+	for _, value := range []string{"Bearer testtoken", "bearer testtoken", "BEARER testtoken"} {
+		req := httptest.NewRequest(http.MethodGet, "/health", nil)
+		req.Header.Set("Authorization", value)
+		rec := httptest.NewRecorder()
+		route.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Errorf("Authorization %q: status = %d, want 200", value, rec.Code)
+		}
+	}
+}
+
 func TestHealthAuth(t *testing.T) {
 	srv, _, _ := setupAPI(t)
 

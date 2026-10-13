@@ -5,8 +5,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/tuxedocurly/wledger/internal/db"
@@ -87,7 +90,7 @@ func TestService(t *testing.T) {
 	// Adjust Stock
 	assignments, _ := s.GetPartAssignments(ctx, partID)
 	assignmentID := assignments[0].ID
-	err = svc.AdjustStock(ctx, assignmentID, 5)
+	err = svc.AdjustStock(ctx, AdjustStockRequest{PartID: partID, AssignmentID: assignmentID, Delta: 5})
 	if err != nil {
 		t.Fatalf("AdjustStock failed: %v", err)
 	}
@@ -201,7 +204,7 @@ func TestAdjustStock_OrphanedAssignment(t *testing.T) {
 
 	database.ExecContext(ctx, "DELETE FROM audit_logs")
 
-	if err := svc.AdjustStock(ctx, orphan.ID, 3); err != nil {
+	if err := svc.AdjustStock(ctx, AdjustStockRequest{PartID: partID, AssignmentID: orphan.ID, Delta: 3}); err != nil {
 		t.Fatalf("AdjustStock on orphaned assignment failed: %v", err)
 	}
 
@@ -235,7 +238,7 @@ func TestAdjustStock_NonexistentAssignment(t *testing.T) {
 	svc := NewService(s, slog.New(slog.NewTextHandler(os.Stdout, nil)))
 	ctx := context.WithValue(context.Background(), middleware.UserContextKey, int64(1))
 
-	err := svc.AdjustStock(ctx, 9999, 1)
+	err := svc.AdjustStock(ctx, AdjustStockRequest{PartID: 1, AssignmentID: 9999, Delta: 1})
 	if !errors.Is(err, ErrAssignmentNotFound) {
 		t.Fatalf("expected ErrAssignmentNotFound, got %v", err)
 	}
@@ -391,5 +394,283 @@ func TestMoveStock_SameBin(t *testing.T) {
 
 	if assignments[0].Quantity != 10 {
 		t.Errorf("Expected quantity 10, got %d", assignments[0].Quantity)
+	}
+}
+
+func TestAdjustStockRejectsPartMismatchAndFloorsQuantityAtZero(t *testing.T) {
+	database, s, cleanup := setupTestDB(t)
+	defer cleanup()
+	svc := NewService(s, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	ctx := context.WithValue(context.Background(), middleware.UserContextKey, int64(1))
+	if _, err := s.CreateUser(context.Background(), db.CreateUserParams{Email: "adjust@test.com", Role: "admin"}); err != nil {
+		t.Fatal(err)
+	}
+	partA := createTestPart(t, s, ctx, "Adjust A")
+	partB := createTestPart(t, s, ctx, "Adjust B")
+	if err := s.CreatePartAssignment(ctx, db.CreatePartAssignmentParams{PartID: partA, Quantity: 3}); err != nil {
+		t.Fatal(err)
+	}
+	assignments, err := s.GetPartAssignments(ctx, partA)
+	if err != nil || len(assignments) != 1 {
+		t.Fatalf("list assignments = %d, %v", len(assignments), err)
+	}
+	assignmentID := assignments[0].ID
+	if _, err := database.ExecContext(ctx, "DELETE FROM audit_logs"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := svc.AdjustStock(ctx, AdjustStockRequest{PartID: partB, AssignmentID: assignmentID, Delta: 1}); !errors.Is(err, ErrAssignmentOwnership) {
+		t.Fatalf("mismatched adjustment error = %v, want ErrAssignmentOwnership", err)
+	}
+	unchanged, err := s.GetAssignment(ctx, assignmentID)
+	if err != nil || unchanged.Quantity != 3 {
+		t.Fatalf("mismatched adjustment changed assignment: %+v, %v", unchanged, err)
+	}
+	logs, err := s.GetAllAuditLogs(ctx)
+	if err != nil || len(logs) != 0 {
+		t.Fatalf("mismatched adjustment audit rows = %d, %v; want none", len(logs), err)
+	}
+
+	if err := svc.AdjustStock(ctx, AdjustStockRequest{PartID: partA, AssignmentID: assignmentID, Delta: -8}); err != nil {
+		t.Fatalf("reduce stock below zero: %v", err)
+	}
+	updated, err := s.GetAssignment(ctx, assignmentID)
+	if err != nil || updated.Quantity != 0 {
+		t.Fatalf("quantity after reduction = %d, %v; want zero floor", updated.Quantity, err)
+	}
+}
+
+func TestStockServiceRejectsInvalidIdentifiersAndQuantities(t *testing.T) {
+	_, store, cleanup := setupTestDB(t)
+	defer cleanup()
+	svc := NewService(store, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	ctx := context.Background()
+	cases := []struct {
+		name string
+		run  func() error
+	}{
+		{"zero part", func() error { return svc.AssignStock(ctx, AssignStockRequest{PartID: 0, BinID: 1, Quantity: 1}) }},
+		{"zero bin", func() error { return svc.AssignStock(ctx, AssignStockRequest{PartID: 1, BinID: 0, Quantity: 1}) }},
+		{"nonpositive assignment quantity", func() error { return svc.AssignStock(ctx, AssignStockRequest{PartID: 1, BinID: 1, Quantity: 0}) }},
+		{"invalid move", func() error { return svc.MoveStock(ctx, MoveStockRequest{PartID: 1, AssignmentID: 1, TargetBinID: 0}) }},
+		{"invalid remove", func() error { return svc.RemoveStock(ctx, RemoveStockRequest{PartID: 0, AssignmentID: 1}) }},
+		{"invalid adjust", func() error { return svc.AdjustStock(ctx, AdjustStockRequest{PartID: 1, AssignmentID: 1, Delta: 0}) }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := tc.run(); !errors.Is(err, ErrInvalidStockRequest) {
+				t.Fatalf("error = %v, want ErrInvalidStockRequest", err)
+			}
+		})
+	}
+}
+
+type assignmentLookupErrorStore struct {
+	db.Store
+	err error
+}
+
+func (s assignmentLookupErrorStore) ExecImmediateTx(ctx context.Context, fn func(db.Querier) error) error {
+	return s.Store.ExecImmediateTx(ctx, func(q db.Querier) error {
+		return fn(assignmentLookupErrorQuerier{Querier: q, err: s.err})
+	})
+}
+
+type assignmentLookupErrorQuerier struct {
+	db.Querier
+	err error
+}
+
+func (q assignmentLookupErrorQuerier) GetAssignmentID(context.Context, db.GetAssignmentIDParams) (int64, error) {
+	return 0, q.err
+}
+
+func TestAssignStockUnexpectedLookupFailureIsNotTreatedAsMissing(t *testing.T) {
+	database, store, cleanup := setupTestDB(t)
+	defer cleanup()
+	svc := NewService(store, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	ctx := context.Background()
+	if _, err := database.ExecContext(ctx, "ALTER TABLE part_assignments RENAME TO part_assignments_unavailable"); err != nil {
+		t.Fatalf("inject query failure: %v", err)
+	}
+	err := svc.AssignStock(ctx, AssignStockRequest{PartID: 1, BinID: 1, Quantity: 1})
+	if err == nil || errors.Is(err, sql.ErrNoRows) || errors.Is(err, ErrAssignmentNotFound) {
+		t.Fatalf("unexpected lookup error was misclassified: %v", err)
+	}
+}
+
+func TestMoveStockUnexpectedTargetLookupFailureIsPropagated(t *testing.T) {
+	_, store, cleanup := setupTestDB(t)
+	defer cleanup()
+	ctx := context.WithValue(context.Background(), middleware.UserContextKey, int64(1))
+	if _, err := store.CreateUser(context.Background(), db.CreateUserParams{Email: "move-error@test.com", Role: "admin"}); err != nil {
+		t.Fatal(err)
+	}
+	ctrl, err := store.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "192.0.2.12"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	container, err := store.CreateContainer(ctx, db.CreateContainerParams{Name: "S", ControllerID: ctrl.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sourceBin, err := store.CreateBin(ctx, db.CreateBinParams{Name: "Source", ContainerID: sql.NullInt64{Int64: container, Valid: true}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	targetBin, err := store.CreateBin(ctx, db.CreateBinParams{Name: "Target", ContainerID: sql.NullInt64{Int64: container, Valid: true}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	partID := createTestPart(t, store, ctx, "Move error")
+	normalService := NewService(store, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err := normalService.AssignStock(ctx, AssignStockRequest{PartID: partID, BinID: sourceBin, Quantity: 4}); err != nil {
+		t.Fatal(err)
+	}
+	assignments, err := store.GetPartAssignments(ctx, partID)
+	if err != nil || len(assignments) != 1 {
+		t.Fatalf("assignments = %d, %v", len(assignments), err)
+	}
+	lookupErr := errors.New("injected target lookup failure")
+	failingService := NewService(assignmentLookupErrorStore{Store: store, err: lookupErr}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	err = failingService.MoveStock(ctx, MoveStockRequest{PartID: partID, AssignmentID: assignments[0].ID, TargetBinID: targetBin})
+	if !errors.Is(err, lookupErr) || errors.Is(err, ErrAssignmentNotFound) {
+		t.Fatalf("MoveStock error = %v; want unexpected lookup error, not missing assignment", err)
+	}
+	unchanged, err := store.GetAssignment(ctx, assignments[0].ID)
+	if err != nil || unchanged.BinID.Int64 != sourceBin || unchanged.Quantity != 4 {
+		t.Fatalf("unexpected lookup error mutated source assignment: %+v, %v", unchanged, err)
+	}
+}
+
+func TestMoveStockMergeRollsBackWhenSourceDeleteFails(t *testing.T) {
+	database, store, cleanup := setupTestDB(t)
+	defer cleanup()
+	svc := NewService(store, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	ctx := context.WithValue(context.Background(), middleware.UserContextKey, int64(1))
+	if _, err := store.CreateUser(context.Background(), db.CreateUserParams{Email: "move@test.com", Role: "admin"}); err != nil {
+		t.Fatal(err)
+	}
+	ctrl, err := store.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "192.0.2.10"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	container, err := store.CreateContainer(ctx, db.CreateContainerParams{Name: "S", ControllerID: ctrl.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	binA, err := store.CreateBin(ctx, db.CreateBinParams{Name: "A", ContainerID: sql.NullInt64{Int64: container, Valid: true}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	binB, err := store.CreateBin(ctx, db.CreateBinParams{Name: "B", ContainerID: sql.NullInt64{Int64: container, Valid: true}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	partID := createTestPart(t, store, ctx, "Merge")
+	for _, assignment := range []AssignStockRequest{{PartID: partID, BinID: binA, Quantity: 7}, {PartID: partID, BinID: binB, Quantity: 11}} {
+		if err := svc.AssignStock(ctx, assignment); err != nil {
+			t.Fatal(err)
+		}
+	}
+	assignments, err := store.GetPartAssignments(ctx, partID)
+	if err != nil || len(assignments) != 2 {
+		t.Fatalf("assignments = %d, %v", len(assignments), err)
+	}
+	var sourceID int64
+	for _, assignment := range assignments {
+		if assignment.BinID.Int64 == binA {
+			sourceID = assignment.ID
+		}
+	}
+	if sourceID == 0 {
+		t.Fatal("source assignment not found")
+	}
+	if _, err := database.ExecContext(ctx, `CREATE TRIGGER fail_stock_delete BEFORE DELETE ON part_assignments BEGIN SELECT RAISE(ABORT, 'injected delete failure'); END`); err != nil {
+		t.Fatalf("create failure trigger: %v", err)
+	}
+	if err := svc.MoveStock(ctx, MoveStockRequest{PartID: partID, AssignmentID: sourceID, TargetBinID: binB}); err == nil {
+		t.Fatal("expected injected source deletion failure")
+	}
+	assignments, err = store.GetPartAssignments(ctx, partID)
+	if err != nil || len(assignments) != 2 {
+		t.Fatalf("assignments after rollback = %d, %v; want both rows", len(assignments), err)
+	}
+	quantities := map[int64]int64{}
+	for _, assignment := range assignments {
+		quantities[assignment.BinID.Int64] = assignment.Quantity
+	}
+	if quantities[binA] != 7 || quantities[binB] != 11 {
+		t.Fatalf("stock changed despite rollback: bins quantities = %#v", quantities)
+	}
+}
+
+func TestAssignStockConcurrentAddsAreNotLost(t *testing.T) {
+	dsn := filepath.Join(t.TempDir(), "stock-concurrency.sqlite")
+	databaseA, err := db.Open(dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer databaseA.Close()
+	if err := db.Migrate(databaseA); err != nil {
+		t.Fatal(err)
+	}
+	databaseB, err := db.Open(dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer databaseB.Close()
+	databaseA.SetMaxOpenConns(1)
+	databaseB.SetMaxOpenConns(1)
+	storeA := db.NewStore(databaseA)
+	storeB := db.NewStore(databaseB)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	svcA := NewService(storeA, logger)
+	svcB := NewService(storeB, logger)
+	ctx := context.Background()
+	if _, err := storeA.CreateUser(ctx, db.CreateUserParams{Email: "concurrent@test.com", Role: "admin"}); err != nil {
+		t.Fatal(err)
+	}
+	ctrl, err := storeA.CreateController(ctx, db.CreateControllerParams{Name: "C", IpAddress: "192.0.2.11"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	container, err := storeA.CreateContainer(ctx, db.CreateContainerParams{Name: "S", ControllerID: ctrl.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	binID, err := storeA.CreateBin(ctx, db.CreateBinParams{Name: "A", ContainerID: sql.NullInt64{Int64: container, Valid: true}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	partID := createTestPart(t, storeA, ctx, "Concurrent")
+	if err := svcA.AssignStock(ctx, AssignStockRequest{PartID: partID, BinID: binID, Quantity: 1}); err != nil {
+		t.Fatal(err)
+	}
+
+	const workers = 12
+	var wg sync.WaitGroup
+	errCh := make(chan error, workers)
+	for i := range workers {
+		service := svcA
+		if i%2 != 0 {
+			service = svcB
+		}
+		wg.Add(1)
+		go func(service Service) {
+			defer wg.Done()
+			errCh <- service.AssignStock(ctx, AssignStockRequest{PartID: partID, BinID: binID, Quantity: 1})
+		}(service)
+	}
+	wg.Wait()
+	close(errCh)
+	for err := range errCh {
+		if err != nil {
+			t.Fatalf("concurrent AssignStock: %v", err)
+		}
+	}
+	assignments, err := storeA.GetPartAssignments(ctx, partID)
+	if err != nil || len(assignments) != 1 || assignments[0].Quantity != workers+1 {
+		t.Fatalf("concurrent stock result = %+v, %v; want one assignment with quantity %d", assignments, err, workers+1)
 	}
 }

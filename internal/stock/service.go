@@ -19,13 +19,15 @@ var (
 	ErrAssignmentNotFound = errors.New("stock assignment not found")
 	// ErrAssignmentOwnership indicates the assignment belongs to a different part.
 	ErrAssignmentOwnership = errors.New("stock assignment does not belong to part")
+	// ErrInvalidStockRequest indicates an invalid identifier, quantity, or adjustment.
+	ErrInvalidStockRequest = errors.New("invalid stock request")
 )
 
 type Service interface {
 	AssignStock(ctx context.Context, req AssignStockRequest) error
 	MoveStock(ctx context.Context, req MoveStockRequest) error
 	RemoveStock(ctx context.Context, req RemoveStockRequest) error
-	AdjustStock(ctx context.Context, assignmentID int64, delta int) error
+	AdjustStock(ctx context.Context, req AdjustStockRequest) error
 }
 
 type AssignStockRequest struct {
@@ -45,6 +47,12 @@ type RemoveStockRequest struct {
 	AssignmentID int64
 }
 
+type AdjustStockRequest struct {
+	PartID       int64
+	AssignmentID int64
+	Delta        int
+}
+
 type service struct {
 	store  db.Store
 	logger *slog.Logger
@@ -58,10 +66,13 @@ func NewService(store db.Store, logger *slog.Logger) Service {
 }
 
 func (s *service) AssignStock(ctx context.Context, req AssignStockRequest) error {
+	if req.PartID <= 0 || req.BinID <= 0 || req.Quantity <= 0 {
+		return fmt.Errorf("%w: part, bin, and quantity must be positive", ErrInvalidStockRequest)
+	}
 	s.logger.Debug("assigning stock", "part_id", req.PartID, "bin_id", req.BinID, "qty", req.Quantity)
 	nullBinID := sql.NullInt64{Int64: int64(req.BinID), Valid: true}
 
-	return s.store.ExecTx(ctx, func(q db.Querier) error {
+	return s.store.ExecImmediateTx(ctx, func(q db.Querier) error {
 		existingID, err := q.GetAssignmentID(ctx, db.GetAssignmentIDParams{
 			PartID: req.PartID,
 			BinID:  nullBinID,
@@ -90,7 +101,7 @@ func (s *service) AssignStock(ctx context.Context, req AssignStockRequest) error
 				map[string]any{"quantity": existing.Quantity},
 				map[string]any{"quantity": newQty})
 
-		} else {
+		} else if errors.Is(err, sql.ErrNoRows) {
 			// New assignment
 			s.logger.Debug("creating new assignment", "part_id", req.PartID, "bin_id", req.BinID)
 			err = q.CreatePartAssignment(ctx, db.CreatePartAssignmentParams{
@@ -104,22 +115,33 @@ func (s *service) AssignStock(ctx context.Context, req AssignStockRequest) error
 
 			audit.Log(ctx, q, "STOCK_ADD", "PART", req.PartID, "Added stock to new bin", nil,
 				map[string]any{"bin_id": req.BinID, "quantity": req.Quantity})
+		} else {
+			return fmt.Errorf("failed to look up stock assignment: %w", err)
 		}
 		return nil
 	})
 }
 
-func (s *service) AdjustStock(ctx context.Context, assignmentID int64, delta int) error {
-	s.logger.Debug("adjusting stock", "id", assignmentID, "delta", delta)
+func (s *service) AdjustStock(ctx context.Context, req AdjustStockRequest) error {
+	if req.PartID <= 0 || req.AssignmentID <= 0 || req.Delta == 0 {
+		return fmt.Errorf("%w: part, assignment, and non-zero delta are required", ErrInvalidStockRequest)
+	}
+	s.logger.Debug("adjusting stock", "id", req.AssignmentID, "delta", req.Delta)
 
-	return s.store.ExecTx(ctx, func(q db.Querier) error {
-		assignment, err := q.GetAssignment(ctx, assignmentID)
+	return s.store.ExecImmediateTx(ctx, func(q db.Querier) error {
+		assignment, err := q.GetAssignment(ctx, req.AssignmentID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("%w: id %d", ErrAssignmentNotFound, req.AssignmentID)
+		}
 		if err != nil {
-			s.logger.Error("assignment not found for adjustment", "err", err, "assignment_id", assignmentID)
-			return fmt.Errorf("%w: id %d", ErrAssignmentNotFound, assignmentID)
+			return fmt.Errorf("failed to fetch assignment for adjustment: %w", err)
+		}
+		if assignment.PartID != req.PartID {
+			return fmt.Errorf("%w: assignment %d belongs to part %d, not part %d",
+				ErrAssignmentOwnership, req.AssignmentID, assignment.PartID, req.PartID)
 		}
 
-		newQty := assignment.Quantity + int64(delta)
+		newQty := assignment.Quantity + int64(req.Delta)
 		if newQty < 0 {
 			newQty = 0
 		}
@@ -129,7 +151,7 @@ func (s *service) AdjustStock(ctx context.Context, assignmentID int64, delta int
 		// zero rows while still writing an audit entry.
 		err = q.UpdatePartAssignmentQuantityByID(ctx, db.UpdatePartAssignmentQuantityByIDParams{
 			Quantity: newQty,
-			ID:       assignmentID,
+			ID:       req.AssignmentID,
 		})
 
 		if err != nil {
@@ -137,10 +159,10 @@ func (s *service) AdjustStock(ctx context.Context, assignmentID int64, delta int
 		}
 
 		action := "STOCK_INC"
-		if delta < 0 {
+		if req.Delta < 0 {
 			action = "STOCK_DEC"
 		}
-		audit.Log(ctx, q, action, "PART", assignment.PartID, fmt.Sprintf("Adjusted stock by %d", delta),
+		audit.Log(ctx, q, action, "PART", assignment.PartID, fmt.Sprintf("Adjusted stock by %d", req.Delta),
 			map[string]any{"quantity": assignment.Quantity},
 			map[string]any{"quantity": newQty})
 
@@ -149,13 +171,18 @@ func (s *service) AdjustStock(ctx context.Context, assignmentID int64, delta int
 }
 
 func (s *service) MoveStock(ctx context.Context, req MoveStockRequest) error {
+	if req.PartID <= 0 || req.AssignmentID <= 0 || req.TargetBinID <= 0 {
+		return fmt.Errorf("%w: part, assignment, and target bin must be positive", ErrInvalidStockRequest)
+	}
 	s.logger.Debug("moving stock", "part_id", req.PartID, "assignment_id", req.AssignmentID, "target_bin_id", req.TargetBinID)
 
-	return s.store.ExecTx(ctx, func(q db.Querier) error {
+	return s.store.ExecImmediateTx(ctx, func(q db.Querier) error {
 		source, err := q.GetAssignment(ctx, req.AssignmentID)
-		if err != nil {
-			s.logger.Error("source assignment not found for stock move", "err", err, "assignment_id", req.AssignmentID)
+		if errors.Is(err, sql.ErrNoRows) {
 			return fmt.Errorf("%w: id %d", ErrAssignmentNotFound, req.AssignmentID)
+		}
+		if err != nil {
+			return fmt.Errorf("failed to fetch source assignment: %w", err)
 		}
 
 		// The assignment must belong to the part named in the request. The part
@@ -206,7 +233,7 @@ func (s *service) MoveStock(ctx context.Context, req MoveStockRequest) error {
 			audit.Log(ctx, q, "STOCK_MERGE", "PART", req.PartID, fmt.Sprintf("Merged stock into bin %d", req.TargetBinID),
 				map[string]any{"bin_id": source.BinID.Int64, "quantity": source.Quantity},
 				map[string]any{"bin_id": req.TargetBinID, "quantity": newQty}) // newQty is total in target
-		} else {
+		} else if errors.Is(err, sql.ErrNoRows) {
 			s.logger.Debug("reassigning assignment to new bin")
 			err = q.ReassignPartAssignment(ctx, db.ReassignPartAssignmentParams{
 				BinID: sql.NullInt64{Int64: req.TargetBinID, Valid: true},
@@ -219,17 +246,24 @@ func (s *service) MoveStock(ctx context.Context, req MoveStockRequest) error {
 			audit.Log(ctx, q, "STOCK_MOVE", "PART", req.PartID, fmt.Sprintf("Moved stock to bin %d", req.TargetBinID),
 				map[string]any{"bin_id": source.BinID.Int64},
 				map[string]any{"bin_id": req.TargetBinID})
+		} else {
+			return fmt.Errorf("failed to look up target stock assignment: %w", err)
 		}
 		return nil
 	})
 }
 
 func (s *service) RemoveStock(ctx context.Context, req RemoveStockRequest) error {
-	return s.store.ExecTx(ctx, func(q db.Querier) error {
+	if req.PartID <= 0 || req.AssignmentID <= 0 {
+		return fmt.Errorf("%w: part and assignment must be positive", ErrInvalidStockRequest)
+	}
+	return s.store.ExecImmediateTx(ctx, func(q db.Querier) error {
 		assignment, err := q.GetAssignment(ctx, req.AssignmentID)
-		if err != nil {
-			s.logger.Error("assignment not found for stock removal", "err", err, "assignment_id", req.AssignmentID)
+		if errors.Is(err, sql.ErrNoRows) {
 			return fmt.Errorf("%w: id %d", ErrAssignmentNotFound, req.AssignmentID)
+		}
+		if err != nil {
+			return fmt.Errorf("failed to fetch assignment for removal: %w", err)
 		}
 
 		// The assignment must belong to the part named in the request; otherwise

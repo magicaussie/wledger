@@ -67,15 +67,30 @@ func (h *Handler) Routes() http.Handler {
 func (h *Handler) tokenMiddleware(next http.Handler) http.Handler {
 	token := Token()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		given := r.Header.Get("Authorization")
-		given = strings.TrimPrefix(given, "Bearer ")
-		given = strings.TrimPrefix(given, "Token ")
-		if subtle.ConstantTimeCompare([]byte(given), []byte(token)) != 1 {
+		authorizations := r.Header.Values("Authorization")
+		if token == "" || len(authorizations) != 1 {
+			writeError(w, http.StatusUnauthorized, "unauthorized")
+			return
+		}
+		given, ok := parseAuthorization(authorizations[0])
+		if !ok || subtle.ConstantTimeCompare([]byte(given), []byte(token)) != 1 {
 			writeError(w, http.StatusUnauthorized, "unauthorized")
 			return
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func parseAuthorization(value string) (string, bool) {
+	separator := strings.IndexByte(value, ' ')
+	if separator <= 0 || !strings.EqualFold(value[:separator], "Bearer") {
+		return "", false
+	}
+	credential := value[separator+1:]
+	if credential == "" || strings.ContainsAny(credential, " \t,\r\n") {
+		return "", false
+	}
+	return credential, true
 }
 
 type responseError struct {

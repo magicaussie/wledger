@@ -20,6 +20,7 @@ import (
 	"github.com/alexedwards/scs/v2"
 	"github.com/go-chi/chi/v5"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/hardware"
 	"github.com/tuxedocurly/wledger/internal/ledspace"
@@ -508,6 +509,17 @@ func TestHandleHardwareGridSave_MatchingSpaceTagSucceeds(t *testing.T) {
 	gridData := `[{"container_index":0,"x":0,"y":0,"led_index":3,"width":1,"name":"a1"}]`
 	if rr := postGridSaveWithSpace(t, h, ctrl.ID, gridData, configData, ledspace.Segment); rr.Code != http.StatusSeeOther {
 		t.Fatalf("matching segment tag = %d, want 303: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestHardwareImportRejectsOversizedBodyBeforeParsing(t *testing.T) {
+	h := &Handler{}
+	req := httptest.NewRequest(http.MethodPost, "/hardware/import", nil)
+	req.ContentLength = config.MaxUploadSizeImport + 1
+	rec := httptest.NewRecorder()
+	h.HandleHardwareImport(rec, req)
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status = %d, want 413", rec.Code)
 	}
 }
 

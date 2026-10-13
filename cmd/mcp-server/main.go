@@ -131,7 +131,14 @@ func main() {
 		}
 		log.Printf("MCP SSE listening on %s", addr)
 		handler := authMiddleware(token, allowedOrigins, server.NewSSEServer(srv))
-		httpServer := &http.Server{Addr: addr, Handler: handler}
+		httpServer := &http.Server{
+			Addr:              addr,
+			Handler:           handler,
+			ReadHeaderTimeout: 10 * time.Second,
+			ReadTimeout:       30 * time.Second,
+			IdleTimeout:       2 * time.Minute,
+			MaxHeaderBytes:    1 << 20,
+		}
 		log.Fatal(httpServer.ListenAndServe())
 	case "http":
 		addr := os.Getenv("MCP_HTTP_ADDR")
@@ -141,7 +148,14 @@ func main() {
 		log.Printf("MCP HTTP (streamable) listening on %s", addr)
 		mux := http.NewServeMux()
 		mux.Handle("/", authMiddleware(token, allowedOrigins, server.NewStreamableHTTPServer(srv)))
-		httpServer := &http.Server{Addr: addr, Handler: mux}
+		httpServer := &http.Server{
+			Addr:              addr,
+			Handler:           mux,
+			ReadHeaderTimeout: 10 * time.Second,
+			ReadTimeout:       30 * time.Second,
+			IdleTimeout:       2 * time.Minute,
+			MaxHeaderBytes:    1 << 20,
+		}
 		log.Fatal(httpServer.ListenAndServe())
 	default:
 		log.Fatalf("unknown MCP_TRANSPORT %q", transport)

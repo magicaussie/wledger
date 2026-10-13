@@ -34,8 +34,12 @@ func (h *Handler) HandlePartsImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse Form
-	err := r.ParseMultipartForm(config.MaxUploadSizeImport) // 100 MB
+	// ParseMultipartForm's maxMemory is only a memory threshold; this applies a
+	// hard limit to the complete multipart request body.
+	if !limitRequestBody(w, r, config.MaxUploadSizeImport) {
+		return
+	}
+	err := r.ParseMultipartForm(config.MaxUploadSizeImport)
 	if err != nil {
 		h.Logger.Error("failed to parse multipart form for parts import", "err", err)
 		components.ImportResult(false, "Failed to parse form: "+err.Error(), nil).Render(r.Context(), w)

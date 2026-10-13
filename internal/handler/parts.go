@@ -501,22 +501,24 @@ func (h *Handler) HandlePartStockRemove(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *Handler) HandlePartStockAdjust(w http.ResponseWriter, r *http.Request) {
-	// partID, _ := strconv.Atoi(chi.URLParam(r, "id"))
-	assignmentID, _ := strconv.Atoi(chi.URLParam(r, "assignment_id"))
-	delta, _ := strconv.Atoi(r.URL.Query().Get("delta"))
+	partID, partErr := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	assignmentID, assignmentErr := strconv.ParseInt(chi.URLParam(r, "assignment_id"), 10, 64)
+	delta, deltaErr := strconv.Atoi(r.URL.Query().Get("delta"))
 
-	if delta == 0 {
-		h.UIError.Respond(w, r, nil, "Invalid delta", http.StatusBadRequest)
+	if partErr != nil || assignmentErr != nil || deltaErr != nil || partID <= 0 || assignmentID <= 0 || delta == 0 {
+		h.UIError.Respond(w, r, nil, "Invalid stock adjustment", http.StatusBadRequest)
 		return
 	}
 
-	err := h.Stock.AdjustStock(r.Context(), int64(assignmentID), delta)
+	err := h.Stock.AdjustStock(r.Context(), stock.AdjustStockRequest{
+		PartID:       partID,
+		AssignmentID: assignmentID,
+		Delta:        delta,
+	})
 	if err != nil {
 		h.UIError.Respond(w, r, err, "Failed to adjust stock", http.StatusInternalServerError)
 		return
 	}
-
-	partID, _ := strconv.Atoi(chi.URLParam(r, "id"))
 
 	// If HTMX request, render just the row
 	if r.Header.Get("HX-Request") == "true" {

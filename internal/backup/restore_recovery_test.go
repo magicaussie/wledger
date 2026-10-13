@@ -264,8 +264,8 @@ func TestWithinDir(t *testing.T) {
 	}
 }
 
-// TestRestore_RejectsZipPathTraversal verifies a traversal entry is skipped while
-// a legitimate entry is still extracted.
+// TestRestore_RejectsZipPathTraversal verifies a traversal entry rejects the
+// entire archive before any upload is extracted.
 func TestRestore_RejectsZipPathTraversal(t *testing.T) {
 	_, s, svc, uploadsDir, cleanup := newBackupService(t)
 	defer cleanup()
@@ -278,13 +278,12 @@ func TestRestore_RejectsZipPathTraversal(t *testing.T) {
 		"../escaped.txt": "pwn",
 		"ok.txt":         "ok",
 	})
-	if err := svc.Restore(ctx, bytes.NewReader(zipBytes), int64(len(zipBytes))); err != nil {
-		t.Fatalf("restore failed: %v", err)
+	if err := svc.Restore(ctx, bytes.NewReader(zipBytes), int64(len(zipBytes))); err == nil {
+		t.Fatal("expected traversal archive to be rejected")
 	}
-	if _, err := os.Stat(filepath.Join(uploadsDir, "escaped.txt")); !os.IsNotExist(err) {
-		t.Errorf("path traversal was not blocked: escaped.txt exists in %s", uploadsDir)
-	}
-	if _, err := os.Stat(filepath.Join(uploadsDir, "ok.txt")); err != nil {
-		t.Errorf("legitimate upload missing: %v", err)
+	for _, name := range []string{"escaped.txt", "ok.txt"} {
+		if _, err := os.Stat(filepath.Join(uploadsDir, name)); !os.IsNotExist(err) {
+			t.Errorf("rejected archive extracted %s into %s", name, uploadsDir)
+		}
 	}
 }

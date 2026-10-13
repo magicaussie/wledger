@@ -210,9 +210,12 @@ func readManifestEntry(f *zip.File) ([]byte, error) {
 	}
 	defer rc.Close()
 
-	data, err := io.ReadAll(rc)
+	data, err := io.ReadAll(io.LimitReader(rc, maxRestoreManifestBytes+1))
 	if err != nil {
 		return nil, malformedManifest("failed to read " + f.Name + ": " + err.Error())
+	}
+	if len(data) > maxRestoreManifestBytes {
+		return nil, malformedManifest(fmt.Sprintf("%s exceeds %d bytes", f.Name, maxRestoreManifestBytes))
 	}
 	return data, nil
 }

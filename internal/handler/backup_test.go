@@ -15,14 +15,16 @@ import (
 
 	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/internal/backup"
+	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/internal/uierror"
 )
 
 // fakeBackupService returns a fixed result from Export/Restore so the handler's
 // outcome rendering can be exercised without a real backup.
 type fakeBackupService struct {
-	err  error
-	data []byte
+	err          error
+	data         []byte
+	restoreCalls int
 }
 
 func (f *fakeBackupService) Export(ctx context.Context, w io.Writer) error {
@@ -39,6 +41,7 @@ func (f *fakeBackupService) Export(ctx context.Context, w io.Writer) error {
 }
 
 func (f *fakeBackupService) Restore(ctx context.Context, r io.ReaderAt, size int64) error {
+	f.restoreCalls++
 	return f.err
 }
 
@@ -74,6 +77,23 @@ func postBackupRestore(t *testing.T, svc backup.Service) *httptest.ResponseRecor
 	rr := httptest.NewRecorder()
 	h.HandleBackupRestore(rr, req)
 	return rr
+}
+
+func TestHandleBackupRestoreRejectsOversizedBodyBeforeCallingService(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	service := &fakeBackupService{}
+	h := &Handler{Logger: logger, UIError: uierror.New(logger), Backup: service}
+	req := httptest.NewRequest(http.MethodPost, "/settings/backup/restore", nil)
+	req.ContentLength = config.MaxUploadSizeBackup + 1
+	req = req.WithContext(auth.WithUser(req.Context(), auth.User{ID: 1, Role: "admin"}))
+	rec := httptest.NewRecorder()
+	h.HandleBackupRestore(rec, req)
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status = %d, want 413", rec.Code)
+	}
+	if service.restoreCalls != 0 {
+		t.Fatalf("Restore called %d times for oversized body", service.restoreCalls)
+	}
 }
 
 // TestHandleBackupRestore_CommittedWithWarning verifies that a committed restore
