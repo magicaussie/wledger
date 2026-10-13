@@ -29,6 +29,7 @@ templ ForceReset() {
 					<div class="divider"></div>
 					<div class="text-center">
 						<form action="/logout" method="POST">
+							@components.CSRFInput()
 							<button class="btn btn-ghost btn-xs">{ i18n.T(ctx, "CancelAndLogout") }</button>
 						</form>
 					</div>

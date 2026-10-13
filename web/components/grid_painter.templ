@@ -278,6 +278,7 @@ templ GridPainter(controller db.Controller, containers []db.Container, bins []db
 		</div>
 		if canEdit {
 			<form x-ref="gridForm" method="POST" action={ templ.SafeURL(fmt.Sprintf("/hardware/%d/grid", controller.ID)) } class="mt-16 bg-base-200 p-8 rounded-2xl border border-base-300 shadow-xl flex flex-col md:flex-row justify-between items-center gap-6">
+				@CSRFInput()
 				<div>
 					<h3 class="font-bold text-sm uppercase tracking-wider opacity-50">{ i18n.T(ctx, "SaveConfiguration") }</h3>
 					<p class="text-xs opacity-40 mt-1">{ i18n.T(ctx, "SaveConfigurationDesc") }</p>

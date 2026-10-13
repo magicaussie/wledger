@@ -9,7 +9,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,6 +21,7 @@ import (
 	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/handler"
+	"github.com/tuxedocurly/wledger/internal/i18n"
 	"github.com/tuxedocurly/wledger/internal/middleware"
 	"github.com/tuxedocurly/wledger/internal/uierror"
 )
@@ -61,14 +65,31 @@ var hardwareActionPaths = []string{
 }
 
 type authTestEnv struct {
-	router *chi.Mux
-	store  db.Store
-	wled   *fakeWLED
-	conn   *sql.DB
+	router  *chi.Mux
+	store   db.Store
+	wled    *fakeWLED
+	conn    *sql.DB
+	handler *handler.Handler
+	session *scs.SessionManager
+	mw      *middleware.Manager
 }
+
+var (
+	routerTestI18nOnce sync.Once
+	routerTestI18nErr  error
+)
 
 func newAuthTestEnv(t *testing.T) *authTestEnv {
 	t.Helper()
+	_, sourceFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("resolve router test source path")
+	}
+	localesDir := filepath.Join(filepath.Dir(sourceFile), "..", "..", "locales")
+	routerTestI18nOnce.Do(func() { routerTestI18nErr = i18n.InitWithDir(localesDir) })
+	if routerTestI18nErr != nil {
+		t.Fatalf("initialize translations: %v", routerTestI18nErr)
+	}
 	// Keep the machine-to-machine API unmounted so the route table is minimal.
 	t.Setenv("WLEDGER_API_TOKEN", "")
 
@@ -111,7 +132,7 @@ func newAuthTestEnv(t *testing.T) *authTestEnv {
 		}
 		_, _ = w.Write([]byte(tok))
 	})
-	return &authTestEnv{router: r, store: store, wled: fw, conn: conn}
+	return &authTestEnv{router: r, store: store, wled: fw, conn: conn, handler: h, session: sm, mw: mw}
 }
 
 func (e *authTestEnv) createUser(t *testing.T, email, role string) {
@@ -132,15 +153,28 @@ func (e *authTestEnv) createUser(t *testing.T, email, role string) {
 
 func (e *authTestEnv) login(t *testing.T, email string) []*http.Cookie {
 	t.Helper()
-	form := url.Values{"email": {email}, "password": {"secret123"}}
+	get := httptest.NewRecorder()
+	e.router.ServeHTTP(get, httptest.NewRequest(http.MethodGet, "/login", nil))
+	cookies := get.Result().Cookies()
+	if get.Code != http.StatusOK || len(cookies) == 0 {
+		t.Fatalf("login form GET = %d with %d cookies", get.Code, len(cookies))
+	}
+	token := e.csrfToken(t, cookies)
+	form := url.Values{"email": {email}, "password": {"secret123"}, "csrf_token": {token}}
 	req := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	for _, cookie := range cookies {
+		req.AddCookie(cookie)
+	}
 	rr := httptest.NewRecorder()
 	e.router.ServeHTTP(rr, req)
 	if rr.Code != http.StatusSeeOther {
 		t.Fatalf("login %s = %d, want 303: %s", email, rr.Code, rr.Body.String())
 	}
-	return rr.Result().Cookies()
+	if updated := rr.Result().Cookies(); len(updated) != 0 {
+		return updated
+	}
+	return cookies
 }
 
 func (e *authTestEnv) post(path string, cookies []*http.Cookie) *httptest.ResponseRecorder {

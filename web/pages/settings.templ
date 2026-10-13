@@ -78,6 +78,7 @@ templ Settings(user auth.User, s db.Setting, users []db.ListUsersRow) {
 														<div class="flex justify-end items-center gap-2">
 															if u.Role != "admin" {
 																<form action={ templ.SafeURL(fmt.Sprintf("/settings/users/%d/reset", u.ID)) } method="POST" { templ.Attributes{"onsubmit": fmt.Sprintf("return confirm('%s');", i18n.T(ctx, "ConfirmForceReset"))}... }>
+																	@components.CSRFInput()
 																	<button class="btn btn-sm md:btn-sm btn-outline btn-warning px-2 md:px-3" title={ i18n.T(ctx, "ForceReset") }>
 																		<div class="flex items-center gap-1">
 																			@icons.Lock(templ.Attributes{"class": "w-5 h-5"})
@@ -87,6 +88,7 @@ templ Settings(user auth.User, s db.Setting, users []db.ListUsersRow) {
 																</form>
 															}
 															<form action={ templ.SafeURL(fmt.Sprintf("/settings/users/%d/delete", u.ID)) } method="POST" { templ.Attributes{"onsubmit": fmt.Sprintf("return confirm('%s');", i18n.T(ctx, "ConfirmDeleteUser"))}... }>
+																@components.CSRFInput()
 																<button class="btn btn-sm md:btn-sm btn-outline btn-error opacity-70 hover:opacity-100 px-2 md:px-3" title={ i18n.T(ctx, "Delete") }>
 																	<div class="flex items-center gap-1">
 																		@icons.Trash(templ.Attributes{"class": "w-5 h-5"})
@@ -107,6 +109,7 @@ templ Settings(user auth.User, s db.Setting, users []db.ListUsersRow) {
 					<div class="card bg-base-200 shadow-xl border border-base-300">
 						<div class="card-body">
 							<form action="/settings" method="POST" class="space-y-8">
+								@components.CSRFInput()
 								<div>
 									<h3 class="font-bold text-sm uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2">
 										@icons.Lock(templ.Attributes{"class": "w-5 h-5"})
@@ -254,6 +257,7 @@ templ Settings(user auth.User, s db.Setting, users []db.ListUsersRow) {
 					BoxClass: "bg-base-100",
 				}) {
 					<form action="/settings/users" method="POST" class="space-y-5">
+						@components.CSRFInput()
 						<div class="form-control w-full">
 							<label class="label pt-0 pb-2">
 								<span class="label-text font-medium">{ i18n.T(ctx, "EmailAddress") }</span>

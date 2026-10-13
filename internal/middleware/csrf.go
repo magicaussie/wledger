@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/alexedwards/scs/v2"
 	"github.com/tuxedocurly/wledger/internal/config"
@@ -67,13 +68,18 @@ func RotateCSRF(ctx context.Context, sm *scs.SessionManager) {
 	sm.Remove(ctx, csrfSessionKey)
 }
 
-// CSRFContext ensures an authenticated session has a CSRF token and exposes it
-// to templates via the request context (see internal/csrf). Guests are left
-// untouched, so no session is created for anonymous visitors.
+// CSRFContext ensures authenticated pages and the public login/setup forms have
+// a session-bound token, then exposes it to templates via internal/csrf.
 func (m *Manager) CSRFContext(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if m.Session != nil && m.Session.GetInt64(r.Context(), config.SessionKeyUserID) != 0 {
-			if tok, err := CSRFToken(r.Context(), m.Session); err == nil {
+		authenticated := m.Session != nil && m.Session.GetInt64(r.Context(), config.SessionKeyUserID) != 0
+		publicAuthRoute := r.URL.Path == "/login" || r.URL.Path == "/setup"
+		if m.Session != nil && (authenticated || publicAuthRoute) {
+			tok := m.Session.GetString(r.Context(), csrfSessionKey)
+			if tok == "" && r.Method == http.MethodGet && (authenticated || publicAuthRoute) {
+				tok, _ = CSRFToken(r.Context(), m.Session)
+			}
+			if tok != "" {
 				r = r.WithContext(csrf.WithToken(r.Context(), tok))
 			}
 		}
@@ -81,16 +87,39 @@ func (m *Manager) CSRFContext(next http.Handler) http.Handler {
 	})
 }
 
-// RequireCSRF rejects a request whose CSRF token does not match the session's
-// token. The token is read from the X-CSRF-Token header (used by HTMX requests)
-// or, as a fallback, the csrf_token form field. Absent or invalid tokens are
-// rejected with 403. This is the explicit CSRF defense for state-changing
-// browser requests; it does not rely on SameSite alone.
+// RequireCSRF applies one policy to browser-session mutations across the whole
+// router. Public login/setup forms and logout are protected as well. Unauthenticated
+// requests to other protected paths continue to the authentication middleware so
+// existing redirects and role checks remain authoritative. The bearer API is
+// excluded only by path because it validates its own required bearer credential.
 func (m *Manager) RequireCSRF(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !isStateChangingMethod(r.Method) || isMachineAPIPath(r.URL.Path) {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		publicAuthRoute := r.URL.Path == "/login" || r.URL.Path == "/setup" || r.URL.Path == "/logout"
+		authenticated := m.Session != nil && m.Session.GetInt64(r.Context(), config.SessionKeyUserID) != 0
+		if !authenticated && !publicAuthRoute {
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		submitted := r.Header.Get("X-CSRF-Token")
 		if submitted == "" {
-			_ = r.ParseForm()
+			if strings.HasPrefix(strings.ToLower(r.Header.Get("Content-Type")), "multipart/form-data") {
+				parseErr := r.ParseMultipartForm(1 << 20)
+				if r.MultipartForm != nil {
+					defer r.MultipartForm.RemoveAll()
+				}
+				if parseErr != nil {
+					m.UIError.Respond(w, r, nil, "Invalid or missing CSRF token", http.StatusForbidden)
+					return
+				}
+			} else {
+				_ = r.ParseForm()
+			}
 			submitted = r.FormValue("csrf_token")
 		}
 		if !ValidateCSRF(r.Context(), m.Session, submitted) {
@@ -99,4 +128,17 @@ func (m *Manager) RequireCSRF(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func isStateChangingMethod(method string) bool {
+	switch method {
+	case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+		return true
+	default:
+		return false
+	}
+}
+
+func isMachineAPIPath(path string) bool {
+	return path == "/api/v1" || strings.HasPrefix(path, "/api/v1/")
 }

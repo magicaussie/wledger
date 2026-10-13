@@ -25,6 +25,7 @@ templ MoveStockModal(modalID string, title string, message string, actionURL str
 				method="POST"
 				class="space-y-6"
 			>
+				@CSRFInput()
 				<div class="form-control w-full">
 					<span
 						id={ fmt.Sprintf("%s_bin_picker_heading", modalID) }

@@ -55,9 +55,19 @@ document.addEventListener('alpine:init', () => {
 
         deleteWall() {
             if (confirm('Delete this wall?')) {
+                const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+                if (!token) {
+                    window.alert('Security token unavailable. Reload the page and try again.');
+                    return;
+                }
                 const f = document.createElement('form');
                 f.method = 'POST';
                 f.action = '/walls/' + wallId + '/delete';
+                const csrf = document.createElement('input');
+                csrf.type = 'hidden';
+                csrf.name = 'csrf_token';
+                csrf.value = token;
+                f.appendChild(csrf);
                 document.body.appendChild(f);
                 f.submit();
             }

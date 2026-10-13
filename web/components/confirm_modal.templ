@@ -30,6 +30,7 @@ templ DeleteButton(props DeleteButtonProps) {
 				<button class="btn">Cancel</button>
 			</form>
 			<form action={ templ.SafeURL(props.TargetURL) } method="POST">
+				@CSRFInput()
 				<button type="submit" class="btn btn-error">
 					Confirm
 				</button>

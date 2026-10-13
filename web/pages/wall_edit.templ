@@ -27,6 +27,7 @@ templ WallEdit(user auth.User, wall db.Wall, wallContainers []components.Dashboa
 			class="mb-12"
 		>
 			<form method="POST" action={ templ.SafeURL(fmt.Sprintf("/walls/%d", wall.ID)) }>
+				@components.CSRFInput()
 				<div class="flex flex-col lg:flex-row gap-8">
 					<!-- Wall Settings Card -->
 					<div class="lg:w-1/3">

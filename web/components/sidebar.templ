@@ -107,6 +107,7 @@ templ GlobalOffButton() {
 
 templ LogoutButton() {
 	<form action="/logout" method="POST" class="w-full">
+		@CSRFInput()
 		<button type="submit" class="btn btn-ghost justify-start w-full normal-case text-base font-normal px-2 text-error hover:bg-error/10">
 			@icons.LogOut(templ.Attributes{"class": "w-5 h-5"})
 			{ i18n.T(ctx, "LogOut") }

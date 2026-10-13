@@ -25,6 +25,7 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 	r.Use(mw.I18n)
 	r.Use(mw.Authenticate)
 	r.Use(mw.CSRFContext)
+	r.Use(mw.RequireCSRF)
 	r.Use(mw.FirstRunCheck)
 
 	// Static Files
@@ -131,7 +132,6 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 		// -----------------------------------------------------------
 		r.Group(func(r chi.Router) {
 			r.Use(mw.RequireRole("editor", "admin"))
-			r.Use(mw.RequireCSRF)
 
 			r.Post("/hardware/{id}/locate", h.HandleHardwareLocate)
 			r.Post("/parts/{id}/locate", h.HandlePartLocate)
@@ -153,13 +153,11 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 			r.Get("/storage/cabinets/{id}/controllers/{controllerID}/outputs", h.HandleCabinetControllerOutputDiscovery)
 			r.Group(func(r chi.Router) {
 				r.Use(mw.RequireRole("admin"))
-				r.Use(mw.RequireCSRF)
 				r.Post("/storage/cabinets/{id}/controller", h.HandleCabinetControllerSave)
 				r.Post("/storage/cabinets/{id}/wiring", h.HandleCabinetWiringSave)
 				r.Post("/hardware/{id}/locate-mapping", h.HandleControllerLocateMappingSave)
 			})
 			r.Group(func(r chi.Router) {
-				r.Use(mw.RequireCSRF)
 				r.Post("/storage/cabinets", h.HandleLayoutCabinetCreate)
 				r.Post("/storage/cabinets/{id}/edit", h.HandleLayoutSave)
 				r.Post("/storage/cabinets/{id}/drawers/{drawerID}/led", h.HandleDrawerLEDAllocationsSave)
@@ -226,7 +224,6 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 			r.Post("/hardware/{id}/delete", h.HandleHardwareDelete)
 			r.Post("/hardware/{id}/grid", h.HandleHardwareGridSave)
 			r.Group(func(r chi.Router) {
-				r.Use(mw.RequireCSRF)
 				r.Post("/hardware/{id}/capacity", h.HandleHardwareCapacitySave)
 			})
 

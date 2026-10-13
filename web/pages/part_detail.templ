@@ -225,6 +225,7 @@ if user.CanWrite() {
 						class="space-y-6"
 						x-data="{ hasSelection: false }"
 					>
+						@components.CSRFInput()
 						<div class="form-control w-full">
 							<h3 id="visual_bin_picker_label" class="label pt-0 pb-2 justify-start gap-2">
 								<span class="label-text font-bold text-xs uppercase tracking-widest">{ i18n.T(ctx, "M6ChoosePhysicalBin") }</span>
@@ -390,18 +391,19 @@ templ StockRow(partID int64, s db.GetPartAssignmentsRow, user auth.User, control
 							fmt.Sprintf("/parts/%d/stock/%d/move", partID, s.ID),
 							s.Quantity,
 						)
-					                                        }
-					                                        <form action={ templ.SafeURL(fmt.Sprintf("/parts/%d/stock/%d/delete", partID, s.ID)) } method="POST" { templ.Attributes{"onsubmit": fmt.Sprintf("return confirm('%s');", i18n.T(ctx, "ConfirmRemoveStock"))}... }>
-					                                                <button class="btn btn-xs btn-ghost text-error" title={ i18n.T(ctx, "Remove") }>
-					                                                        @icons.Trash(templ.Attributes{"class": "w-5 h-5"})
-					                                                </button>
-					                                        </form>
-					                                }
-					                        </div>
-					                </td>
-					        </tr>
+						}
+						<form action={ templ.SafeURL(fmt.Sprintf("/parts/%d/stock/%d/delete", partID, s.ID)) } method="POST" { templ.Attributes{"onsubmit": fmt.Sprintf("return confirm('%s');", i18n.T(ctx, "ConfirmRemoveStock"))}... }>
+							@components.CSRFInput()
+							<button class="btn btn-xs btn-ghost text-error" title={ i18n.T(ctx, "Remove") }>
+								@icons.Trash(templ.Attributes{"class": "w-5 h-5"})
+							</button>
+						</form>
 					}
-// Helper to sum stock
+				</div>
+			</td>
+		</tr>
+	}
+	// Helper to sum stock
 func calculateTotalStock(stock []db.GetPartAssignmentsRow) int64 {
 	var total int64 = 0
 	for _, s := range stock {

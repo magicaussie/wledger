@@ -1,6 +1,7 @@
 package pages
 
 import "github.com/tuxedocurly/wledger/internal/i18n"
+import "github.com/tuxedocurly/wledger/web/components"
 
 templ Login(errorMessage string, allowGuest bool) {
 	<!DOCTYPE html>
@@ -28,6 +29,7 @@ templ Login(errorMessage string, allowGuest bool) {
 						</div>
 					}
 					<form action="/login" method="POST" class="space-y-4">
+						@components.CSRFInput()
 						<div class="form-control">
 							<label class="label">
 								<span class="label-text">{ i18n.T(ctx, "Email") }</span>

@@ -69,7 +69,7 @@ func TestLoginRotatesCSRFToken(t *testing.T) {
 	}
 
 	// Log in, carrying the pre-login session.
-	form := url.Values{"email": {"admin@test.com"}, "password": {"secret123"}}
+	form := url.Values{"email": {"admin@test.com"}, "password": {"secret123"}, "csrf_token": {token1}}
 	lr := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(form.Encode()))
 	lr.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	for _, c := range cookie1 {

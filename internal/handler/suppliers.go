@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -15,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alexedwards/scs/v2"
 	"github.com/go-chi/chi/v5"
 	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/internal/config"
@@ -320,19 +322,25 @@ func (h *Handler) HandleSupplierCredentialsSave(w http.ResponseWriter, r *http.R
 	http.Redirect(w, r, "/suppliers/credentials?saved="+providerKey, http.StatusSeeOther)
 }
 
+const supplierOAuthStateSessionKey = "supplier_oauth_state"
+
 // GET /suppliers/oauth/callback?code=...&state=...
 func (h *Handler) HandleSupplierOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	code := r.URL.Query().Get("code")
 	state := r.URL.Query().Get("state")
 
+	if !consumeSupplierOAuthState(r.Context(), h.Session, state) {
+		http.Error(w, "OAuth state validation failed", http.StatusForbidden)
+		return
+	}
 	if code == "" {
 		http.Error(w, "Missing authorization code", http.StatusBadRequest)
 		return
 	}
 
 	if err := h.Suppliers.HandleOAuthCallback(r.Context(), state, code); err != nil {
-		h.Logger.Error("OAuth callback failed", "error", err, "state", state)
-		http.Error(w, "OAuth authentication failed: "+err.Error(), http.StatusInternalServerError)
+		h.Logger.Error("OAuth callback failed", "provider", strings.SplitN(state, ":", 2)[0])
+		http.Error(w, "OAuth authentication failed", http.StatusInternalServerError)
 		return
 	}
 
@@ -353,6 +361,7 @@ func (h *Handler) HandleSupplierOAuthStart(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	state := providerKey + ":" + hex.EncodeToString(stateBytes)
+	h.Session.Put(r.Context(), supplierOAuthStateSessionKey, state)
 
 	scheme := "http"
 	if r.Header.Get("X-Forwarded-Proto") == "https" {
@@ -371,6 +380,18 @@ func (h *Handler) HandleSupplierOAuthStart(w http.ResponseWriter, r *http.Reques
 	}
 
 	http.Redirect(w, r, authURL, http.StatusSeeOther)
+}
+
+func consumeSupplierOAuthState(ctx context.Context, sm *scs.SessionManager, state string) bool {
+	if sm == nil || state == "" {
+		return false
+	}
+	expected := sm.GetString(ctx, supplierOAuthStateSessionKey)
+	if expected == "" || subtle.ConstantTimeCompare([]byte(expected), []byte(state)) != 1 {
+		return false
+	}
+	sm.Remove(ctx, supplierOAuthStateSessionKey)
+	return true
 }
 
 // GET /suppliers/recent

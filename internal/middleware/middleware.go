@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -52,7 +53,7 @@ func (m *Manager) RequestLogger(next http.Handler) http.Handler {
 			"bytes", ww.bytes,
 		}
 		if q := r.URL.RawQuery; q != "" {
-			attrs = append(attrs, "query", q)
+			attrs = append(attrs, "query", redactSensitiveQuery(q))
 		}
 		if userID, ok := r.Context().Value(UserContextKey).(int64); ok && userID != 0 {
 			attrs = append(attrs, "user_id", userID)
@@ -73,6 +74,20 @@ func (m *Manager) RequestLogger(next http.Handler) http.Handler {
 			m.Logger.Info("http_request", attrs...)
 		}
 	})
+}
+
+func redactSensitiveQuery(raw string) string {
+	values, err := url.ParseQuery(raw)
+	if err != nil {
+		return "[redacted invalid query]"
+	}
+	for key := range values {
+		switch strings.ToLower(key) {
+		case "csrf_token", "state", "code", "token", "access_token", "refresh_token", "api_key", "api_secret", "client_secret", "password":
+			values[key] = []string{"[REDACTED]"}
+		}
+	}
+	return values.Encode()
 }
 
 // statusWriter tracks the response status code and approximate body size.

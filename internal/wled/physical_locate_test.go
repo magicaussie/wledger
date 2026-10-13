@@ -209,6 +209,39 @@ func (q failingFinalSessionQuerier) UpdatePhysicalLocateSessionCAS(ctx context.C
 	return q.Querier.UpdatePhysicalLocateSessionCAS(ctx, arg)
 }
 
+func currentPhysicalReservationOwnerIDs() []string {
+	hardwareWriteLease.mu.Lock()
+	defer hardwareWriteLease.mu.Unlock()
+	owners := make([]string, 0, len(hardwareWriteLease.physicalOwners))
+	for owner := range hardwareWriteLease.physicalOwners {
+		owners = append(owners, owner)
+	}
+	return owners
+}
+
+func clearFixturePhysicalReservations(t *testing.T, fixture *physicalFixture) {
+	t.Helper()
+	sessions, err := fixture.store.ListPhysicalLocateSessions(context.Background())
+	if err != nil {
+		t.Errorf("list durable sessions during fixture cleanup: %v", err)
+		return
+	}
+	for _, session := range sessions {
+		targets, err := fixture.store.ListPhysicalLocateSessionTargets(context.Background(), session.SessionID)
+		if err != nil {
+			t.Errorf("list targets for session %s during fixture cleanup: %v", session.SessionID, err)
+			continue
+		}
+		if len(targets) == 0 {
+			setPhysicalReservation(session.SessionID, session.ControllerID, session.ControllerAddress, session.ControllerPort, false)
+			continue
+		}
+		for _, target := range targets {
+			setPhysicalReservation(session.SessionID, target.ControllerID, target.ControllerAddress, target.ControllerPort, false)
+		}
+	}
+}
+
 func newPhysicalFixture(t *testing.T) *physicalFixture {
 	t.Helper()
 	mock := newPhysicalMock()
@@ -309,7 +342,11 @@ func newPhysicalFixture(t *testing.T) *physicalFixture {
 			if session.timer != nil {
 				session.timer.Stop()
 			}
-			setPhysicalReservation(session.ID, controllerID.ID, host, port, false)
+			setSessionReservations(session, false)
+		}
+		clearFixturePhysicalReservations(t, fixture)
+		if owners := currentPhysicalReservationOwnerIDs(); len(owners) != 0 {
+			t.Errorf("%s left process-local physical write reservations after fixture cleanup: %v", t.Name(), owners)
 		}
 		server.Close()
 		database.Close()

@@ -10,6 +10,7 @@
     "test": "node web/tests/grid_painter.test.js",
     "test:js": "node web/tests/grid_painter.test.js",
     "test:layout-browser": "node web/tests/layout_editor.browser.test.js",
+    "test:csrf-browser": "node web/tests/csrf.browser.test.js",
     "build:css": "npx @tailwindcss/cli -i ./web/static/css/input.css -o ./web/static/css/output.css",
     "build:css:prod": "npx @tailwindcss/cli -i ./web/static/css/input.css -o ./web/static/css/output.css --minify"
   },

@@ -1,0 +1,7 @@
+package components
+
+import "github.com/tuxedocurly/wledger/internal/csrf"
+
+templ CSRFInput() {
+	<input type="hidden" name="csrf_token" value={ csrf.TokenFromContext(ctx) }/>
+}

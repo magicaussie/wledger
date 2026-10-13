@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/alexedwards/scs/v2"
@@ -109,6 +110,21 @@ func TestValidateCSRFRejections(t *testing.T) {
 		}
 	}))
 	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
+}
+
+func TestRedactSensitiveQueryValues(t *testing.T) {
+	query := redactSensitiveQuery("q=hot+glue&state=oauth-state&code=oauth-code&csrf_token=csrf-value&API_KEY=secret&password=credential")
+	for _, secret := range []string{"oauth-state", "oauth-code", "csrf-value", "secret", "credential"} {
+		if strings.Contains(query, secret) {
+			t.Errorf("redacted query retained %q: %s", secret, query)
+		}
+	}
+	if !strings.Contains(query, "q=hot+glue") {
+		t.Errorf("non-sensitive search query was not preserved: %s", query)
+	}
+	if got := redactSensitiveQuery("csrf_token=%zz"); got != "[redacted invalid query]" {
+		t.Errorf("malformed query = %q, want fully redacted marker", got)
+	}
 }
 
 func TestRotateCSRFInvalidatesToken(t *testing.T) {
