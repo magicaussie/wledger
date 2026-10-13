@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const { chromium } = require('playwright');
 const { spawn, spawnSync } = require('node:child_process');
 const fs = require('node:fs');
@@ -122,13 +123,21 @@ const path = require('node:path');
     });
     if (build.status !== 0) throw new Error(`disposable server build failed: ${build.stderr}`);
 
-    const startServer = (workingDirectory = scratchDir, port = appPort) => spawn(binaryPath, [], {
-      cwd: workingDirectory,
-      env: { ...process.env, WLEDGER_INSECURE_COOKIES: '1', WLEDGER_PORT: String(port) },
-      stdio: 'ignore',
-    });
+    const startServer = (workingDirectory = scratchDir, port = appPort) => {
+      const child = spawn(binaryPath, [], {
+        cwd: workingDirectory,
+        env: { ...process.env, WLEDGER_INSECURE_COOKIES: '1', WLEDGER_PORT: String(port) },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      let output = '';
+      child.stdout.on('data', chunk => { output += chunk.toString(); });
+      child.stderr.on('data', chunk => { output += chunk.toString(); });
+      child.wledgerOutput = () => output;
+      return child;
+    };
     server = startServer();
     await waitForServer(baseURL, server);
+    assert.ok(fs.statSync(path.join(scratchDir, 'app', 'uploads')).isDirectory(), 'first-install startup should create uploads only after recovery finds no journal');
 
     browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/bin/chromium', headless: true, args: ['--no-sandbox'] });
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
@@ -859,11 +868,54 @@ const path = require('node:path');
       assert.ok((await restorePage.locator('body').innerText()).includes('UI Part 10'), 'restored inventory should remain browseable after app restart');
       assert.deepEqual(installationSnapshot(restoreDatabasePath, cabinetID), destinationBeforeRestart, 'independent restored database must persist unchanged across restart');
       assert.deepEqual(restorePageErrors, [], 'restore destination should have no browser runtime errors');
+
+      const destinationUploadsPath = path.join(restoreScratchDir, 'app', 'uploads');
+      const recoveryDirectory = restoreControlDirectory(destinationUploadsPath);
+      const previousDatabaseGeneration = readOnlyRows(restoreDatabasePath, 'SELECT generation_id FROM restore_generation WHERE id=1')[0][0];
+      const oldGenerationID = '066a0000000000000000000000000001';
+      const oldCandidate = path.join(recoveryDirectory, `${oldGenerationID}.candidate`);
+      const oldGeneration = path.join(recoveryDirectory, `${oldGenerationID}.previous`);
+      fs.mkdirSync(recoveryDirectory, { recursive: true, mode: 0o700 });
+      fs.mkdirSync(oldCandidate);
+      fs.renameSync(destinationUploadsPath, oldGeneration);
+      writePendingRestoreJournal(destinationUploadsPath, oldGenerationID, true);
+
+      const restoreWritesBeforeStartupRecovery = mockWrites.length;
+      await stopProcess(restoreServer);
+      restoreServer = startServer(restoreScratchDir, restorePort);
+      await waitForServer(restoreURL, restoreServer);
+      assert.equal(fs.existsSync(path.join(recoveryDirectory, '.wledger-restore-journal.json')), false, 'startup rollback should retire the pending journal');
+      assert.equal(fs.existsSync(oldCandidate), false, 'startup rollback should remove the uncommitted candidate');
+      assert.equal(fs.existsSync(oldGeneration), false, 'startup rollback should restore the previous directory to active uploads');
+      assert.ok(findUploadByName(destinationUploadsPath, path.basename(imagePath)), 'startup rollback must restore the old referenced image before serving');
+      assert.deepEqual(readOnlyRows(restoreDatabasePath, 'SELECT generation_id FROM restore_generation WHERE id=1'), [[previousDatabaseGeneration]], 'rollback must keep the old committed generation marker');
+      assert.equal(mockWrites.length, restoreWritesBeforeStartupRecovery, 'startup rollback must not send WLED commands');
+
+      await stopProcess(restoreServer);
+      restoreServer = null;
+      const committedGenerationID = '066a0000000000000000000000000002';
+      const committedCandidate = path.join(recoveryDirectory, `${committedGenerationID}.candidate`);
+      const committedPrevious = path.join(recoveryDirectory, `${committedGenerationID}.previous`);
+      fs.cpSync(destinationUploadsPath, committedCandidate, { recursive: true, errorOnExist: true });
+      fs.renameSync(destinationUploadsPath, committedPrevious);
+      fs.renameSync(committedCandidate, destinationUploadsPath);
+      setRestoreGeneration(restoreDatabasePath, committedGenerationID);
+      assert.deepEqual(readOnlyRows(restoreDatabasePath, 'SELECT generation_id FROM restore_generation WHERE id=1'), [[committedGenerationID]], 'roll-forward fixture must have a committed candidate marker');
+      writePendingRestoreJournal(destinationUploadsPath, committedGenerationID, true);
+
+      const restoreWritesBeforeRollForward = mockWrites.length;
+      restoreServer = startServer(restoreScratchDir, restorePort);
+      await waitForServer(restoreURL, restoreServer);
+      assert.equal(fs.existsSync(path.join(recoveryDirectory, '.wledger-restore-journal.json')), false, 'startup roll-forward should retire the pending journal');
+      assert.equal(fs.existsSync(committedPrevious), false, 'verified old generation should be safely cleaned after roll-forward');
+      assert.ok(findUploadByName(destinationUploadsPath, path.basename(imagePath)), 'startup roll-forward must keep the committed candidate assets active');
+      assert.equal(mockWrites.length, restoreWritesBeforeRollForward, 'startup roll-forward must not send WLED commands');
+
       restoreEvidence = {
         status: 'PASS',
         sourceDatabasePath: databasePath,
         destinationDatabasePath: restoreDatabasePath,
-        destinationUploadsPath: path.join(restoreScratchDir, 'app', 'uploads'),
+        destinationUploadsPath,
         archiveBytes: backupBytes.length,
         archiveSummary,
         independentDestinationMigrations: destinationMigrationsBefore,
@@ -872,6 +924,9 @@ const path = require('node:path');
         wledCommandsDuringRestore: mockWrites.length - wledWritesBeforeRestore,
         imagePath,
         restoredAfterRestart: true,
+        startupRollbackWithMissingUploadsPath: true,
+        startupRollForwardAfterCommit: true,
+        noWLEDCommandsDuringStartupRecovery: true,
         searchAfterRestore: true,
         directSQLPopulation: false,
         destinationPageErrors: restorePageErrors,
@@ -952,15 +1007,9 @@ const path = require('node:path');
     if (restoreContext) await restoreContext.close();
     if (browser) await browser.close();
     for (const mock of mocks) if (mock.listening) await new Promise(resolve => mock.close(resolve));
-    if (restoreServer) {
-      restoreServer.kill('SIGTERM');
-      await new Promise(resolve => restoreServer.once('exit', resolve));
-    }
+    if (restoreServer) await stopProcess(restoreServer);
     if (restoreScratchDir) fs.rmSync(restoreScratchDir, { recursive: true, force: true });
-    if (server) {
-      server.kill('SIGTERM');
-      await new Promise(resolve => server.once('exit', resolve));
-    }
+    if (server) await stopProcess(server);
     fs.rmSync(scratchDir, { recursive: true, force: true });
   }
 })().catch(error => { console.error(error); process.exit(1); });
@@ -975,6 +1024,31 @@ async function submitFormWithoutWaiting(formLocator) {
 async function waitForProcessExit(process) {
   if (process.exitCode !== null || process.signalCode !== null) return;
   await new Promise(resolve => process.once('exit', resolve));
+}
+
+async function stopProcess(process) {
+  if (!process || process.exitCode !== null || process.signalCode !== null) return;
+  const exited = new Promise(resolve => process.once('exit', resolve));
+  process.kill('SIGTERM');
+  await exited;
+}
+
+function restoreControlDirectory(uploadsPath) {
+  const root = path.dirname(path.resolve(uploadsPath));
+  const digest = crypto.createHash('sha256').update(path.resolve(uploadsPath)).digest('hex').slice(0, 24);
+  return path.join(root, `.wledger-restore-control-${digest}`);
+}
+
+function writePendingRestoreJournal(uploadsPath, id, hadUploads) {
+  const control = restoreControlDirectory(uploadsPath);
+  fs.mkdirSync(control, { recursive: true, mode: 0o700 });
+  fs.writeFileSync(path.join(control, '.wledger-restore-journal.json'), JSON.stringify({ version: 1, id, had_uploads: hadUploads }), { mode: 0o600 });
+}
+
+function setRestoreGeneration(databasePath, generationID) {
+  const script = 'import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); c.execute("UPDATE restore_generation SET generation_id=? WHERE id=1",(sys.argv[2],)); c.commit(); c.close()';
+  const result = spawnSync('python3', ['-c', script, databasePath, generationID], { encoding: 'utf8' });
+  if (result.status !== 0) throw new Error(`failed to set disposable restore generation: ${result.stderr}`);
 }
 
 async function availablePort() {
@@ -997,7 +1071,7 @@ async function waitForServer(baseURL, process) {
       });
       if (response?.ok) return;
     } catch {}
-    if (process.exitCode !== null) throw new Error(`disposable server exited with ${process.exitCode}`);
+    if (process.exitCode !== null) throw new Error(`disposable server exited with ${process.exitCode}: ${process.wledgerOutput?.() || ''}`);
     await new Promise(resolve => setTimeout(resolve, 100));
   }
   throw new Error('disposable WLEDger server did not become ready');

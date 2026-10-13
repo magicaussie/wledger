@@ -57,10 +57,6 @@ func main() {
 		log.Error("Failed to create uploads parent directory", "error", err)
 		os.Exit(1)
 	}
-	if err := os.MkdirAll(config.DirUploads, 0755); err != nil {
-		log.Error("Failed to create uploads directory", "error", err)
-		os.Exit(1)
-	}
 	maintenanceGate := maintenance.New(config.DirUploads)
 	startupUnlock, err := maintenanceGate.WriteLock()
 	if err != nil {

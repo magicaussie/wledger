@@ -99,8 +99,8 @@ func main() {
 	if err := os.MkdirAll(config.DirData, 0755); err != nil {
 		fatal(log, "create data dir", err)
 	}
-	if err := os.MkdirAll(config.DirUploads, 0755); err != nil {
-		fatal(log, "create uploads dir", err)
+	if err := os.MkdirAll(filepath.Dir(config.DirUploads), 0755); err != nil {
+		fatal(log, "create uploads parent dir", err)
 	}
 	if err := os.MkdirAll(config.DirLogs, 0755); err != nil {
 		fatal(log, "create logs dir", err)

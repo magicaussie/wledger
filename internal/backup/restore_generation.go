@@ -370,6 +370,16 @@ func RecoverStartupLocked(ctx context.Context, database *sql.DB, uploadsDir stri
 	if err := recoverPendingRestore(ctx, database, uploadsDir, logger); err != nil {
 		return err
 	}
+	if _, err := os.Lstat(uploadsDir); errors.Is(err, os.ErrNotExist) {
+		if err := os.MkdirAll(uploadsDir, 0755); err != nil {
+			return fmt.Errorf("create uploads directory after restore recovery: %w", err)
+		}
+		if err := syncDirectory(filepath.Dir(uploadsDir)); err != nil {
+			return fmt.Errorf("sync new uploads directory parent: %w", err)
+		}
+	} else if err != nil {
+		return fmt.Errorf("inspect active uploads path after restore recovery: %w", err)
+	}
 	if err := validateActiveGeneration(ctx, database, uploadsDir); err != nil {
 		return fmt.Errorf("active restore generation is not valid: %w", err)
 	}
