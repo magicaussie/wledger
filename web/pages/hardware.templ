@@ -10,7 +10,7 @@ import (
 	"github.com/tuxedocurly/wledger/web/layouts"
 )
 
-templ Hardware(user auth.User, controllers []db.Controller, cabinets []db.Cabinet) {
+templ Hardware(user auth.User, controllers []db.Controller, cabinets []db.Cabinet, controllerSaved bool) {
 	@layouts.Base(i18n.T(ctx, "Hardware"), user) {
 		@components.PageHeader(i18n.T(ctx, "Hardware"), "Configure physical cabinets and their LED wiring independently from legacy electrical containers.", nil)
 		<section class="card border border-primary/30 bg-primary/5 shadow-sm mb-8">
@@ -42,6 +42,9 @@ templ Hardware(user auth.User, controllers []db.Controller, cabinets []db.Cabine
 				}
 			</div>
 		</section>
+		if controllerSaved {
+			<div role="status" class="alert alert-success mb-4">Controller settings saved.</div>
+		}
 		<section aria-labelledby="legacy-hardware-heading">
 			<div class="mb-3">
 				<h2 id="legacy-hardware-heading" class="text-lg font-semibold">Controller device records and legacy electrical tools</h2>
@@ -94,6 +97,9 @@ templ Hardware(user auth.User, controllers []db.Controller, cabinets []db.Cabine
 									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
 									{ i18n.T(ctx, "Configure") }
 								</a>
+								if user.IsAdmin() {
+									<a href={ templ.SafeURL(fmt.Sprintf("/hardware/%d/edit", c.ID)) } class="btn btn-sm btn-outline">Edit</a>
+								}
 								<a href={ templ.SafeURL(fmt.Sprintf("/hardware/%d/export", c.ID)) } class="btn btn-sm btn-ghost gap-2" title={ i18n.T(ctx, "ExportConfig") }>
 									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0L8 8m4-4v12"></path></svg>
 									{ i18n.T(ctx, "Export") }
@@ -135,7 +141,7 @@ templ Hardware(user auth.User, controllers []db.Controller, cabinets []db.Cabine
 				</div>
 				<div class="form-control">
 					<label class="label"><span class="label-text">{ i18n.T(ctx, "Port") }</span></label>
-					<input type="number" name="port" value="80" class="input input-bordered w-full font-mono"/>
+					<input type="number" name="port" value="80" min="1" max="65535" step="1" required class="input input-bordered w-full font-mono"/>
 				</div>
 
 				<div class="modal-action">
@@ -166,7 +172,7 @@ templ Hardware(user auth.User, controllers []db.Controller, cabinets []db.Cabine
 				</div>
 				<div class="form-control">
 					<label class="label"><span class="label-text">{ i18n.T(ctx, "Port") }</span></label>
-					<input type="number" name="port" placeholder={ i18n.T(ctx, "LeaveBlankToUseFile") } class="input input-bordered w-full font-mono"/>
+					<input type="number" name="port" min="1" max="65535" step="1" placeholder={ i18n.T(ctx, "LeaveBlankToUseFile") } class="input input-bordered w-full font-mono"/>
 				</div>
 				<div class="modal-action">
 					<button type="button" class="btn" onclick="import_controller_modal.close()">{ i18n.T(ctx, "Cancel") }</button>
@@ -174,5 +180,40 @@ templ Hardware(user auth.User, controllers []db.Controller, cabinets []db.Cabine
 				</div>
 			</form>
 		}
+	}
+}
+
+templ HardwareControllerEdit(user auth.User, controller db.Controller, errorMessage, name, address, port string) {
+	@layouts.Base("Edit WLED Controller", user) {
+		@components.PageHeader("Edit WLED Controller", "Update this controller in place. Cabinet memberships, drawer allocations, wiring, pixel mappings, bins, and stock assignments remain attached.", nil)
+		<div class="mx-auto max-w-2xl card bg-base-200 shadow-xl">
+			<div class="card-body">
+				<p class="text-sm opacity-70">Controller record #{ controller.ID } · current endpoint <code>{ controller.IpAddress }</code></p>
+				if errorMessage != "" {
+					<div role="alert" class="alert alert-error"><span>{ errorMessage }</span></div>
+				}
+				<form action={ templ.SafeURL(fmt.Sprintf("/hardware/%d/update", controller.ID)) } method="POST" class="space-y-4">
+					@components.CSRFInput()
+					<div class="form-control">
+						<label class="label" for="controller-name"><span class="label-text">Controller name</span></label>
+						<input id="controller-name" type="text" name="name" value={ name } class="input input-bordered w-full" required/>
+					</div>
+					<div class="form-control">
+						<label class="label" for="controller-address"><span class="label-text">IP address or hostname</span></label>
+						<input id="controller-address" type="text" name="ip_address" value={ address } class="input input-bordered w-full font-mono" required autocomplete="off"/>
+						<p class="label-text-alt">Enter only an IPv4/IPv6 address or DNS hostname. Do not include a scheme, path, credentials, or port.</p>
+					</div>
+					<div class="form-control">
+						<label class="label" for="controller-port"><span class="label-text">HTTP port</span></label>
+						<input id="controller-port" type="number" name="port" value={ port } min="1" max="65535" step="1" class="input input-bordered w-full font-mono" required/>
+					</div>
+					<p class="text-sm opacity-70">Changing the address or port is blocked while a durable physical Locate may still own this controller. A name-only change does not alter Locate recovery or mapping.</p>
+					<div class="card-actions justify-end">
+						<a class="btn btn-ghost" href="/hardware">Cancel</a>
+						<button type="submit" class="btn btn-primary">Save controller</button>
+					</div>
+				</form>
+			</div>
+		</div>
 	}
 }

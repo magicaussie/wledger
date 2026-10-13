@@ -220,6 +220,8 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 			// Hardware Configuration
 			r.Post("/hardware", h.HandleHardwareCreate)
 			r.Post("/hardware/import", h.HandleHardwareImport)
+			r.Get("/hardware/{id}/edit", h.HandleHardwareEdit)
+			r.Post("/hardware/{id}/update", h.HandleHardwareUpdate)
 			r.Get("/hardware/{id}/export", h.HandleHardwareExport)
 			r.Post("/hardware/{id}/delete", h.HandleHardwareDelete)
 			r.Post("/hardware/{id}/grid", h.HandleHardwareGridSave)

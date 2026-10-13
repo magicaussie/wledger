@@ -35,6 +35,35 @@ func WithOperationClaim(ctx context.Context, store Store, fn func(Querier) error
 	})
 }
 
+// HasControllerPhysicalLocateOwnership reports durable ownership that can affect
+// this controller. Active session states own all saved targets, while a target's
+// attempt marker remains ownership even after a legacy or stale state transition.
+func HasControllerPhysicalLocateOwnership(ctx context.Context, q Querier, controllerID int64) (bool, error) {
+	if controllerID <= 0 {
+		return false, nil
+	}
+	sessions, err := q.ListPhysicalLocateSessions(ctx)
+	if err != nil {
+		return false, err
+	}
+	for _, session := range sessions {
+		active := session.State == "activating" || session.State == "active" || session.State == "stopping" || session.State == "partial"
+		if session.ControllerID == controllerID && active {
+			return true, nil
+		}
+		targets, err := q.ListPhysicalLocateSessionTargets(ctx, session.SessionID)
+		if err != nil {
+			return false, err
+		}
+		for _, target := range targets {
+			if target.ControllerID == controllerID && (active || target.MayHaveReceived != 0) {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
 // HasPhysicalLocateOwnership reports durable pixel ownership. Active session
 // states are ownership even when a target's attempt marker is clear; a target
 // marker also remains ownership if a legacy/stale session state is encountered.

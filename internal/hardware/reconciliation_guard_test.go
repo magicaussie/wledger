@@ -289,7 +289,7 @@ func TestSaveGridUnreconciledUnaffected(t *testing.T) {
 // importPayload builds a valid hardware config pointing at ip.
 func importPayload(ip string) string {
 	return fmt.Sprintf(
-		`{"version":"1.0","controller":{"name":"Imported","ip_address":%q},`+
+		`{"version":"1.0","controller":{"name":"Imported","ip_address":%q,"port":80},`+
 			`"containers":[{"name":"A","segment_id":0,"led_start":0,"led_count":8,"config":{"type":"linear","total":8}}],`+
 			`"bins":[{"container_index":0,"x":0,"y":0,"led_index":0,"width":1,"name":"i1"}]}`,
 		ip)
@@ -326,8 +326,8 @@ func TestImportConfigReconciledLayoutRefused(t *testing.T) {
 	assertGuardUnchanged(t, "import refused", before, after)
 }
 
-// TestImportConfigUnreconciledUnaffected verifies a new-controller import and an
-// import targeting an existing but unreconciled controller still succeed.
+// TestImportConfigUnreconciledUnaffected verifies a new-controller import is
+// allowed when its endpoint is unique, while duplicate endpoints are rejected.
 func TestImportConfigUnreconciledUnaffected(t *testing.T) {
 	f := setupGuardFixture(t, "guard_import_unreconciled", false)
 	defer f.dbConn.Close()
@@ -341,14 +341,10 @@ func TestImportConfigUnreconciledUnaffected(t *testing.T) {
 		t.Fatal("new-controller import returned id 0")
 	}
 
-	// The existing controller's address now has an imported controller. The
-	// fixture controller is unreconciled, so importing against it is allowed.
-	again, err := f.svc.ImportConfig(f.ctx, "", "9.9.9.9", 0, []byte(importPayload("9.9.9.9")))
-	if err != nil {
-		t.Fatalf("unreconciled import against an existing address: %v", err)
-	}
-	if again == 0 {
-		t.Fatal("unreconciled import returned id 0")
+	// Re-importing the same address and port is rejected even though the first
+	// imported controller is not reconciled to physical bins.
+	if _, err := f.svc.ImportConfig(f.ctx, "", "9.9.9.9", 0, []byte(importPayload("9.9.9.9"))); !errors.Is(err, ErrDuplicateController) {
+		t.Fatalf("duplicate endpoint import error = %v, want ErrDuplicateController", err)
 	}
 
 	if space, _ := ledspace.Current(f.ctx, f.store); space != ledspace.Segment {

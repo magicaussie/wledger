@@ -19,6 +19,7 @@ type Service interface {
 	ListControllers(ctx context.Context) ([]db.Controller, error)
 	GetController(ctx context.Context, id int64) (db.Controller, error)
 	CreateController(ctx context.Context, params db.CreateControllerParams) (db.CreateControllerRow, error)
+	UpdateController(ctx context.Context, id int64, params db.CreateControllerParams) error
 	DeleteController(ctx context.Context, id int64) error
 	UpdateStatus(ctx context.Context, id int64) (bool, error)
 	GetBinsByController(ctx context.Context, id int64) ([]db.Bin, error)
@@ -82,15 +83,27 @@ func (s *service) GetController(ctx context.Context, id int64) (db.Controller, e
 }
 
 func (s *service) CreateController(ctx context.Context, params db.CreateControllerParams) (db.CreateControllerRow, error) {
+	if !params.Port.Valid {
+		return db.CreateControllerRow{}, fmt.Errorf("%w: port is required", ErrInvalidControllerSettings)
+	}
+	name, address, err := ValidateControllerSettings(params.Name, params.IpAddress, params.Port.Int64)
+	if err != nil {
+		return db.CreateControllerRow{}, err
+	}
+	params.Name, params.IpAddress = name, address
+
 	var row db.CreateControllerRow
 	var containerErr error
-	err := db.WithOperationClaim(ctx, s.store, func(q db.Querier) error {
+	err = db.WithOperationClaim(ctx, s.store, func(q db.Querier) error {
 		owned, err := db.HasPhysicalLocateOwnership(ctx, q)
 		if err != nil {
 			return err
 		}
 		if owned {
 			return db.ErrPhysicalLocateActive
+		}
+		if err := ensureUniqueControllerEndpoint(ctx, q, 0, params.IpAddress, params.Port.Int64); err != nil {
+			return err
 		}
 		row, err = q.CreateController(ctx, params)
 		if err != nil {
@@ -124,6 +137,89 @@ func (s *service) CreateController(ctx context.Context, params db.CreateControll
 	audit.Log(ctx, s.store, "CREATE", "HARDWARE", row.ID, "Added controller "+row.Name, nil, summary)
 
 	return row, nil
+}
+
+func (s *service) UpdateController(ctx context.Context, id int64, params db.CreateControllerParams) error {
+	if id <= 0 {
+		return fmt.Errorf("%w: controller ID must be positive", ErrInvalidControllerSettings)
+	}
+	if !params.Port.Valid {
+		return fmt.Errorf("%w: port is required", ErrInvalidControllerSettings)
+	}
+	name, address, err := ValidateControllerSettings(params.Name, params.IpAddress, params.Port.Int64)
+	if err != nil {
+		return err
+	}
+	params.Name, params.IpAddress = name, address
+
+	var previous db.Controller
+	err = db.WithOperationClaim(ctx, s.store, func(q db.Querier) error {
+		var err error
+		previous, err = q.GetController(ctx, id)
+		if err != nil {
+			return err
+		}
+		oldPort := previous.Port.Int64
+		if !previous.Port.Valid || oldPort < 1 {
+			oldPort = defaultControllerPort
+		}
+		// Recovery compares the persisted address snapshot exactly. While a
+		// Locate owns this controller, even a case/format-only address rewrite
+		// could make cleanup appear stale, so permit only an exact address match
+		// with the same effective endpoint.
+		endpointChanged := previous.IpAddress != params.IpAddress || controllerEndpointKey(previous.IpAddress, oldPort) != controllerEndpointKey(params.IpAddress, params.Port.Int64)
+		if endpointChanged {
+			owned, err := db.HasControllerPhysicalLocateOwnership(ctx, q, id)
+			if err != nil {
+				return fmt.Errorf("check controller Locate ownership: %w", err)
+			}
+			if owned {
+				return db.ErrPhysicalLocateActive
+			}
+		}
+		if err := ensureUniqueControllerEndpoint(ctx, q, id, params.IpAddress, params.Port.Int64); err != nil {
+			return err
+		}
+		rows, err := q.UpdateControllerSettings(ctx, db.UpdateControllerSettingsParams{
+			ID: id, Name: params.Name, IpAddress: params.IpAddress, Port: params.Port,
+		})
+		if err != nil {
+			return err
+		}
+		if rows != 1 {
+			return fmt.Errorf("controller %d was not updated", id)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	oldValue := map[string]any{"name": previous.Name, "ip_address": previous.IpAddress, "port": previous.Port.Int64}
+	newValue := map[string]any{"name": params.Name, "ip_address": params.IpAddress, "port": params.Port.Int64}
+	audit.Log(ctx, s.store, "UPDATE", "HARDWARE", id, "Updated controller settings", oldValue, newValue)
+	return nil
+}
+
+func ensureUniqueControllerEndpoint(ctx context.Context, q db.Querier, exceptID int64, address string, port int64) error {
+	controllers, err := q.GetControllers(ctx)
+	if err != nil {
+		return fmt.Errorf("check controller endpoints: %w", err)
+	}
+	key := controllerEndpointKey(address, port)
+	for _, controller := range controllers {
+		if controller.ID == exceptID {
+			continue
+		}
+		controllerPort := controller.Port.Int64
+		if !controller.Port.Valid || controllerPort < 1 {
+			controllerPort = defaultControllerPort
+		}
+		if controllerEndpointKey(controller.IpAddress, controllerPort) == key {
+			return ErrDuplicateController
+		}
+	}
+	return nil
 }
 
 func (s *service) DeleteController(ctx context.Context, id int64) error {

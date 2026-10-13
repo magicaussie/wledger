@@ -20,6 +20,11 @@ SELECT * FROM controllers WHERE id = ?;
 -- name: GetControllerByIP :one
 SELECT * FROM controllers WHERE ip_address = ?;
 
+-- name: UpdateControllerSettings :execrows
+UPDATE controllers
+SET name = ?, ip_address = ?, port = ?
+WHERE id = ?;
+
 -- name: DeleteController :exec
 DELETE FROM controllers WHERE id = ?;
 

@@ -313,6 +313,7 @@ type Querier interface {
 	UpdateContainerConfig(ctx context.Context, arg UpdateContainerConfigParams) error
 	UpdateControllerLedCount(ctx context.Context, arg UpdateControllerLedCountParams) (int64, error)
 	UpdateControllerLocateMappingVerification(ctx context.Context, arg UpdateControllerLocateMappingVerificationParams) (int64, error)
+	UpdateControllerSettings(ctx context.Context, arg UpdateControllerSettingsParams) (int64, error)
 	UpdateControllerStatus(ctx context.Context, arg UpdateControllerStatusParams) error
 	UpdateDrawer(ctx context.Context, arg UpdateDrawerParams) (int64, error)
 	UpdateDrawerGeometry(ctx context.Context, arg UpdateDrawerGeometryParams) (int64, error)

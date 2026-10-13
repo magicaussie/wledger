@@ -549,19 +549,19 @@ func TestImportConfigRejectsInvalidBins(t *testing.T) {
 	}{
 		{
 			"out-of-range led index",
-			`{"version":"1.0","controller":{"name":"C","ip_address":"1.1.1.1"},"containers":[{"name":"A","segment_id":0,"led_start":0,"led_count":20,"config":{"type":"linear","total":20}}],"bins":[{"container_index":0,"led_index":25,"width":1,"name":"x"}]}`,
+			`{"version":"1.0","controller":{"name":"C","ip_address":"1.1.1.1","port":80},"containers":[{"name":"A","segment_id":0,"led_start":0,"led_count":20,"config":{"type":"linear","total":20}}],"bins":[{"container_index":0,"led_index":25,"width":1,"name":"x"}]}`,
 		},
 		{
 			"variable-width overrun",
-			`{"version":"1.0","controller":{"name":"C","ip_address":"1.1.1.1"},"containers":[{"name":"A","segment_id":0,"led_start":0,"led_count":20,"config":{"type":"linear","total":20}}],"bins":[{"container_index":0,"led_index":18,"width":5,"name":"x"}]}`,
+			`{"version":"1.0","controller":{"name":"C","ip_address":"1.1.1.1","port":80},"containers":[{"name":"A","segment_id":0,"led_start":0,"led_count":20,"config":{"type":"linear","total":20}}],"bins":[{"container_index":0,"led_index":18,"width":5,"name":"x"}]}`,
 		},
 		{
 			"invalid container reference",
-			`{"version":"1.0","controller":{"name":"C","ip_address":"1.1.1.1"},"containers":[{"name":"A","segment_id":0,"led_start":0,"led_count":20,"config":{"type":"linear","total":20}}],"bins":[{"container_index":5,"led_index":0,"width":1,"name":"x"}]}`,
+			`{"version":"1.0","controller":{"name":"C","ip_address":"1.1.1.1","port":80},"containers":[{"name":"A","segment_id":0,"led_start":0,"led_count":20,"config":{"type":"linear","total":20}}],"bins":[{"container_index":5,"led_index":0,"width":1,"name":"x"}]}`,
 		},
 		{
 			"overlapping allocations",
-			`{"version":"1.0","controller":{"name":"C","ip_address":"1.1.1.1"},"containers":[{"name":"A","segment_id":0,"led_start":0,"led_count":10,"config":{"type":"linear","total":10}},{"name":"B","segment_id":0,"led_start":5,"led_count":10,"config":{"type":"linear","total":10}}],"bins":[]}`,
+			`{"version":"1.0","controller":{"name":"C","ip_address":"1.1.1.1","port":80},"containers":[{"name":"A","segment_id":0,"led_start":0,"led_count":10,"config":{"type":"linear","total":10}},{"name":"B","segment_id":0,"led_start":5,"led_count":10,"config":{"type":"linear","total":10}}],"bins":[]}`,
 		},
 	}
 	for i, tc := range cases {
@@ -588,7 +588,7 @@ func TestImportConfigAllowsPartiallyMappedDrawer(t *testing.T) {
 	defer dbConn.Close()
 	ctx := context.Background()
 
-	data := `{"version":"1.0","controller":{"name":"C","ip_address":"1.1.1.1"},"containers":[{"name":"A","segment_id":0,"led_start":0,"led_count":20,"config":{"type":"linear","total":20}}],"bins":[{"container_index":0,"led_index":3,"width":5,"name":"mapped"},{"container_index":0,"led_index":null,"width":1,"name":"unmapped"}]}`
+	data := `{"version":"1.0","controller":{"name":"C","ip_address":"1.1.1.1","port":80},"containers":[{"name":"A","segment_id":0,"led_start":0,"led_count":20,"config":{"type":"linear","total":20}}],"bins":[{"container_index":0,"led_index":3,"width":5,"name":"mapped"},{"container_index":0,"led_index":null,"width":1,"name":"unmapped"}]}`
 	id, err := svc.ImportConfig(ctx, "", "", 0, []byte(data))
 	if err != nil {
 		t.Fatalf("ImportConfig: %v", err)
@@ -1044,7 +1044,7 @@ func TestImportConfig_CrossSpaceSegmentToDrawer(t *testing.T) {
 	}
 
 	// Segment-relative bin index 13 lies inside drawer A's [10,20) allocation.
-	data := `{"version":"1.0","bin_index_space":"segment","controller":{"name":"C","ip_address":"1.1.1.1"},"containers":[{"name":"A","segment_id":0,"led_start":10,"led_count":10,"config":{"type":"linear","total":10}}],"bins":[{"container_index":0,"led_index":13,"width":1,"name":"a1"}]}`
+	data := `{"version":"1.0","bin_index_space":"segment","controller":{"name":"C","ip_address":"1.1.1.1","port":80},"containers":[{"name":"A","segment_id":0,"led_start":10,"led_count":10,"config":{"type":"linear","total":10}}],"bins":[{"container_index":0,"led_index":13,"width":1,"name":"a1"}]}`
 	id, err := svc.ImportConfig(ctx, "", "", 0, []byte(data))
 	if err != nil {
 		t.Fatalf("import: %v", err)
@@ -1064,7 +1064,7 @@ func TestImportConfig_CrossSpaceDrawerToSegment(t *testing.T) {
 	defer dbConn.Close()
 	ctx := context.Background()
 
-	data := `{"version":"1.0","bin_index_space":"drawer","controller":{"name":"C","ip_address":"1.1.1.1"},"containers":[{"name":"A","segment_id":0,"led_start":10,"led_count":10,"config":{"type":"linear","total":10}}],"bins":[{"container_index":0,"led_index":3,"width":1,"name":"a1"}]}`
+	data := `{"version":"1.0","bin_index_space":"drawer","controller":{"name":"C","ip_address":"1.1.1.1","port":80},"containers":[{"name":"A","segment_id":0,"led_start":10,"led_count":10,"config":{"type":"linear","total":10}}],"bins":[{"container_index":0,"led_index":3,"width":1,"name":"a1"}]}`
 	id, err := svc.ImportConfig(ctx, "", "", 0, []byte(data))
 	if err != nil {
 		t.Fatalf("import: %v", err)
@@ -1087,7 +1087,7 @@ func TestImportConfig_RejectsUnresolvedDatabase(t *testing.T) {
 		t.Fatalf("set unresolved: %v", err)
 	}
 
-	data := `{"version":"1.0","controller":{"name":"C","ip_address":"1.1.1.1"},"containers":[{"name":"A","segment_id":0,"led_start":0,"led_count":10,"config":{"type":"linear","total":10}}],"bins":[{"container_index":0,"led_index":0,"width":1,"name":"a1"}]}`
+	data := `{"version":"1.0","controller":{"name":"C","ip_address":"1.1.1.1","port":80},"containers":[{"name":"A","segment_id":0,"led_start":0,"led_count":10,"config":{"type":"linear","total":10}}],"bins":[{"container_index":0,"led_index":0,"width":1,"name":"a1"}]}`
 	if _, err := svc.ImportConfig(ctx, "", "", 0, []byte(data)); err == nil {
 		t.Fatal("expected import into an unresolved database to be rejected")
 	}
@@ -1100,7 +1100,7 @@ func TestImportConfig_RejectsUnknownBinIndexSpace(t *testing.T) {
 	defer dbConn.Close()
 	ctx := context.Background()
 
-	data := `{"version":"1.0","bin_index_space":"bogus","controller":{"name":"C","ip_address":"1.1.1.1"},"containers":[{"name":"A","segment_id":0,"led_start":0,"led_count":10,"config":{"type":"linear","total":10}}],"bins":[{"container_index":0,"led_index":0,"width":1,"name":"a1"}]}`
+	data := `{"version":"1.0","bin_index_space":"bogus","controller":{"name":"C","ip_address":"1.1.1.1","port":80},"containers":[{"name":"A","segment_id":0,"led_start":0,"led_count":10,"config":{"type":"linear","total":10}}],"bins":[{"container_index":0,"led_index":0,"width":1,"name":"a1"}]}`
 	if _, err := svc.ImportConfig(ctx, "", "", 0, []byte(data)); err == nil {
 		t.Fatal("expected an unknown bin_index_space to be rejected")
 	}
@@ -1113,7 +1113,7 @@ func TestImportConfig_UnmarkedIsSegmentRelative(t *testing.T) {
 	defer dbConn.Close()
 	ctx := context.Background()
 
-	data := `{"version":"1.0","controller":{"name":"C","ip_address":"1.1.1.1"},"containers":[{"name":"A","segment_id":0,"led_start":10,"led_count":10,"config":{"type":"linear","total":10}}],"bins":[{"container_index":0,"led_index":13,"width":1,"name":"a1"}]}`
+	data := `{"version":"1.0","controller":{"name":"C","ip_address":"1.1.1.1","port":80},"containers":[{"name":"A","segment_id":0,"led_start":10,"led_count":10,"config":{"type":"linear","total":10}}],"bins":[{"container_index":0,"led_index":13,"width":1,"name":"a1"}]}`
 	id, err := svc.ImportConfig(ctx, "", "", 0, []byte(data))
 	if err != nil {
 		t.Fatalf("import: %v", err)

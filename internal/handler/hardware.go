@@ -39,42 +39,110 @@ func (h *Handler) HandleHardwareList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pages.Hardware(user, controllers, cabinets).Render(r.Context(), w)
+	pages.Hardware(user, controllers, cabinets, r.URL.Query().Get("controller_saved") == "1").Render(r.Context(), w)
 }
 
 // POST /hardware
 func (h *Handler) HandleHardwareCreate(w http.ResponseWriter, r *http.Request) {
-	name := r.FormValue("name")
-	ip := r.FormValue("ip_address")
-
-	// Ensure IP is not empty
-	if ip == "" {
-		h.UIError.Respond(w, r, nil, "IP Address is required", http.StatusBadRequest)
+	port, err := parseControllerPort(r.FormValue("port"))
+	if err != nil {
+		h.UIError.Respond(w, r, err, "Controller settings are invalid: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	portStr := r.FormValue("port")
-	port, _ := strconv.Atoi(portStr)
-	if port == 0 {
-		port = 80
-	}
-
-	_, err := h.Hardware.CreateController(r.Context(), db.CreateControllerParams{
-		Name:      name,
-		IpAddress: ip,
-		Port:      sql.NullInt64{Int64: int64(port), Valid: true},
+	_, err = h.Hardware.CreateController(r.Context(), db.CreateControllerParams{
+		Name:      r.FormValue("name"),
+		IpAddress: r.FormValue("ip_address"),
+		Port:      sql.NullInt64{Int64: port, Valid: true},
 	})
-
 	if err != nil {
-		status := http.StatusInternalServerError
-		if errors.Is(err, db.ErrPhysicalLocateActive) {
-			status = http.StatusConflict
-		}
-		h.UIError.Respond(w, r, err, "Failed to create controller", status)
+		status := controllerSettingsStatus(err)
+		h.UIError.Respond(w, r, err, "Controller was not created: "+err.Error(), status)
 		return
 	}
 
 	http.Redirect(w, r, "/hardware", http.StatusSeeOther)
+}
+
+// GET /hardware/{id}/edit
+func (h *Handler) HandleHardwareEdit(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil || id <= 0 {
+		http.Error(w, "invalid controller ID", http.StatusBadRequest)
+		return
+	}
+	controller, err := h.Hardware.GetController(r.Context(), id)
+	if err != nil {
+		h.UIError.Respond(w, r, err, "Controller not found", http.StatusNotFound)
+		return
+	}
+	port := controller.Port.Int64
+	if !controller.Port.Valid || port < 1 {
+		port = 80
+	}
+	pages.HardwareControllerEdit(auth.GetUserFromRequest(r), controller, "", controller.Name, controller.IpAddress, strconv.FormatInt(port, 10)).Render(r.Context(), w)
+}
+
+// POST /hardware/{id}/update
+func (h *Handler) HandleHardwareUpdate(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil || id <= 0 {
+		http.Error(w, "invalid controller ID", http.StatusBadRequest)
+		return
+	}
+	name, address, portText := r.FormValue("name"), r.FormValue("ip_address"), r.FormValue("port")
+	port, err := parseControllerPort(portText)
+	if err != nil {
+		h.renderControllerEditError(w, r, id, name, address, portText, err.Error(), http.StatusBadRequest)
+		return
+	}
+	err = h.Hardware.UpdateController(r.Context(), id, db.CreateControllerParams{
+		Name: name, IpAddress: address, Port: sql.NullInt64{Int64: port, Valid: true},
+	})
+	if err != nil {
+		status := controllerSettingsStatus(err)
+		if status == http.StatusInternalServerError {
+			h.UIError.Respond(w, r, err, "Controller settings were not saved", status)
+			return
+		}
+		h.renderControllerEditError(w, r, id, name, address, portText, err.Error(), status)
+		return
+	}
+	http.Redirect(w, r, "/hardware?controller_saved=1", http.StatusSeeOther)
+}
+
+func (h *Handler) renderControllerEditError(w http.ResponseWriter, r *http.Request, id int64, name, address, port, message string, status int) {
+	controller, err := h.Hardware.GetController(r.Context(), id)
+	if err != nil {
+		h.UIError.Respond(w, r, err, "Controller not found", http.StatusNotFound)
+		return
+	}
+	w.WriteHeader(status)
+	pages.HardwareControllerEdit(auth.GetUserFromRequest(r), controller, message, name, address, port).Render(r.Context(), w)
+}
+
+func parseControllerPort(raw string) (int64, error) {
+	if strings.TrimSpace(raw) == "" {
+		return 0, fmt.Errorf("port is required and must be an integer from 1 to 65535")
+	}
+	port, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
+	if err != nil || port < 1 || port > 65535 {
+		return 0, fmt.Errorf("port must be an integer from 1 to 65535")
+	}
+	return port, nil
+}
+
+func controllerSettingsStatus(err error) int {
+	if errors.Is(err, db.ErrPhysicalLocateActive) {
+		return http.StatusConflict
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		return http.StatusNotFound
+	}
+	if errors.Is(err, hardware.ErrInvalidControllerSettings) || errors.Is(err, hardware.ErrDuplicateController) {
+		return http.StatusBadRequest
+	}
+	return http.StatusInternalServerError
 }
 
 // POST /hardware/{id}/delete
@@ -305,15 +373,22 @@ func (h *Handler) HandleHardwareImport(w http.ResponseWriter, r *http.Request) {
 
 	name := r.FormValue("name")
 	ip := r.FormValue("ip_address")
-	port, _ := strconv.Atoi(r.FormValue("port"))
+	port := int64(0)
+	if strings.TrimSpace(r.FormValue("port")) != "" {
+		port, err = parseControllerPort(r.FormValue("port"))
+		if err != nil {
+			h.UIError.Respond(w, r, err, "Controller import settings are invalid: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
 
-	_, err = h.Hardware.ImportConfig(r.Context(), name, ip, int64(port), data)
+	_, err = h.Hardware.ImportConfig(r.Context(), name, ip, port, data)
 	if err != nil {
 		status := http.StatusBadRequest
 		if errors.Is(err, db.ErrPhysicalLocateActive) {
 			status = http.StatusConflict
 		}
-		h.UIError.Respond(w, r, err, "Failed to import hardware config", status)
+		h.UIError.Respond(w, r, err, "Hardware config was not imported: "+err.Error(), status)
 		return
 	}
 

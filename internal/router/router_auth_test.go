@@ -21,9 +21,11 @@ import (
 	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/handler"
+	"github.com/tuxedocurly/wledger/internal/hardware"
 	"github.com/tuxedocurly/wledger/internal/i18n"
 	"github.com/tuxedocurly/wledger/internal/middleware"
 	"github.com/tuxedocurly/wledger/internal/uierror"
+	"github.com/tuxedocurly/wledger/internal/wled"
 )
 
 // fakeWLED records LED operations so the authorization tests never touch real
@@ -119,6 +121,7 @@ func newAuthTestEnv(t *testing.T) *authTestEnv {
 		Session:  sm,
 		WLED:     fw,
 		UIError:  uiErr,
+		Hardware: hardware.NewService(store, wled.NewClient(), logger),
 	}
 	mw := middleware.New(store, sm, logger, uiErr)
 	r := New(mw, sm, h)
@@ -357,9 +360,66 @@ func TestHardwareActionsAllowedForEditorAndAdmin(t *testing.T) {
 	}
 }
 
-// TestHardwareActionsRejectMissingOrInvalidCSRF verifies that a write-capable
-// user must present a valid CSRF token: missing or invalid tokens are rejected
-// with 403 and no WLED action is triggered.
+// TestControllerEditIsAdminOnlyAndCSRFProtected verifies that only admins may
+// edit controller settings and that state-changing requests require valid CSRF.
+func TestControllerEditIsAdminOnlyAndCSRFProtected(t *testing.T) {
+	env := newAuthTestEnv(t)
+	defer env.conn.Close()
+	env.createUser(t, "viewer@test.com", "viewer")
+	env.createUser(t, "editor@test.com", "editor")
+	env.createUser(t, "admin@test.com", "admin")
+	controller, err := env.store.CreateController(context.Background(), db.CreateControllerParams{Name: "Controller", IpAddress: "192.0.2.60", Port: sql.NullInt64{Int64: 80, Valid: true}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	editPath := fmt.Sprintf("/hardware/%d/edit", controller.ID)
+	updatePath := fmt.Sprintf("/hardware/%d/update", controller.ID)
+	for _, role := range []string{"viewer", "editor"} {
+		cookies := env.login(t, role+"@test.com")
+		csrfToken := env.csrfToken(t, cookies)
+		get := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, editPath, nil)
+		for _, cookie := range cookies {
+			req.AddCookie(cookie)
+		}
+		env.router.ServeHTTP(get, req)
+		if get.Code != http.StatusForbidden {
+			t.Errorf("%s GET edit = %d, want 403", role, get.Code)
+		}
+		if rr := env.post(updatePath, cookies); rr.Code != http.StatusForbidden {
+			t.Errorf("%s POST update without CSRF = %d, want 403", role, rr.Code)
+		}
+		if rr := env.postWithCSRF(updatePath, cookies, csrfToken); rr.Code != http.StatusForbidden {
+			t.Errorf("%s POST update with valid CSRF = %d, want role denial 403", role, rr.Code)
+		}
+	}
+
+	adminCookies := env.login(t, "admin@test.com")
+	if rr := env.post(updatePath, adminCookies); rr.Code != http.StatusForbidden {
+		t.Fatalf("admin update without CSRF = %d, want 403", rr.Code)
+	}
+	token := env.csrfToken(t, adminCookies)
+	if rr := env.postWithCSRF(updatePath, adminCookies, "invalid-token"); rr.Code != http.StatusForbidden {
+		t.Fatalf("admin update with invalid CSRF = %d, want 403", rr.Code)
+	}
+	form := url.Values{"name": {"Edited"}, "ip_address": {"192.0.2.60"}, "port": {"8080"}}
+	req := httptest.NewRequest(http.MethodPost, updatePath, strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("X-CSRF-Token", token)
+	for _, cookie := range adminCookies {
+		req.AddCookie(cookie)
+	}
+	response := httptest.NewRecorder()
+	env.router.ServeHTTP(response, req)
+	if response.Code != http.StatusSeeOther || response.Header().Get("Location") != "/hardware?controller_saved=1" {
+		t.Fatalf("admin update = %d location=%q body=%s", response.Code, response.Header().Get("Location"), response.Body.String())
+	}
+	updated, err := env.store.GetController(context.Background(), controller.ID)
+	if err != nil || updated.ID != controller.ID || updated.Name != "Edited" || updated.Port.Int64 != 8080 {
+		t.Fatalf("controller after authenticated edit = %+v err=%v", updated, err)
+	}
+}
+
 func TestHardwareActionsRejectMissingOrInvalidCSRF(t *testing.T) {
 	env := newAuthTestEnv(t)
 	defer env.conn.Close()

@@ -268,6 +268,32 @@ func (q *Queries) UpdateControllerLocateMappingVerification(ctx context.Context,
 	return result.RowsAffected()
 }
 
+const updateControllerSettings = `-- name: UpdateControllerSettings :execrows
+UPDATE controllers
+SET name = ?, ip_address = ?, port = ?
+WHERE id = ?
+`
+
+type UpdateControllerSettingsParams struct {
+	Name      string        `json:"name"`
+	IpAddress string        `json:"ip_address"`
+	Port      sql.NullInt64 `json:"port"`
+	ID        int64         `json:"id"`
+}
+
+func (q *Queries) UpdateControllerSettings(ctx context.Context, arg UpdateControllerSettingsParams) (int64, error) {
+	result, err := q.exec(ctx, q.updateControllerSettingsStmt, updateControllerSettings,
+		arg.Name,
+		arg.IpAddress,
+		arg.Port,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const updateControllerStatus = `-- name: UpdateControllerStatus :exec
 UPDATE controllers
 SET is_online = ?, led_count = ?

@@ -2,6 +2,7 @@ package hardware
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"io"
 	"log/slog"
@@ -59,7 +60,7 @@ func TestConfigurationMutationsRejectDurableLocateOwnershipAcrossConnections(t *
 				var mutationErr error
 				switch actionName {
 				case "controller create":
-					_, mutationErr = service.CreateController(ctx, db.CreateControllerParams{Name: "New", IpAddress: "192.0.2.41"})
+					_, mutationErr = service.CreateController(ctx, db.CreateControllerParams{Name: "New", IpAddress: "192.0.2.41", Port: sql.NullInt64{Int64: 80, Valid: true}})
 				case "controller delete":
 					mutationErr = service.DeleteController(ctx, controller.ID)
 				case "legacy grid save":
@@ -67,7 +68,7 @@ func TestConfigurationMutationsRejectDurableLocateOwnershipAcrossConnections(t *
 						`[{"container_index":0,"x":1,"y":1,"led_index":2,"width":1,"name":"new bin"}]`,
 						`[{"id":null,"name":"replacement","segment_id":0,"led_start":0,"led_count":20,"config":{"type":"grid","rows":4,"cols":5}}]`, "")
 				case "legacy config import":
-					_, mutationErr = service.ImportConfig(ctx, "", "", 0, []byte(`{"version":"1.0","controller":{"name":"Imported","ip_address":"192.0.2.42"},"containers":[{"name":"A","segment_id":0,"led_start":0,"led_count":20,"config":{"type":"linear","total":20}}],"bins":[{"container_index":0,"led_index":2,"width":1,"name":"imported bin"}]}`))
+					_, mutationErr = service.ImportConfig(ctx, "", "", 0, []byte(`{"version":"1.0","controller":{"name":"Imported","ip_address":"192.0.2.42","port":80},"containers":[{"name":"A","segment_id":0,"led_start":0,"led_count":20,"config":{"type":"linear","total":20}}],"bins":[{"container_index":0,"led_index":2,"width":1,"name":"imported bin"}]}`))
 				case "coordinate conversion":
 					_, mutationErr = ConvertToDrawerRelative(ctx, store2, nil)
 				case "legacy index migration":

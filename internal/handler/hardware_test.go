@@ -553,7 +553,7 @@ func TestLegacyHardwareConfigurationHandlersRejectDurableLocateOwnership(t *test
 				case "controller create":
 					router := chi.NewRouter()
 					router.Post("/hardware", h.HandleHardwareCreate)
-					form := url.Values{"name": {"New"}, "ip_address": {"192.0.2.51"}}
+					form := url.Values{"name": {"New"}, "ip_address": {"192.0.2.51"}, "port": {"80"}}
 					req := httptest.NewRequest(http.MethodPost, "/hardware", strings.NewReader(form.Encode()))
 					req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 					response = httptest.NewRecorder()
@@ -577,7 +577,7 @@ func TestLegacyHardwareConfigurationHandlersRejectDurableLocateOwnership(t *test
 					if err != nil {
 						t.Fatal(err)
 					}
-					if _, err := io.WriteString(part, `{"version":"1.0","controller":{"name":"Imported","ip_address":"192.0.2.52"},"containers":[{"name":"A","segment_id":0,"led_start":0,"led_count":20,"config":{"type":"linear","total":20}}],"bins":[{"container_index":0,"led_index":2,"width":1,"name":"imported bin"}]}`); err != nil {
+					if _, err := io.WriteString(part, `{"version":"1.0","controller":{"name":"Imported","ip_address":"192.0.2.52","port":80},"containers":[{"name":"A","segment_id":0,"led_start":0,"led_count":20,"config":{"type":"linear","total":20}}],"bins":[{"container_index":0,"led_index":2,"width":1,"name":"imported bin"}]}`); err != nil {
 						t.Fatal(err)
 					}
 					if err := writer.Close(); err != nil {

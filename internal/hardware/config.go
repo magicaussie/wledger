@@ -20,7 +20,7 @@ const hwConfigVersion = "1.0"
 type controllerConfig struct {
 	Name      string `json:"name"`
 	IpAddress string `json:"ip_address"`
-	Port      int64  `json:"port"`
+	Port      *int64 `json:"port"`
 }
 
 type containerConfig struct {
@@ -70,11 +70,15 @@ func (s *service) ExportConfig(ctx context.Context, controllerID int64) ([]byte,
 		return nil, fmt.Errorf("failed to read LED coordinate space: %w", err)
 	}
 
+	port := c.Port.Int64
+	if !c.Port.Valid || port < 1 {
+		port = defaultControllerPort
+	}
 	cfg := hardwareConfig{
 		Version:       hwConfigVersion,
 		ExportedAt:    time.Now(),
 		BinIndexSpace: space,
-		Controller:    controllerConfig{Name: c.Name, IpAddress: c.IpAddress, Port: c.Port.Int64},
+		Controller:    controllerConfig{Name: c.Name, IpAddress: c.IpAddress, Port: &port},
 	}
 
 	containerIDs := make([]int64, 0, len(containers))
@@ -147,19 +151,29 @@ func (s *service) ImportConfig(ctx context.Context, name, ip string, port int64,
 		return 0, fmt.Errorf("%w: unsupported bin_index_space %q", ErrInvalidAllocation, cfg.BinIndexSpace)
 	}
 
-	// Optional overrides from the import form.
+	// Optional overrides from the import form. A missing port is not guessed:
+	// imported endpoint settings must be explicit in the file or override form.
 	if name != "" {
 		cfg.Controller.Name = name
 	}
 	if ip != "" {
 		cfg.Controller.IpAddress = ip
 	}
+	resolvedPort := int64(0)
+	if cfg.Controller.Port != nil {
+		resolvedPort = *cfg.Controller.Port
+	}
 	if port != 0 {
-		cfg.Controller.Port = port
+		resolvedPort = port
+	} else if cfg.Controller.Port == nil {
+		return 0, fmt.Errorf("%w: controller port is required in the config or import overrides", ErrInvalidControllerSettings)
 	}
-	if cfg.Controller.IpAddress == "" {
-		return 0, fmt.Errorf("controller IP address is required")
+	resolvedName, resolvedAddress, err := ValidateControllerSettings(cfg.Controller.Name, cfg.Controller.IpAddress, resolvedPort)
+	if err != nil {
+		return 0, err
 	}
+	cfg.Controller.Name, cfg.Controller.IpAddress = resolvedName, resolvedAddress
+	cfg.Controller.Port = &resolvedPort
 
 	// Derive allocations for imported containers that do not specify one, then
 	// validate the resulting set.
@@ -186,7 +200,7 @@ func (s *service) ImportConfig(ctx context.Context, name, ip string, port int64,
 	}
 
 	var newID int64
-	err := s.store.ExecImmediateTx(ctx, func(q db.Querier) error {
+	err = db.WithOperationClaim(ctx, s.store, func(q db.Querier) error {
 		owned, err := db.HasPhysicalLocateOwnership(ctx, q)
 		if err != nil {
 			return fmt.Errorf("check durable physical Locate ownership before hardware import: %w", err)
@@ -222,12 +236,15 @@ func (s *service) ImportConfig(ctx context.Context, name, ip string, port int64,
 			return fmt.Errorf("failed to read controllers reconciliation guard: %w", err)
 		}
 		for _, target := range controllers {
-			if target.IpAddress != cfg.Controller.IpAddress {
+			if controllerAddressKey(target.IpAddress) != controllerAddressKey(cfg.Controller.IpAddress) {
 				continue
 			}
 			if err := guardReconciledController(ctx, q, target.ID); err != nil {
 				return err
 			}
+		}
+		if err := ensureUniqueControllerEndpoint(ctx, q, 0, cfg.Controller.IpAddress, resolvedPort); err != nil {
+			return err
 		}
 
 		// Normalise every mapped imported bin into the database coordinate space
@@ -263,7 +280,7 @@ func (s *service) ImportConfig(ctx context.Context, name, ip string, port int64,
 		row, err := q.CreateController(ctx, db.CreateControllerParams{
 			Name:      cfg.Controller.Name,
 			IpAddress: cfg.Controller.IpAddress,
-			Port:      sql.NullInt64{Int64: cfg.Controller.Port, Valid: cfg.Controller.Port != 0},
+			Port:      sql.NullInt64{Int64: resolvedPort, Valid: true},
 		})
 		if err != nil {
 			return err
