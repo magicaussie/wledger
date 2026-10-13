@@ -411,8 +411,8 @@ func TestRestoreEnvelope_LegacyV1RestoreSucceeds(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(f.uploadsDir, ".restore_tmp_envelope")); !os.IsNotExist(err) {
 		t.Errorf("abandoned staging directory not cleaned by a valid restore: %v", err)
 	}
-	// ...but never removes a recovery directory.
-	if _, err := os.Stat(filepath.Join(f.uploadsDir, ".uploads_bak_sentinel", "precious.txt")); err != nil {
-		t.Errorf("recovery directory was removed by a valid restore: %v", err)
+	// ...but preserves a recovery directory in the retained old generation.
+	if got := findFile(t, filepath.Dir(f.uploadsDir), "precious.txt"); got == "" {
+		t.Error("recovery directory was removed by a valid restore")
 	}
 }

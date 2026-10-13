@@ -504,6 +504,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.getRecentlyImportedPartsStmt, err = db.PrepareContext(ctx, getRecentlyImportedParts); err != nil {
 		return nil, fmt.Errorf("error preparing query GetRecentlyImportedParts: %w", err)
 	}
+	if q.getRestoreGenerationStmt, err = db.PrepareContext(ctx, getRestoreGeneration); err != nil {
+		return nil, fmt.Errorf("error preparing query GetRestoreGeneration: %w", err)
+	}
 	if q.getSessionStmt, err = db.PrepareContext(ctx, getSession); err != nil {
 		return nil, fmt.Errorf("error preparing query GetSession: %w", err)
 	}
@@ -746,6 +749,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.setPasswordResetFlagStmt, err = db.PrepareContext(ctx, setPasswordResetFlag); err != nil {
 		return nil, fmt.Errorf("error preparing query SetPasswordResetFlag: %w", err)
+	}
+	if q.setRestoreGenerationStmt, err = db.PrepareContext(ctx, setRestoreGeneration); err != nil {
+		return nil, fmt.Errorf("error preparing query SetRestoreGeneration: %w", err)
 	}
 	if q.togglePartFavoriteStmt, err = db.PrepareContext(ctx, togglePartFavorite); err != nil {
 		return nil, fmt.Errorf("error preparing query TogglePartFavorite: %w", err)
@@ -1681,6 +1687,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing getRecentlyImportedPartsStmt: %w", cerr)
 		}
 	}
+	if q.getRestoreGenerationStmt != nil {
+		if cerr := q.getRestoreGenerationStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getRestoreGenerationStmt: %w", cerr)
+		}
+	}
 	if q.getSessionStmt != nil {
 		if cerr := q.getSessionStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getSessionStmt: %w", cerr)
@@ -2084,6 +2095,11 @@ func (q *Queries) Close() error {
 	if q.setPasswordResetFlagStmt != nil {
 		if cerr := q.setPasswordResetFlagStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing setPasswordResetFlagStmt: %w", cerr)
+		}
+	}
+	if q.setRestoreGenerationStmt != nil {
+		if cerr := q.setRestoreGenerationStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing setRestoreGenerationStmt: %w", cerr)
 		}
 	}
 	if q.togglePartFavoriteStmt != nil {
@@ -2500,6 +2516,7 @@ type Queries struct {
 	getPriceHistoryByPartStmt                                 *sql.Stmt
 	getPriceHistoryByPartAndProviderStmt                      *sql.Stmt
 	getRecentlyImportedPartsStmt                              *sql.Stmt
+	getRestoreGenerationStmt                                  *sql.Stmt
 	getSessionStmt                                            *sql.Stmt
 	getSettingsStmt                                           *sql.Stmt
 	getSupplierCacheStmt                                      *sql.Stmt
@@ -2581,6 +2598,7 @@ type Queries struct {
 	setControllerOnlineStatusStmt                             *sql.Stmt
 	setFlagStmt                                               *sql.Stmt
 	setPasswordResetFlagStmt                                  *sql.Stmt
+	setRestoreGenerationStmt                                  *sql.Stmt
 	togglePartFavoriteStmt                                    *sql.Stmt
 	unarchiveCabinetStmt                                      *sql.Stmt
 	unarchiveDrawerStmt                                       *sql.Stmt
@@ -2790,6 +2808,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		getPriceHistoryByPartStmt:                      q.getPriceHistoryByPartStmt,
 		getPriceHistoryByPartAndProviderStmt:           q.getPriceHistoryByPartAndProviderStmt,
 		getRecentlyImportedPartsStmt:                   q.getRecentlyImportedPartsStmt,
+		getRestoreGenerationStmt:                       q.getRestoreGenerationStmt,
 		getSessionStmt:                                 q.getSessionStmt,
 		getSettingsStmt:                                q.getSettingsStmt,
 		getSupplierCacheStmt:                           q.getSupplierCacheStmt,
@@ -2871,6 +2890,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		setControllerOnlineStatusStmt:                  q.setControllerOnlineStatusStmt,
 		setFlagStmt:                                    q.setFlagStmt,
 		setPasswordResetFlagStmt:                       q.setPasswordResetFlagStmt,
+		setRestoreGenerationStmt:                       q.setRestoreGenerationStmt,
 		togglePartFavoriteStmt:                         q.togglePartFavoriteStmt,
 		unarchiveCabinetStmt:                           q.unarchiveCabinetStmt,
 		unarchiveDrawerStmt:                            q.unarchiveDrawerStmt,

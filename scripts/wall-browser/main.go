@@ -46,6 +46,7 @@ import (
 	"github.com/tuxedocurly/wledger/internal/hardware"
 	"github.com/tuxedocurly/wledger/internal/i18n"
 	"github.com/tuxedocurly/wledger/internal/inspiration"
+	"github.com/tuxedocurly/wledger/internal/maintenance"
 	"github.com/tuxedocurly/wledger/internal/middleware"
 	"github.com/tuxedocurly/wledger/internal/parts"
 	"github.com/tuxedocurly/wledger/internal/router"
@@ -104,6 +105,11 @@ func main() {
 	if err := os.MkdirAll(config.DirLogs, 0755); err != nil {
 		fatal(log, "create logs dir", err)
 	}
+	maintenanceGate := maintenance.New(config.DirUploads)
+	startupUnlock, err := maintenanceGate.WriteLock()
+	if err != nil {
+		fatal(log, "acquire startup maintenance lock", err)
+	}
 
 	database, err := db.Open(config.DirDatabase)
 	if err != nil {
@@ -112,6 +118,9 @@ func main() {
 	defer database.Close()
 	if err := db.Migrate(database); err != nil {
 		fatal(log, "migrate", err)
+	}
+	if err := backup.RecoverStartupLocked(context.Background(), database, config.DirUploads, log); err != nil {
+		fatal(log, "recover restore", err)
 	}
 
 	store := db.NewStore(database)
@@ -139,7 +148,7 @@ func main() {
 	wledClient := wled.NewClient()
 	wledService := wled.NewService(store, wledClient, log)
 	uiErrorResponder := uierror.New(log)
-	backupService := backup.NewService(database, store, config.DirUploads, log)
+	backupService := backup.NewService(database, store, config.DirUploads, log, maintenanceGate)
 	tagsService := tags.NewService(database, store)
 	docsService := documents.NewService(store, log)
 	stockService := stock.NewService(store, log)
@@ -160,7 +169,7 @@ func main() {
 		stockService, docsService, suppliersService,
 	)
 	mw := middleware.New(store, sessionManager, log, uiErrorResponder)
-	r := router.New(mw, sessionManager, h)
+	r := router.New(mw, sessionManager, h, maintenanceGate)
 
 	addr := "127.0.0.1:" + *port
 	srv := &http.Server{Addr: addr, Handler: r}
@@ -169,6 +178,7 @@ func main() {
 			fatal(log, "serve", err)
 		}
 	}()
+	startupUnlock()
 
 	fmt.Printf("WALL_BROWSER_READY http://%s\n", addr)
 	os.Stdout.Sync()

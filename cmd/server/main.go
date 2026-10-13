@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"time"
 
 	"github.com/alexedwards/scs/v2"
@@ -21,6 +22,7 @@ import (
 	"github.com/tuxedocurly/wledger/internal/images"
 	"github.com/tuxedocurly/wledger/internal/inspiration"
 	"github.com/tuxedocurly/wledger/internal/logger"
+	"github.com/tuxedocurly/wledger/internal/maintenance"
 	"github.com/tuxedocurly/wledger/internal/middleware"
 	"github.com/tuxedocurly/wledger/internal/parts"
 	"github.com/tuxedocurly/wledger/internal/router"
@@ -44,8 +46,29 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Recover any interrupted cross-resource restore under the exclusive
+	// process-wide gate before opening services or allowing another process to
+	// serve requests against this installation.
+	if err := os.MkdirAll(config.DirData, 0755); err != nil {
+		log.Error("Failed to create data directory", "error", err)
+		os.Exit(1)
+	}
+	if err := os.MkdirAll(filepath.Dir(config.DirUploads), 0755); err != nil {
+		log.Error("Failed to create uploads parent directory", "error", err)
+		os.Exit(1)
+	}
+	if err := os.MkdirAll(config.DirUploads, 0755); err != nil {
+		log.Error("Failed to create uploads directory", "error", err)
+		os.Exit(1)
+	}
+	maintenanceGate := maintenance.New(config.DirUploads)
+	startupUnlock, err := maintenanceGate.WriteLock()
+	if err != nil {
+		log.Error("Failed to acquire startup maintenance lock", "error", err)
+		os.Exit(1)
+	}
+
 	// Database
-	os.MkdirAll(config.DirData, 0755)
 	database, err := db.Open(config.DirDatabase)
 	if err != nil {
 		log.Error("Failed to open database", "error", err)
@@ -56,6 +79,10 @@ func main() {
 	// Apply Migrations
 	if err := db.Migrate(database); err != nil {
 		log.Error("Failed to migrate database", "error", err)
+		os.Exit(1)
+	}
+	if err := backup.RecoverStartupLocked(context.Background(), database, config.DirUploads, log); err != nil {
+		log.Error("Restore recovery failed; refusing to start services", "error", err)
 		os.Exit(1)
 	}
 
@@ -107,7 +134,7 @@ func main() {
 	uiErrorResponder := uierror.New(log)
 
 	// Backup Service
-	backupService := backup.NewService(database, store, config.DirUploads, log)
+	backupService := backup.NewService(database, store, config.DirUploads, log, maintenanceGate)
 
 	// Tags Service
 	tagsService := tags.NewService(database, store)
@@ -180,7 +207,7 @@ func main() {
 	mw := middleware.New(store, sessionManager, log, uiErrorResponder)
 
 	// Router Setup
-	r := router.New(mw, sessionManager, h)
+	r := router.New(mw, sessionManager, h, maintenanceGate)
 
 	// Start Server. WLEDGER_PORT allows isolated local/test instances to avoid
 	// colliding with another WLEDger process; production default remains 8080.
@@ -205,6 +232,7 @@ func main() {
 			os.Exit(1)
 		}
 	}()
+	startupUnlock()
 
 	// Graceful Shutdown
 	c := make(chan os.Signal, 1)

@@ -17,6 +17,7 @@ import (
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/hardware"
 	"github.com/tuxedocurly/wledger/internal/ledspace"
+	"github.com/tuxedocurly/wledger/internal/maintenance"
 	"github.com/tuxedocurly/wledger/internal/wled"
 )
 
@@ -44,10 +45,15 @@ func setupTestDB(t *testing.T) (*sql.DB, db.Store, func()) {
 }
 
 func setupTestUploads(t *testing.T) (string, func()) {
-	// Create a temp directory for uploads
-	dir, err := os.MkdirTemp("", "wledger_test_uploads_*")
+	// Keep the uploads path and its sibling restore-control directory in one
+	// isolated temporary root, as production does under app/.
+	root, err := os.MkdirTemp("", "wledger_test_uploads_*")
 	if err != nil {
 		t.Fatalf("failed to create temp uploads dir: %v", err)
+	}
+	dir := filepath.Join(root, "uploads")
+	if err := os.Mkdir(dir, 0755); err != nil {
+		t.Fatalf("failed to create uploads directory: %v", err)
 	}
 
 	// Create a dummy file
@@ -64,7 +70,8 @@ func setupTestUploads(t *testing.T) (string, func()) {
 	}
 
 	return dir, func() {
-		os.RemoveAll(dir)
+		os.RemoveAll(root)
+		os.RemoveAll(maintenance.ControlDir(dir))
 	}
 }
 

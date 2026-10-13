@@ -12,19 +12,9 @@ import (
 	"sync"
 	"testing"
 	"time"
-)
 
-// stagingDirFromPath returns the ".restore_tmp_*" directory component of a path,
-// or "" if the path is not inside a staging directory.
-func stagingDirFromPath(p string) string {
-	parts := strings.Split(p, string(filepath.Separator))
-	for i, part := range parts {
-		if isStagingDir(part) {
-			return strings.Join(parts[:i+1], string(filepath.Separator))
-		}
-	}
-	return ""
-}
+	"github.com/tuxedocurly/wledger/internal/maintenance"
+)
 
 // writeRecoveryDir creates a ".uploads_bak_*" recovery directory containing a
 // file, simulating a previous restore whose filesystem rollback failed.
@@ -52,16 +42,20 @@ func TestRestore_PreservesRecoveryDirectoryAcrossRestores(t *testing.T) {
 		t.Fatalf("init settings: %v", err)
 	}
 
-	recovery := writeRecoveryDir(t, uploadsDir, ".uploads_bak_111", "old.txt", "precious")
+	writeRecoveryDir(t, uploadsDir, ".uploads_bak_111", "old.txt", "precious")
 
 	zipBytes := buildRestoreZipWithFiles(t, restoreUserManifest(), map[string]string{"new.txt": "new"})
 	if err := svc.Restore(ctx, bytes.NewReader(zipBytes), int64(len(zipBytes))); err != nil {
 		t.Fatalf("restore failed: %v", err)
 	}
 
-	got, err := os.ReadFile(filepath.Join(recovery, "old.txt"))
+	recoveredPath := findFile(t, filepath.Dir(uploadsDir), "old.txt")
+	if recoveredPath == "" {
+		t.Fatal("recovery file was deleted by a later restore")
+	}
+	got, err := os.ReadFile(recoveredPath)
 	if err != nil {
-		t.Fatalf("recovery file was deleted by a later restore: %v", err)
+		t.Fatalf("read preserved recovery file: %v", err)
 	}
 	if string(got) != "precious" {
 		t.Errorf("recovery file content = %q, want %q", got, "precious")
@@ -96,7 +90,7 @@ func TestRestore_CleanupRemovesAbandonedStagingButNotRecovery(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(abandoned, "leftover.txt"), []byte("x"), 0644); err != nil {
 		t.Fatalf("write abandoned file: %v", err)
 	}
-	recovery := writeRecoveryDir(t, uploadsDir, ".uploads_bak_999", "old.txt", "keep")
+	writeRecoveryDir(t, uploadsDir, ".uploads_bak_999", "old.txt", "keep")
 
 	zipBytes := buildRestoreZipWithFiles(t, restoreUserManifest(), map[string]string{"new.txt": "new"})
 	if err := svc.Restore(ctx, bytes.NewReader(zipBytes), int64(len(zipBytes))); err != nil {
@@ -106,8 +100,8 @@ func TestRestore_CleanupRemovesAbandonedStagingButNotRecovery(t *testing.T) {
 	if _, err := os.Stat(abandoned); !os.IsNotExist(err) {
 		t.Errorf("abandoned staging directory was not cleaned up: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(recovery, "old.txt")); err != nil {
-		t.Errorf("recovery directory was removed by cleanup: %v", err)
+	if got := findFile(t, filepath.Dir(uploadsDir), "old.txt"); got == "" {
+		t.Error("recovery directory was removed by cleanup")
 	}
 }
 
@@ -121,7 +115,7 @@ func TestRestore_RestartPreservesRecoveryData(t *testing.T) {
 		t.Fatalf("init settings: %v", err)
 	}
 
-	recovery := writeRecoveryDir(t, uploadsDir, ".uploads_bak_222", "old.txt", "precious")
+	writeRecoveryDir(t, uploadsDir, ".uploads_bak_222", "old.txt", "precious")
 
 	// Simulate a process restart: a brand new service over the same directory.
 	restarted := NewService(database, s, uploadsDir, slog.New(slog.NewTextHandler(io.Discard, nil)))
@@ -130,50 +124,56 @@ func TestRestore_RestartPreservesRecoveryData(t *testing.T) {
 		t.Fatalf("restore after restart failed: %v", err)
 	}
 
-	if _, err := os.Stat(filepath.Join(recovery, "old.txt")); err != nil {
-		t.Errorf("recovery data was lost across a restart: %v", err)
+	if got := findFile(t, filepath.Dir(uploadsDir), "old.txt"); got == "" {
+		t.Error("recovery data was lost across a restart")
 	}
 }
 
-// TestRestore_FailedRollbackThenLaterRestorePreservesRecovery verifies that the
-// only recoverable copy of the previous uploads survives a subsequent restore
-// after a failed swap and rollback.
-func TestRestore_FailedRollbackThenLaterRestorePreservesRecovery(t *testing.T) {
-	_, s, svc, uploadsDir, cleanup := newBackupService(t)
+// TestRestore_FailedRollbackIsRecoveredAtStartupBeforeAnotherRestore verifies that
+// a failed rollback keeps requests fail-closed and that startup recovery restores
+// the old generation before a later restore can be accepted.
+func TestRestore_FailedRollbackIsRecoveredAtStartupBeforeAnotherRestore(t *testing.T) {
+	database, s, svc, uploadsDir, cleanup := newBackupService(t)
 	defer cleanup()
 	ctx := context.Background()
 	if err := s.InitSettings(ctx); err != nil {
-		t.Fatalf("init settings: %v", err)
+		t.Fatal(err)
 	}
 
 	orig := renameEntry
 	defer func() { renameEntry = orig }()
 	renameEntry = func(src, dst string) error {
-		if strings.Contains(src, ".restore_tmp_") {
-			return errors.New("injected swap failure")
-		}
-		if strings.Contains(src, ".uploads_bak_") {
-			return errors.New("injected rollback failure")
+		if strings.HasSuffix(src, ".candidate") || strings.HasSuffix(src, ".previous") {
+			return errors.New("injected generation rename failure")
 		}
 		return os.Rename(src, dst)
 	}
 
 	zipBytes := buildRestoreZipWithFiles(t, restoreUserManifest(), map[string]string{"new.txt": "new"})
-	if err := svc.Restore(ctx, bytes.NewReader(zipBytes), int64(len(zipBytes))); err == nil {
-		t.Fatal("expected the first restore to fail")
+	var recoveryErr *RestoreRecoveryError
+	if err := svc.Restore(ctx, bytes.NewReader(zipBytes), int64(len(zipBytes))); !errors.As(err, &recoveryErr) {
+		t.Fatalf("expected fail-closed recovery error, got %v", err)
 	}
-	if findFile(t, uploadsDir, "test.txt") == "" {
-		t.Fatal("previous upload was not preserved by the failed rollback")
+	if findFile(t, filepath.Dir(uploadsDir), "test.txt") == "" {
+		t.Fatal("previous upload was not preserved after failed rollback")
 	}
 
-	// A later, successful restore must not destroy the preserved uploads.
+	// Restart recovery uses a new gate and the real rename operation.
 	renameEntry = orig
+	if err := RecoverStartup(ctx, database, uploadsDir, maintenance.New(uploadsDir), slog.New(slog.NewTextHandler(io.Discard, nil))); err != nil {
+		t.Fatalf("startup recovery: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(uploadsDir, "test.txt")); err != nil {
+		t.Fatalf("old generation was not restored at startup: %v", err)
+	}
+
+	restarted := NewService(database, s, uploadsDir, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	zipBytes2 := buildRestoreZipWithFiles(t, restoreUserManifest(), map[string]string{"new2.txt": "new2"})
-	if err := svc.Restore(ctx, bytes.NewReader(zipBytes2), int64(len(zipBytes2))); err != nil {
+	if err := restarted.Restore(ctx, bytes.NewReader(zipBytes2), int64(len(zipBytes2))); err != nil {
 		t.Fatalf("second restore failed: %v", err)
 	}
-	if findFile(t, uploadsDir, "test.txt") == "" {
-		t.Error("a later restore destroyed the only recoverable copy of the previous uploads")
+	if _, err := os.Stat(filepath.Join(uploadsDir, "new2.txt")); err != nil {
+		t.Error("second restore did not activate its candidate")
 	}
 }
 
@@ -195,9 +195,9 @@ func TestRestore_ConcurrentRestoresDoNotDeleteEachOthersStaging(t *testing.T) {
 	staged := make(chan string, 1)
 	var once sync.Once
 	renameEntry = func(src, dst string) error {
-		if dir := stagingDirFromPath(src); dir != "" {
+		if strings.HasSuffix(src, ".candidate") {
 			once.Do(func() {
-				staged <- dir
+				staged <- src
 				<-release
 			})
 		}

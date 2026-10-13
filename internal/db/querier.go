@@ -195,6 +195,7 @@ type Querier interface {
 	GetPriceHistoryByPart(ctx context.Context, partID int64) ([]GetPriceHistoryByPartRow, error)
 	GetPriceHistoryByPartAndProvider(ctx context.Context, arg GetPriceHistoryByPartAndProviderParams) ([]GetPriceHistoryByPartAndProviderRow, error)
 	GetRecentlyImportedParts(ctx context.Context, limit int64) ([]GetRecentlyImportedPartsRow, error)
+	GetRestoreGeneration(ctx context.Context) (string, error)
 	// SESSION QUERIES
 	GetSession(ctx context.Context, token string) (Session, error)
 	GetSettings(ctx context.Context) (Setting, error)
@@ -291,6 +292,7 @@ type Querier interface {
 	SetControllerOnlineStatus(ctx context.Context, arg SetControllerOnlineStatusParams) error
 	SetFlag(ctx context.Context, arg SetFlagParams) error
 	SetPasswordResetFlag(ctx context.Context, arg SetPasswordResetFlagParams) error
+	SetRestoreGeneration(ctx context.Context, generationID string) error
 	TogglePartFavorite(ctx context.Context, id int64) (sql.NullBool, error)
 	UnarchiveCabinet(ctx context.Context, id int64) (int64, error)
 	UnarchiveDrawer(ctx context.Context, id int64) (int64, error)

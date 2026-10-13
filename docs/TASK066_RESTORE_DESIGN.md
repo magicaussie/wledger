@@ -1,0 +1,36 @@
+# Task 066 — Restore Consistency Design
+
+## Existing restore sequence and failure windows
+
+1. An authenticated administrator posts `backup_file` to `/settings/backup/restore`. The handler applies the multipart request-size limit, parses the form, and executes restore under the physical Locate ownership guard (`Locator.WithoutActiveSession`).
+2. `backup.service.Restore` serializes restores only within its process, checks the ZIP and manifest envelope, coordinate/physical-storage compatibility, and durable Locate ownership.
+3. It removes abandoned extraction directories, creates `.restore_tmp_<id>` **inside** `app/uploads`, and extracts archive upload entries there with per-entry size limits and path checks.
+4. It replaces inventory rows in one `BEGIN IMMEDIATE` SQLite transaction and commits that transaction.
+5. Only after the DB commit, it creates `.uploads_bak_<id>` and renames live upload children into it one at a time, then moves candidate children into `app/uploads` one at a time. It attempts in-process rollback on ordinary errors; hard process termination skips that rollback. A failure can therefore pair committed new database references with old, missing, or partially moved assets. A request can also run during file moves because `restoreMu` protects only restore calls, not other routes. Startup currently opens/migrates the database and runs hardware data migrations before serving, but it does not recover a pending cross-resource restore.
+
+Uploaded-asset references are persisted in `parts.image_path` (web paths such as `/uploads/images/<name>`) and `part_docs.file_path` (web paths such as `/uploads/docs/<name>`). `parts` and `part_docs` are exported in the restore manifest; uploaded files are ZIP members under `uploads/`. The existing archive validator rejects traversal, duplicate upload paths, symlinks/other non-regular entry types, and configured size excesses.
+
+## Selected protocol
+
+Use a durable journal and whole-directory activation; do not redesign backup formats or move the database into a new storage platform. `app/uploads` and a staged candidate are on the same filesystem. A uniquely named, path-hashed control directory adjacent to `app/uploads` holds the candidate, journal, lock and retained old generation, keeping concurrent installations/tests isolated. The prior upload directory is retained as a uniquely named old generation. A new internal SQLite restore-state row records the committed generation in the same SQLite transaction as restored inventory data.
+
+- **Active generation:** the SQLite restore-state generation ID and the current `app/uploads` directory, verified together at startup. Existing installations begin with the empty/legacy generation ID.
+- **Candidate generation:** a cryptographically random restore ID, a complete extracted upload tree under the installation's control directory, and an atomic journal containing the version, ID and whether an old uploads tree existed. Candidate/previous path names are derived from the validated ID and control directory; archive strings never supply filesystem paths.
+- **Validation complete:** ZIP/manifest/compatibility checks, safe path checks, complete upload extraction and durability, and verification that each database asset reference resolves to a regular candidate file. A temporary SQLite database is migrated to the application's current schema and populated using the same restore application routine; transaction constraints plus `quick_check`/`foreign_key_check` must pass before live state changes. The live restore then repeats that validated routine under SQLite's write reservation.
+- **Commit decision:** within `BEGIN IMMEDIATE`, restore all rows and write the candidate generation ID. Before SQLite commits, atomically rename the old upload directory aside and rename the complete candidate directory into `app/uploads`, syncing the parent directory after each rename. Then SQLite commits. A single process-wide and cross-process maintenance gate excludes normal requests during this interval.
+- **Recovery:** a durable journal exists before any live path changes. On startup, before data migrations, services, hardware workers or routes, acquire the exclusive maintenance lock and compare the committed SQLite generation ID with the journal candidate. If it matches, roll forward idempotently by ensuring the candidate directory is active. If it does not match, SQLite rolled back (or restore never committed); roll back idempotently by restoring the prior directory. Never serve if the marker, journal, and available directories cannot establish one valid generation.
+- **Old-generation retention and cleanup:** keep the prior directory until the new DB generation and active uploads directory have both been verified and the journal can be durably retired. Remove the old directory only after that point; cleanup failure is a warning and cannot invalidate the active generation. If it contains a legacy `.uploads_bak_*` operator-recovery directory, preserve that old generation and report its location. A failed rollback/roll-forward poisons the in-process gate; the durable journal also makes every process sharing the installation return 503 until startup/operator recovery resolves it.
+- **Startup:** recover pending journal first, validate the active uploads directory and SQLite integrity/schema state, then permit existing migrations/services/routes to proceed. No WLED command is part of restore or recovery.
+
+This protocol does not rely on SQLite to transact external files or on atomic rename of individual upload files. Whole-directory renames are atomic on the same filesystem; both rename parents are synchronized for durability. The journal plus in-transaction generation marker distinguishes a committed restore from a rolled-back/uncommitted one after process death.
+
+## Verification evidence
+
+- `CGO_ENABLED=1 go test -count=1 -tags fts5 ./...` — passed.
+- `CGO_ENABLED=1 go test -race -count=1 -tags fts5 ./...` — passed.
+- `CGO_ENABLED=1 go vet -tags fts5 ./...` and server/MCP/wall-browser builds — passed.
+- `npm test` — all 20 grid-painter tests passed.
+- `GO_BIN=/home/spetchal/gotoolchain/go/bin/go CHROMIUM_PATH=/bin/chromium npm run test:fresh-install` — normal fresh-install harness completed; its broader Task 064 verdict remains PARTIAL.
+- `GO_BIN=/home/spetchal/gotoolchain/go/bin/go CHROMIUM_PATH=/bin/chromium npm run test:task065-restore` — authenticated separate-install restore passed, including asset references, restart persistence and zero WLED writes; the legacy combined harness still reports its broader overall verdict as PARTIAL.
+- `internal/backup` subprocess tests use real `SIGKILL` at three restore boundaries (after old-directory rename, after candidate activation, and after SQLite commit); startup recovery proved rollback for the first two and roll-forward for the committed case.
+- `git diff --check` — passed. No production database, staging service or WLED hardware was used.

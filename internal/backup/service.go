@@ -3,8 +3,10 @@ package backup
 import (
 	"archive/zip"
 	"context"
+	"crypto/rand"
 	"database/sql"
 	"encoding/csv"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,6 +23,7 @@ import (
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/hardware"
 	"github.com/tuxedocurly/wledger/internal/ledspace"
+	"github.com/tuxedocurly/wledger/internal/maintenance"
 )
 
 const (
@@ -38,7 +41,10 @@ type Service interface {
 
 // renameEntry is os.Rename, indirected so tests can inject filesystem failures
 // into the uploads swap.
-var renameEntry = os.Rename
+var (
+	renameEntry                   = os.Rename
+	afterRestoreTransactionCommit = func() {}
+)
 
 // zipFileWriter is the subset of *zip.Writer used by the backup export. It is an
 // interface so tests can inject deterministic archive and finalization failures.
@@ -68,30 +74,44 @@ func (e *RestoreCommittedError) Error() string {
 	return "restore completed with warnings: " + e.Reason
 }
 
+// RestoreRecoveryError means neither the current process nor startup recovery
+// could prove a consistent active database/assets generation. Normal requests are
+// blocked and the durable journal and generation directories must be preserved.
+type RestoreRecoveryError struct {
+	Reason string
+}
+
+func (e *RestoreRecoveryError) Error() string {
+	return "restore recovery required: " + e.Reason
+}
+
 type service struct {
 	db         *sql.DB
 	store      db.Store
 	uploadsDir string
 	logger     *slog.Logger
+	gate       *maintenance.Gate
 
-	// restoreMu serializes restore operations. It ensures a starting restore
-	// cannot delete the staging directory of a restore that is still running, and
-	// that two restores cannot interleave their uploads swaps.
-	//
-	// It is an in-process lock only. A separate process sharing the same uploads
-	// directory would not be serialized by it. WLEDger runs a single server
-	// process that performs restores (the MCP server does not), so this is
-	// sufficient; a future multi-process deployment sharing uploads would need a
-	// filesystem-level lock as well.
+	// restoreMu remains a local guard for direct service calls. The maintenance
+	// gate also coordinates normal requests and other server processes.
 	restoreMu sync.Mutex
 }
 
-func NewService(database *sql.DB, store db.Store, uploadsDir string, logger *slog.Logger) Service {
+func NewService(database *sql.DB, store db.Store, uploadsDir string, logger *slog.Logger, gates ...*maintenance.Gate) Service {
+	absoluteUploads, err := filepath.Abs(uploadsDir)
+	if err == nil {
+		uploadsDir = absoluteUploads
+	}
+	gate := maintenance.New(uploadsDir)
+	if len(gates) > 0 && gates[0] != nil {
+		gate = gates[0]
+	}
 	return &service{
 		db:         database,
 		store:      store,
 		uploadsDir: uploadsDir,
 		logger:     logger,
+		gate:       gate,
 	}
 }
 
@@ -486,42 +506,22 @@ func (s *service) writeUploads(zw zipFileWriter) error {
 	})
 }
 
-// cleanAbandonedStagingDirs removes extraction staging directories left behind
-// by a previous, interrupted restore. It never removes a recovery directory
-// (.uploads_bak_*): those hold a previous restore's uploads when a filesystem
-// rollback failed, and deleting one would destroy the administrator's only copy.
-//
-// Restores are serialized by restoreMu, so no staging directory can belong to a
-// restore that is still running when this is called.
-func (s *service) cleanAbandonedStagingDirs() {
-	entries, err := os.ReadDir(s.uploadsDir)
-	if err != nil {
-		return
-	}
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		full := filepath.Join(s.uploadsDir, entry.Name())
-		switch {
-		case isRecoveryDir(entry.Name()):
-			s.logger.Warn("preserving uploads recovery directory; it is not deleted automatically and may need manual recovery", "dir", full)
-		case isStagingDir(entry.Name()):
-			s.logger.Info("cleaning up abandoned restore staging directory", "dir", full)
-			if err := os.RemoveAll(full); err != nil {
-				s.logger.Warn("failed to remove abandoned restore staging directory", "dir", full, "err", err)
-			}
-		}
-	}
-}
-
 func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64) error {
 	s.logger.Debug("starting system restore", "size", size)
-	// Serialize restores: this ensures a starting restore cannot delete another
-	// running restore's staging directory, and that two restores cannot interleave
-	// their uploads swaps.
+	if s.gate.Unavailable() {
+		return &RestoreRecoveryError{Reason: "this process is fail-closed after an earlier recovery error; restart the service to recover the pending journal"}
+	}
+	unlock, err := s.gate.WriteLock()
+	if err != nil {
+		return fmt.Errorf("acquire restore maintenance gate: %w", err)
+	}
+	defer unlock()
 	s.restoreMu.Lock()
 	defer s.restoreMu.Unlock()
+	if err := recoverPendingRestore(ctx, s.db, s.uploadsDir, s.logger); err != nil {
+		s.gate.Poison()
+		return fmt.Errorf("recover previous restore before accepting another: %w", err)
+	}
 
 	if size <= 0 || size > maxRestoreArchiveBytes {
 		return fmt.Errorf("invalid ZIP file size %d (maximum %d bytes)", size, maxRestoreArchiveBytes)
@@ -640,25 +640,31 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 		}
 	}
 
-	// Every pre-extraction validation has passed; only now clean up staging left
-	// behind by a previous, interrupted restore. Running this after the whole
-	// manifest validation (envelope, coordinate space, allocations and physical
-	// storage) means no rejected backup ever destroys leftover staging evidence.
-	s.cleanAbandonedStagingDirs()
-
-	// Extract uploads to temp directory
-	timestamp := time.Now().UnixNano()
-	// Use a hidden folder inside uploadsDir to ensure same-filesystem operations
-	// This avoids cross-device link errors when uploadsDir is a Docker volume
-	tempDir := filepath.Join(s.uploadsDir, fmt.Sprintf(".restore_tmp_%d", timestamp))
-
-	s.logger.Debug("extracting uploads to temp directory", "temp_dir", tempDir)
-	defer os.RemoveAll(tempDir)
-
-	if err := os.MkdirAll(tempDir, 0755); err != nil {
-		s.logger.Error("failed to create temp restore directory", "err", err, "path", tempDir)
-		return fmt.Errorf("failed to create temp restore dir: %w", err)
+	// Build a complete candidate database against the current migration set before
+	// touching the active uploads tree or beginning a live database transaction.
+	generationBytes := make([]byte, 16)
+	if _, err := rand.Read(generationBytes); err != nil {
+		return fmt.Errorf("create restore generation ID: %w", err)
 	}
+	generation := hex.EncodeToString(generationBytes)
+	if err := s.validateCandidateDatabase(ctx, manifest, envelope, space, generation); err != nil {
+		return err
+	}
+
+	parent, tempDir, _, _ := generationPaths(s.uploadsDir, generation)
+	if err := os.MkdirAll(parent, 0755); err != nil {
+		return fmt.Errorf("create uploads parent directory: %w", err)
+	}
+	s.logger.Debug("extracting uploads to candidate generation", "candidate_dir", tempDir)
+	if err := os.Mkdir(tempDir, 0755); err != nil {
+		return fmt.Errorf("create candidate uploads directory: %w", err)
+	}
+	journalWritten := false
+	defer func() {
+		if !journalWritten {
+			_ = os.RemoveAll(tempDir)
+		}
+	}()
 
 	var extractedBytes uint64
 	for _, f := range zr.File {
@@ -693,6 +699,9 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 			}
 			written, copyErr := io.Copy(outFile, io.LimitReader(rc, maxRestoreFileBytes+1))
 			rc.Close()
+			if copyErr == nil {
+				copyErr = outFile.Sync()
+			}
 			closeErr := outFile.Close()
 			if copyErr != nil {
 				err = copyErr
@@ -711,6 +720,22 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 			}
 		}
 	}
+
+	if err := validateManifestAssetRefs(tempDir, manifest.Parts, manifest.PartDocs); err != nil {
+		return fmt.Errorf("candidate upload references are invalid: %w", err)
+	}
+	if err := syncTree(tempDir); err != nil {
+		return fmt.Errorf("make candidate uploads durable: %w", err)
+	}
+	hadUploads, err := pathExists(s.uploadsDir)
+	if err != nil {
+		return err
+	}
+	journal := restoreJournal{Version: 1, ID: generation, HadUploads: hadUploads}
+	if err := writeRestoreJournal(s.uploadsDir, journal); err != nil {
+		return err
+	}
+	journalWritten = true
 
 	// Database Restore Transaction. The write reservation is taken up front
 	// (BEGIN IMMEDIATE) so a concurrent coordinate conversion cannot commit
@@ -766,184 +791,29 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 				return &CabinetWiringConflictError{Reason: "this older current-format backup does not contain physical string/path wiring, but this installation has configured wiring; export a new backup before restoring"}
 			}
 		}
-		s.logger.Debug("clearing existing database records")
-		// Physical storage is cleared first: bin attachments reference bins and
-		// drawers, drawers reference cabinets and cabinets reference controllers,
-		// so the legacy clears below could not run while physical rows remain.
-		if err := clearPhysicalStorage(ctx, qtx); err != nil {
+		if err := s.applyRestoredDatabase(ctx, qtx, manifest, envelope, space, generation); err != nil {
 			return err
 		}
-		// Order matters for Foreign Keys
-		if err := qtx.ClearAuditLogs(ctx); err != nil {
-			return fmt.Errorf("failed to clear audit logs: %w", err)
-		}
-		if err := qtx.ClearPartTags(ctx); err != nil {
-			return fmt.Errorf("failed to clear part tags: %w", err)
-		}
-		if err := qtx.ClearTags(ctx); err != nil {
-			return fmt.Errorf("failed to clear tags: %w", err)
-		}
-		if err := qtx.ClearPartAssignments(ctx); err != nil {
-			return fmt.Errorf("failed to clear part assignments: %w", err)
-		}
-		if err := qtx.ClearPartDocs(ctx); err != nil {
-			return fmt.Errorf("failed to clear part docs: %w", err)
-		}
-		if err := qtx.ClearPartLinks(ctx); err != nil {
-			return fmt.Errorf("failed to clear part links: %w", err)
-		}
-		if err := qtx.ClearPartAiPrompts(ctx); err != nil {
-			return fmt.Errorf("failed to clear part ai prompts: %w", err)
-		}
-		if err := qtx.ClearParts(ctx); err != nil {
-			return fmt.Errorf("failed to clear parts: %w", err)
-		}
-		if err := qtx.ClearBins(ctx); err != nil {
-			return fmt.Errorf("failed to clear bins: %w", err)
-		}
-		if err := qtx.ClearWallCards(ctx); err != nil {
-			return fmt.Errorf("failed to clear wall cards: %w", err)
-		}
-		if err := qtx.ClearWalls(ctx); err != nil {
-			return fmt.Errorf("failed to clear walls: %w", err)
-		}
-		if err := qtx.ClearContainers(ctx); err != nil {
-			return fmt.Errorf("failed to clear containers: %w", err)
-		}
-		if err := qtx.ClearControllers(ctx); err != nil {
-			return fmt.Errorf("failed to clear controllers: %w", err)
-		}
-		if err := qtx.ClearUsers(ctx); err != nil {
-			return fmt.Errorf("failed to clear users: %w", err)
-		}
-
-		// Clear supplier tables
-		if err := qtx.ClearPriceHistory(ctx); err != nil {
-			return fmt.Errorf("failed to clear price history: %w", err)
-		}
-		if err := qtx.ClearPartPricing(ctx); err != nil {
-			return fmt.Errorf("failed to clear part pricing: %w", err)
-		}
-		if err := qtx.ClearPartParameters(ctx); err != nil {
-			return fmt.Errorf("failed to clear part parameters: %w", err)
-		}
-		if err := qtx.ClearSupplierReferences(ctx); err != nil {
-			return fmt.Errorf("failed to clear supplier references: %w", err)
-		}
-		if err := qtx.ClearSupplierCredentials(ctx); err != nil {
-			return fmt.Errorf("failed to clear supplier credentials: %w", err)
-		}
-
-		s.logger.Debug("restoring database records from manifest")
-		if err := s.restoreData(ctx, qtx, manifest); err != nil {
-			return err
-		}
-		// A current archive carries a complete physical graph, restored after the
-		// legacy controllers and bins it references, so it replaces the target
-		// graph exactly, including an explicitly empty one. Its flags replace the
-		// stored flag set exactly rather than being normalized like a legacy
-		// restore, so the restored system matches the backed-up system.
-		if envelope.Current != nil {
-			if err := restorePhysicalStorage(ctx, qtx, envelope.Current.PhysicalStorage); err != nil {
-				return err
-			}
-			if err := restoreSystemFlags(ctx, qtx, envelope.Current.SystemFlags); err != nil {
-				return err
-			}
-			return nil
-		}
-		// Persist the coordinate-space state atomically with the restored data so
-		// it survives restarts and cannot be left stale by a crash.
-		if err := ledspace.Set(ctx, qtx, space); err != nil {
-			return err
-		}
-		if space == ledspace.Segment {
-			// The restored bins are already segment-absolute, so migration 005 must
-			// never run against them. Marking it applied here (atomically with the
-			// restore) prevents a second conversion at the next startup even when the
-			// flag was absent or false before the restore. Drawer-relative and
-			// unresolved restores are protected by the coordinate-space check inside
-			// migration 005 itself, which never converts a non-segment space.
-			if err := qtx.SetFlag(ctx, db.SetFlagParams{Key: hardware.Migration005FlagKey, Value: "true"}); err != nil {
-				return fmt.Errorf("failed to mark migration 005 applied: %w", err)
-			}
+		if err := finishGeneration(s.uploadsDir, journal); err != nil {
+			return fmt.Errorf("activate candidate uploads: %w", err)
 		}
 		return nil
 	})
 
 	if err != nil {
-		s.logger.Error("failed to restore database", "err", err)
+		s.logger.Error("restore transaction failed", "err", err)
+		if recoveryErr := recoverPendingRestore(ctx, s.db, s.uploadsDir, s.logger); recoveryErr != nil {
+			s.gate.Poison()
+			return &RestoreRecoveryError{Reason: fmt.Sprintf("restore transaction failed (%v) and automatic recovery could not establish a consistent generation (%v); restart after preserving the pending journal and generation directories", err, recoveryErr)}
+		}
 		return err
 	}
 
-	// Swap the staged uploads into place. The database has already been committed,
-	// so a failure here is reported as a committed-with-warning error rather than a
-	// failed restore. The previous uploads are moved aside (never overwritten in
-	// place) and are deleted only after the swap has fully succeeded, so a failed
-	// swap never destroys the only copy of the previous files.
-	s.logger.Debug("swapping upload contents", "dir", s.uploadsDir)
-
-	backupDir := filepath.Join(s.uploadsDir, fmt.Sprintf(".uploads_bak_%d", timestamp))
-	if err := os.MkdirAll(backupDir, 0755); err != nil {
-		return &RestoreCommittedError{Reason: "failed to create uploads backup directory: " + err.Error()}
+	afterRestoreTransactionCommit()
+	if err := recoverPendingRestore(ctx, s.db, s.uploadsDir, s.logger); err != nil {
+		s.gate.Poison()
+		return &RestoreRecoveryError{Reason: fmt.Sprintf("restore committed but generation verification/recovery failed (%v); requests are blocked until startup recovery succeeds", err)}
 	}
-
-	// Helper to move contents
-	moveContents := func(src, dst string) error {
-		entries, err := os.ReadDir(src)
-		if err != nil {
-			return err
-		}
-		for _, entry := range entries {
-			name := entry.Name()
-			// Never move the restore's own staging/backup directories, and never
-			// move a preserved recovery directory. The backup directory is deleted
-			// after a successful swap, so capturing a recovery directory here would
-			// destroy the administrator's only copy of those uploads.
-			if name == filepath.Base(tempDir) || name == filepath.Base(backupDir) ||
-				isRecoveryDir(name) || isStagingDir(name) {
-				continue
-			}
-			srcPath := filepath.Join(src, name)
-			dstPath := filepath.Join(dst, name)
-			if err := renameEntry(srcPath, dstPath); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-
-	// 1. Move the current uploads aside. Nothing new has been placed yet, so a
-	// failure here leaves the previous uploads recoverable.
-	if err := moveContents(s.uploadsDir, backupDir); err != nil {
-		if rbErr := moveContents(backupDir, s.uploadsDir); rbErr != nil {
-			s.logger.Error("FATAL: failed to restore uploads after staging failure", "err", rbErr, "backup_dir", backupDir)
-			return &RestoreCommittedError{Reason: "uploads staging failed and rollback failed; previous uploads preserved at " + backupDir}
-		}
-		return &RestoreCommittedError{Reason: "failed to stage current uploads: " + err.Error()}
-	}
-
-	// 2. Move the new uploads into place. On failure, unstage any new files that
-	// were already placed and restore the previous uploads, so the live directory
-	// is never left as a mix of old and new files.
-	if err := moveContents(tempDir, s.uploadsDir); err != nil {
-		s.logger.Error("failed to move new uploads into place, rolling back", "err", err)
-		if mvErr := moveContents(s.uploadsDir, tempDir); mvErr != nil {
-			s.logger.Error("FATAL: failed to unstage new uploads", "err", mvErr, "backup_dir", backupDir)
-			return &RestoreCommittedError{Reason: "uploads swap failed and rollback failed; previous uploads preserved at " + backupDir}
-		}
-		if rbErr := moveContents(backupDir, s.uploadsDir); rbErr != nil {
-			s.logger.Error("FATAL: failed to restore previous uploads", "err", rbErr, "backup_dir", backupDir)
-			return &RestoreCommittedError{Reason: "uploads swap failed and rollback failed; previous uploads preserved at " + backupDir}
-		}
-		return &RestoreCommittedError{Reason: "failed to swap new uploads: " + err.Error()}
-	}
-
-	// 3. The swap succeeded; the previous uploads are no longer needed.
-	if err := os.RemoveAll(backupDir); err != nil {
-		s.logger.Warn("failed to remove uploads backup directory", "err", err, "dir", backupDir)
-	}
-
 	// The data and files are committed from here on. Any remaining problem is a
 	// warning, not a failed restore.
 	if space == ledspace.Unresolved {

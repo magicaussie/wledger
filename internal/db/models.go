@@ -286,6 +286,12 @@ type PriceHistory struct {
 	RecordedAt    sql.NullTime `json:"recorded_at"`
 }
 
+type RestoreGeneration struct {
+	ID           int64     `json:"id"`
+	GenerationID string    `json:"generation_id"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
 type Session struct {
 	Token  string  `json:"token"`
 	Data   []byte  `json:"data"`

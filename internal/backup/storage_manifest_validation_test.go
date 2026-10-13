@@ -890,8 +890,8 @@ func TestStorageManifest_AcceptsCompleteEnvelopesAndReplacesTarget(t *testing.T)
 			if _, ok := uploads[filepath.Join(".restore_tmp_leftover", "leftover.txt")]; ok {
 				t.Errorf("abandoned staging directory survived an accepted restore: %v", uploads)
 			}
-			if _, ok := uploads[filepath.Join(".uploads_bak_keep", "precious.txt")]; !ok {
-				t.Errorf("recovery directory was removed by an accepted restore: %v", uploads)
+			if got := findFile(t, filepath.Dir(target.uploadsDir), "precious.txt"); got == "" {
+				t.Errorf("recovery directory data was removed by an accepted restore: %v", uploads)
 			}
 		})
 	}

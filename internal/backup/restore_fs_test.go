@@ -101,9 +101,36 @@ func TestRestore_DBFailureWithUploadsPresent(t *testing.T) {
 	}
 }
 
+func TestRestore_RejectsMissingReferencedUploadBeforeLiveMutation(t *testing.T) {
+	_, store, svc, uploadsDir, cleanup := newBackupService(t)
+	defer cleanup()
+	ctx := context.Background()
+	if err := store.InitSettings(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	manifest := restoreUserManifest()
+	manifest.Parts = []db.Part{{
+		ID: 1, Name: "Image part",
+		ImagePath: sql.NullString{String: "/uploads/images/missing.png", Valid: true},
+	}}
+	archive := buildRestoreZipWithFiles(t, manifest, map[string]string{"other.png": "not the referenced image"})
+	if err := svc.Restore(ctx, bytes.NewReader(archive), int64(len(archive))); err == nil {
+		t.Fatal("restore accepted a manifest referencing a missing uploaded asset")
+	}
+	if _, err := store.GetUserByEmail(ctx, "restored@example.com"); err == nil {
+		t.Error("database changed despite candidate asset validation failure")
+	}
+	if _, err := os.Stat(filepath.Join(uploadsDir, "test.txt")); err != nil {
+		t.Errorf("old upload was changed by rejected restore: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(uploadsDir, "other.png")); !os.IsNotExist(err) {
+		t.Errorf("candidate upload was activated despite rejected restore: %v", err)
+	}
+}
+
 // TestRestore_FilesystemSwapFailureRollsBack verifies that a failure while moving
-// the staged uploads into place rolls the filesystem back to the previous state
-// and is reported as a committed-with-warning error (the database is committed).
+// the candidate uploads into place rolls both resources back to the old generation.
 func TestRestore_FilesystemSwapFailureRollsBack(t *testing.T) {
 	_, s, svc, uploadsDir, cleanup := newBackupService(t)
 	defer cleanup()
@@ -115,8 +142,7 @@ func TestRestore_FilesystemSwapFailureRollsBack(t *testing.T) {
 	orig := renameEntry
 	defer func() { renameEntry = orig }()
 	renameEntry = func(src, dst string) error {
-		// Fail only when moving a staged temp file into the live uploads dir.
-		if strings.Contains(src, ".restore_tmp_") {
+		if strings.HasSuffix(src, ".candidate") {
 			return errors.New("injected swap failure")
 		}
 		return os.Rename(src, dst)
@@ -124,14 +150,13 @@ func TestRestore_FilesystemSwapFailureRollsBack(t *testing.T) {
 
 	zipBytes := buildRestoreZipWithFiles(t, restoreUserManifest(), map[string]string{"new.txt": "new"})
 	err := svc.Restore(ctx, bytes.NewReader(zipBytes), int64(len(zipBytes)))
-	var committed *RestoreCommittedError
-	if !errors.As(err, &committed) {
-		t.Fatalf("expected RestoreCommittedError, got %v", err)
+	if err == nil {
+		t.Fatal("expected candidate activation to fail")
 	}
 
-	// Database committed.
-	if _, err := s.GetUserByEmail(ctx, "restored@example.com"); err != nil {
-		t.Errorf("restored user missing (database should be committed): %v", err)
+	// The uncommitted database transaction rolled back with the filesystem.
+	if _, err := s.GetUserByEmail(ctx, "restored@example.com"); err == nil {
+		t.Error("candidate user was committed despite failed activation")
 	}
 	// Filesystem rolled back to the previous state.
 	if _, err := os.Stat(filepath.Join(uploadsDir, "test.txt")); os.IsNotExist(err) {
@@ -156,28 +181,22 @@ func TestRestore_FilesystemRollbackFailurePreservesPreviousUploads(t *testing.T)
 	orig := renameEntry
 	defer func() { renameEntry = orig }()
 	renameEntry = func(src, dst string) error {
-		// Fail the temp->live move and the backup->live restore.
-		if strings.Contains(src, ".restore_tmp_") {
-			return errors.New("injected swap failure")
-		}
-		if strings.Contains(src, ".uploads_bak_") {
-			return errors.New("injected rollback failure")
+		// Fail candidate activation and then fail restoring the old directory.
+		if strings.HasSuffix(src, ".candidate") || strings.HasSuffix(src, ".previous") {
+			return errors.New("injected generation rename failure")
 		}
 		return os.Rename(src, dst)
 	}
 
 	zipBytes := buildRestoreZipWithFiles(t, restoreUserManifest(), map[string]string{"new.txt": "new"})
 	err := svc.Restore(ctx, bytes.NewReader(zipBytes), int64(len(zipBytes)))
-	var committed *RestoreCommittedError
-	if !errors.As(err, &committed) {
-		t.Fatalf("expected RestoreCommittedError, got %v", err)
-	}
-	if !strings.Contains(committed.Reason, ".uploads_bak_") {
-		t.Errorf("error should point at the preserved uploads, got %q", committed.Reason)
+	var recoveryErr *RestoreRecoveryError
+	if !errors.As(err, &recoveryErr) {
+		t.Fatalf("expected fail-closed RestoreRecoveryError, got %v", err)
 	}
 
-	// The previous upload must still exist somewhere under the uploads dir.
-	if findFile(t, uploadsDir, "test.txt") == "" {
+	// The previous upload remains preserved in the generation directory.
+	if findFile(t, filepath.Dir(uploadsDir), "test.txt") == "" {
 		t.Error("previous upload was lost after a failed swap and rollback")
 	}
 }

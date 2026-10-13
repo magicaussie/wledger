@@ -9,12 +9,16 @@ import (
 	"github.com/tuxedocurly/wledger/internal/api"
 	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/internal/handler"
+	"github.com/tuxedocurly/wledger/internal/maintenance"
 	"github.com/tuxedocurly/wledger/internal/middleware"
 )
 
 // New creates and configures a new chi router
-func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.Handler) *chi.Mux {
+func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.Handler, gates ...*maintenance.Gate) *chi.Mux {
 	r := chi.NewRouter()
+	if len(gates) > 0 && gates[0] != nil {
+		r.Use(gates[0].Middleware)
+	}
 
 	// Global Middlewares
 	r.Use(chimiddleware.RequestID)
