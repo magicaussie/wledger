@@ -1161,7 +1161,7 @@ func StorageDrawer(detail storage.BrowseDrawerDetail, cabinetName string, user a
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				if user.CanWrite() && user.ID == session.OwnerID && (session.State == "active" || session.State == "partial" || session.State == "stopping") {
+				if user.CanWrite() && user.ID == session.OwnerID && (session.State == "activating" || session.State == "active" || session.State == "partial" || session.State == "stopping") {
 					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 88, "<form method=\"POST\" action=\"")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err

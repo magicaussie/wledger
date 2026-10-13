@@ -2,11 +2,13 @@
 INSERT OR REPLACE INTO settings (
     id, require_auth_for_read, locate_timeout_seconds, enable_locate_timeout,
     color_locate, color_stock_ok, color_stock_low, color_stock_critical, color_error,
-    created_at, updated_at, enable_debug_logs, supplier_cache_ttl_hours, default_currency
+    created_at, updated_at, enable_debug_logs, supplier_cache_ttl_hours, default_currency,
+    inspiration_seeds_applied
 ) VALUES (
     1, ?, ?, ?,
     ?, ?, ?, ?, ?,
-    ?, ?, ?, ?, ?
+    ?, ?, ?, ?, ?,
+    ?
 );
 
 -- name: GetSettings :one

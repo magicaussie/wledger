@@ -27,13 +27,6 @@ const Migration005FlagKey = "migration_005_applied"
 // cannot commit between the check and the write.
 func MigrateLegacyLedIndices(ctx context.Context, store db.Store, logger *slog.Logger) error {
 	err := store.ExecImmediateTx(ctx, func(q db.Querier) error {
-		owned, err := db.HasPhysicalLocateOwnership(ctx, q)
-		if err != nil {
-			return fmt.Errorf("check durable physical Locate ownership before legacy index migration: %w", err)
-		}
-		if owned {
-			return db.ErrPhysicalLocateActive
-		}
 		// Only segment-relative bin indices may be converted. Drawer-relative
 		// indices are already relative to their drawer's allocation, and
 		// unresolved indices have no known coordinate system; converting either
@@ -51,6 +44,13 @@ func MigrateLegacyLedIndices(ctx context.Context, store db.Store, logger *slog.L
 		flag, err := q.GetFlag(ctx, Migration005FlagKey)
 		if err == nil && flag == "true" {
 			return nil
+		}
+		owned, err := db.HasPhysicalLocateOwnership(ctx, q)
+		if err != nil {
+			return fmt.Errorf("check durable physical Locate ownership before legacy index migration: %w", err)
+		}
+		if owned {
+			return db.ErrPhysicalLocateActive
 		}
 
 		logger.Info("starting legacy LED index migration (Track: Cross-Container Mapping)")

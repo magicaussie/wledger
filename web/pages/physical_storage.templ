@@ -225,7 +225,7 @@ templ StorageDrawer(detail storage.BrowseDrawerDetail, cabinetName string, user 
 						<p class="text-sm font-semibold">{ session.LastError }</p>
 						}
 					</div>
-					if user.CanWrite() && user.ID == session.OwnerID && (session.State == "active" || session.State == "partial" || session.State == "stopping") {
+					if user.CanWrite() && user.ID == session.OwnerID && (session.State == "activating" || session.State == "active" || session.State == "partial" || session.State == "stopping") {
 						<form method="POST" action={ templ.SafeURL(fmt.Sprintf("/storage/drawers/%d/stop", detail.Drawer.ID)) }>
 							<input type="hidden" name="csrf_token" value={ csrf.TokenFromContext(ctx) }/>
 							<button class="btn btn-error" type="submit">Stop Locate / Turn Off Allocated LEDs</button>

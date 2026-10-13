@@ -1066,17 +1066,20 @@ func validateRestoreArchive(zr *zip.Reader) error {
 func (s *service) restoreData(ctx context.Context, qtx db.Querier, manifest Manifest) error {
 	// Settings
 	err := qtx.RestoreSettings(ctx, db.RestoreSettingsParams{
-		RequireAuthForRead:    manifest.Settings.RequireAuthForRead,
-		LocateTimeoutSeconds:  manifest.Settings.LocateTimeoutSeconds,
-		EnableLocateTimeout:   manifest.Settings.EnableLocateTimeout,
-		ColorLocate:           manifest.Settings.ColorLocate,
-		ColorStockOk:          manifest.Settings.ColorStockOk,
-		ColorStockLow:         manifest.Settings.ColorStockLow,
-		ColorStockCritical:    manifest.Settings.ColorStockCritical,
-		CreatedAt:             manifest.Settings.CreatedAt,
-		UpdatedAt:             manifest.Settings.UpdatedAt,
-		SupplierCacheTtlHours: manifest.Settings.SupplierCacheTtlHours,
-		DefaultCurrency:       manifest.Settings.DefaultCurrency,
+		RequireAuthForRead:      manifest.Settings.RequireAuthForRead,
+		LocateTimeoutSeconds:    manifest.Settings.LocateTimeoutSeconds,
+		EnableLocateTimeout:     manifest.Settings.EnableLocateTimeout,
+		EnableDebugLogs:         manifest.Settings.EnableDebugLogs,
+		ColorLocate:             manifest.Settings.ColorLocate,
+		ColorStockOk:            manifest.Settings.ColorStockOk,
+		ColorStockLow:           manifest.Settings.ColorStockLow,
+		ColorStockCritical:      manifest.Settings.ColorStockCritical,
+		ColorError:              manifest.Settings.ColorError,
+		CreatedAt:               manifest.Settings.CreatedAt,
+		UpdatedAt:               manifest.Settings.UpdatedAt,
+		SupplierCacheTtlHours:   manifest.Settings.SupplierCacheTtlHours,
+		DefaultCurrency:         manifest.Settings.DefaultCurrency,
+		InspirationSeedsApplied: manifest.Settings.InspirationSeedsApplied,
 	})
 	if err != nil {
 		return fmt.Errorf("settings restore: %w", err)

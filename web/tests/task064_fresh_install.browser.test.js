@@ -11,6 +11,12 @@ const path = require('node:path');
   const repoRoot = path.resolve(__dirname, '../..');
   const scratchDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wledger-task064-fresh-'));
   const databasePath = path.join(scratchDir, 'data', 'wledger.db');
+  const task065RestoreEnabled = process.env.WLEDGER_TASK065_RESTORE === '1';
+  let restoreScratchDir;
+  let restoreServer;
+  let restoreContext;
+  let restorePage;
+  let restoreEvidence = { status: 'NOT RUN' };
   const mocks = [];
   const mockRequests = [];
   const mockWrites = [];
@@ -18,23 +24,37 @@ const path = require('node:path');
   let server;
   let browser;
   let baseURL;
+
   try {
     fs.symlinkSync(path.join(repoRoot, 'web'), path.join(scratchDir, 'web'));
     fs.symlinkSync(path.join(repoRoot, 'locales'), path.join(scratchDir, 'locales'));
 
     const capacities = [200, 250, 150, 300, 100];
     const controllerEndpoints = [];
+    const mockBehaviors = capacities.map(() => ({ dropNextPostResponse: false, onDropAccepted: null }));
+    const mockPixels = capacities.map((capacity, index) => Array.from({ length: capacity }, () => [20 + index, 30 + index, 40 + index]));
+    const initialMockPixels = structuredClone(mockPixels);
+    const ownedMockPixels = capacities.map(() => new Set());
     for (let index = 0; index < capacities.length; index++) {
       const capacity = capacities[index];
       const half = capacity / 2;
+      const controllerIdentity = `mock-controller-${index + 1}`;
       const mock = http.createServer(async (request, response) => {
-        mockRequests.push({ controller: index + 1, method: request.method, path: request.url });
+        const endpoint = `http://127.0.0.1:${mock.address().port}${request.url}`;
+        const requestRecord = {
+          timestamp: new Date().toISOString(), controller: index + 1, controllerIdentity,
+          method: request.method, endpoint, payload: null,
+          responseBehavior: 'pending', responseStatus: null,
+        };
+        mockRequests.push(requestRecord);
         response.setHeader('Content-Type', 'application/json');
         if (request.method === 'GET' && request.url === '/json/info') {
+          requestRecord.responseBehavior = 'normal JSON response'; requestRecord.responseStatus = 200;
           response.end(JSON.stringify({ mac: `02:00:00:00:59:${String(index + 1).padStart(2, '0')}`, leds: { count: capacity, rgbw: false } }));
           return;
         }
         if (request.method === 'GET' && request.url === '/json/cfg') {
+          requestRecord.responseBehavior = 'normal JSON response'; requestRecord.responseStatus = 200;
           response.end(JSON.stringify({ hw: { led: { ins: [
             { start: 0, len: half, rev: false, skip: 0, type: 22, pin: [2, -1, -1] },
             { start: half, len: half, rev: false, skip: 0, type: 22, pin: [4, -1, -1] },
@@ -42,6 +62,7 @@ const path = require('node:path');
           return;
         }
         if (request.method === 'GET' && request.url === '/json/state') {
+          requestRecord.responseBehavior = 'normal JSON response'; requestRecord.responseStatus = 200;
           response.end(JSON.stringify({ on: true, seg: [
             { id: 10, start: 0, stop: half, on: true, fx: 0, grp: 1, spc: 0, rev: false, mi: false, of: 0 },
             { id: 20, start: half, stop: capacity, on: true, fx: 0, grp: 1, spc: 0, rev: false, mi: false, of: 0 },
@@ -51,10 +72,38 @@ const path = require('node:path');
         if (request.method === 'POST' && request.url === '/json/state') {
           let body = '';
           for await (const chunk of request) body += chunk;
-          mockWrites.push({ controller: index + 1, payload: JSON.parse(body) });
+          requestRecord.payload = JSON.parse(body);
+          for (const segmentCommand of requestRecord.payload.seg || []) {
+            const segmentStart = segmentCommand.id === 10 ? 0 : segmentCommand.id === 20 ? half : null;
+            const pixelCommand = segmentCommand.i;
+            if (segmentStart === null || !Array.isArray(pixelCommand) || !Array.isArray(pixelCommand[2])) throw new Error(`unsupported targeted pixel command: ${JSON.stringify(segmentCommand)}`);
+            for (let pixel = pixelCommand[0]; pixel < pixelCommand[1]; pixel++) {
+              const controllerPixel = segmentStart + pixel;
+              mockPixels[index][controllerPixel] = pixelCommand[2].slice();
+              if (pixelCommand[2].some(channel => channel !== 0)) ownedMockPixels[index].add(controllerPixel);
+            }
+          }
+          const writeRecord = { timestamp: requestRecord.timestamp, controller: index + 1, controllerIdentity, endpoint, payload: requestRecord.payload, responseBehavior: 'success acknowledgement', responseStatus: 200 };
+          mockWrites.push(writeRecord);
+          const behavior = mockBehaviors[index];
+          if (behavior.dropNextPostResponse) {
+            behavior.dropNextPostResponse = false;
+            requestRecord.responseBehavior = 'command applied; response withheld until client disconnect';
+            writeRecord.responseBehavior = requestRecord.responseBehavior;
+            const accepted = behavior.onDropAccepted;
+            behavior.onDropAccepted = null;
+            if (accepted) accepted(requestRecord);
+            await new Promise(resolve => response.once('close', resolve));
+            requestRecord.responseBehavior = 'command applied; client disconnected before response';
+            writeRecord.responseBehavior = requestRecord.responseBehavior;
+            writeRecord.responseStatus = null;
+            return;
+          }
+          requestRecord.responseBehavior = 'success acknowledgement'; requestRecord.responseStatus = 200;
           response.end(JSON.stringify({ success: true }));
           return;
         }
+        requestRecord.responseBehavior = 'not found'; requestRecord.responseStatus = 404;
         response.statusCode = 404;
         response.end(JSON.stringify({ error: 'not found' }));
       });
@@ -73,9 +122,9 @@ const path = require('node:path');
     });
     if (build.status !== 0) throw new Error(`disposable server build failed: ${build.stderr}`);
 
-    const startServer = () => spawn(binaryPath, [], {
-      cwd: scratchDir,
-      env: { ...process.env, WLEDGER_INSECURE_COOKIES: '1', WLEDGER_PORT: String(appPort) },
+    const startServer = (workingDirectory = scratchDir, port = appPort) => spawn(binaryPath, [], {
+      cwd: workingDirectory,
+      env: { ...process.env, WLEDGER_INSECURE_COOKIES: '1', WLEDGER_PORT: String(port) },
       stdio: 'ignore',
     });
     server = startServer();
@@ -576,6 +625,259 @@ const path = require('node:path');
       locateEvidence = await exerciseMockLocate(page, baseURL, firstPart.id, inventoryBins, mockWrites, mockRequests);
     }
 
+    let crashRecoveryEvidence = { status: 'NOT RUN' };
+    if (task065RestoreEnabled && mappingAttestationsPassed === controllers.length) {
+
+      const crashWrites = [];
+      const stopPageForDrawer = async () => {
+        await page.goto(`${baseURL}/storage/drawers/1?bin_id=2`);
+        const stopButton = page.getByRole('button', { name: 'Stop Locate / Turn Off Allocated LEDs' });
+        if (await stopButton.count() !== 1) {
+          throw new Error(`recovered Locate Stop control is missing; url=${page.url()} body=${(await page.locator('body').innerText()).slice(0, 3000)} durable=${JSON.stringify(readOnlyRows(databasePath, 'SELECT session_id,state,drawer_id,bin_id,owner_id FROM physical_locate_sessions'))}`);
+        }
+      };
+      const waitForDroppedWrite = async () => {
+        let resolveAccepted;
+        const accepted = new Promise(resolve => { resolveAccepted = resolve; });
+        mockBehaviors[0].dropNextPostResponse = true;
+        mockBehaviors[0].onDropAccepted = resolveAccepted;
+        return accepted;
+      };
+      const durableLocateState = () => readOnlyRows(databasePath, 'SELECT session_id, state, drawer_id, bin_id, owner_id FROM physical_locate_sessions WHERE state IN (\'activating\', \'active\', \'stopping\', \'partial\')');
+      const durableTargetState = sessionID => readOnlyRows(databasePath, 'SELECT controller_id, may_have_received, commands_json FROM physical_locate_session_targets WHERE session_id=? ORDER BY controller_id', [sessionID]);
+      const assertNoUnresolvedOwnership = label => {
+        assert.deepEqual(durableLocateState(), [], `${label}: no active or partial Locate session should exist before injection`);
+        const unresolved = Number(readOnlyRows(databasePath, 'SELECT COUNT(*) FROM physical_locate_session_targets WHERE may_have_received=1')[0][0]);
+        assert.equal(unresolved, 0, `${label}: no target should retain an unresolved delivery marker before injection`);
+      };
+      const awaitMockDisconnect = async record => {
+        for (let attempt = 0; attempt < 100; attempt++) {
+          if (record.responseBehavior === 'command applied; client disconnected before response') return;
+          await new Promise(resolve => setTimeout(resolve, 20));
+        }
+        throw new Error('mock WLED request did not record the killed client disconnect');
+      };
+
+      assertNoUnresolvedOwnership('activation delivery-loss scenario initial state');
+      await page.goto(`${baseURL}/parts/${firstPart.id + 1}`);
+      const locateAfterRestartForm = page.locator(`form[action="/parts/${firstPart.id + 1}/locate-bin"]`).filter({ has: page.locator(`input[name="bin_id"][value="${inventoryBins[1][0]}"]`) });
+      const locateAccepted = waitForDroppedWrite();
+      await submitFormWithoutWaiting(locateAfterRestartForm);
+      const activationApplied = await locateAccepted;
+
+      const firstProcess = server;
+      firstProcess.kill('SIGKILL');
+      await waitForProcessExit(firstProcess);
+      await awaitMockDisconnect(activationApplied);
+
+      assert.deepEqual(activationApplied.payload.seg.map(segment => segment.i), [[24, 34, [0, 0, 128]]], 'crash injection should occur after the first exact targeted activation command was applied');
+      let activeRows = durableLocateState();
+      assert.equal(activeRows.length, 1, `durable reservation after killed activation: ${JSON.stringify(readOnlyRows(databasePath, 'SELECT session_id,state,drawer_id,bin_id,owner_id FROM physical_locate_sessions'))}`);
+      assert.equal(activeRows[0][1], 'activating', 'durable reservation must precede the blocked activation response');
+      let activeTargets = durableTargetState(activeRows[0][0]);
+      assert.equal(activeTargets.length, 1);
+      assert.equal(Number(activeTargets[0][1]), 1, 'activation attempt marker must remain durable while delivery is uncertain');
+
+      const activationSessionID = activeRows[0][0];
+      const activationTargetBeforeCrash = activeTargets[0];
+      server = startServer();
+
+      await waitForServer(baseURL, server);
+
+      const cleanupStartAfterActivationCrash = mockWrites.length;
+      await stopPageForDrawer();
+
+      const recoveryStopForm = page.locator('form[action="/storage/drawers/1/stop"]');
+      const recoveryResponse = page.waitForResponse(response => response.request().method() === 'POST' && new URL(response.url()).pathname === '/storage/drawers/1/stop');
+      await submitFormWithoutWaiting(recoveryStopForm);
+      await recoveryResponse;
+
+      await page.goto(`${baseURL}/storage/drawers/1?stopped=1`);
+      const recoveryWrites = mockWrites.slice(cleanupStartAfterActivationCrash);
+      assert.equal(recoveryWrites.length, 2, 'recovery after process death should send both saved targeted cleanup ranges');
+      assert.deepEqual(recoveryWrites.map(write => [write.controller, write.payload.seg[0].id, ...write.payload.seg[0].i]), [
+        [1, 10, 24, 34, [0, 0, 0]], [1, 10, 49, 54, [0, 0, 0]],
+      ], 'recovery cleanup should use only the persisted controller, segment and pixel spans');
+      assert.ok(recoveryWrites.every(write => !Object.hasOwn(write.payload, 'on')));
+      assert.deepEqual(durableLocateState(), [], 'confirmed recovery should release durable session ownership');
+      assert.deepEqual(readOnlyRows(databasePath, 'SELECT state FROM physical_locate_sessions WHERE session_id=?', [activationSessionID]), [['stopped']], 'confirmed recovery should persist terminal stopped state');
+      assert.deepEqual(durableTargetState(activationSessionID).map(row => Number(row[1])), [0], 'confirmed recovery should clear the target ownership marker');
+      crashWrites.push({ scenario: 'SIGKILL after activation applied / before response', request: activationApplied, initialDurableTarget: activationTargetBeforeCrash, recoveredWrites: recoveryWrites });
+
+      assertNoUnresolvedOwnership('Stop interruption scenario initial state');
+      await page.goto(`${baseURL}/parts/${firstPart.id + 1}`);
+      const locateAgainForm = page.locator(`form[action="/parts/${firstPart.id + 1}/locate-bin"]`).filter({ has: page.locator(`input[name="bin_id"][value="${inventoryBins[1][0]}"]`) });
+      await locateAgainForm.locator('button[title="Locate this inventory location"]').click();
+      await page.waitForURL(`${baseURL}/storage/drawers/1?bin_id=${inventoryBins[1][0]}`);
+      await stopPageForDrawer();
+      const stopAccepted = waitForDroppedWrite();
+      const stopWriteStart = mockWrites.length;
+      const stoppingForm = page.locator('form[action="/storage/drawers/1/stop"]');
+      await submitFormWithoutWaiting(stoppingForm);
+      const cleanupApplied = await stopAccepted;
+
+      const secondProcess = server;
+      secondProcess.kill('SIGKILL');
+      await waitForProcessExit(secondProcess);
+      await awaitMockDisconnect(cleanupApplied);
+
+      assert.deepEqual(cleanupApplied.payload.seg[0].i, [24, 34, [0, 0, 0]], 'Stop crash must occur after the first owned range was cleaned');
+      activeRows = durableLocateState();
+      assert.equal(activeRows.length, 1, `durable Stop ownership after process termination: ${JSON.stringify(readOnlyRows(databasePath, 'SELECT session_id,state,drawer_id,bin_id,owner_id FROM physical_locate_sessions'))}`);
+      assert.equal(activeRows[0][1], 'stopping', 'Stop state must be durable while cleanup is in flight');
+      const stoppingSessionID = activeRows[0][0];
+      activeTargets = durableTargetState(stoppingSessionID);
+      assert.equal(Number(activeTargets[0][1]), 1, 'ownership must remain durable during uncertain cleanup delivery');
+
+      server = startServer();
+      await waitForServer(baseURL, server);
+      const retryWriteStart = mockWrites.length;
+      await stopPageForDrawer();
+      const retryStopForm = page.locator('form[action="/storage/drawers/1/stop"]');
+      const retryResponse = page.waitForResponse(response => response.request().method() === 'POST' && new URL(response.url()).pathname === '/storage/drawers/1/stop');
+      await submitFormWithoutWaiting(retryStopForm);
+      await retryResponse;
+
+      await page.goto(`${baseURL}/storage/drawers/1?stopped=1`);
+      const partialCleanupBeforeRestart = mockWrites.slice(stopWriteStart, retryWriteStart);
+      const retryCleanupWrites = mockWrites.slice(retryWriteStart);
+      assert.equal(partialCleanupBeforeRestart.length, 1, 'the terminated Stop should have applied exactly the first cleanup request');
+      assert.equal(retryCleanupWrites.length, 2, 'restart recovery should safely replay all saved cleanup ranges');
+      assert.deepEqual(retryCleanupWrites.map(write => write.payload.seg[0].i), [[24, 34, [0, 0, 0]], [49, 54, [0, 0, 0]]]);
+      assert.deepEqual(durableLocateState(), [], 'recovery after partial cleanup should release ownership only after acknowledgements');
+      assert.deepEqual(readOnlyRows(databasePath, 'SELECT state FROM physical_locate_sessions WHERE session_id=?', [stoppingSessionID]), [['stopped']], 'recovered Stop should persist terminal stopped state');
+      assert.deepEqual(durableTargetState(stoppingSessionID).map(row => Number(row[1])), [0]);
+      assert.ok(retryCleanupWrites.every(write => !Object.hasOwn(write.payload, 'on')), 'recovery retry must never use GlobalOff');
+      for (let controllerIndex = 0; controllerIndex < mockPixels.length; controllerIndex++) {
+        for (let pixelIndex = 0; pixelIndex < mockPixels[controllerIndex].length; pixelIndex++) {
+          if (ownedMockPixels[controllerIndex].has(pixelIndex)) {
+            assert.deepEqual(mockPixels[controllerIndex][pixelIndex], [0, 0, 0], `owned pixel ${controllerIndex + 1}:${pixelIndex} should be black after confirmed cleanup`);
+          } else {
+            assert.deepEqual(mockPixels[controllerIndex][pixelIndex], initialMockPixels[controllerIndex][pixelIndex], `unrelated pixel ${controllerIndex + 1}:${pixelIndex} must retain its initial color`);
+          }
+        }
+      }
+      crashWrites.push({ scenario: 'SIGKILL during Stop after first cleanup applied / before response', request: cleanupApplied, durableTargetBeforeCrash: activeTargets[0], partialCleanupBeforeRestart, recoveredWrites: retryCleanupWrites });
+      crashRecoveryEvidence = { status: 'PASS', processTermination: 'SIGKILL of disposable WLEDger server process', scenarios: crashWrites, unrelatedPixelsPreserved: true, ownedPixelsBlackAfterCleanup: true, noGlobalOff: true };
+    }
+
+    if (task065RestoreEnabled) {
+      await page.goto(`${baseURL}/settings`);
+      const downloadPromise = page.waitForEvent('download');
+      await page.locator('a[href="/settings/backup/download"]').click();
+      const download = await downloadPromise;
+      const backupPath = path.join(scratchDir, 'task065-source-backup.zip');
+      await download.saveAs(backupPath);
+      const backupBytes = fs.readFileSync(backupPath);
+      assert.ok(backupBytes.length > 0, 'authenticated source UI should export a nonempty archive');
+      const archiveSummary = inspectBackupArchive(backupPath);
+      assert.equal(archiveSummary.manifests.length, 1, 'archive should contain exactly one current manifest');
+      assert.equal(archiveSummary.manifests[0], 'storage_data.json');
+      assert.ok(archiveSummary.entries.includes('human_readable_parts.csv'));
+
+      restoreScratchDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wledger-task065-restore-'));
+      fs.mkdirSync(path.join(restoreScratchDir, 'data'), { recursive: true });
+      fs.mkdirSync(path.join(restoreScratchDir, 'uploads'), { recursive: true });
+      fs.symlinkSync(path.join(repoRoot, 'web'), path.join(restoreScratchDir, 'web'));
+      fs.symlinkSync(path.join(repoRoot, 'locales'), path.join(restoreScratchDir, 'locales'));
+      const restoreDatabasePath = path.join(restoreScratchDir, 'data', 'wledger.db');
+      const restorePort = await availablePort();
+      const restoreURL = `http://127.0.0.1:${restorePort}`;
+      restoreServer = startServer(restoreScratchDir, restorePort);
+      await waitForServer(restoreURL, restoreServer);
+      const freshDestinationCounts = readOnlyCounts(restoreDatabasePath);
+      for (const table of ['controllers', 'cabinets', 'drawers', 'bins', 'parts', 'part_assignments', 'cabinet_led_strings', 'cabinet_led_path_sections', 'drawer_led_allocations']) {
+        assert.equal(freshDestinationCounts[table], 0, `separate restore destination ${table} must be freshly initialized and empty`);
+      }
+      const destinationMigrationsBefore = readOnlyRows(restoreDatabasePath, 'SELECT version_id FROM goose_db_version WHERE is_applied=1 AND version_id>0 ORDER BY version_id').map(row => Number(row[0]));
+      assert.deepEqual(destinationMigrationsBefore, migrationVersions, 'destination must independently apply every migration before restore');
+
+      restoreContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+      restorePage = await restoreContext.newPage();
+      const restorePageErrors = [];
+      restorePage.on('pageerror', error => restorePageErrors.push({ url: restorePage.url(), message: error.message }));
+      await restorePage.goto(`${restoreURL}/setup`);
+      assert.equal(new URL(restorePage.url()).pathname, '/setup', 'separate destination must require its own initial setup');
+      await restorePage.locator('form[action="/setup"] input[name="email"]').fill('task065-destination@example.invalid');
+      await restorePage.locator('form[action="/setup"] input[name="password"]').fill('task065-destination-password-123');
+      await restorePage.locator('form[action="/setup"] button').click();
+      await restorePage.waitForURL(`${restoreURL}/`);
+      await restorePage.goto(`${restoreURL}/settings`);
+      await restorePage.locator('button[onclick="restore_modal.showModal()"]:visible').click();
+      const restoreForm = restorePage.locator('form[hx-post="/settings/backup/restore"]');
+      await restoreForm.locator('input[name="backup_file"]').setInputFiles(backupPath);
+      await restoreForm.locator('input[type="checkbox"]').check();
+      const wledWritesBeforeRestore = mockWrites.length;
+      const restoreResponse = restorePage.waitForResponse(response => response.request().method() === 'POST' && new URL(response.url()).pathname === '/settings/backup/restore');
+      await restoreForm.locator('button[type="submit"]').click();
+      const restoreHTTP = await restoreResponse;
+      await restorePage.locator('#restore_result').getByText(/System restored successfully/).waitFor();
+      assert.ok(restoreHTTP.status() < 400, `fresh-install UI restore returned HTTP ${restoreHTTP.status()}`);
+      assert.equal(mockWrites.length, wledWritesBeforeRestore, 'backup restore must not send any WLED command');
+
+      const sourceSnapshot = installationSnapshot(databasePath, cabinetID);
+      const destinationSnapshot = installationSnapshot(restoreDatabasePath, cabinetID);
+      assert.deepEqual(destinationSnapshot, sourceSnapshot, 'restored identities, layout, physical wiring, allocations, parts, images and stock quantities must match the source');
+      const qrIdentityChecks = [];
+      for (const [binID] of destinationSnapshot.bins) {
+        const sourceQR = await page.request.get(`${baseURL}/bin/${binID}/qr`);
+        const destinationQR = await restorePage.request.get(`${restoreURL}/bin/${binID}/qr`);
+        assert.equal(sourceQR.status(), 200, `source QR identity route for bin ${binID}`);
+        assert.equal(destinationQR.status(), 200, `restored QR identity route for bin ${binID}`);
+        assert.match(destinationQR.headers()['content-type'], /image\/png/);
+        assert.deepEqual(await destinationQR.body(), await sourceQR.body(), `QR identity for stable bin ID ${binID} should survive backup/restore`);
+        qrIdentityChecks.push(Number(binID));
+      }
+      const settingsColumns = 'require_auth_for_read, locate_timeout_seconds, enable_locate_timeout, enable_debug_logs, color_locate, color_stock_ok, color_stock_low, color_stock_critical, color_error, inspiration_seeds_applied, supplier_cache_ttl_hours, default_currency';
+      assert.deepEqual(readOnlyRows(restoreDatabasePath, `SELECT ${settingsColumns} FROM settings WHERE id=1`), readOnlyRows(databasePath, `SELECT ${settingsColumns} FROM settings WHERE id=1`), 'supported application settings should round-trip');
+      const destinationMigrationsAfter = readOnlyRows(restoreDatabasePath, 'SELECT version_id FROM goose_db_version WHERE is_applied=1 AND version_id>0 ORDER BY version_id').map(row => Number(row[0]));
+      assert.deepEqual(destinationMigrationsAfter, migrationVersions, 'restore must preserve the destination schema migration state');
+      const imagePath = destinationSnapshot.parts.find(row => row[3])?.[3];
+      assert.ok(imagePath, 'source browser flow should have created an uploaded part image');
+      assert.ok(archiveSummary.entries.includes(`uploads/images/${path.basename(imagePath)}`), 'source backup should contain the part image asset');
+      assert.ok(findUploadByName(path.join(restoreScratchDir, 'app', 'uploads'), path.basename(imagePath)), 'supported uploaded asset must exist in the independent destination filesystem');
+
+      await restorePage.goto(`${restoreURL}/parts`);
+      assert.ok((await restorePage.locator('body').innerText()).includes('UI Part 10'), 'restored inventory should be browseable');
+      await restorePage.locator('#scan-target-q').fill('UI Part 10');
+      await restorePage.waitForFunction(() => new URL(location.href).searchParams.get('q') === 'UI Part 10' && document.body.innerText.includes('UI Part 10'));
+      assert.doesNotMatch(await restorePage.locator('#parts-grid').innerText(), /UI Part 1(?!0)/, 'restored inventory search should filter correctly');
+
+      const destinationBeforeRestart = installationSnapshot(restoreDatabasePath, cabinetID);
+      restoreServer.kill('SIGTERM');
+      await new Promise(resolve => restoreServer.once('exit', resolve));
+      restoreServer = startServer(restoreScratchDir, restorePort);
+      await waitForServer(restoreURL, restoreServer);
+      await restorePage.goto(`${restoreURL}/parts`);
+      if (new URL(restorePage.url()).pathname === '/login') {
+        await restorePage.locator('form[action="/login"] input[name="email"]').fill('ui-only-admin@example.invalid');
+        await restorePage.locator('form[action="/login"] input[name="password"]').fill('ui-only-safe-password-123');
+        await restorePage.locator('form[action="/login"] button').click();
+        await restorePage.waitForURL(`${restoreURL}/`);
+        await restorePage.goto(`${restoreURL}/parts`);
+      }
+      assert.ok((await restorePage.locator('body').innerText()).includes('UI Part 10'), 'restored inventory should remain browseable after app restart');
+      assert.deepEqual(installationSnapshot(restoreDatabasePath, cabinetID), destinationBeforeRestart, 'independent restored database must persist unchanged across restart');
+      assert.deepEqual(restorePageErrors, [], 'restore destination should have no browser runtime errors');
+      restoreEvidence = {
+        status: 'PASS',
+        sourceDatabasePath: databasePath,
+        destinationDatabasePath: restoreDatabasePath,
+        destinationUploadsPath: path.join(restoreScratchDir, 'app', 'uploads'),
+        archiveBytes: backupBytes.length,
+        archiveSummary,
+        independentDestinationMigrations: destinationMigrationsBefore,
+        restoredSnapshot: destinationSnapshot,
+        qrIdentityChecks,
+        wledCommandsDuringRestore: mockWrites.length - wledWritesBeforeRestore,
+        imagePath,
+        restoredAfterRestart: true,
+        searchAfterRestore: true,
+        directSQLPopulation: false,
+        destinationPageErrors: restorePageErrors,
+      };
+    }
+
     const persistedBeforeRestart = installationSnapshot(databasePath, cabinetID);
     let reloggedAfterRestart = false;
     server.kill('SIGTERM');
@@ -598,8 +900,17 @@ const path = require('node:path');
     assert.deepEqual(persistedAfterRestart, persistedBeforeRestart, 'all browser-created installation records must persist byte-for-value across app restart');
 
     assert.deepEqual(pageErrors, [], 'fresh installation pages must not raise JavaScript runtime errors');
-    assert.equal(consoleErrors.length, 2, 'the only browser console errors should be the two intentional rejected controller submissions');
-    assert.ok(consoleErrors.every(error => error.url.endsWith('/hardware') && error.message.includes('400 (Bad Request)')), 'unexpected browser console errors remain a failure');
+    const invalidControllerConsoleErrors = consoleErrors.filter(error => error.url.endsWith('/hardware') && error.message.includes('400 (Bad Request)'));
+    assert.equal(invalidControllerConsoleErrors.length, 2, `expected only the two deliberate invalid-controller responses: ${JSON.stringify(consoleErrors)}`);
+    const nonValidationConsoleErrors = consoleErrors.filter(error => !invalidControllerConsoleErrors.includes(error));
+    if (task065RestoreEnabled) {
+      assert.deepEqual(nonValidationConsoleErrors.map(error => [new URL(error.url).pathname + new URL(error.url).search, error.message]).sort(), [
+        ['/parts/2', 'Failed to load resource: net::ERR_CONNECTION_REFUSED'],
+        ['/storage/drawers/1?bin_id=2', 'Failed to load resource: net::ERR_CONNECTION_REFUSED'],
+      ], 'the only additional browser errors should be the two expected responses interrupted by SIGKILL');
+    } else {
+      assert.deepEqual(nonValidationConsoleErrors, [], `unexpected browser console errors remain a failure: ${JSON.stringify(nonValidationConsoleErrors)}`);
+    }
 
     console.log(JSON.stringify({
       result: mappingAttestationsPassed === controllers.length && locateEvidence.status === 'PASS' ? 'PARTIAL' : 'BLOCKED',
@@ -623,6 +934,9 @@ const path = require('node:path');
       mappingAttestationsPassed,
       mappingAttestationFailure,
       locateEvidence,
+      crashRecoveryEvidence,
+      restoreEvidence,
+      mockPixelPreservation: { initial: initialMockPixels, final: mockPixels, ownedPixels: ownedMockPixels.map(pixels => [...pixels].sort((a, b) => a - b)), unrelatedPreserved: crashRecoveryEvidence.status === 'PASS' },
       persistedBeforeRestart,
       persistedAfterRestart,
       reloggedAfterRestart,
@@ -635,8 +949,14 @@ const path = require('node:path');
       uiOnlyWrites: true,
     }));
   } finally {
+    if (restoreContext) await restoreContext.close();
     if (browser) await browser.close();
     for (const mock of mocks) if (mock.listening) await new Promise(resolve => mock.close(resolve));
+    if (restoreServer) {
+      restoreServer.kill('SIGTERM');
+      await new Promise(resolve => restoreServer.once('exit', resolve));
+    }
+    if (restoreScratchDir) fs.rmSync(restoreScratchDir, { recursive: true, force: true });
     if (server) {
       server.kill('SIGTERM');
       await new Promise(resolve => server.once('exit', resolve));
@@ -644,6 +964,18 @@ const path = require('node:path');
     fs.rmSync(scratchDir, { recursive: true, force: true });
   }
 })().catch(error => { console.error(error); process.exit(1); });
+
+async function submitFormWithoutWaiting(formLocator) {
+  await formLocator.evaluate(form => {
+    const body = new FormData(form);
+    fetch(form.action, { method: form.method || 'POST', body, credentials: 'same-origin' }).catch(() => {});
+  });
+}
+
+async function waitForProcessExit(process) {
+  if (process.exitCode !== null || process.signalCode !== null) return;
+  await new Promise(resolve => process.once('exit', resolve));
+}
 
 async function availablePort() {
   const probe = net.createServer();
@@ -656,8 +988,14 @@ async function availablePort() {
 async function waitForServer(baseURL, process) {
   for (let attempt = 0; attempt < 120; attempt++) {
     try {
-      const response = await fetch(`${baseURL}/setup`);
-      if (response.ok) return;
+      const response = await new Promise(resolve => {
+        const timeout = setTimeout(() => resolve(null), 1000);
+        fetch(`${baseURL}/setup`).then(
+          result => { clearTimeout(timeout); resolve(result); },
+          () => { clearTimeout(timeout); resolve(null); },
+        );
+      });
+      if (response?.ok) return;
     } catch {}
     if (process.exitCode !== null) throw new Error(`disposable server exited with ${process.exitCode}`);
     await new Promise(resolve => setTimeout(resolve, 100));
@@ -678,6 +1016,25 @@ function readOnlyCounts(databasePath) {
     result[table] = Number(readOnlyRows(databasePath, `SELECT COUNT(*) FROM ${table}`)[0][0]);
   }
   return result;
+}
+
+function inspectBackupArchive(archivePath) {
+  const script = 'import json,sys,zipfile; z=zipfile.ZipFile(sys.argv[1]); names=z.namelist(); manifests=[n for n in names if n in ("storage_data.json","restore_data.json")]; storage=json.loads(z.read("storage_data.json")) if "storage_data.json" in names else {}; print(json.dumps({"entries":names,"manifests":manifests,"version":storage.get("version")}))';
+  const result = spawnSync('python3', ['-c', script, archivePath], { encoding: 'utf8' });
+  if (result.status !== 0) throw new Error(`read-only backup archive inspection failed: ${result.stderr}`);
+  return JSON.parse(result.stdout);
+}
+
+function findUploadByName(root, fileName) {
+  let found = false;
+  if (!fs.existsSync(root)) return false;
+  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+    const fullPath = path.join(root, entry.name);
+    if (entry.isDirectory()) found ||= findUploadByName(fullPath, fileName);
+    else if (entry.name === fileName) found = true;
+    if (found) break;
+  }
+  return found;
 }
 
 function installationSnapshot(databasePath, cabinetID) {

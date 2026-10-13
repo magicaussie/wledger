@@ -188,28 +188,31 @@ const restoreSettings = `-- name: RestoreSettings :exec
 INSERT OR REPLACE INTO settings (
     id, require_auth_for_read, locate_timeout_seconds, enable_locate_timeout,
     color_locate, color_stock_ok, color_stock_low, color_stock_critical, color_error,
-    created_at, updated_at, enable_debug_logs, supplier_cache_ttl_hours, default_currency
+    created_at, updated_at, enable_debug_logs, supplier_cache_ttl_hours, default_currency,
+    inspiration_seeds_applied
 ) VALUES (
     1, ?, ?, ?,
     ?, ?, ?, ?, ?,
-    ?, ?, ?, ?, ?
+    ?, ?, ?, ?, ?,
+    ?
 )
 `
 
 type RestoreSettingsParams struct {
-	RequireAuthForRead    sql.NullBool   `json:"require_auth_for_read"`
-	LocateTimeoutSeconds  sql.NullInt64  `json:"locate_timeout_seconds"`
-	EnableLocateTimeout   sql.NullBool   `json:"enable_locate_timeout"`
-	ColorLocate           sql.NullString `json:"color_locate"`
-	ColorStockOk          sql.NullString `json:"color_stock_ok"`
-	ColorStockLow         sql.NullString `json:"color_stock_low"`
-	ColorStockCritical    sql.NullString `json:"color_stock_critical"`
-	ColorError            sql.NullString `json:"color_error"`
-	CreatedAt             sql.NullTime   `json:"created_at"`
-	UpdatedAt             sql.NullTime   `json:"updated_at"`
-	EnableDebugLogs       sql.NullBool   `json:"enable_debug_logs"`
-	SupplierCacheTtlHours sql.NullInt64  `json:"supplier_cache_ttl_hours"`
-	DefaultCurrency       sql.NullString `json:"default_currency"`
+	RequireAuthForRead      sql.NullBool   `json:"require_auth_for_read"`
+	LocateTimeoutSeconds    sql.NullInt64  `json:"locate_timeout_seconds"`
+	EnableLocateTimeout     sql.NullBool   `json:"enable_locate_timeout"`
+	ColorLocate             sql.NullString `json:"color_locate"`
+	ColorStockOk            sql.NullString `json:"color_stock_ok"`
+	ColorStockLow           sql.NullString `json:"color_stock_low"`
+	ColorStockCritical      sql.NullString `json:"color_stock_critical"`
+	ColorError              sql.NullString `json:"color_error"`
+	CreatedAt               sql.NullTime   `json:"created_at"`
+	UpdatedAt               sql.NullTime   `json:"updated_at"`
+	EnableDebugLogs         sql.NullBool   `json:"enable_debug_logs"`
+	SupplierCacheTtlHours   sql.NullInt64  `json:"supplier_cache_ttl_hours"`
+	DefaultCurrency         sql.NullString `json:"default_currency"`
+	InspirationSeedsApplied sql.NullBool   `json:"inspiration_seeds_applied"`
 }
 
 func (q *Queries) RestoreSettings(ctx context.Context, arg RestoreSettingsParams) error {
@@ -227,6 +230,7 @@ func (q *Queries) RestoreSettings(ctx context.Context, arg RestoreSettingsParams
 		arg.EnableDebugLogs,
 		arg.SupplierCacheTtlHours,
 		arg.DefaultCurrency,
+		arg.InspirationSeedsApplied,
 	)
 	return err
 }

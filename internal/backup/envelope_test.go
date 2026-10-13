@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"io"
@@ -175,6 +176,28 @@ func buildEnvelopeZip(t *testing.T, entries [][2]string) []byte {
 	return buf.Bytes()
 }
 
+func corruptStoredManifestPayload(t *testing.T) []byte {
+	t.Helper()
+	buf := new(bytes.Buffer)
+	zw := zip.NewWriter(buf)
+	entry, err := zw.CreateHeader(&zip.FileHeader{Name: legacyManifestName, Method: zip.Store})
+	if err != nil {
+		t.Fatalf("create stored manifest: %v", err)
+	}
+	if _, err := entry.Write([]byte(manifestJSON(t, "1.0"))); err != nil {
+		t.Fatalf("write stored manifest: %v", err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatalf("close stored manifest ZIP: %v", err)
+	}
+	archive := append([]byte(nil), buf.Bytes()...)
+	nameLength := int(binary.LittleEndian.Uint16(archive[26:28]))
+	extraLength := int(binary.LittleEndian.Uint16(archive[28:30]))
+	payloadOffset := 30 + nameLength + extraLength
+	archive[payloadOffset] ^= 0x01
+	return archive
+}
+
 // manifestJSONWith renders a manifest to JSON.
 func manifestJSONWith(t *testing.T, m Manifest) string {
 	t.Helper()
@@ -300,6 +323,29 @@ func TestRestoreEnvelope_RejectsUnsupportedFramingBeforeMutation(t *testing.T) {
 			}
 			if formatErr.Code != tc.wantCode {
 				t.Errorf("format code = %q, want %q", formatErr.Code, tc.wantCode)
+			}
+			f.assertUntouched(t, before)
+		})
+	}
+}
+
+func TestRestoreRejectsCorruptAndTruncatedArchivesBeforeMutation(t *testing.T) {
+	validArchive := buildEnvelopeZip(t, [][2]string{{legacyManifestName, manifestJSON(t, "1.0")}})
+	cases := []struct {
+		name    string
+		archive []byte
+	}{
+		{name: "invalid ZIP structure", archive: []byte("not a ZIP archive")},
+		{name: "truncated ZIP central directory", archive: validArchive[:len(validArchive)-8]},
+		{name: "corrupt manifest payload checksum", archive: corruptStoredManifestPayload(t)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newEnvelopeFixture(t)
+			f.seed(t)
+			before := f.snapshot(t)
+			if err := f.svc.Restore(f.ctx, bytes.NewReader(tc.archive), int64(len(tc.archive))); err == nil {
+				t.Fatal("expected malformed archive to be rejected")
 			}
 			f.assertUntouched(t, before)
 		})
