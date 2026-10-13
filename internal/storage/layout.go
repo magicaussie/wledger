@@ -42,8 +42,19 @@ type AssignedController struct {
 }
 type DrawerLayout struct {
 	Drawer         db.Drawer
-	Bins           []db.BinDrawerAttachment
+	Bins           []LayoutBin
 	LedAllocations []db.DrawerLedAllocation
+}
+
+type LayoutBin struct {
+	BinID        int64   `json:"bin_id"`
+	Name         string  `json:"name"`
+	DrawerID     int64   `json:"drawer_id"`
+	X            float64 `json:"x"`
+	Y            float64 `json:"y"`
+	Width        float64 `json:"width"`
+	Height       float64 `json:"height"`
+	DisplayOrder int64   `json:"display_order"`
 }
 
 // DecorationInput describes Paint-style canvas art. It is deliberately separate
@@ -150,12 +161,24 @@ func (s *LayoutService) Get(ctx context.Context, cabinetID int64) (CabinetLayout
 			return err
 		}
 		for _, drawer := range drawers {
-			bins, err := q.ListBinDrawerAttachmentsByDrawer(ctx, drawer.ID)
+			attachments, err := q.ListBinDrawerAttachmentsByDrawer(ctx, drawer.ID)
 			if err != nil {
 				return err
 			}
-			if bins == nil {
-				bins = make([]db.BinDrawerAttachment, 0)
+			bins := make([]LayoutBin, 0, len(attachments))
+			for _, attachment := range attachments {
+				bin, err := q.GetBin(ctx, attachment.BinID)
+				if errors.Is(err, sql.ErrNoRows) {
+					return fmt.Errorf("%w: placement refers to missing bin %d", ErrUnsafeLayout, attachment.BinID)
+				}
+				if err != nil {
+					return err
+				}
+				bins = append(bins, LayoutBin{
+					BinID: attachment.BinID, Name: bin.Name, DrawerID: attachment.DrawerID,
+					X: attachment.X, Y: attachment.Y, Width: attachment.Width, Height: attachment.Height,
+					DisplayOrder: attachment.DisplayOrder,
+				})
 			}
 			allocations, err := q.ListDrawerLEDAllocationsByDrawer(ctx, drawer.ID)
 			if err != nil {
@@ -197,6 +220,7 @@ func validate(in LayoutInput) error {
 		return layoutError("cabinet dimensions must be positive")
 	}
 	seenDrawers := map[int64]bool{}
+	seenBins := map[int64]bool{}
 	for i, d := range in.Drawers {
 		if d.ID != 0 {
 			if seenDrawers[d.ID] {
@@ -216,12 +240,14 @@ func validate(in LayoutInput) error {
 				return layoutError("drawers %q and %q overlap", d.Label, other.Label)
 			}
 		}
-		seenBins := map[int64]bool{}
 		for bi, b := range d.Bins {
 			if b.ID <= 0 || seenBins[b.ID] {
 				return layoutError("bin %d is missing or duplicated", bi+1)
 			}
 			seenBins[b.ID] = true
+			if strings.TrimSpace(b.Name) == "" || len(strings.TrimSpace(b.Name)) > 200 {
+				return layoutError("bin %d requires a name of 1 to 200 characters", b.ID)
+			}
 			if !validRect(b.X, b.Y, b.Width, b.Height, d.Width, d.Height) {
 				return layoutError("bin %d in drawer %q is outside bounds", b.ID, d.Label)
 			}
@@ -265,6 +291,9 @@ func (s *LayoutService) Save(ctx context.Context, in LayoutInput) error {
 		return layoutError("decorative drawing data is invalid")
 	}
 	return s.store.ExecImmediateTx(ctx, func(q db.Querier) error {
+		if err := ensureNoPhysicalLocate(ctx, q); err != nil {
+			return err
+		}
 		cab, err := q.GetCabinet(ctx, in.ID)
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrLayoutNotFound
@@ -337,7 +366,16 @@ func (s *LayoutService) Save(ctx context.Context, in LayoutInput) error {
 			for _, b := range input.Bins {
 				current, exists := attached[b.ID]
 				if exists && current.DrawerID != id {
-					return fmt.Errorf("%w: bin %d is already attached to a different drawer", ErrUnsafeLayout, b.ID)
+					return fmt.Errorf("%w: bin %d is already attached to a different drawer; use Move bin", ErrUnsafeLayout, b.ID)
+				}
+				if _, err := q.GetBin(ctx, b.ID); err != nil {
+					if errors.Is(err, sql.ErrNoRows) {
+						return layoutError("bin %d does not exist", b.ID)
+					}
+					return err
+				}
+				if _, err := q.UpdateBinName(ctx, db.UpdateBinNameParams{Name: strings.TrimSpace(b.Name), ID: b.ID}); err != nil {
+					return err
 				}
 				if exists {
 					if _, err = q.UpdateBinDrawerAttachment(ctx, db.UpdateBinDrawerAttachmentParams{DrawerID: id, DisplayOrder: b.DisplayOrder, BinID: b.ID}); err != nil {
@@ -347,7 +385,9 @@ func (s *LayoutService) Save(ctx context.Context, in LayoutInput) error {
 						return err
 					}
 				} else {
-					if _, err := q.UpdateBinName(ctx, db.UpdateBinNameParams{Name: strings.TrimSpace(b.Name), ID: b.ID}); err != nil {
+					if _, err := q.GetBinDrawerAttachment(ctx, b.ID); err == nil {
+						return fmt.Errorf("%w: bin %d is already attached outside this cabinet", ErrUnsafeLayout, b.ID)
+					} else if !errors.Is(err, sql.ErrNoRows) {
 						return err
 					}
 					if err := q.CreateBinDrawerAttachment(ctx, db.CreateBinDrawerAttachmentParams{BinID: b.ID, DrawerID: id, X: b.X, Y: b.Y, Width: b.Width, Height: b.Height, DisplayOrder: b.DisplayOrder}); err != nil {
@@ -373,6 +413,9 @@ func (s *LayoutService) CreateCabinet(ctx context.Context, name string, order in
 	}
 	var id int64
 	err := s.store.ExecImmediateTx(ctx, func(q db.Querier) error {
+		if err := ensureNoPhysicalLocate(ctx, q); err != nil {
+			return err
+		}
 		var e error
 		id, e = q.CreateCabinet(ctx, db.CreateCabinetParams{Name: strings.TrimSpace(name), ControllerID: sql.NullInt64{}, CoordinateSystem: "grid", DisplayOrder: order})
 		if e != nil {
@@ -384,10 +427,178 @@ func (s *LayoutService) CreateCabinet(ctx context.Context, name string, order in
 	return id, err
 }
 
+// CreatePhysicalBin creates a new inventory bin and its physical placement in
+// one transaction. Electrical container and LED fields intentionally remain NULL.
+func (s *LayoutService) CreatePhysicalBin(ctx context.Context, cabinetID, drawerID, revision int64, name string, x, y, width, height float64) (int64, error) {
+	name = strings.TrimSpace(name)
+	if name == "" || len(name) > 200 {
+		return 0, layoutError("bin name is required and must be at most 200 characters")
+	}
+	if !finitePositive(width) || !finitePositive(height) {
+		return 0, layoutError("bin width and height must be positive")
+	}
+
+	var binID int64
+	err := s.store.ExecImmediateTx(ctx, func(q db.Querier) error {
+		if err := ensureNoPhysicalLocate(ctx, q); err != nil {
+			return err
+		}
+		cabinet, err := q.GetCabinet(ctx, cabinetID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrLayoutNotFound
+		}
+		if err != nil {
+			return err
+		}
+		if cabinet.LayoutRevision != revision {
+			return ErrLayoutStale
+		}
+		drawer, err := q.GetDrawer(ctx, drawerID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrLayoutNotFound
+		}
+		if err != nil {
+			return err
+		}
+		if drawer.CabinetID != cabinetID || drawer.Archived != 0 {
+			return fmt.Errorf("%w: choose an active drawer in this cabinet", ErrUnsafeLayout)
+		}
+		if !validRect(x, y, width, height, drawer.Width, drawer.Height) {
+			return layoutError("bin is outside drawer bounds")
+		}
+		attachments, err := q.ListBinDrawerAttachmentsByDrawer(ctx, drawerID)
+		if err != nil {
+			return err
+		}
+		if err := checkBinOverlap(attachments, 0, x, y, width, height); err != nil {
+			return err
+		}
+		binID, err = q.CreateBin(ctx, db.CreateBinParams{
+			Name: name, ContainerID: sql.NullInt64{}, LedIndex: sql.NullInt64{},
+			Width: sql.NullInt64{}, GridX: sql.NullInt64{}, GridY: sql.NullInt64{},
+		})
+		if err != nil {
+			return err
+		}
+		if err := q.CreateBinDrawerAttachment(ctx, db.CreateBinDrawerAttachmentParams{
+			BinID: binID, DrawerID: drawerID, X: x, Y: y, Width: width, Height: height, DisplayOrder: int64(len(attachments)),
+		}); err != nil {
+			return err
+		}
+		rows, err := q.AdvanceCabinetLayoutRevision(ctx, db.AdvanceCabinetLayoutRevisionParams{ID: cabinetID, LayoutRevision: revision})
+		if err != nil {
+			return err
+		}
+		if rows != 1 {
+			return ErrLayoutStale
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	return binID, nil
+}
+
+// MovePhysicalBin moves an existing bin to another active drawer in the same
+// cabinet. It updates only the attachment row, preserving the bin ID, QR code,
+// stock assignments and any separate electrical data.
+func (s *LayoutService) MovePhysicalBin(ctx context.Context, cabinetID, binID, targetDrawerID, revision int64, x, y float64) error {
+	return s.store.ExecImmediateTx(ctx, func(q db.Querier) error {
+		if err := ensureNoPhysicalLocate(ctx, q); err != nil {
+			return err
+		}
+		cabinet, err := q.GetCabinet(ctx, cabinetID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrLayoutNotFound
+		}
+		if err != nil {
+			return err
+		}
+		if cabinet.LayoutRevision != revision {
+			return ErrLayoutStale
+		}
+		attachment, err := q.GetBinDrawerAttachment(ctx, binID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("%w: bin has no physical placement to move", ErrUnsafeLayout)
+		}
+		if err != nil {
+			return err
+		}
+		source, err := q.GetDrawer(ctx, attachment.DrawerID)
+		if err != nil {
+			return err
+		}
+		target, err := q.GetDrawer(ctx, targetDrawerID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrLayoutNotFound
+		}
+		if err != nil {
+			return err
+		}
+		if source.CabinetID != cabinetID || target.CabinetID != cabinetID || source.Archived != 0 || target.Archived != 0 {
+			return fmt.Errorf("%w: move bins between active drawers in the same cabinet", ErrUnsafeLayout)
+		}
+		if source.ID == target.ID {
+			return layoutError("choose a different destination drawer")
+		}
+		if _, err := q.GetBin(ctx, binID); err != nil {
+			return err
+		}
+		if !validRect(x, y, attachment.Width, attachment.Height, target.Width, target.Height) {
+			return layoutError("bin is outside destination drawer bounds")
+		}
+		attachments, err := q.ListBinDrawerAttachmentsByDrawer(ctx, targetDrawerID)
+		if err != nil {
+			return err
+		}
+		if err := checkBinOverlap(attachments, binID, x, y, attachment.Width, attachment.Height); err != nil {
+			return err
+		}
+		if _, err := q.UpdateBinDrawerAttachment(ctx, db.UpdateBinDrawerAttachmentParams{DrawerID: targetDrawerID, DisplayOrder: int64(len(attachments)), BinID: binID}); err != nil {
+			return err
+		}
+		if _, err := q.UpdateBinDrawerAttachmentGeometry(ctx, db.UpdateBinDrawerAttachmentGeometryParams{X: x, Y: y, Width: attachment.Width, Height: attachment.Height, BinID: binID}); err != nil {
+			return err
+		}
+		rows, err := q.AdvanceCabinetLayoutRevision(ctx, db.AdvanceCabinetLayoutRevisionParams{ID: cabinetID, LayoutRevision: revision})
+		if err != nil {
+			return err
+		}
+		if rows != 1 {
+			return ErrLayoutStale
+		}
+		return nil
+	})
+}
+
+func checkBinOverlap(attachments []db.BinDrawerAttachment, exceptBinID int64, x, y, width, height float64) error {
+	for _, other := range attachments {
+		if other.BinID != exceptBinID && overlaps(x, y, width, height, other.X, other.Y, other.Width, other.Height) {
+			return layoutError("bin placement overlaps bin %d", other.BinID)
+		}
+	}
+	return nil
+}
+
+func ensureNoPhysicalLocate(ctx context.Context, q db.Querier) error {
+	owned, err := db.HasPhysicalLocateOwnership(ctx, q)
+	if err != nil {
+		return fmt.Errorf("check durable Locate ownership before physical layout change: %w", err)
+	}
+	if owned {
+		return db.ErrPhysicalLocateActive
+	}
+	return nil
+}
+
 // ArchiveCabinet preserves every drawer, bin, stock assignment and electrical
 // record. It only hides the cabinet from active physical browsing.
 func (s *LayoutService) ArchiveCabinet(ctx context.Context, cabinetID, revision int64) error {
 	return s.store.ExecImmediateTx(ctx, func(q db.Querier) error {
+		if err := ensureNoPhysicalLocate(ctx, q); err != nil {
+			return err
+		}
 		cab, err := q.GetCabinet(ctx, cabinetID)
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrLayoutNotFound
@@ -416,6 +627,9 @@ func (s *LayoutService) ArchiveCabinet(ctx context.Context, cabinetID, revision 
 // and electrical records are never cascaded.
 func (s *LayoutService) DeleteCabinet(ctx context.Context, cabinetID, revision int64) error {
 	return s.store.ExecImmediateTx(ctx, func(q db.Querier) error {
+		if err := ensureNoPhysicalLocate(ctx, q); err != nil {
+			return err
+		}
 		cab, err := q.GetCabinet(ctx, cabinetID)
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrLayoutNotFound
@@ -452,6 +666,9 @@ func (s *LayoutService) DeleteDrawer(ctx context.Context, cabinetID, drawerID, r
 }
 func (s *LayoutService) drawerMutation(ctx context.Context, cabinetID, drawerID, revision int64, archive bool) error {
 	return s.store.ExecImmediateTx(ctx, func(q db.Querier) error {
+		if err := ensureNoPhysicalLocate(ctx, q); err != nil {
+			return err
+		}
 		cab, err := q.GetCabinet(ctx, cabinetID)
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrLayoutNotFound
@@ -511,6 +728,9 @@ func (s *LayoutService) drawerMutation(ctx context.Context, cabinetID, drawerID,
 // assignments, quantities, legacy container and LED coordinates stay untouched.
 func (s *LayoutService) DetachBinPlacement(ctx context.Context, cabinetID, binID, revision int64) error {
 	return s.store.ExecImmediateTx(ctx, func(q db.Querier) error {
+		if err := ensureNoPhysicalLocate(ctx, q); err != nil {
+			return err
+		}
 		cab, err := q.GetCabinet(ctx, cabinetID)
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrLayoutNotFound

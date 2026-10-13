@@ -160,6 +160,8 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 			r.Group(func(r chi.Router) {
 				r.Post("/storage/cabinets", h.HandleLayoutCabinetCreate)
 				r.Post("/storage/cabinets/{id}/edit", h.HandleLayoutSave)
+				r.Post("/storage/cabinets/{id}/drawers/{drawerID}/bins", h.HandlePhysicalBinCreate)
+				r.Post("/storage/cabinets/{id}/bins/{binID}/move", h.HandlePhysicalBinMove)
 				r.Post("/storage/cabinets/{id}/drawers/{drawerID}/led", h.HandleDrawerLEDAllocationsSave)
 				r.Post("/storage/cabinets/{id}/archive", h.HandleLayoutCabinetArchive)
 				r.Post("/storage/cabinets/{id}/delete", h.HandleLayoutCabinetDelete)

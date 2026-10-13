@@ -12,24 +12,23 @@ import (
 
 templ Hardware(user auth.User, controllers []db.Controller, cabinets []db.Cabinet, controllerSaved bool) {
 	@layouts.Base(i18n.T(ctx, "Hardware"), user) {
-		@components.PageHeader(i18n.T(ctx, "Hardware"), "Configure physical cabinets and their LED wiring independently from legacy electrical containers.", nil)
+		@components.PageHeader(i18n.T(ctx, "Hardware"), "Create physical storage first. Controller endpoints, LED strings, wiring paths and pixel allocation are optional, separate configuration.", nil)
 		<section class="card border border-primary/30 bg-primary/5 shadow-sm mb-8">
 			<div class="card-body gap-4">
 				<div class="flex flex-wrap items-start justify-between gap-4">
 					<div>
 						<h2 class="card-title">Cabinets</h2>
-						<p class="text-sm opacity-80">The cabinet is the primary hardware configuration object. Set up controllers, physical LED strings and paths, then edit drawers and assign cabinet-wide pixel ranges.</p>
+						<p class="text-sm opacity-80">Build inventory locations independently: create a cabinet, add drawers and bins, then assign parts and quantities. Optional WLED wiring is configured separately.</p>
 					</div>
 					<div class="flex flex-wrap gap-2">
 						<a class="btn btn-primary btn-sm" href="/storage/cabinets">Open Cabinets</a>
 						if user.CanWrite() {
 							<a class="btn btn-outline btn-sm" href="/storage/cabinets">Create Cabinet</a>
-							<button onclick="add_controller_modal.showModal()" class="btn btn-outline btn-sm">Add WLED Controller</button>
 						}
 					</div>
 				</div>
 				<div class="rounded-lg bg-base-100/70 p-3 text-sm">
-					<strong>Setup sequence:</strong> Create Cabinet → Configure Controllers → Configure Strings → Configure Wiring Layout → Edit Drawer Layout → Assign Drawer LEDs.
+					<strong>Physical-first:</strong> Create Cabinet → Add Drawers → Add Bins → Assign Inventory. <span class="ml-1">Optional electrical setup: assign WLED controllers → configure strings and wiring → map drawer pixels.</span>
 				</div>
 				if len(cabinets) > 0 {
 					<div class="flex flex-wrap gap-2">
@@ -45,88 +44,67 @@ templ Hardware(user auth.User, controllers []db.Controller, cabinets []db.Cabine
 		if controllerSaved {
 			<div role="status" class="alert alert-success mb-4">Controller settings saved.</div>
 		}
-		<section aria-labelledby="legacy-hardware-heading">
-			<div class="mb-3">
-				<h2 id="legacy-hardware-heading" class="text-lg font-semibold">Controller device records and legacy electrical tools</h2>
-				<p class="text-sm opacity-70">Legacy containers, WLED segments and bin LED indices remain available here, but are not prerequisites for cabinet setup and are not physical strings.</p>
-			</div>
-			<details class="rounded-lg border border-base-300 p-3">
-				<summary class="cursor-pointer font-semibold">Advanced legacy controller and segment tools</summary>
-		<div class="flex flex-col md:flex-row justify-end mb-6 gap-4 mt-4">
-			if user.CanWrite() {
-				<a href="/hardware/labels" class="btn btn-outline gap-2">
-					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg>
-					{ i18n.T(ctx, "BinLabels") }
-				</a>
-				<button onclick="import_controller_modal.showModal()" class="btn btn-outline gap-2">
-					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
-					{ i18n.T(ctx, "ImportConfig") }
-				</button>
-				<button onclick="add_controller_modal.showModal()" class="btn btn-primary gap-2">
-					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-					{ i18n.T(ctx, "AddController") }
-				</button>
-			}
-		</div>
-		<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-12 items-start">
-			for _, c := range controllers {
-				<div class="card bg-base-200 shadow-xl border border-base-300">
-					<div class="card-body p-6">
-						<div class="flex justify-between items-start mb-4">
-							<div>
-								<h2 class="card-title text-lg">{ c.Name }</h2>
-								<div class="flex items-center gap-2 mt-1">
-									<a href={ templ.SafeURL("http://" + c.IpAddress) } target="_blank" class="link link-hover text-xs font-mono opacity-70 flex items-center gap-1">
-										{ c.IpAddress }
-										<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
-									</a>
-								</div>
-							</div>
-							<div
-								hx-get={ fmt.Sprintf("/hardware/%d/status", c.ID) }
-								hx-trigger="load, every 10s"
-								class="badge badge-ghost text-xs"
-							>
-								{ i18n.T(ctx, "Checking") }
-							</div>
-						</div>
-
-						<div class="card-actions justify-end mt-4 pt-4 border-t border-base-content/10">
-							if user.CanConfigure() {
-								<a href={ templ.SafeURL(fmt.Sprintf("/hardware/%d/grid", c.ID)) } class="btn btn-sm btn-ghost gap-2">
-									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
-									{ i18n.T(ctx, "Configure") }
-								</a>
-								if user.IsAdmin() {
-									<a href={ templ.SafeURL(fmt.Sprintf("/hardware/%d/edit", c.ID)) } class="btn btn-sm btn-outline">Edit</a>
-								}
-								<a href={ templ.SafeURL(fmt.Sprintf("/hardware/%d/export", c.ID)) } class="btn btn-sm btn-ghost gap-2" title={ i18n.T(ctx, "ExportConfig") }>
-									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0L8 8m4-4v12"></path></svg>
-									{ i18n.T(ctx, "Export") }
-								</a>
-								<form action={ templ.SafeURL(fmt.Sprintf("/hardware/%d/delete", c.ID)) } method="POST" { templ.Attributes{"onsubmit": fmt.Sprintf("return confirm('%s');", i18n.T(ctx, "ConfirmDeleteController"))}... }>
-									@components.CSRFInput()
-									<button class="btn btn-sm btn-ghost text-error">
-										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-									</button>
-								</form>
-							} else {
-								<a href={ templ.SafeURL(fmt.Sprintf("/hardware/%d/grid", c.ID)) } class="btn btn-sm btn-ghost">
-									{ i18n.T(ctx, "ViewGrid") }
-								</a>
-							}
-						</div>
+		<section aria-labelledby="controller-management-heading" class="mb-8">
+			<div class="flex flex-wrap items-end justify-between gap-3 mb-3">
+				<div>
+					<h2 id="controller-management-heading" class="text-lg font-semibold">WLED controllers</h2>
+					<p class="text-sm opacity-70">Controller settings are separate from physical cabinet, drawer and bin creation. No controller is required to manage inventory locations.</p>
+				</div>
+				if user.IsAdmin() {
+					<div class="flex flex-wrap gap-2">
+						<button onclick="import_controller_modal.showModal()" class="btn btn-outline btn-sm">Import controller config</button>
+						<button onclick="add_controller_modal.showModal()" class="btn btn-primary btn-sm">Add WLED controller</button>
 					</div>
+				}
+			</div>
+			if len(controllers) == 0 {
+				<div class="rounded border border-base-300 bg-base-200 p-4 text-sm">No WLED controllers configured. You can create cabinets, drawers, bins and assign inventory without one.</div>
+			} else {
+				<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+					for _, c := range controllers {
+						<article class="card bg-base-200 border border-base-300">
+							<div class="card-body p-4">
+								<div class="flex items-start justify-between gap-3">
+									<div class="min-w-0">
+										<h3 class="card-title text-base truncate">{ c.Name }</h3>
+										<a href={ templ.SafeURL(controllerManagementURL(c)) } target="_blank" rel="noopener noreferrer" class="link link-hover text-xs font-mono break-all">{ c.IpAddress }</a>
+									</div>
+									<div hx-get={ fmt.Sprintf("/hardware/%d/status", c.ID) } hx-trigger="load" class="badge badge-ghost text-xs">{ i18n.T(ctx, "Checking") }</div>
+								</div>
+								<p class="text-xs opacity-70">HTTP endpoint: <code>{ controllerManagementURL(c) }</code></p>
+								if user.IsAdmin() {
+									<div class="card-actions justify-end border-t border-base-content/10 pt-3">
+										<a href={ templ.SafeURL(fmt.Sprintf("/hardware/%d/edit", c.ID)) } class="btn btn-sm btn-outline">Edit controller</a>
+										<a href={ templ.SafeURL(fmt.Sprintf("/hardware/%d/export", c.ID)) } class="btn btn-sm btn-ghost">Export config</a>
+										<form action={ templ.SafeURL(fmt.Sprintf("/hardware/%d/delete", c.ID)) } method="POST" { templ.Attributes{"onsubmit": fmt.Sprintf("return confirm('%s');", i18n.T(ctx, "ConfirmDeleteController"))}... }>
+											@components.CSRFInput()
+											<button class="btn btn-sm btn-ghost text-error" type="submit">Delete</button>
+										</form>
+									</div>
+								}
+							</div>
+						</article>
+					}
 				</div>
 			}
-			if len(controllers) == 0 {
-				@components.EmptyState(i18n.T(ctx, "NoControllersFound"), i18n.T(ctx, "AddFirstWLEDDevice"), "🔌")
-			}
-		</div>
+		</section>
+		<section aria-labelledby="legacy-hardware-heading" class="mb-8">
+			<details class="rounded-lg border border-base-300 p-3">
+				<summary id="legacy-hardware-heading" class="cursor-pointer font-semibold">Advanced legacy electrical tools</summary>
+				<p class="text-sm opacity-70 mt-2">Legacy containers, WLED segments and bin LED indices are not physical drawers or bins. These tools do not create physical storage locations.</p>
+				if user.IsAdmin() {
+					<div class="mt-3 flex flex-wrap gap-2">
+						<a href="/hardware/labels" class="btn btn-outline btn-sm">Legacy electrical bin labels</a>
+						for _, c := range controllers {
+							<a href={ templ.SafeURL(fmt.Sprintf("/hardware/%d/grid", c.ID)) } class="btn btn-ghost btn-sm">{ c.Name } · Legacy grid</a>
+						}
+					</div>
+				}
 			</details>
 		</section>
-		@components.Modal(components.ModalProps{
-			ID:    "add_controller_modal",
+		if user.IsAdmin() {
+			@components.Modal(components.ModalProps{
+				ID:    "add_controller_modal",
 			Title: i18n.T(ctx, "AddNewController"),
 		}) {
 			<form action="/hardware" method="POST" class="space-y-4">
@@ -150,8 +128,8 @@ templ Hardware(user auth.User, controllers []db.Controller, cabinets []db.Cabine
 				</div>
 			</form>
 		}
-		@components.Modal(components.ModalProps{
-			ID:    "import_controller_modal",
+			@components.Modal(components.ModalProps{
+				ID:    "import_controller_modal",
 			Title: i18n.T(ctx, "ImportConfig"),
 		}) {
 			<p class="text-sm opacity-70 mb-4">{ i18n.T(ctx, "ImportConfigHelp") }</p>
@@ -179,6 +157,7 @@ templ Hardware(user auth.User, controllers []db.Controller, cabinets []db.Cabine
 					<button class="btn btn-primary">{ i18n.T(ctx, "ImportConfig") }</button>
 				</div>
 			</form>
+		}
 		}
 	}
 }

@@ -78,7 +78,7 @@ func seedLayout(t *testing.T) *LayoutService {
 }
 
 func layoutInput() LayoutInput {
-	return LayoutInput{ID: 1, Revision: 0, Name: "Renamed", CoordinateSystem: "grid", Width: 20, Height: 20, Drawers: []DrawerInput{{ID: 1, Label: "Renumbered", DisplayOrder: 3, X: 1, Y: 1, Width: 10, Height: 10, Bins: []BinInput{{ID: 1, DisplayOrder: 2, X: 3, Y: 3, Width: 2, Height: 2}}}}}
+	return LayoutInput{ID: 1, Revision: 0, Name: "Renamed", CoordinateSystem: "grid", Width: 20, Height: 20, Drawers: []DrawerInput{{ID: 1, Label: "Renumbered", DisplayOrder: 3, X: 1, Y: 1, Width: 10, Height: 10, Bins: []BinInput{{ID: 1, Name: "Bin", DisplayOrder: 2, X: 3, Y: 3, Width: 2, Height: 2}}}}}
 }
 
 func TestEmptyLayoutUsesNonNilJSONCollections(t *testing.T) {

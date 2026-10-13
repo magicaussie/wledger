@@ -36,6 +36,10 @@ function physicalLayoutEditor() {
     selection: { kind: '', key: '' },
     activeDrawerKey: '',
     selectedAvailableBin: '',
+    newBinDraft: { name: '', x: 1, y: 1, width: 5, height: 5 },
+    moveTargetDrawerID: '',
+    moveBinX: 0,
+    moveBinY: 0,
     pointerOp: null,
     gridSize: 5,
     snap: true,
@@ -110,6 +114,7 @@ function physicalLayoutEditor() {
           id: item.Drawer.id,
           key: `drawer-${item.Drawer.id}`,
           label: item.Drawer.label,
+          archived: Number(item.Drawer.archived) !== 0,
           display_order: item.Drawer.display_order,
           x: item.Drawer.x,
           y: item.Drawer.y,
@@ -118,7 +123,7 @@ function physicalLayoutEditor() {
           bins: (item.Bins || []).map(bin => ({
             id: bin.bin_id,
             key: `bin-${bin.bin_id}`,
-            name: `Bin #${bin.bin_id}`,
+            name: bin.name,
             display_order: bin.display_order,
             x: bin.x,
             y: bin.y,
@@ -137,6 +142,32 @@ function physicalLayoutEditor() {
       this.bins = (data.UnattachedBins || []).map(bin => ({ id: bin.id, name: bin.name }));
       this.draftKey = `wledger-layout-draft-${cabinet.id}`;
       if (this.error) this.restoreDraft();
+      if (this.state.uiSelectionKind === 'drawer') {
+        const selectedDrawer = this.state.drawers.find(drawer => drawer.key === this.state.uiSelectionKey);
+        if (selectedDrawer) this.activeDrawerKey = selectedDrawer.key;
+      } else if (this.state.uiSelectionKind === 'bin') {
+        const selectedBinDrawer = this.state.drawers.find(drawer => drawer.bins.some(bin => bin.key === this.state.uiSelectionKey));
+        if (selectedBinDrawer) {
+          this.activeDrawerKey = selectedBinDrawer.key;
+          this.mode = 'bins';
+        }
+      }
+      const requestedDrawerID = Number(query.get('drawer_id')) || 0;
+      const requestedBinID = Number(query.get('bin_id')) || 0;
+      const requestedDrawer = this.state.drawers.find(drawer => Number(drawer.id) === requestedDrawerID);
+      if (requestedDrawer) {
+        this.activeDrawerKey = requestedDrawer.key;
+        this.mode = 'bins';
+        if (requestedBinID) {
+          const requestedBin = requestedDrawer.bins.find(bin => Number(bin.id) === requestedBinID);
+          if (requestedBin) {
+            this.state.uiSelectionKind = 'bin';
+            this.state.uiSelectionKey = requestedBin.key;
+            this.moveBinX = Number(requestedBin.x) || 0;
+            this.moveBinY = Number(requestedBin.y) || 0;
+          }
+        }
+      }
       this.selection = { kind: this.state.uiSelectionKind || '', key: this.state.uiSelectionKey || '' };
       this.lastStateJSON = this.layoutFingerprint();
       this.pushHistoryBase();
@@ -518,7 +549,12 @@ function physicalLayoutEditor() {
     entity(kind, key) { if (kind === 'drawer') return this.state.drawers.find(item => item.key === key); if (kind === 'bin') return this.activeDrawer()?.bins.find(item => item.key === key); return this.state.decorations.find(item => item.key === key); },
     selectEntity(kind, object) { this.setSelection(kind, object.key); },
     selectDrawer(drawer) { this.selectEntity('drawer', drawer); },
-    selectBin(bin) { this.selectEntity('bin', bin); },
+    selectBin(bin) {
+      this.moveTargetDrawerID = '';
+      this.moveBinX = Number(bin.x) || 0;
+      this.moveBinY = Number(bin.y) || 0;
+      this.selectEntity('bin', bin);
+    },
     selectDecoration(item) { this.selectEntity('decoration', item); },
     selectedDrawer() { return this.entity('drawer', this.selection.key) || (this.emptyDrawer ||= { id:0,key:'',label:'',display_order:0,x:0,y:0,width:1,height:1,bins:[] }); },
     selectedBin() { return this.entity('bin', this.selection.key) || (this.emptyBin ||= { id:0,key:'',name:'',display_order:0,x:0,y:0,width:1,height:1 }); },
@@ -876,6 +912,49 @@ function physicalLayoutEditor() {
     openDrawer(drawer) { if (!drawer) return; this.activeDrawerKey = drawer.key; this.mode = 'bins'; this.tool = 'select'; this.setSelection('', ''); this.resetView(); this.renderCanvas(); },
     closeDrawer() { this.mode = 'cabinet'; this.tool = 'select'; this.setSelection('drawer', this.activeDrawerKey); this.resetView(); this.renderCanvas(); },
     availableBins() { const placed = new Set(this.state.drawers.flatMap(drawer => drawer.bins.map(bin => Number(bin.id)))); return this.bins.filter(bin => !placed.has(Number(bin.id))); },
+    createPhysicalBin() {
+      const drawer = this.activeDrawer();
+      if (!drawer?.id || drawer.archived) { this.error = 'Save the drawer and choose an active drawer before adding a bin.'; return; }
+      if (this.dirty) { this.error = 'Save or cancel physical layout changes before creating a bin.'; return; }
+      const draft = this.newBinDraft;
+      if (!String(draft.name || '').trim() || String(draft.name).trim().length > 200 ||
+          ![draft.x, draft.y].every(value => Number.isFinite(Number(value))) ||
+          ![draft.width, draft.height].every(value => Number.isFinite(Number(value)) && Number(value) > 0)) {
+        this.error = 'Enter a bin name and finite positive dimensions and position.'; return;
+      }
+      const form = document.createElement('form');
+      form.method = 'post';
+      form.action = `/storage/cabinets/${this.state.id}/drawers/${drawer.id}/bins`;
+      const fields = [
+        ['csrf_token', this.$refs.csrf.value], ['revision', this.state.revision],
+        ['name', String(draft.name).trim()], ['x', draft.x], ['y', draft.y],
+        ['width', draft.width], ['height', draft.height],
+      ];
+      for (const [name, value] of fields) {
+        const input = document.createElement('input'); input.type = 'hidden'; input.name = name; input.value = value; form.appendChild(input);
+      }
+      document.body.appendChild(form); form.submit();
+    },
+    moveSelectedBin() {
+      const bin = this.selectedBin();
+      const targetDrawerID = Number(this.moveTargetDrawerID);
+      if (!bin?.id || !targetDrawerID) { this.error = 'Choose an active destination drawer.'; return; }
+      if (this.dirty || this.hasUnsavedElectricalChanges()) { this.error = 'Save or cancel other layout and electrical edits before moving this bin.'; return; }
+      const form = document.createElement('form');
+      form.method = 'post';
+      form.action = `/storage/cabinets/${this.state.id}/bins/${bin.id}/move`;
+      const fields = [
+        ['csrf_token', this.$refs.csrf.value],
+        ['revision', this.state.revision],
+        ['target_drawer_id', targetDrawerID],
+        ['x', this.moveBinX],
+        ['y', this.moveBinY],
+      ];
+      for (const [name, value] of fields) {
+        const input = document.createElement('input'); input.type = 'hidden'; input.name = name; input.value = value; form.appendChild(input);
+      }
+      document.body.appendChild(form); form.submit();
+    },
     addDrawerFromButton() { this.setTool('drawer'); this.error = 'Drag on the canvas to draw the new drawer.'; },
     zoomBy(factor) { this.zoom = Math.min(4, Math.max(0.25, this.zoom * factor)); this.updateViewBox(); },
     resetView() { this.zoom = 1; this.pan = { x: 0, y: 0 }; this.updateViewBox(); },

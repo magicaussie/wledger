@@ -52,13 +52,29 @@ templ StorageLayoutEditor(layout storage.CabinetLayout, user auth.User) {
 								<button type="button" class="btn btn-sm btn-ghost w-full" x-on:click="mode='cabinet';tool='select';activePathSectionKey='';renderCanvas()">Cancel path drawing</button>
 							</section>
 							<section x-show="mode === 'bins'">
-								<div class="flex justify-between items-center mb-2"><h2 class="font-bold text-sm">Drawer bins</h2><button type="button" class="btn btn-xs btn-ghost" x-on:click="closeDrawer()">Back</button></div>
-								<div class="grid grid-cols-2 gap-2">
-									<button type="button" class="btn btn-sm" x-bind:class="tool === 'select' ? 'btn-primary' : 'btn-outline'" x-on:click="setTool('select')">Select</button>
-									<button type="button" class="btn btn-sm" x-bind:class="tool === 'bin' ? 'btn-primary' : 'btn-outline'" x-on:click="setTool('bin')" x-bind:disabled="!selectedAvailableBin">Draw bin</button>
-								</div>
-								<label class="form-control mt-3"><span class="label-text text-xs">Existing unattached inventory bin</span><select class="select select-bordered select-sm" x-model="selectedAvailableBin"><option value="">Choose bin to place</option><template x-for="bin in availableBins()" :key="bin.id"><option x-bind:value="bin.id" x-text="bin.name + ' (#' + bin.id + ')'"></option></template></select></label>
-								<p class="text-xs opacity-70 mt-2">Drawing a bin places only the explicitly selected existing inventory bin.</p>
+								<div class="flex justify-between items-center mb-2"><h2 class="font-bold text-sm">Physical bins</h2><button type="button" class="btn btn-xs btn-ghost" x-on:click="closeDrawer()">Back to drawers</button></div>
+								<p class="text-xs opacity-70 mb-3">Bins are inventory locations. Creating or moving one does not create a WLED segment, pixel index, or wiring assignment.</p>
+								<div class="rounded border border-primary/40 bg-primary/5 p-2 space-y-2">
+									<strong class="text-xs">Add a new physical bin</strong>
+									<label class="form-control"><span class="label-text text-xs">Bin name</span><input class="input input-bordered input-sm" maxlength="200" x-model="newBinDraft.name"/></label>
+									<div class="grid grid-cols-2 gap-2">
+										<label class="form-control"><span class="label-text text-xs">X</span><input class="input input-bordered input-sm" type="number" min="0" step="any" x-model.number="newBinDraft.x"/></label>
+										<label class="form-control"><span class="label-text text-xs">Y</span><input class="input input-bordered input-sm" type="number" min="0" step="any" x-model.number="newBinDraft.y"/></label>
+										<label class="form-control"><span class="label-text text-xs">Width</span><input class="input input-bordered input-sm" type="number" min="0.1" step="any" x-model.number="newBinDraft.width"/></label>
+										<label class="form-control"><span class="label-text text-xs">Height</span><input class="input input-bordered input-sm" type="number" min="0.1" step="any" x-model.number="newBinDraft.height"/></label>
+									</div>
+									<button type="button" class="btn btn-primary btn-sm w-full" x-on:click="createPhysicalBin()" x-bind:disabled="!activeDrawer()?.id || activeDrawer()?.archived">＋ Add bin</button>
+									<p class="text-[11px]" x-show="!activeDrawer()?.id || activeDrawer()?.archived">Save this drawer and choose an active drawer before adding bins.</p>
+							</div>
+								<details open class="mt-3 rounded border border-base-300 p-2">
+									<summary class="cursor-pointer text-xs font-semibold">Place an existing unplaced inventory bin</summary>
+									<div class="grid grid-cols-2 gap-2 mt-2">
+										<button type="button" class="btn btn-sm" x-bind:class="tool === 'select' ? 'btn-primary' : 'btn-outline'" x-on:click="setTool('select')">Select</button>
+										<button type="button" class="btn btn-sm" x-bind:class="tool === 'bin' ? 'btn-primary' : 'btn-outline'" x-on:click="setTool('bin')" x-bind:disabled="!selectedAvailableBin">Draw bin</button>
+									</div>
+									<label class="form-control mt-2"><span class="label-text text-xs">Unplaced inventory bin</span><select class="select select-bordered select-sm" x-model="selectedAvailableBin"><option value="">Choose an existing bin</option><template x-for="bin in availableBins()" :key="bin.id"><option x-bind:value="bin.id" x-text="bin.name + ' (#' + bin.id + ')' "></option></template></select></label>
+									<p class="text-xs opacity-70 mt-2">This attaches the same stable bin record; its stock and QR identity are retained.</p>
+								</details>
 							</section>
 							<section class="border-t border-base-300 pt-3 space-y-2">
 								<h2 class="font-bold text-sm">Canvas</h2>
@@ -151,8 +167,19 @@ templ StorageLayoutEditor(layout storage.CabinetLayout, user auth.User) {
 							</section>
 							<section class="space-y-3" x-show="state.uiSelectionKind === 'bin'">
 								<h3 class="font-semibold" x-text="selectedBin()?.name || ('Bin #' + selectedBin()?.id)"></h3>
+								<label class="form-control"><span class="label-text text-xs">Bin name</span><input class="input input-bordered input-sm" maxlength="200" x-model="selectedBin().name" x-on:focus="beginPropertyEdit()" x-on:change="finishPropertyEdit()"/></label>
 								<div class="grid grid-cols-2 gap-2"><label class="form-control"><span class="label-text text-xs">Order</span><input class="input input-bordered input-sm" type="number" x-model.number="selectedBin().display_order" x-on:focus="beginPropertyEdit()" x-on:change="finishPropertyEdit()"/></label><label class="form-control"><span class="label-text text-xs">X</span><input class="input input-bordered input-sm" type="number" min="0" step="any" x-model.number="selectedBin().x" x-on:focus="beginPropertyEdit()" x-on:change="finishPropertyEdit()"/></label><label class="form-control"><span class="label-text text-xs">Y</span><input class="input input-bordered input-sm" type="number" min="0" step="any" x-model.number="selectedBin().y" x-on:focus="beginPropertyEdit()" x-on:change="finishPropertyEdit()"/></label><label class="form-control"><span class="label-text text-xs">Width</span><input class="input input-bordered input-sm" type="number" min="0.1" step="any" x-model.number="selectedBin().width" x-on:focus="beginPropertyEdit()" x-on:change="finishPropertyEdit()"/></label><label class="form-control"><span class="label-text text-xs">Height</span><input class="input input-bordered input-sm" type="number" min="0.1" step="any" x-model.number="selectedBin().height" x-on:focus="beginPropertyEdit()" x-on:change="finishPropertyEdit()"/></label></div>
-								<p class="text-xs opacity-70">Inventory bin and stock remain separate from this physical placement.</p><button type="button" class="btn btn-error btn-outline btn-sm" x-on:click="removeSelectedPlacement()">Remove placement</button>
+								<p class="text-xs opacity-70">Physical placement is independent from LEDs. Saving a bin edit preserves its stable ID, QR code and stock assignments.</p>
+								<details class="rounded border border-base-300 p-2" x-show="selectedBin()?.id">
+									<summary class="cursor-pointer text-xs font-semibold">Move bin to another drawer</summary>
+									<div class="mt-2 space-y-2">
+										<label class="form-control"><span class="label-text text-xs">Destination drawer</span><select class="select select-bordered select-sm" x-model="moveTargetDrawerID"><option value="">Choose destination</option><template x-for="drawer in state.drawers.filter(item => item.id && !item.archived && Number(item.id) !== Number(activeDrawer()?.id))" :key="drawer.key"><option x-bind:value="drawer.id" x-text="drawer.label + ' (#' + drawer.id + ')' "></option></template></select></label>
+										<div class="grid grid-cols-2 gap-2"><label class="form-control"><span class="label-text text-xs">Destination X</span><input class="input input-bordered input-sm" type="number" min="0" step="any" x-model.number="moveBinX"/></label><label class="form-control"><span class="label-text text-xs">Destination Y</span><input class="input input-bordered input-sm" type="number" min="0" step="any" x-model.number="moveBinY"/></label></div>
+										<button type="button" class="btn btn-outline btn-sm w-full" x-on:click="moveSelectedBin()" x-bind:disabled="!moveTargetDrawerID">Move bin</button>
+										<p class="text-[11px] opacity-70">Move preserves this bin record, its QR identity and all part quantities.</p>
+									</div>
+								</details>
+								<button type="button" class="btn btn-error btn-outline btn-sm" x-on:click="removeSelectedPlacement()">Detach bin (keep inventory)</button>
 							</section>
 							<section class="space-y-3" x-show="state.uiSelectionKind === 'decoration'">
 								<label class="form-control"><span class="label-text text-xs">Paint label text</span><input class="input input-bordered input-sm" x-model="selectedDecoration().text" x-on:focus="beginPropertyEdit()" x-on:change="finishPropertyEdit()" x-bind:disabled="selectedDecoration().kind !== 'label'"/></label>

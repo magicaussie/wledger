@@ -382,20 +382,26 @@ const path = require('node:path');
     for (let drawerIndex = 0; drawerIndex < 5; drawerIndex++) {
       const drawerButton = page.locator('aside button').filter({ hasText: drawers[drawerIndex] }).first();
       await drawerButton.dblclick();
+      await page.getByText('Bin layout canvas').waitFor();
+      const activeDrawerLabel = await page.locator('[x-data="physicalLayoutEditor()"]')
+        .evaluate(element => window.Alpine.$data(element).activeDrawer()?.label);
+      assert.equal(activeDrawerLabel, drawers[drawerIndex], `drawer ${drawerIndex + 1} should be active before adding bins`);
+
       const binSelect = page.locator('select[x-model="selectedAvailableBin"]');
       for (let localBin = 0; localBin < 2; localBin++) {
         const binID = Number(inventoryBins[drawerIndex * 2 + localBin][0]);
         await binSelect.selectOption(String(binID));
         await page.getByRole('button', { name: 'Draw bin' }).click();
         const offsetX = localBin === 0 ? 1 : 9;
+        await canvas.scrollIntoViewIfNeeded();
         await drag(offsetX, 1, offsetX + 6, 7);
       }
-      await page.getByRole('button', { name: 'Back', exact: true }).click();
+      await page.getByRole('button', { name: /Back(?: to drawers)?/ }).click();
     }
     await page.getByRole('button', { name: 'Save layout' }).click();
     await page.waitForURL(`${baseURL}/storage/cabinets/${cabinetID}`);
     const binAttachments = readOnlyRows(databasePath, 'SELECT bin_id, drawer_id FROM bin_drawer_attachments ORDER BY bin_id');
-    assert.equal(binAttachments.length, 10, 'all ten bins should be placed through the graphical editor');
+    assert.equal(binAttachments.length, 10, `all ten bins should be placed through the graphical editor; saved rows: ${JSON.stringify(binAttachments)}`);
     const attachedDrawerIDs = new Set(binAttachments.map(row => Number(row[1])));
     assert.equal(attachedDrawerIDs.size, 5, 'bins should remain associated across all five drawers');
 

@@ -60,6 +60,65 @@ func (h *Handler) HandleLayoutSave(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/storage/cabinets/"+strconv.FormatInt(id, 10), http.StatusSeeOther)
 }
 
+func (h *Handler) HandlePhysicalBinCreate(w http.ResponseWriter, r *http.Request) {
+	cabinetID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	drawerID, drawerErr := strconv.ParseInt(chi.URLParam(r, "drawerID"), 10, 64)
+	if err != nil || drawerErr != nil || cabinetID <= 0 || drawerID <= 0 {
+		http.Error(w, "invalid physical bin request", http.StatusBadRequest)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid physical bin request", http.StatusBadRequest)
+		return
+	}
+	parseFloat := func(name string) (float64, error) {
+		return strconv.ParseFloat(strings.TrimSpace(r.FormValue(name)), 64)
+	}
+	revision, revisionErr := strconv.ParseInt(r.FormValue("revision"), 10, 64)
+	x, xErr := parseFloat("x")
+	y, yErr := parseFloat("y")
+	width, widthErr := parseFloat("width")
+	height, heightErr := parseFloat("height")
+	if revisionErr != nil || xErr != nil || yErr != nil || widthErr != nil || heightErr != nil {
+		layoutMutationError(w, r, cabinetID, errors.New("invalid bin placement fields"))
+		return
+	}
+	binID, err := h.layoutService().CreatePhysicalBin(r.Context(), cabinetID, drawerID, revision, r.FormValue("name"), x, y, width, height)
+	if err != nil {
+		layoutMutationError(w, r, cabinetID, err)
+		return
+	}
+	target := fmt.Sprintf("/storage/cabinets/%d/edit?drawer_id=%d&bin_id=%d", cabinetID, drawerID, binID)
+	http.Redirect(w, r, target, http.StatusSeeOther)
+}
+
+func (h *Handler) HandlePhysicalBinMove(w http.ResponseWriter, r *http.Request) {
+	cabinetID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	binID, binErr := strconv.ParseInt(chi.URLParam(r, "binID"), 10, 64)
+	if err != nil || binErr != nil || cabinetID <= 0 || binID <= 0 {
+		http.Error(w, "invalid physical bin move request", http.StatusBadRequest)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid physical bin move request", http.StatusBadRequest)
+		return
+	}
+	targetDrawerID, drawerErr := strconv.ParseInt(r.FormValue("target_drawer_id"), 10, 64)
+	revision, revisionErr := strconv.ParseInt(r.FormValue("revision"), 10, 64)
+	x, xErr := strconv.ParseFloat(strings.TrimSpace(r.FormValue("x")), 64)
+	y, yErr := strconv.ParseFloat(strings.TrimSpace(r.FormValue("y")), 64)
+	if drawerErr != nil || revisionErr != nil || xErr != nil || yErr != nil {
+		layoutMutationError(w, r, cabinetID, errors.New("invalid bin move fields"))
+		return
+	}
+	if err := h.layoutService().MovePhysicalBin(r.Context(), cabinetID, binID, targetDrawerID, revision, x, y); err != nil {
+		layoutMutationError(w, r, cabinetID, err)
+		return
+	}
+	target := fmt.Sprintf("/storage/cabinets/%d/edit?drawer_id=%d&bin_id=%d", cabinetID, targetDrawerID, binID)
+	http.Redirect(w, r, target, http.StatusSeeOther)
+}
+
 func (h *Handler) HandleCabinetControllerSave(w http.ResponseWriter, r *http.Request) {
 	cabinetID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	revision, revisionErr := strconv.ParseInt(r.FormValue("electrical_revision"), 10, 64)
