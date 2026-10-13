@@ -1,11 +1,14 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -505,5 +508,92 @@ func TestHandleHardwareGridSave_MatchingSpaceTagSucceeds(t *testing.T) {
 	gridData := `[{"container_index":0,"x":0,"y":0,"led_index":3,"width":1,"name":"a1"}]`
 	if rr := postGridSaveWithSpace(t, h, ctrl.ID, gridData, configData, ledspace.Segment); rr.Code != http.StatusSeeOther {
 		t.Fatalf("matching segment tag = %d, want 303: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestLegacyHardwareConfigurationHandlersRejectDurableLocateOwnership(t *testing.T) {
+	for _, state := range []string{"active", "partial"} {
+		for _, action := range []string{"controller create", "controller delete", "legacy grid save", "legacy config import"} {
+			t.Run(state+"/"+action, func(t *testing.T) {
+				h, store, conn := setupHardwareHandler(t)
+				defer conn.Close()
+				ctx := context.Background()
+				controller, err := store.CreateController(ctx, db.CreateControllerParams{Name: "Existing", IpAddress: "192.0.2.50"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := conn.ExecContext(ctx, `INSERT INTO physical_locate_sessions
+					(controller_id,controller_address,controller_port,session_id,drawer_id,bin_id,owner_id,state,ranges_json,commands_json,fingerprint,color,brightness,last_operation,last_operation_at,last_successful_operation,last_successful_at,last_error)
+					VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?, 'activation',CURRENT_TIMESTAMP,'activation',CURRENT_TIMESTAMP,'cleanup unresolved')`,
+					controller.ID, "192.0.2.50", 80, "handler-"+state, 1, 1, 7, state,
+					`[{"start":1,"count":5}]`, `[{"segment_id":0,"start":0,"stop":5}]`, "fingerprint", "#0000ff", 128); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := conn.ExecContext(ctx, `INSERT INTO physical_locate_session_targets
+					(session_id,controller_id,controller_address,controller_port,ranges_json,commands_json,fingerprint,may_have_received,last_error)
+					VALUES (?,?,?,?,?,?,?,1,'cleanup unresolved')`, "handler-"+state, controller.ID, "192.0.2.50", 80,
+					`[{"start":1,"count":5}]`, `[{"segment_id":0,"start":0,"stop":5}]`, "fingerprint"); err != nil {
+					t.Fatal(err)
+				}
+
+				var response *httptest.ResponseRecorder
+				switch action {
+				case "controller create":
+					router := chi.NewRouter()
+					router.Post("/hardware", h.HandleHardwareCreate)
+					form := url.Values{"name": {"New"}, "ip_address": {"192.0.2.51"}}
+					req := httptest.NewRequest(http.MethodPost, "/hardware", strings.NewReader(form.Encode()))
+					req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+					response = httptest.NewRecorder()
+					router.ServeHTTP(response, req)
+				case "controller delete":
+					router := chi.NewRouter()
+					router.Post("/hardware/{id}/delete", h.HandleHardwareDelete)
+					req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/hardware/%d/delete", controller.ID), nil)
+					response = httptest.NewRecorder()
+					router.ServeHTTP(response, req)
+				case "legacy grid save":
+					response = postGridSave(t, h, controller.ID,
+						`[{"container_index":0,"x":0,"y":0,"led_index":2,"width":1,"name":"new bin"}]`,
+						`[{"id":null,"name":"replacement","segment_id":0,"led_start":0,"led_count":20,"config":{"type":"grid","rows":4,"cols":5}}]`)
+				case "legacy config import":
+					router := chi.NewRouter()
+					router.Post("/hardware/import", h.HandleHardwareImport)
+					var body bytes.Buffer
+					writer := multipart.NewWriter(&body)
+					part, err := writer.CreateFormFile("config_file", "hardware.json")
+					if err != nil {
+						t.Fatal(err)
+					}
+					if _, err := io.WriteString(part, `{"version":"1.0","controller":{"name":"Imported","ip_address":"192.0.2.52"},"containers":[{"name":"A","segment_id":0,"led_start":0,"led_count":20,"config":{"type":"linear","total":20}}],"bins":[{"container_index":0,"led_index":2,"width":1,"name":"imported bin"}]}`); err != nil {
+						t.Fatal(err)
+					}
+					if err := writer.Close(); err != nil {
+						t.Fatal(err)
+					}
+					req := httptest.NewRequest(http.MethodPost, "/hardware/import", &body)
+					req.Header.Set("Content-Type", writer.FormDataContentType())
+					response = httptest.NewRecorder()
+					router.ServeHTTP(response, req)
+				}
+				if response.Code != http.StatusConflict {
+					t.Fatalf("%s during %s Locate = %d, want 409: %s", action, state, response.Code, response.Body.String())
+				}
+
+				var controllers, containers, bins int
+				if err := conn.QueryRowContext(ctx, "SELECT count(*) FROM controllers").Scan(&controllers); err != nil {
+					t.Fatal(err)
+				}
+				if err := conn.QueryRowContext(ctx, "SELECT count(*) FROM containers").Scan(&containers); err != nil {
+					t.Fatal(err)
+				}
+				if err := conn.QueryRowContext(ctx, "SELECT count(*) FROM bins").Scan(&bins); err != nil {
+					t.Fatal(err)
+				}
+				if controllers != 1 || containers != 0 || bins != 0 {
+					t.Fatalf("rejected %s mutated DB: controllers=%d containers=%d bins=%d", action, controllers, containers, bins)
+				}
+			})
+		}
 	}
 }

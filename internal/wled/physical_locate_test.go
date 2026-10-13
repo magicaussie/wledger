@@ -22,20 +22,22 @@ import (
 )
 
 type physicalMock struct {
-	mu             sync.Mutex
-	count          int
-	state          string
-	config         string
-	offline        bool
-	stallMethod    string
-	stallPath      string
-	stallFor       time.Duration
-	postBodies     []map[string]any
-	failPostNumber int
-	postCount      int
-	requestLog     []string
-	postEntered    chan struct{}
-	postRelease    chan struct{}
+	mu                  sync.Mutex
+	count               int
+	state               string
+	config              string
+	offline             bool
+	stallMethod         string
+	stallPath           string
+	stallFor            time.Duration
+	postBodies          []map[string]any
+	failPostNumber      int
+	postCount           int
+	requestLog          []string
+	postEntered         chan struct{}
+	postRelease         chan struct{}
+	postAccepted        chan struct{}
+	postResponseRelease chan struct{}
 }
 
 func int64Pointer(value int64) *int64 { return &value }
@@ -107,7 +109,17 @@ func (m *physicalMock) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		m.postCount++
 		m.postBodies = append(m.postBodies, body)
 		fail := m.postCount == m.failPostNumber
+		accepted, responseRelease := m.postAccepted, m.postResponseRelease
+		m.postAccepted, m.postResponseRelease = nil, nil
 		m.mu.Unlock()
+		if accepted != nil {
+			close(accepted)
+			select {
+			case <-responseRelease:
+			case <-r.Context().Done():
+				return
+			}
+		}
 		if fail {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			fmt.Fprint(w, `{"success":false}`)

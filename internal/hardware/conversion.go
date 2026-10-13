@@ -186,6 +186,13 @@ func ConvertToDrawerRelativeConfirmed(ctx context.Context, store db.Store, expec
 func convertToDrawerRelative(ctx context.Context, store db.Store, expectedFingerprint string, logger *slog.Logger) (ConversionResult, error) {
 	var result ConversionResult
 	err := store.ExecImmediateTx(ctx, func(q db.Querier) error {
+		owned, err := db.HasPhysicalLocateOwnership(ctx, q)
+		if err != nil {
+			return fmt.Errorf("check durable physical Locate ownership before coordinate conversion: %w", err)
+		}
+		if owned {
+			return db.ErrPhysicalLocateActive
+		}
 		space, err := ledspace.Current(ctx, q)
 		if err != nil {
 			return fmt.Errorf("failed to read LED coordinate space: %w", err)

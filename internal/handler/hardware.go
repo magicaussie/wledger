@@ -66,7 +66,11 @@ func (h *Handler) HandleHardwareCreate(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		h.UIError.Respond(w, r, err, "Failed to create controller", http.StatusInternalServerError)
+		status := http.StatusInternalServerError
+		if errors.Is(err, db.ErrPhysicalLocateActive) {
+			status = http.StatusConflict
+		}
+		h.UIError.Respond(w, r, err, "Failed to create controller", status)
 		return
 	}
 
@@ -121,7 +125,11 @@ func (h *Handler) HandleHardwareDelete(w http.ResponseWriter, r *http.Request) {
 
 	err := h.Hardware.DeleteController(r.Context(), int64(id))
 	if err != nil {
-		h.UIError.Respond(w, r, err, "Failed to delete hardware", http.StatusInternalServerError)
+		status := http.StatusInternalServerError
+		if errors.Is(err, db.ErrPhysicalLocateActive) {
+			status = http.StatusConflict
+		}
+		h.UIError.Respond(w, r, err, "Failed to delete hardware", status)
 		return
 	}
 
@@ -197,6 +205,10 @@ func (h *Handler) HandleHardwareGridSave(w http.ResponseWriter, r *http.Request)
 		// Invalid drawer allocations or bin mappings are client errors.
 		if errors.Is(err, hardware.ErrInvalidAllocation) {
 			h.UIError.Respond(w, r, err, "Invalid grid layout: check drawer LED allocations and bin mappings, then reload the grid", http.StatusBadRequest)
+			return
+		}
+		if errors.Is(err, db.ErrPhysicalLocateActive) {
+			h.UIError.Respond(w, r, err, "Grid changes are blocked while a physical Locate may own pixels", http.StatusConflict)
 			return
 		}
 		// Anything else is a genuine internal failure.
@@ -292,7 +304,11 @@ func (h *Handler) HandleHardwareImport(w http.ResponseWriter, r *http.Request) {
 
 	_, err = h.Hardware.ImportConfig(r.Context(), name, ip, int64(port), data)
 	if err != nil {
-		h.UIError.Respond(w, r, err, "Failed to import hardware config", http.StatusBadRequest)
+		status := http.StatusBadRequest
+		if errors.Is(err, db.ErrPhysicalLocateActive) {
+			status = http.StatusConflict
+		}
+		h.UIError.Respond(w, r, err, "Failed to import hardware config", status)
 		return
 	}
 

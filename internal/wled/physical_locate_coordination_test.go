@@ -364,5 +364,167 @@ func TestPhysicalLocateTwoRecoveryWorkersShareTargetOwnership(t *testing.T) {
 			t.Fatalf("recovery emitted unexpected GlobalOff/controller power state: %#v", post)
 		}
 	}
+}
 
+type failAfterCleanupCommandStore struct {
+	db.Store
+	claimCount int
+	failAt     int
+}
+
+func (s *failAfterCleanupCommandStore) ExecImmediateTx(ctx context.Context, fn func(db.Querier) error) error {
+	s.claimCount++
+	claimNumber := s.claimCount
+	return s.Store.ExecImmediateTx(ctx, func(q db.Querier) error {
+		if err := fn(q); err != nil {
+			return err
+		}
+		if claimNumber == s.failAt {
+			return errors.New("simulated SQLite commit failure after acknowledged cleanup")
+		}
+		return nil
+	})
+}
+
+func TestPhysicalLocateCleanupCommitFailureRetainsDurableOwnership(t *testing.T) {
+	fixture := newPhysicalFixture(t)
+	if _, err := fixture.service.LocateDrawerBin(context.Background(), fixture.drawer1, fixture.bin1, 7); err != nil {
+		t.Fatal(err)
+	}
+
+	store := &failAfterCleanupCommandStore{Store: fixture.store, failAt: 2}
+	fixture.service.store = store
+	fixture.service.client.SetOperationStore(store)
+	if err := fixture.service.StopDrawer(context.Background(), fixture.drawer1, 7); err == nil {
+		t.Fatal("Stop succeeded despite the simulated cleanup transaction commit failure")
+	}
+
+	sessions, err := fixture.store.ListPhysicalLocateSessions(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sessions) != 1 || sessions[0].State != "partial" {
+		t.Fatalf("durable state after acknowledged cleanup/failed commit = %+v, want partial", sessions)
+	}
+	targets, err := fixture.store.ListPhysicalLocateSessionTargets(context.Background(), sessions[0].SessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(targets) != 1 || targets[0].MayHaveReceived != 1 {
+		t.Fatalf("failed cleanup commit cleared durable ownership: %+v", targets)
+	}
+	posts := fixture.mock.posts()
+	if len(posts) != 6 {
+		t.Fatalf("mock recorded %d requests, want three activation ranges and three acknowledged targeted cleanup ranges", len(posts))
+	}
+	for i, post := range posts {
+		if _, exists := post["on"]; exists {
+			t.Fatalf("write %d unexpectedly used controller-wide state: %#v", i, post)
+		}
+		if _, exists := post["seg"]; !exists {
+			t.Fatalf("write %d was not targeted to a saved segment/range: %#v", i, post)
+		}
+	}
+}
+
+func TestPhysicalLocateCancellationDuringAcceptedActivationRetainsOwnership(t *testing.T) {
+	fixture := newPhysicalFixture(t)
+	accepted := make(chan struct{})
+	responseRelease := make(chan struct{})
+	fixture.mock.mu.Lock()
+	fixture.mock.postAccepted = accepted
+	fixture.mock.postResponseRelease = responseRelease
+	fixture.mock.failPostNumber = 2 // the first cleanup acknowledgement fails
+	fixture.mock.mu.Unlock()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	locateResult := make(chan error, 1)
+	go func() {
+		_, err := fixture.service.LocateDrawerBin(ctx, fixture.drawer1, fixture.bin1, 7)
+		locateResult <- err
+	}()
+	awaitCoordinationSignal(t, accepted, "mock WLED acceptance of activation before its response")
+
+	sessions, err := fixture.store.ListPhysicalLocateSessions(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sessions) != 1 || sessions[0].State != "activating" {
+		t.Fatalf("durable state during in-flight activation = %+v", sessions)
+	}
+	targets, err := fixture.store.ListPhysicalLocateSessionTargets(context.Background(), sessions[0].SessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(targets) != 1 || targets[0].MayHaveReceived != 1 {
+		t.Fatalf("activation was not reserved before WLED accepted it: %+v", targets)
+	}
+
+	cancel()
+	close(responseRelease)
+	if err := <-locateResult; err == nil {
+		t.Fatal("canceled activation with unconfirmed cleanup reported success")
+	}
+	sessions, err = fixture.store.ListPhysicalLocateSessions(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sessions) != 1 || sessions[0].State != "partial" {
+		t.Fatalf("durable state after canceled accepted activation = %+v, want partial", sessions)
+	}
+	targets, err = fixture.store.ListPhysicalLocateSessionTargets(context.Background(), sessions[0].SessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(targets) != 1 || targets[0].MayHaveReceived != 1 {
+		t.Fatalf("cancellation/failed cleanup cleared pixel ownership: %+v", targets)
+	}
+	posts := fixture.mock.posts()
+	if len(posts) != 2 {
+		t.Fatalf("mock recorded %d POSTs, want accepted activation and one failed targeted cleanup", len(posts))
+	}
+	for i, post := range posts {
+		if _, exists := post["on"]; exists {
+			t.Fatalf("write %d unexpectedly used controller-wide state: %#v", i, post)
+		}
+		if _, exists := post["seg"]; !exists {
+			t.Fatalf("write %d was not targeted: %#v", i, post)
+		}
+	}
+}
+
+func TestLegacyWLEDWriteFailsClosedWhenSQLiteClaimIsBusy(t *testing.T) {
+	fixture := newPhysicalFixture(t)
+	store2, conn2 := secondPhysicalStore(t, fixture)
+	conn2.SetMaxOpenConns(1)
+	if _, err := conn2.ExecContext(context.Background(), "PRAGMA busy_timeout = 100"); err != nil {
+		t.Fatal(err)
+	}
+
+	held := make(chan struct{})
+	release := make(chan struct{})
+	claimResult := make(chan error, 1)
+	go func() {
+		claimResult <- db.WithOperationClaim(context.Background(), fixture.store, func(db.Querier) error {
+			close(held)
+			<-release
+			return nil
+		})
+	}()
+	awaitCoordinationSignal(t, held, "SQLite writer claim")
+
+	before := len(fixture.mock.posts())
+	client := NewClient(store2)
+	if err := client.SetState(context.Background(), fixture.server.Listener.Addr().String(), map[string]any{"on": true}); err == nil {
+		close(release)
+		<-claimResult
+		t.Fatal("legacy WLED write succeeded while BEGIN IMMEDIATE was busy")
+	}
+	close(release)
+	if err := <-claimResult; err != nil {
+		t.Fatalf("release SQLite claim: %v", err)
+	}
+	if got := len(fixture.mock.posts()); got != before {
+		t.Fatalf("SQLite claim failure still sent %d WLED POST(s)", got-before)
+	}
 }

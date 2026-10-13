@@ -448,6 +448,13 @@ func BackfillDrawerAllocations(ctx context.Context, store db.Store, logger *slog
 	var report AllocationReport
 	ran := false
 	err := store.ExecImmediateTx(ctx, func(q db.Querier) error {
+		owned, err := db.HasPhysicalLocateOwnership(ctx, q)
+		if err != nil {
+			return fmt.Errorf("check durable physical Locate ownership before allocation backfill: %w", err)
+		}
+		if owned {
+			return db.ErrPhysicalLocateActive
+		}
 		// Allocations are derived from segment-relative bin indices using the UI
 		// ordering. Drawer-relative indices are already relative to an allocation,
 		// and unresolved indices have no known coordinate system, so neither can be

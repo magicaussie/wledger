@@ -24,11 +24,14 @@ func TestCabinetElectricalHandlersRejectWritesDuringActiveOrPartialLocate(t *tes
 			r.Post("/storage/cabinets/{id}/controller", f.h.HandleCabinetControllerSave)
 			r.Post("/storage/cabinets/{id}/wiring", f.h.HandleCabinetWiringSave)
 			r.Post("/storage/cabinets/{id}/drawers/{drawerID}/led", f.h.HandleDrawerLEDAllocationsSave)
+			r.Post("/hardware/{id}/capacity", f.h.HandleHardwareCapacitySave)
+			r.Post("/hardware/{id}/locate-mapping", f.h.HandleControllerLocateMappingSave)
 
 			requests := []struct {
-				name string
-				path string
-				form url.Values
+				name       string
+				path       string
+				form       url.Values
+				wantStatus int
 			}{
 				{
 					name: "controller reassignment",
@@ -49,6 +52,16 @@ func TestCabinetElectricalHandlersRejectWritesDuringActiveOrPartialLocate(t *tes
 					path: "/storage/cabinets/1/drawers/1/led",
 					form: url.Values{"revision": {"0"}, "coordinate_space": {"cabinet"}, "allocations": {`[{"id":1,"start_pixel":21,"pixel_count":5}]`}},
 				},
+				{
+					name: "controller capacity change",
+					path: "/hardware/1/capacity",
+					form: url.Values{"led_count": {"120"}, "expected_led_count": {"100"}, "electrical_revision": {"0"}, "confirm_mapping_impact": {"confirm"}},
+				},
+				{
+					name:       "mapping verification change",
+					path:       "/hardware/1/locate-mapping",
+					wantStatus: http.StatusConflict,
+				},
 			}
 			for _, test := range requests {
 				t.Run(test.name, func(t *testing.T) {
@@ -58,15 +71,25 @@ func TestCabinetElectricalHandlersRejectWritesDuringActiveOrPartialLocate(t *tes
 					rr := httptest.NewRecorder()
 					r.ServeHTTP(rr, req)
 
-					if rr.Code != http.StatusSeeOther {
-						t.Fatalf("POST %s = %d, want rejected redirect: %s", test.path, rr.Code, rr.Body.String())
+					wantStatus := test.wantStatus
+					if wantStatus == 0 {
+						wantStatus = http.StatusSeeOther
 					}
-					location, err := url.Parse(rr.Header().Get("Location"))
-					if err != nil {
-						t.Fatalf("parse rejection location %q: %v", rr.Header().Get("Location"), err)
+					if rr.Code != wantStatus {
+						t.Fatalf("POST %s = %d, want rejection status %d: %s", test.path, rr.Code, wantStatus, rr.Body.String())
 					}
-					if !strings.Contains(location.RawQuery, "active") && !strings.Contains(location.RawQuery, "Locate") {
-						t.Fatalf("POST %s did not report active Locate rejection: %s", test.path, rr.Header().Get("Location"))
+					if test.wantStatus == http.StatusConflict {
+						if !strings.Contains(rr.Body.String(), "active") && !strings.Contains(rr.Body.String(), "Locate") {
+							t.Fatalf("POST %s did not report active Locate rejection: %s", test.path, rr.Body.String())
+						}
+					} else {
+						location, err := url.Parse(rr.Header().Get("Location"))
+						if err != nil {
+							t.Fatalf("parse rejection location %q: %v", rr.Header().Get("Location"), err)
+						}
+						if !strings.Contains(location.RawQuery, "active") && !strings.Contains(location.RawQuery, "Locate") {
+							t.Fatalf("POST %s did not report active Locate rejection: %s", test.path, rr.Header().Get("Location"))
+						}
 					}
 					if after := electricalMutationSnapshot(t, f); !reflect.DeepEqual(before, after) {
 						t.Fatalf("POST %s mutated persistent electrical state\nbefore: %v\nafter:  %v", test.path, before, after)

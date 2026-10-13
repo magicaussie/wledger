@@ -1028,10 +1028,11 @@ func (s *PhysicalLocateService) SessionStatusForDrawer(ctx context.Context, draw
 	return PhysicalLocateSession{}, false, nil
 }
 
-// WithoutActiveSession serializes a configuration write against Locate start,
-// Stop and recovery. Electrical mapping or capacity changes are rejected while
-// any durable physical session may still own pixels, preventing a stale session
-// from being remapped underneath its cleanup commands.
+// WithoutActiveSession is a process-local fast rejection around a configuration
+// callback; it is not a cross-process safety boundary. Every callback must itself
+// perform its complete mutation through a SQLite operation claim and re-check
+// durable ownership in that transaction. Callers that cannot meet that contract
+// must not use this helper.
 func (s *PhysicalLocateService) WithoutActiveSession(ctx context.Context, write func() error) error {
 	if write == nil {
 		return errors.New("configuration write callback is required")

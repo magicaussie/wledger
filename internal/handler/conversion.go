@@ -6,6 +6,7 @@ import (
 	"net/url"
 
 	"github.com/tuxedocurly/wledger/internal/auth"
+	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/hardware"
 	"github.com/tuxedocurly/wledger/internal/middleware"
 	"github.com/tuxedocurly/wledger/web/pages"
@@ -104,6 +105,10 @@ func (h *Handler) HandleConversionConfirm(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		if errors.Is(err, hardware.ErrConversionUnresolved) {
 			h.redirectConversion(w, r, "unresolved")
+			return
+		}
+		if errors.Is(err, db.ErrPhysicalLocateActive) {
+			h.UIError.Respond(w, r, err, "Conversion is blocked while a physical Locate may own pixels", http.StatusConflict)
 			return
 		}
 		h.UIError.Respond(w, r, err, "Conversion failed", http.StatusInternalServerError)

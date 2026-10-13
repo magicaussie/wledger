@@ -82,23 +82,38 @@ func (s *service) GetController(ctx context.Context, id int64) (db.Controller, e
 }
 
 func (s *service) CreateController(ctx context.Context, params db.CreateControllerParams) (db.CreateControllerRow, error) {
-	row, err := s.store.CreateController(ctx, params)
+	var row db.CreateControllerRow
+	var containerErr error
+	err := db.WithOperationClaim(ctx, s.store, func(q db.Querier) error {
+		owned, err := db.HasPhysicalLocateOwnership(ctx, q)
+		if err != nil {
+			return err
+		}
+		if owned {
+			return db.ErrPhysicalLocateActive
+		}
+		row, err = q.CreateController(ctx, params)
+		if err != nil {
+			return err
+		}
+
+		// Create Default Container for the new controller in the same claim.
+		_, containerErr = q.CreateContainer(ctx, db.CreateContainerParams{
+			Name:          row.Name + " (Main)",
+			ControllerID:  row.ID,
+			SegmentID:     0,
+			PositionIndex: 0,
+			LedStart:      0,
+			LedCount:      64, // matches the default 8x8 layout below
+			ConfigJson:    sql.NullString{String: `{"type":"grid","rows":8,"cols":8}`, Valid: true},
+		})
+		return nil
+	})
 	if err != nil {
 		return row, err
 	}
-
-	// Create Default Container for the new controller
-	_, err = s.store.CreateContainer(ctx, db.CreateContainerParams{
-		Name:          row.Name + " (Main)",
-		ControllerID:  row.ID,
-		SegmentID:     0,
-		PositionIndex: 0,
-		LedStart:      0,
-		LedCount:      64, // matches the default 8x8 layout below
-		ConfigJson:    sql.NullString{String: `{"type":"grid","rows":8,"cols":8}`, Valid: true},
-	})
-	if err != nil {
-		s.logger.Error("failed to create default container for new controller", "err", err)
+	if containerErr != nil {
+		s.logger.Error("failed to create default container for new controller", "err", containerErr)
 	}
 
 	summary := map[string]any{
@@ -112,20 +127,32 @@ func (s *service) CreateController(ctx context.Context, params db.CreateControll
 }
 
 func (s *service) DeleteController(ctx context.Context, id int64) error {
-	// Fetch before delete for logging
-	c, err := s.store.GetController(ctx, id)
+	var controller db.Controller
+	err := db.WithOperationClaim(ctx, s.store, func(q db.Querier) error {
+		owned, err := db.HasPhysicalLocateOwnership(ctx, q)
+		if err != nil {
+			return err
+		}
+		if owned {
+			return db.ErrPhysicalLocateActive
+		}
+		controller, err = q.GetController(ctx, id)
+		if err != nil {
+			return err
+		}
+		return q.DeleteController(ctx, id)
+	})
 	if err != nil {
 		return err
 	}
 
 	summary := map[string]any{
-		"id":         c.ID,
-		"name":       c.Name,
-		"ip_address": c.IpAddress,
+		"id":         controller.ID,
+		"name":       controller.Name,
+		"ip_address": controller.IpAddress,
 	}
 	audit.Log(ctx, s.store, "DELETE", "HARDWARE", id, "Deleted controller", summary, nil)
-
-	return s.store.DeleteController(ctx, id)
+	return nil
 }
 
 func (s *service) UpdateStatus(ctx context.Context, id int64) (bool, error) {
@@ -285,6 +312,13 @@ func (s *service) SaveGridInSpace(ctx context.Context, controllerID int64, gridD
 	}
 
 	err = s.store.ExecImmediateTx(ctx, func(q db.Querier) error {
+		owned, err := db.HasPhysicalLocateOwnership(ctx, q)
+		if err != nil {
+			return fmt.Errorf("check durable physical Locate ownership before grid save: %w", err)
+		}
+		if owned {
+			return db.ErrPhysicalLocateActive
+		}
 		// Read the active coordinate space from the same transaction that performs
 		// the write. The write reservation is taken up front (BEGIN IMMEDIATE), so a
 		// concurrent coordinate conversion cannot commit between this read and the
