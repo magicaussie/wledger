@@ -370,6 +370,7 @@ func TestMultipartCSRFRejectionCleansTemporaryUpload(t *testing.T) {
 }
 
 func TestBearerAPIUsesItsOwnAuthenticationWithoutBrowserCSRF(t *testing.T) {
+	t.Setenv("WLEDGER_PHYSICAL_OUTPUT_ENABLED", "true")
 	env := newAuthTestEnv(t)
 	defer env.conn.Close()
 	env.createUser(t, "api-csrf@test.com", "admin")

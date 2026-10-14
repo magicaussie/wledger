@@ -79,6 +79,7 @@ func fetchBinByName(t *testing.T, store db.Store, ctx context.Context, container
 //
 // verifying that every bin keeps addressing the same physical LEDs.
 func TestEndToEndConversionAndLocate(t *testing.T) {
+	t.Setenv("WLEDGER_PHYSICAL_OUTPUT_ENABLED", "true")
 	pr := &payloadRecorder{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)

@@ -143,7 +143,7 @@ func (h *Handler) HandleControllerLocateMappingSave(w http.ResponseWriter, r *ht
 func physicalLocateError(h *Handler, w http.ResponseWriter, r *http.Request, err error) {
 	status := http.StatusBadGateway
 	switch {
-	case errors.Is(err, wled.ErrPhysicalBinMissing), errors.Is(err, wled.ErrNoDrawerLEDAllocation), errors.Is(err, wled.ErrLocateMappingUnverified), errors.Is(err, wled.ErrLocateTopology), errors.Is(err, wled.ErrLocateSessionStale), errors.Is(err, wled.ErrLocateSessionOwned), errors.Is(err, wled.ErrLocateSessionActive):
+	case errors.Is(err, wled.ErrPhysicalOutputDisabled), errors.Is(err, wled.ErrPhysicalBinMissing), errors.Is(err, wled.ErrNoDrawerLEDAllocation), errors.Is(err, wled.ErrLocateMappingUnverified), errors.Is(err, wled.ErrLocateTopology), errors.Is(err, wled.ErrLocateSessionStale), errors.Is(err, wled.ErrLocateSessionOwned), errors.Is(err, wled.ErrLocateSessionActive):
 		status = http.StatusConflict
 	case errors.Is(err, sql.ErrNoRows):
 		status = http.StatusNotFound

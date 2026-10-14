@@ -73,11 +73,12 @@ const path = require('node:path');
     });
     if (build.status !== 0) throw new Error(`disposable server build failed: ${build.stderr}`);
 
-    const startServer = () => spawn(binaryPath, [], {
-      cwd: scratchDir,
-      env: { ...process.env, WLEDGER_INSECURE_COOKIES: '1', WLEDGER_PORT: String(appPort) },
-      stdio: 'ignore',
-    });
+    const startServer = (enableMockOutput = false) => {
+      const serverEnv = { ...process.env, WLEDGER_INSECURE_COOKIES: '1', WLEDGER_API_TOKEN: 'inventory-only-test-token', WLEDGER_PORT: String(appPort) };
+      if (enableMockOutput) serverEnv.WLEDGER_PHYSICAL_OUTPUT_ENABLED = 'true';
+      else delete serverEnv.WLEDGER_PHYSICAL_OUTPUT_ENABLED;
+      return spawn(binaryPath, [], { cwd: scratchDir, env: serverEnv, stdio: 'ignore' });
+    };
     server = startServer();
     await waitForServer(baseURL, server);
 
@@ -103,6 +104,36 @@ const path = require('node:path');
     await page.locator('form[action="/setup"] button').click();
     await page.waitForURL(`${baseURL}/`);
 
+    for (const path of ['/global-off', '/parts/123/locate', '/bins/123/locate']) {
+      const response = await fetch(`${baseURL}/api/v1${path}`, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer inventory-only-test-token' },
+      });
+      const responseBody = await response.text();
+      assert.equal(response.status, 409, `default-off API request ${path} must be rejected (body=${responseBody})`);
+      assert.match(responseBody, /inventory-only mode/i);
+    }
+    assert.equal(mockWrites.length, 0, 'rejected API writes must not reach any loopback WLED state endpoint');
+
+    const csrfToken = await page.locator('meta[name="csrf-token"]').getAttribute('content');
+    const sessionCookies = (await context.cookies(baseURL)).map(cookie => `${cookie.name}=${cookie.value}`).join('; ');
+    const blockedUIWrites = [];
+    for (const path of ['/hardware/1/locate?bin_id=1', '/parts/1/locate', '/parts/1/locate-bin', '/storage/drawers/1/locate', '/hardware/off']) {
+      const body = new URLSearchParams({ csrf_token: csrfToken, bin_id: '1' });
+      const response = await fetch(`${baseURL}${path}`, {
+        method: 'POST',
+        headers: { Cookie: sessionCookies, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body,
+      });
+      blockedUIWrites.push({ path, status: response.status, body: await response.text() });
+    }
+    for (const blocked of blockedUIWrites) {
+      assert.equal(blocked.status, 409, `direct browser POST ${blocked.path} must be rejected: ${blocked.body}`);
+      assert.match(blocked.body, /inventory-only mode/i);
+    }
+    assert.equal(mockWrites.length, 0, 'rejected browser POSTs must not reach any loopback WLED state endpoint');
+    assert.deepEqual(readOnlyRows(databasePath, 'SELECT count(*) FROM physical_locate_sessions'), [[0]], 'rejected Locate requests must not create durable ownership');
+
     const emptyCounts = readOnlyCounts(databasePath);
     for (const table of ['controllers', 'cabinets', 'drawers', 'bins', 'parts', 'part_assignments', 'cabinet_led_strings', 'cabinet_led_path_sections', 'drawer_led_allocations']) {
       assert.equal(emptyCounts[table], 0, `new-install table ${table} must begin empty`);
@@ -110,6 +141,8 @@ const path = require('node:path');
 
     await page.goto(`${baseURL}/hardware`);
     assert.match(await page.locator('body').innerText(), /No cabinets yet/i);
+    assert.match(await page.locator('body').innerText(), /LED Locate is unavailable in inventory-only mode/i);
+    assert.equal(await page.getByRole('button', { name: /Turn Off All LEDs/i }).count(), 0, 'GlobalOff control must be absent by default');
 
     const controllers = [];
     for (let index = 0; index < controllerEndpoints.length; index++) {
@@ -490,8 +523,13 @@ const path = require('node:path');
       mappingAttestationsPassed++;
     }
 
+    assert.equal(mockWrites.length, 0, 'controller configuration, wiring, allocation, inventory, stock and read-only mapping checks must remain available with output disabled and must not write WLED state');
     let locateEvidence = { status: 'BLOCKED', reason: 'Controller mapping attestation did not pass for every controller; no Locate request was issued.' };
     if (mappingAttestationsPassed === controllers.length) {
+      server.kill('SIGTERM');
+      await new Promise(resolve => server.once('exit', resolve));
+      server = startServer(true);
+      await waitForServer(baseURL, server);
       locateEvidence = await exerciseMockLocate(page, baseURL, firstPart.id, inventoryBins, mockWrites, mockRequests);
     }
 
@@ -499,7 +537,7 @@ const path = require('node:path');
     let reloggedAfterRestart = false;
     server.kill('SIGTERM');
     await new Promise(resolve => server.once('exit', resolve));
-    server = startServer();
+    server = startServer(true);
     await waitForServer(baseURL, server);
     await page.goto(`${baseURL}/storage/cabinets/${cabinetID}/edit`);
     if (new URL(page.url()).pathname === '/login') {
@@ -571,11 +609,16 @@ async function availablePort() {
 
 async function waitForServer(baseURL, process) {
   for (let attempt = 0; attempt < 120; attempt++) {
+    if (process.exitCode !== null) throw new Error(`disposable server exited with ${process.exitCode}`);
     try {
       const response = await fetch(`${baseURL}/setup`);
-      if (response.ok) return;
-    } catch {}
-    if (process.exitCode !== null) throw new Error(`disposable server exited with ${process.exitCode}`);
+      if (response.ok) {
+        if (process.exitCode !== null) throw new Error(`disposable server exited with ${process.exitCode}`);
+        return;
+      }
+    } catch (error) {
+      if (error.message.startsWith('disposable server exited')) throw error;
+    }
     await new Promise(resolve => setTimeout(resolve, 100));
   }
   throw new Error('disposable WLEDger server did not become ready');

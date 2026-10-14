@@ -15,6 +15,7 @@ import (
 // trigger that would issue an automatic LED locate, while the explicit Locate
 // control must remain present and wired to the locate endpoint.
 func TestDrawerDetailRendersLocateManually(t *testing.T) {
+	t.Setenv("WLEDGER_PHYSICAL_OUTPUT_ENABLED", "true")
 	drawer := db.Container{ID: 5, Name: "Drawer 1", SegmentID: 0}
 	cabinet := db.Controller{ID: 3, Name: "Cabinet"}
 	bins := []DrawerBin{{ID: 69, Name: "Bin A"}}

@@ -2,11 +2,13 @@ package components
 
 import (
 	"fmt"
+	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/web/icons"
 )
 
 templ LocateButton(controllerID int64, binID int64, className string) {
-	<object class="inline-block" onClick="event.preventDefault(); event.stopPropagation()">
+	if config.PhysicalWLEDOutputEnabled() {
+		<object class="inline-block" onClick="event.preventDefault(); event.stopPropagation()">
 		<button
 			hx-post={ fmt.Sprintf("/hardware/%d/locate?bin_id=%d", controllerID, binID) }
 			hx-swap="none"
@@ -15,5 +17,6 @@ templ LocateButton(controllerID int64, binID int64, className string) {
 		>
 			@icons.Eye(templ.Attributes{"class": "w-5 h-5"})
 		</button>
-	</object>
+		</object>
+	}
 }

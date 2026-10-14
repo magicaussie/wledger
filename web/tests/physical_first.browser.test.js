@@ -45,7 +45,7 @@ const path = require('node:path');
     if (build.status !== 0) throw new Error(`server build failed: ${build.stderr}`);
     server = spawn(binaryPath, [], {
       cwd: scratchDir,
-      env: { ...process.env, WLEDGER_INSECURE_COOKIES: '1', WLEDGER_PORT: String(port) },
+      env: { ...process.env, WLEDGER_INSECURE_COOKIES: '1', WLEDGER_PHYSICAL_OUTPUT_ENABLED: 'true', WLEDGER_PORT: String(port) },
       stdio: 'ignore',
     });
 

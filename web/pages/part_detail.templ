@@ -3,6 +3,7 @@ package pages
 import (
 	"fmt"
 	"github.com/tuxedocurly/wledger/internal/auth"
+	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/internal/csrf"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/i18n"
@@ -353,7 +354,7 @@ templ StockRow(partID int64, s db.GetPartAssignmentsRow, user auth.User, control
 		</td>
 		<td class="text-right">
 			<div class="flex justify-end gap-1">
-				if user.CanWrite() && s.BinID.Valid {
+				if user.CanWrite() && s.BinID.Valid && config.PhysicalWLEDOutputEnabled() {
 					<form method="POST" action={ templ.SafeURL(fmt.Sprintf("/parts/%d/locate-bin", partID)) }>
 						<input type="hidden" name="csrf_token" value={ csrf.TokenFromContext(ctx) }/>
 						<input type="hidden" name="bin_id" value={ fmt.Sprintf("%d", s.BinID.Int64) }/>

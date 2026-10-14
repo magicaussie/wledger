@@ -144,6 +144,9 @@ func NewPhysicalLocateService(store db.Store, client *Client) *PhysicalLocateSer
 // locations, then resolves physical placement and persisted drawer allocations
 // from one database snapshot before issuing any WLED request.
 func (s *PhysicalLocateService) LocateInventoryBin(ctx context.Context, partID, binID, ownerID int64) (PhysicalLocateSession, error) {
+	if err := requirePhysicalOutput(); err != nil {
+		return PhysicalLocateSession{}, err
+	}
 	if partID <= 0 || binID <= 0 || ownerID <= 0 {
 		return PhysicalLocateSession{}, errors.New("part, bin, and authenticated user are required")
 	}
@@ -171,6 +174,9 @@ func (s *PhysicalLocateService) LocateInventoryBin(ctx context.Context, partID, 
 // an attached bin in a physical drawer. Drawer IDs are never interpreted as
 // legacy electrical container IDs.
 func (s *PhysicalLocateService) LocateDrawerBin(ctx context.Context, drawerID, binID, ownerID int64) (PhysicalLocateSession, error) {
+	if err := requirePhysicalOutput(); err != nil {
+		return PhysicalLocateSession{}, err
+	}
 	if drawerID <= 0 || binID <= 0 || ownerID <= 0 {
 		return PhysicalLocateSession{}, errors.New("drawer, bin, and authenticated user are required")
 	}
@@ -178,6 +184,9 @@ func (s *PhysicalLocateService) LocateDrawerBin(ctx context.Context, drawerID, b
 }
 
 func (s *PhysicalLocateService) locate(ctx context.Context, expectedDrawerID, binID, ownerID int64) (PhysicalLocateSession, error) {
+	if err := requirePhysicalOutput(); err != nil {
+		return PhysicalLocateSession{}, err
+	}
 	physicalLocateCoordinator.Lock()
 	defer physicalLocateCoordinator.Unlock()
 	if err := s.ensureLoaded(ctx); err != nil {
@@ -867,6 +876,11 @@ func (s *PhysicalLocateService) restoreSession(ctx context.Context, session *phy
 // before activation; cleanup clears it in the same transaction as the last
 // acknowledged targeted range-off command.
 func (s *PhysicalLocateService) withPhysicalCommandClaim(ctx context.Context, sessionID string, target *physicalControllerTarget, allowedStates []string, controller db.Controller, rgb []int, resolveOwnership bool) (bool, error) {
+	if !resolveOwnership {
+		if err := requirePhysicalOutput(); err != nil {
+			return false, err
+		}
+	}
 	if target == nil || sessionID == "" {
 		return false, errors.New("physical Locate session and target are required")
 	}

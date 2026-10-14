@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/internal/db"
 )
 
@@ -99,6 +100,9 @@ func setPhysicalReservation(sessionID string, controllerID int64, address string
 }
 
 func withLegacyWrite(address string, port int64, action func() error) error {
+	if !config.PhysicalWLEDOutputEnabled() {
+		return ErrPhysicalOutputDisabled
+	}
 	hardwareWriteLease.mu.Lock()
 	defer hardwareWriteLease.mu.Unlock()
 	if len(hardwareWriteLease.physicalOwners) > 0 {
@@ -114,6 +118,9 @@ func withLegacyWrite(address string, port int64, action func() error) error {
 }
 
 func withLegacyController(controller db.Controller, action func() error) error {
+	if !config.PhysicalWLEDOutputEnabled() {
+		return ErrPhysicalOutputDisabled
+	}
 	hardwareWriteLease.mu.Lock()
 	defer hardwareWriteLease.mu.Unlock()
 	if len(hardwareWriteLease.physicalOwners) > 0 {

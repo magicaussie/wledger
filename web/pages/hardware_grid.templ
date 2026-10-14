@@ -2,6 +2,7 @@ package pages
 
 import (
 	"fmt"
+	"github.com/tuxedocurly/wledger/internal/config"
 
 	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/internal/csrf"
@@ -20,6 +21,9 @@ templ HardwareGrid(user auth.User, c db.Controller, containers []db.Container, b
 			</a>
 			<h1 class="text-3xl font-bold mt-2">{ i18n.TD(ctx, "ConfigureController", map[string]interface{}{"Name": c.Name}) }</h1>
 			<p class="opacity-70">{ i18n.T(ctx, "MapLEDsToBins") }</p>
+			if !config.PhysicalWLEDOutputEnabled() {
+				<div class="alert alert-info mt-3" role="status">Inventory-only mode: Locate, flash and GlobalOff state writes are disabled. Read-only controller inspection and wiring/layout editing remain available.</div>
+			}
 		</div>
 
 		if user.IsAdmin() {

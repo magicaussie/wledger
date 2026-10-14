@@ -2,6 +2,7 @@ package pages
 
 import (
 	"fmt"
+	"github.com/tuxedocurly/wledger/internal/config"
 
 	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/internal/csrf"
@@ -212,6 +213,9 @@ templ StorageDrawer(detail storage.BrowseDrawerDetail, cabinetName string, user 
 				</div>
 			}
 
+			if !config.PhysicalWLEDOutputEnabled() {
+				<div class="alert alert-info mb-6" role="status">LED Locate is unavailable in inventory-only mode. Inventory navigation and physical layout editing are unchanged. If an earlier Locate may have reached a controller, Stop can only retry its saved, re-verified targeted cleanup ranges.</div>
+			}
 			if session != nil && session.DrawerID == detail.Drawer.ID {
 				<div class={ locateAlertClass(session.State) }>
 					<div class="min-w-0">
@@ -284,7 +288,7 @@ templ StorageDrawer(detail storage.BrowseDrawerDetail, cabinetName string, user 
 					for _, bin := range detail.Bins {
 						<div class={ drawerBinClass(bin.BinID, selectedBinID) } style={ templ.SafeCSS(fmt.Sprintf("left:%g%%;top:%g%%;width:%g%%;height:%g%%", 100*bin.X/detail.Drawer.Width, 100*bin.Y/detail.Drawer.Height, 100*bin.Width/detail.Drawer.Width, 100*bin.Height/detail.Drawer.Height)) }>
 							<a href={ templ.SafeURL(fmt.Sprintf("/parts?bin=%d", bin.BinID)) } class="block truncate">{ bin.Name } · #{ fmt.Sprintf("%d", bin.BinID) }</a>
-							if user.CanWrite() {
+							if user.CanWrite() && config.PhysicalWLEDOutputEnabled() {
 								<form method="POST" action={ templ.SafeURL(fmt.Sprintf("/storage/drawers/%d/locate", detail.Drawer.ID)) }>
 									<input type="hidden" name="csrf_token" value={ csrf.TokenFromContext(ctx) }/>
 									<input type="hidden" name="bin_id" value={ fmt.Sprintf("%d", bin.BinID) }/>

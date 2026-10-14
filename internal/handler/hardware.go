@@ -292,7 +292,7 @@ func (h *Handler) HandleGlobalOff(w http.ResponseWriter, r *http.Request) {
 	err := h.WLED.GlobalOff(r.Context())
 	if err != nil {
 		status := http.StatusInternalServerError
-		if errors.Is(err, wled.ErrHardwareBusy) {
+		if errors.Is(err, wled.ErrHardwareBusy) || errors.Is(err, wled.ErrPhysicalOutputDisabled) {
 			status = http.StatusConflict
 		}
 		h.UIError.Respond(w, r, err, "Failed to trigger global off", status)
@@ -310,8 +310,8 @@ func (h *Handler) HandleHardwareLocate(w http.ResponseWriter, r *http.Request) {
 
 	err := h.WLED.LocateBin(r.Context(), int64(cid), int64(binID))
 	if err != nil {
-		if errors.Is(err, wled.ErrCoordinateSpaceUnresolved) || errors.Is(err, wled.ErrHardwareBusy) {
-			h.UIError.Respond(w, r, err, "Locate unavailable while this controller has an active physical Locate", http.StatusConflict)
+		if errors.Is(err, wled.ErrCoordinateSpaceUnresolved) || errors.Is(err, wled.ErrHardwareBusy) || errors.Is(err, wled.ErrPhysicalOutputDisabled) {
+			h.UIError.Respond(w, r, err, "Locate unavailable: "+err.Error(), http.StatusConflict)
 			return
 		}
 		h.UIError.Respond(w, r, err, "Locate failed", http.StatusInternalServerError)

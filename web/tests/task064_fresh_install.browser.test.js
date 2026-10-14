@@ -131,7 +131,7 @@ const path = require('node:path');
     const startServer = (workingDirectory = scratchDir, port = appPort) => {
       const child = spawn(binaryPath, [], {
         cwd: workingDirectory,
-        env: { ...process.env, WLEDGER_INSECURE_COOKIES: '1', WLEDGER_PORT: String(port) },
+        env: { ...process.env, WLEDGER_INSECURE_COOKIES: '1', WLEDGER_PHYSICAL_OUTPUT_ENABLED: 'true', WLEDGER_PORT: String(port) },
         stdio: ['ignore', 'pipe', 'pipe'],
       });
       let output = '';

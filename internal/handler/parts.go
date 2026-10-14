@@ -588,8 +588,8 @@ func (h *Handler) HandlePartLocate(w http.ResponseWriter, r *http.Request) {
 
 	err := h.WLED.LocatePart(r.Context(), int64(id))
 	if err != nil {
-		if errors.Is(err, wled.ErrCoordinateSpaceUnresolved) || errors.Is(err, wled.ErrHardwareBusy) {
-			h.UIError.Respond(w, r, err, "Locate unavailable while this controller has an active physical Locate", http.StatusConflict)
+		if errors.Is(err, wled.ErrCoordinateSpaceUnresolved) || errors.Is(err, wled.ErrHardwareBusy) || errors.Is(err, wled.ErrPhysicalOutputDisabled) {
+			h.UIError.Respond(w, r, err, "Locate unavailable: "+err.Error(), http.StatusConflict)
 			return
 		}
 		h.UIError.Respond(w, r, err, "Locate failed", http.StatusInternalServerError)

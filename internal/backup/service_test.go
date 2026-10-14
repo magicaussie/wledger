@@ -899,6 +899,7 @@ func TestRestore_RejectsInvalidDrawerBackup(t *testing.T) {
 // remains fully protected: bin indices are untouched, LED operations stay
 // blocked, and neither migration 005 nor the allocation backfill runs.
 func TestRestore_UnresolvedBackupRoundTrip(t *testing.T) {
+	t.Setenv("WLEDGER_PHYSICAL_OUTPUT_ENABLED", "true")
 	database, s, dbCleanup := setupTestDB(t)
 	defer dbCleanup()
 	uploadsDir, fsCleanup := setupTestUploads(t)

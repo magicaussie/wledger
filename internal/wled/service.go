@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/hardware/mapper"
 	"github.com/tuxedocurly/wledger/internal/ledspace"
@@ -17,6 +18,17 @@ import (
 // indices is unresolved (for example after restoring a backup without an
 // explicit coordinate-space marker). No WLED command is sent in this case.
 var ErrCoordinateSpaceUnresolved = errors.New("LED coordinate space is unresolved; locate and flash operations are disabled until it is resolved")
+
+// ErrPhysicalOutputDisabled indicates that this installation is operating in
+// inventory-only mode and physical WLED state writes are not enabled.
+var ErrPhysicalOutputDisabled = errors.New("physical WLED output is disabled in inventory-only mode")
+
+func requirePhysicalOutput() error {
+	if !config.PhysicalWLEDOutputEnabled() {
+		return ErrPhysicalOutputDisabled
+	}
+	return nil
+}
 
 type Service interface {
 	LocatePart(ctx context.Context, partID int64) error
@@ -77,6 +89,9 @@ func resolveCoordinateSpace(ctx context.Context, q db.Querier) (string, error) {
 // unrelated LEDs, so it is rejected while any physical Locate session owns a
 // controller. Each request is synchronous and any controller failure is returned.
 func (s *service) GlobalOff(ctx context.Context) error {
+	if err := requirePhysicalOutput(); err != nil {
+		return err
+	}
 	controllers, err := s.store.GetControllers(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to fetch controllers: %w", err)
@@ -93,6 +108,9 @@ func (s *service) GlobalOff(ctx context.Context) error {
 }
 
 func (s *service) LocatePart(ctx context.Context, partID int64) error {
+	if err := requirePhysicalOutput(); err != nil {
+		return err
+	}
 	// Resolve every assignment to a physical WLED target inside a single
 	// transaction, so the coordinate space, bin mapping and drawer allocation are
 	// read from one consistent snapshot. The WLED commands are sent afterwards so
@@ -181,6 +199,9 @@ func (s *service) LocatePart(ctx context.Context, partID int64) error {
 }
 
 func (s *service) LocateBin(ctx context.Context, controllerID, binID int64) error {
+	if err := requirePhysicalOutput(); err != nil {
+		return err
+	}
 	// Read the coordinate space, bin mapping and drawer allocation from one
 	// consistent snapshot so a concurrent grid save cannot produce a mixed view.
 	var (
@@ -235,6 +256,9 @@ func (s *service) LocateBin(ctx context.Context, controllerID, binID int64) erro
 // (led_start/led_count, segment-relative); the range is taken directly from the
 // allocation and is independent of the drawer's bins.
 func (s *service) LocateDrawer(ctx context.Context, controllerID, containerID int64) error {
+	if err := requirePhysicalOutput(); err != nil {
+		return err
+	}
 	controller, err := s.store.GetController(ctx, controllerID)
 	if err != nil {
 		return fmt.Errorf("controller not found: %w", err)
@@ -261,6 +285,9 @@ func (s *service) LocateDrawer(ctx context.Context, controllerID, containerID in
 // FlashError flashes a bin's LEDs in the configured error colour (default red)
 // and returns only after every WLED command is acknowledged.
 func (s *service) FlashError(ctx context.Context, controllerID, binID int64) error {
+	if err := requirePhysicalOutput(); err != nil {
+		return err
+	}
 	// Read the coordinate space, bin mapping and drawer allocation from one
 	// consistent snapshot so a concurrent grid save cannot produce a mixed view.
 	var (

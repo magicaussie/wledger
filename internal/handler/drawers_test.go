@@ -4,14 +4,17 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/tuxedocurly/wledger/internal/db"
+	"github.com/tuxedocurly/wledger/internal/wled"
 )
 
 // fakeDrawerWLED is a minimal wled.Service that records the last LocateDrawer
@@ -39,6 +42,7 @@ func (f *fakeDrawerWLED) GlobalOff(ctx context.Context) error               { re
 func (f *fakeDrawerWLED) Ping(ctx context.Context, ip string) (bool, error) { return true, nil }
 
 func TestHandleDrawerDetail(t *testing.T) {
+	t.Setenv("WLEDGER_PHYSICAL_OUTPUT_ENABLED", "true")
 	h, dbConn := setupPartTest(t)
 	defer dbConn.Close()
 	defer cleanupPartTest()
@@ -93,6 +97,56 @@ func TestHandleDrawerDetail(t *testing.T) {
 	}
 	if !strings.Contains(body, fmt.Sprintf(`hx-post="/drawers/%d/locate"`, cont)) {
 		t.Errorf("explicit Locate control not wired to /drawers/%d/locate", cont)
+	}
+}
+
+func TestHandleDrawerLocateRejectsInventoryOnlyOutput(t *testing.T) {
+	t.Setenv("WLEDGER_PHYSICAL_OUTPUT_ENABLED", "")
+	h, dbConn := setupPartTest(t)
+	defer dbConn.Close()
+	defer cleanupPartTest()
+	ctx := context.Background()
+
+	var stateWrites atomic.Int64
+	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && r.URL.Path == "/json/state" {
+			stateWrites.Add(1)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer mock.Close()
+	host, portText, err := net.SplitHostPort(strings.TrimPrefix(mock.URL, "http://"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var port int64
+	if _, err := fmt.Sscan(portText, &port); err != nil {
+		t.Fatal(err)
+	}
+	controller, err := h.Queries.CreateController(ctx, db.CreateControllerParams{
+		Name: "Loopback mock", IpAddress: host, Port: sql.NullInt64{Int64: port, Valid: true},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	drawerID, err := h.Queries.CreateContainer(ctx, db.CreateContainerParams{
+		Name: "Legacy drawer", ControllerID: controller.ID, SegmentID: 0,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.WLED = wled.NewService(h.Queries, wled.NewClient(), nil)
+
+	r := chi.NewRouter()
+	r.Post("/drawers/{id}/locate", h.HandleDrawerLocate)
+	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/drawers/%d/locate", drawerID), nil)
+	response := httptest.NewRecorder()
+	r.ServeHTTP(response, req)
+	if response.Code != http.StatusConflict {
+		t.Fatalf("legacy drawer Locate status=%d, want 409: %s", response.Code, response.Body.String())
+	}
+	if got := stateWrites.Load(); got != 0 {
+		t.Fatalf("blocked legacy drawer Locate sent %d mock WLED state writes", got)
 	}
 }
 

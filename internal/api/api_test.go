@@ -45,6 +45,7 @@ func (f *fakeWLED) Ping(ctx context.Context, ip string) (bool, error) { return t
 
 func setupAPI(t *testing.T) (*httptest.Server, *fakeWLED, db.Store) {
 	t.Helper()
+	t.Setenv("WLEDGER_PHYSICAL_OUTPUT_ENABLED", "true")
 	os.Setenv("WLEDGER_API_TOKEN", "testtoken")
 	t.Cleanup(func() { os.Unsetenv("WLEDGER_API_TOKEN") })
 
@@ -154,6 +155,26 @@ func TestHealthAuth(t *testing.T) {
 	}
 	if r := doReq(t, srv, "GET", "/health", true); r.StatusCode != http.StatusOK {
 		t.Errorf("health with token: want 200, got %d", r.StatusCode)
+	}
+}
+
+func TestInventoryOnlyRejectsAPIWLEDWritesBeforeCallingService(t *testing.T) {
+	srv, fw, _ := setupAPI(t)
+	t.Setenv("WLEDGER_PHYSICAL_OUTPUT_ENABLED", "")
+	for _, path := range []string{"/global-off", "/parts/123/locate", "/bins/123/locate"} {
+		t.Run(path, func(t *testing.T) {
+			resp := doReq(t, srv, http.MethodPost, path, true)
+			if resp.StatusCode != http.StatusConflict {
+				t.Fatalf("POST %s status = %d, want 409", path, resp.StatusCode)
+			}
+			body, _ := io.ReadAll(resp.Body)
+			if !strings.Contains(string(body), "inventory-only mode") {
+				t.Fatalf("POST %s body does not explain disabled output: %s", path, body)
+			}
+		})
+	}
+	if fw.locatedPart != 0 || fw.locatedBin != 0 || fw.off {
+		t.Fatalf("disabled API writes reached WLED service: %+v", fw)
 	}
 }
 

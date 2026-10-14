@@ -72,7 +72,7 @@ func (h *Handler) HandleDrawerLocate(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.WLED.LocateDrawer(r.Context(), drawer.ControllerID, id); err != nil {
 		status := http.StatusInternalServerError
-		if errors.Is(err, wled.ErrHardwareBusy) {
+		if errors.Is(err, wled.ErrHardwareBusy) || errors.Is(err, wled.ErrPhysicalOutputDisabled) {
 			status = http.StatusConflict
 		}
 		h.UIError.Respond(w, r, err, "Locate failed", status)

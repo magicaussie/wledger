@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/wled"
 	"github.com/tuxedocurly/wledger/web/pages"
@@ -87,9 +88,13 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 
 // globalOff turns off all LEDs on all controllers.
 func (h *Handler) globalOff(w http.ResponseWriter, r *http.Request) {
+	if !config.PhysicalWLEDOutputEnabled() {
+		writeError(w, http.StatusConflict, wled.ErrPhysicalOutputDisabled.Error())
+		return
+	}
 	if err := h.wled.GlobalOff(r.Context()); err != nil {
 		status := http.StatusInternalServerError
-		if errors.Is(err, wled.ErrHardwareBusy) {
+		if errors.Is(err, wled.ErrHardwareBusy) || errors.Is(err, wled.ErrPhysicalOutputDisabled) {
 			status = http.StatusConflict
 		}
 		writeError(w, status, "failed to turn off LEDs: "+err.Error())
@@ -100,13 +105,17 @@ func (h *Handler) globalOff(w http.ResponseWriter, r *http.Request) {
 
 // locatePart locates a part by id, flashing the LEDs of every bin it is stored in.
 func (h *Handler) locatePart(w http.ResponseWriter, r *http.Request) {
+	if !config.PhysicalWLEDOutputEnabled() {
+		writeError(w, http.StatusConflict, wled.ErrPhysicalOutputDisabled.Error())
+		return
+	}
 	id, err := pathID(r)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid part id")
 		return
 	}
 	if err := h.wled.LocatePart(r.Context(), id); err != nil {
-		if errors.Is(err, wled.ErrCoordinateSpaceUnresolved) || errors.Is(err, wled.ErrHardwareBusy) {
+		if errors.Is(err, wled.ErrCoordinateSpaceUnresolved) || errors.Is(err, wled.ErrHardwareBusy) || errors.Is(err, wled.ErrPhysicalOutputDisabled) {
 			writeError(w, http.StatusConflict, "locate unavailable: "+err.Error())
 			return
 		}
@@ -118,6 +127,10 @@ func (h *Handler) locatePart(w http.ResponseWriter, r *http.Request) {
 
 // locateBin locates a bin by id, flashing its LEDs.
 func (h *Handler) locateBin(w http.ResponseWriter, r *http.Request) {
+	if !config.PhysicalWLEDOutputEnabled() {
+		writeError(w, http.StatusConflict, wled.ErrPhysicalOutputDisabled.Error())
+		return
+	}
 	id, err := pathID(r)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid bin id")
@@ -139,7 +152,7 @@ func (h *Handler) locateBin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.wled.LocateBin(r.Context(), container.ControllerID, id); err != nil {
-		if errors.Is(err, wled.ErrCoordinateSpaceUnresolved) || errors.Is(err, wled.ErrHardwareBusy) {
+		if errors.Is(err, wled.ErrCoordinateSpaceUnresolved) || errors.Is(err, wled.ErrHardwareBusy) || errors.Is(err, wled.ErrPhysicalOutputDisabled) {
 			writeError(w, http.StatusConflict, "locate unavailable: "+err.Error())
 			return
 		}

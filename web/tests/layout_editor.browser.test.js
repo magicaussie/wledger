@@ -82,7 +82,7 @@ const executablePath = process.env.CHROMIUM_PATH || '/bin/chromium';
         const build = spawnSync(process.env.GO_BIN || 'go', ['build', '-tags', 'fts5', '-o', serverBinary, './cmd/server'], { cwd: repoRoot, env: { ...process.env, CGO_ENABLED: '1' }, encoding: 'utf8' });
         if (build.status !== 0) throw new Error(`failed to build browser-test server: ${build.stderr}`);
       }
-      server = spawn(serverBinary, [], { cwd: serverCwd, env: { ...process.env, WLEDGER_INSECURE_COOKIES: '1', WLEDGER_PORT: String(port) }, stdio: 'ignore' });
+      server = spawn(serverBinary, [], { cwd: serverCwd, env: { ...process.env, WLEDGER_INSECURE_COOKIES: '1', WLEDGER_PHYSICAL_OUTPUT_ENABLED: 'true', WLEDGER_PORT: String(port) }, stdio: 'ignore' });
       let ready = false;
       for (let attempt = 0; attempt < 100; attempt++) {
         try { const response = await fetch(baseURL + '/login'); if (response.ok) { ready = true; break; } } catch {}

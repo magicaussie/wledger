@@ -1,6 +1,9 @@
 package config
 
-import "os"
+import (
+	"os"
+	"strings"
+)
 
 // PublicURL returns the externally reachable base URL of this instance,
 // used to build absolute callback URLs (e.g. for DigiKey OAuth).
@@ -11,6 +14,18 @@ func PublicURL() string {
 		return v
 	}
 	return ""
+}
+
+// PhysicalWLEDOutputEnabled is the explicit server-side capability for WLED
+// state writes. It is deliberately opt-in so fresh and upgraded installations
+// remain inventory-only unless an operator configures isolated/supported output.
+func PhysicalWLEDOutputEnabled() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("WLEDGER_PHYSICAL_OUTPUT_ENABLED"))) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
 }
 
 const (

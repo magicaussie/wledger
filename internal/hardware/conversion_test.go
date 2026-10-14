@@ -492,6 +492,7 @@ func TestConvertToDrawerRelative_ConcurrentSaveGrid(t *testing.T) {
 // conversion always targets the same physical LED, because the conversion
 // preserves the physical mapping.
 func TestConvertToDrawerRelative_ConcurrentLocate(t *testing.T) {
+	t.Setenv("WLEDGER_PHYSICAL_OUTPUT_ENABLED", "true")
 	var mu sync.Mutex
 	var payloads []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -625,6 +626,7 @@ func TestConvertToDrawerRelative_PhysicalTargetUnchangedVariableWidth(t *testing
 // LocatePart and FlashError target the same physical LED before and after
 // conversion.
 func TestConvertToDrawerRelative_LocatePartAndFlashEquivalence(t *testing.T) {
+	t.Setenv("WLEDGER_PHYSICAL_OUTPUT_ENABLED", "true")
 	var mu sync.Mutex
 	var payloads []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

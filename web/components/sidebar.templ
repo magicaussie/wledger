@@ -1,6 +1,7 @@
 package components
 
 import "github.com/tuxedocurly/wledger/internal/auth"
+import "github.com/tuxedocurly/wledger/internal/config"
 import "github.com/tuxedocurly/wledger/internal/i18n"
 import "github.com/tuxedocurly/wledger/web/icons"
 
@@ -67,7 +68,11 @@ templ Sidebar(user auth.User) {
 			} else {
 				@LoginButton()
 			}
-			@GlobalOffButton()
+			if config.PhysicalWLEDOutputEnabled() {
+				@GlobalOffButton()
+			} else {
+				<p class="text-xs text-base-content/70">LED Locate is unavailable in inventory-only mode. Controller and wiring configuration remain available.</p>
+			}
 		</div>
 	</aside>
 }
