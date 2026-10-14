@@ -7,6 +7,7 @@
     const PHYSICAL_CABINET_PREFIX = 'wledger:physical-cabinet:';
     const PHYSICAL_DRAWER_PREFIX = 'wledger:physical-drawer:';
     const PART_ID_PREFIX = 'wledger:part-id:';
+    const CATEGORY_PREFIX = 'wledger:category:';
     const pickerContexts = new WeakMap();
     let activePicker = null;
 
@@ -104,7 +105,7 @@
     function navigateForScan(code) {
         if (!code) return;
         if (code.startsWith(BIN_PREFIX) || code.startsWith(CABINET_PREFIX) || code.startsWith(DRAWER_PREFIX) ||
-            code.startsWith(PHYSICAL_CABINET_PREFIX) || code.startsWith(PHYSICAL_DRAWER_PREFIX) || code.startsWith(PART_ID_PREFIX)) {
+            code.startsWith(PHYSICAL_CABINET_PREFIX) || code.startsWith(PHYSICAL_DRAWER_PREFIX) || code.startsWith(PART_ID_PREFIX) || code.startsWith(CATEGORY_PREFIX)) {
             window.location.href = '/scan?q=' + encodeURIComponent(code);
             return;
         }

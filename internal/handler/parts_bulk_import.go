@@ -3,13 +3,17 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 
 	"github.com/tuxedocurly/wledger/internal/audit"
 	"github.com/tuxedocurly/wledger/internal/auth"
+	"github.com/tuxedocurly/wledger/internal/categories"
 	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/importer"
@@ -21,8 +25,15 @@ import (
 func (h *Handler) HandlePartsImportTemplate(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/csv")
 	w.Header().Set("Content-Disposition", "attachment;filename=wledger_import_template.csv")
-	w.Write([]byte("Name,Description,Part Number,Manufacturer,Supplier,Footprint,Unit Cost,Reorder Level,Min Stock,Barcode,Quantity,Tags,Links,Controller IP,Segment ID,LED Index\n"))
-	w.Write([]byte("Example Part,Resistor 10-K,MPN123,TI,DigiKey,0805,0.05,50,10,12345678,100,Resistor|SMD,https://example.com/resistor,192.168.1.100,0,5\n"))
+	writer := csv.NewWriter(w)
+	header := []string{"Name", "Description", "Part Number", "Manufacturer", "Supplier", "Footprint", "Unit Cost", "Reorder Level", "Min Stock", "Barcode", "Quantity", "Tags", "Links", "Controller IP", "Segment ID", "LED Index", "SKU", "Brand", "Model", "Colour", "Material", "Finish", "Condition", "Length", "Width", "Height", "Depth", "Dimension Unit", "Weight", "Weight Unit", "Notes", "Purchased From", "Supplier Product Code", "Purchase Date", "Purchase Price", "Currency", "Product URL", "Purchase Notes", "Category", "Category Specifications"}
+	row := make([]string, len(header))
+	row[0], row[1], row[2], row[3], row[4], row[5] = "Example Part", "Resistor 10-K", "MPN123", "TI", "DigiKey", "0805"
+	row[6], row[7], row[8], row[9], row[10] = "0.05", "50", "10", "12345678", "100"
+	row[11], row[12], row[27], row[29], row[39] = "Resistor|SMD", "https://example.com/resistor", "mm", "g", "{}"
+	_ = writer.Write(header)
+	_ = writer.Write(row)
+	writer.Flush()
 }
 
 // POST /parts/import
@@ -74,6 +85,11 @@ func (h *Handler) HandlePartsImport(w http.ResponseWriter, r *http.Request) {
 		components.ImportResult(false, "No valid rows found in input.", nil).Render(r.Context(), w)
 		return
 	}
+	categoryRows, err := resolveImportedCategories(r.Context(), h.Database, rows)
+	if err != nil {
+		components.ImportResult(false, err.Error(), nil).Render(r.Context(), w)
+		return
+	}
 
 	count := 0
 	err = h.Queries.ExecTx(r.Context(), func(q db.Querier) error {
@@ -84,7 +100,7 @@ func (h *Handler) HandlePartsImport(w http.ResponseWriter, r *http.Request) {
 			return fmt.Errorf("failed to read LED coordinate space: %w", err)
 		}
 
-		for _, row := range rows {
+		for rowIndex, row := range rows {
 			// Insert Part
 			partID, err := q.CreatePart(r.Context(), db.CreatePartParams{
 				Name:              row.Name,
@@ -106,6 +122,46 @@ func (h *Handler) HandlePartsImport(w http.ResponseWriter, r *http.Request) {
 					returnErr = fmt.Errorf("Row %d Error: Duplicate Barcode '%s'", row.RowNumber, row.BarcodeData)
 				}
 				return returnErr
+			}
+
+			categoryData := categoryRows[rowIndex]
+			if categoryData.ID > 0 {
+				if err := q.CreatePartCategory(r.Context(), db.CreatePartCategoryParams{PartID: partID, CategoryID: categoryData.ID}); err != nil {
+					return fmt.Errorf("Row %d Error saving category assignment: %w", row.RowNumber, err)
+				}
+				for _, spec := range categoryData.Specifications {
+					value := db.CreatePartAttributeValueParams{PartID: partID, AttributeID: spec.AttributeID}
+					if spec.Text != nil {
+						value.ValueText = sql.NullString{String: *spec.Text, Valid: true}
+					}
+					if spec.Number != nil {
+						value.ValueNumber = sql.NullFloat64{Float64: *spec.Number, Valid: true}
+					}
+					if spec.Boolean != nil {
+						value.ValueBoolean = sql.NullBool{Bool: *spec.Boolean, Valid: true}
+					}
+					if err := q.CreatePartAttributeValue(r.Context(), value); err != nil {
+						return fmt.Errorf("Row %d Error saving category specification: %w", row.RowNumber, err)
+					}
+				}
+			}
+
+			if !row.Details.IsEmpty() {
+				details := row.Details
+				details.PartID = partID
+				if err := details.NormalizeAndValidate(); err != nil {
+					return fmt.Errorf("Row %d Error: invalid product details: %w", row.RowNumber, err)
+				}
+				if err := q.CreatePartDetails(r.Context(), db.CreatePartDetailsParams{
+					PartID: partID, Sku: sql.NullString{String: details.SKU, Valid: details.SKU != ""}, Brand: details.Brand, Model: details.Model,
+					Colour: details.Colour, Material: details.Material, Finish: details.Finish, Condition: details.Condition, Notes: details.Notes,
+					LengthMm: details.LengthMM, WidthMm: details.WidthMM, HeightMm: details.HeightMM, DepthMm: details.DepthMM,
+					DimensionUnit: details.DimensionUnit, WeightG: details.WeightG, WeightUnit: details.WeightUnit,
+					PurchasedFrom: details.PurchasedFrom, SupplierProductCode: details.SupplierProductCode, PurchaseDate: details.PurchaseDate,
+					PurchasePrice: details.PurchasePrice, Currency: details.Currency, ProductUrl: details.ProductURL, PurchaseNotes: details.PurchaseNotes,
+				}); err != nil {
+					return fmt.Errorf("Row %d Error saving extended product details: %w", row.RowNumber, err)
+				}
 			}
 
 			// Sync Tags
@@ -171,6 +227,103 @@ func (h *Handler) HandlePartsImport(w http.ResponseWriter, r *http.Request) {
 	// Success Response
 	msg := fmt.Sprintf("Successfully imported %d parts.", count)
 	components.ImportResult(true, msg, nil).Render(r.Context(), w)
+}
+
+type importedCategory struct {
+	ID             int64
+	Specifications []categories.Specification
+}
+
+func resolveImportedCategories(ctx context.Context, database *sql.DB, rows []importer.PartImportRow) ([]importedCategory, error) {
+	resolved := make([]importedCategory, len(rows))
+	needsCategories := false
+	for _, row := range rows {
+		if strings.TrimSpace(row.CategoryName) != "" || len(row.CategorySpecifications) > 0 {
+			needsCategories = true
+			break
+		}
+	}
+	if !needsCategories {
+		return resolved, nil
+	}
+
+	service := categories.NewService(database)
+	all, err := service.List(ctx, "")
+	if err != nil {
+		return nil, fmt.Errorf("load categories for import: %w", err)
+	}
+	byName := make(map[string]categories.Category, len(all))
+	for _, item := range all {
+		byName[strings.ToLower(item.Name)] = item
+	}
+	attributeCache := make(map[int64]map[string]categories.Attribute)
+	for index, row := range rows {
+		name := strings.TrimSpace(row.CategoryName)
+		if name == "" {
+			if len(row.CategorySpecifications) > 0 {
+				return nil, fmt.Errorf("row %d: category specifications require a category", row.RowNumber)
+			}
+			continue
+		}
+		category, ok := byName[strings.ToLower(name)]
+		if !ok {
+			return nil, fmt.Errorf("row %d: unknown category %q; create it before importing products", row.RowNumber, name)
+		}
+		attributes, ok := attributeCache[category.ID]
+		if !ok {
+			listed, err := service.ListAttributes(ctx, category.ID)
+			if err != nil {
+				return nil, fmt.Errorf("row %d: load category specifications: %w", row.RowNumber, err)
+			}
+			attributes = make(map[string]categories.Attribute, len(listed))
+			for _, attribute := range listed {
+				attributes[strings.ToLower(attribute.Name)] = attribute
+			}
+			attributeCache[category.ID] = attributes
+		}
+		keys := make([]string, 0, len(row.CategorySpecifications))
+		for key := range row.CategorySpecifications {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		specifications := make([]categories.Specification, 0, len(keys))
+		for _, key := range keys {
+			attribute, exists := attributes[strings.ToLower(strings.TrimSpace(key))]
+			if !exists {
+				return nil, fmt.Errorf("row %d: category %q has no specification %q", row.RowNumber, category.Name, key)
+			}
+			raw := row.CategorySpecifications[key]
+			specification := categories.Specification{AttributeID: attribute.ID}
+			switch attribute.DataType {
+			case categories.TextType:
+				var value string
+				if err := json.Unmarshal(raw, &value); err != nil {
+					return nil, fmt.Errorf("row %d: specification %q must be a JSON string", row.RowNumber, key)
+				}
+				specification.Text = &value
+			case categories.NumberType:
+				var value float64
+				if err := json.Unmarshal(raw, &value); err != nil {
+					return nil, fmt.Errorf("row %d: specification %q must be a JSON number", row.RowNumber, key)
+				}
+				specification.Number = &value
+			case categories.BooleanType:
+				var value bool
+				if err := json.Unmarshal(raw, &value); err != nil {
+					return nil, fmt.Errorf("row %d: specification %q must be a JSON boolean", row.RowNumber, key)
+				}
+				specification.Boolean = &value
+			default:
+				return nil, fmt.Errorf("row %d: category specification %q has an unsupported type", row.RowNumber, key)
+			}
+			specifications = append(specifications, specification)
+		}
+		if err := service.ValidateSpecifications(ctx, category.ID, specifications); err != nil {
+			return nil, fmt.Errorf("row %d: invalid specifications for category %q: %w", row.RowNumber, category.Name, err)
+		}
+		resolved[index] = importedCategory{ID: category.ID, Specifications: specifications}
+	}
+	return resolved, nil
 }
 
 // resolveBinLocation resolves a CSV location (controller IP, segment, and a

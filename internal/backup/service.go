@@ -15,6 +15,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -147,7 +148,7 @@ func (s *service) Export(ctx context.Context, w io.Writer) error {
 
 	// add human_readable_parts.csv
 	s.logger.Debug("adding human_readable_parts.csv to backup")
-	if err := writePartsCSV(zw, env.Legacy.Parts, env.Legacy.PartAssignments); err != nil {
+	if err := writePartsCSV(zw, env.Legacy.Parts, env.Legacy.PartAssignments, env.Legacy.PartDetails, env.Legacy.Categories, env.Legacy.PartCategories, env.Legacy.CategoryAttributes, env.Legacy.PartAttributeValues); err != nil {
 		return err
 	}
 
@@ -304,6 +305,36 @@ func (s *service) snapshotStorageManifest(ctx context.Context) (StorageManifest,
 		if m.PriceHistory, err = q.GetAllPriceHistory(ctx); err != nil {
 			return fmt.Errorf("failed to fetch price history: %w", err)
 		}
+		if m.Categories, err = q.GetAllCategories(ctx); err != nil {
+			return fmt.Errorf("failed to fetch categories: %w", err)
+		}
+		if m.PartCategories, err = q.GetAllPartCategories(ctx); err != nil {
+			return fmt.Errorf("failed to fetch product categories: %w", err)
+		}
+		if m.CategoryAttributes, err = q.GetAllCategoryAttributes(ctx); err != nil {
+			return fmt.Errorf("failed to fetch category specifications: %w", err)
+		}
+		if m.PartAttributeValues, err = q.GetAllPartAttributeValues(ctx); err != nil {
+			return fmt.Errorf("failed to fetch product specifications: %w", err)
+		}
+		if m.PartDetails, err = q.GetAllPartDetails(ctx); err != nil {
+			return fmt.Errorf("failed to fetch extended product details: %w", err)
+		}
+		if m.Categories == nil {
+			m.Categories = []db.Category{}
+		}
+		if m.PartCategories == nil {
+			m.PartCategories = []db.PartCategory{}
+		}
+		if m.CategoryAttributes == nil {
+			m.CategoryAttributes = []db.CategoryAttribute{}
+		}
+		if m.PartAttributeValues == nil {
+			m.PartAttributeValues = []db.PartAttributeValue{}
+		}
+		if m.PartDetails == nil {
+			m.PartDetails = []db.PartDetail{}
+		}
 
 		// Export the actual coordinate space of the stored bin LED indices so a
 		// restore can interpret them without guessing.
@@ -406,14 +437,23 @@ func (s *service) snapshotStorageManifest(ctx context.Context) (StorageManifest,
 // writePartsCSV writes the human-readable parts CSV to the archive. Every write
 // and the final flush are checked so a partial CSV cannot be reported as a
 // successful backup.
-func writePartsCSV(zw zipFileWriter, parts []db.Part, assignments []db.PartAssignment) error {
+func writePartsCSV(zw zipFileWriter, parts []db.Part, assignments []db.PartAssignment, details []db.PartDetail, categories []db.Category, partCategories []db.PartCategory, attributes []db.CategoryAttribute, attributeValues []db.PartAttributeValue) error {
 	fCsv, err := zw.Create("human_readable_parts.csv")
 	if err != nil {
 		return fmt.Errorf("failed to create csv entry: %w", err)
 	}
 	cw := csv.NewWriter(fCsv)
-	if err := cw.Write([]string{"Name", "Description", "Part Number", "Manufacturer", "Supplier", "Unit Cost", "Reorder Level", "Min Stock", "Barcode", "Quantity"}); err != nil {
+	header := []string{"Name", "Description", "Part Number", "Manufacturer", "Supplier", "Unit Cost", "Reorder Level", "Min Stock", "Barcode", "Quantity", "SKU", "Brand", "Model", "Colour", "Material", "Finish", "Condition", "Length", "Width", "Height", "Depth", "Dimension Unit", "Weight", "Weight Unit", "Notes", "Purchased From", "Supplier Product Code", "Purchase Date", "Purchase Price", "Currency", "Product URL", "Purchase Notes", "Category", "Category Specifications"}
+	if err := cw.Write(header); err != nil {
 		return fmt.Errorf("failed to write parts csv header: %w", err)
+	}
+	detailsByPart := make(map[int64]db.PartDetail, len(details))
+	for _, item := range details {
+		detailsByPart[item.PartID] = item
+	}
+	categoryDetails, err := categoryCSVByPart(categories, partCategories, attributes, attributeValues)
+	if err != nil {
+		return err
 	}
 	for _, p := range parts {
 		var total int64
@@ -422,17 +462,16 @@ func writePartsCSV(zw zipFileWriter, parts []db.Part, assignments []db.PartAssig
 				total += a.Quantity
 			}
 		}
+		d := detailsByPart[p.ID]
+		categoryInfo := categoryDetails[p.ID]
+		categoryName, categorySpecs := categoryInfo[0], categoryInfo[1]
 		if err := cw.Write([]string{
-			p.Name,
-			p.Description.String,
-			p.PartNumber.String,
-			p.Manufacturer.String,
-			p.Supplier.String,
-			fmt.Sprintf("%.2f", p.UnitCost.Float64),
-			fmt.Sprintf("%d", p.ReorderLevel.Int64),
-			fmt.Sprintf("%d", p.MinStockThreshold.Int64),
-			p.BarcodeData.String,
-			fmt.Sprintf("%d", total),
+			p.Name, p.Description.String, p.PartNumber.String, p.Manufacturer.String, p.Supplier.String,
+			fmt.Sprintf("%.2f", p.UnitCost.Float64), fmt.Sprintf("%d", p.ReorderLevel.Int64), fmt.Sprintf("%d", p.MinStockThreshold.Int64),
+			p.BarcodeData.String, fmt.Sprintf("%d", total), d.Sku.String, d.Brand, d.Model, d.Colour, d.Material, d.Finish, d.Condition,
+			csvNullableFloat(d.LengthMm), csvNullableFloat(d.WidthMm), csvNullableFloat(d.HeightMm), csvNullableFloat(d.DepthMm), d.DimensionUnit, csvNullableFloat(d.WeightG), d.WeightUnit,
+			d.Notes, d.PurchasedFrom, d.SupplierProductCode, d.PurchaseDate.String, csvNullableFloat(d.PurchasePrice), d.Currency, d.ProductUrl, d.PurchaseNotes,
+			categoryName, categorySpecs,
 		}); err != nil {
 			return fmt.Errorf("failed to write parts csv row: %w", err)
 		}
@@ -444,9 +483,92 @@ func writePartsCSV(zw zipFileWriter, parts []db.Part, assignments []db.PartAssig
 	return nil
 }
 
+func categoryCSVByPart(categories []db.Category, partCategories []db.PartCategory, attributes []db.CategoryAttribute, values []db.PartAttributeValue) (map[int64][2]string, error) {
+	categoryNameByID := make(map[int64]string, len(categories))
+	for _, category := range categories {
+		categoryNameByID[category.ID] = category.Name
+	}
+	attributeByID := make(map[int64]db.CategoryAttribute, len(attributes))
+	for _, attribute := range attributes {
+		attributeByID[attribute.ID] = attribute
+	}
+	categoryIDByPart := make(map[int64]int64, len(partCategories))
+	specificationsByPart := make(map[int64]map[string]any, len(partCategories))
+	for _, assignment := range partCategories {
+		if _, ok := categoryNameByID[assignment.CategoryID]; !ok {
+			return nil, fmt.Errorf("CSV export: product %d refers to missing category %d", assignment.PartID, assignment.CategoryID)
+		}
+		if _, duplicate := categoryIDByPart[assignment.PartID]; duplicate {
+			return nil, fmt.Errorf("CSV export: product %d has multiple category assignments", assignment.PartID)
+		}
+		categoryIDByPart[assignment.PartID] = assignment.CategoryID
+		specificationsByPart[assignment.PartID] = make(map[string]any)
+	}
+	for _, value := range values {
+		categoryID, ok := categoryIDByPart[value.PartID]
+		if !ok {
+			return nil, fmt.Errorf("CSV export: product specification for uncategorized product %d", value.PartID)
+		}
+		attribute, ok := attributeByID[value.AttributeID]
+		if !ok || attribute.CategoryID != categoryID {
+			return nil, fmt.Errorf("CSV export: product %d has a specification outside its category", value.PartID)
+		}
+		present := 0
+		if value.ValueText.Valid {
+			present++
+		}
+		if value.ValueNumber.Valid {
+			present++
+		}
+		if value.ValueBoolean.Valid {
+			present++
+		}
+		if present != 1 {
+			return nil, fmt.Errorf("CSV export: product %d specification %q has invalid typed value", value.PartID, attribute.Name)
+		}
+		var exported any
+		switch attribute.DataType {
+		case "text":
+			if !value.ValueText.Valid {
+				return nil, fmt.Errorf("CSV export: product %d specification %q has the wrong value type", value.PartID, attribute.Name)
+			}
+			exported = value.ValueText.String
+		case "number":
+			if !value.ValueNumber.Valid {
+				return nil, fmt.Errorf("CSV export: product %d specification %q has the wrong value type", value.PartID, attribute.Name)
+			}
+			exported = value.ValueNumber.Float64
+		case "boolean":
+			if !value.ValueBoolean.Valid {
+				return nil, fmt.Errorf("CSV export: product %d specification %q has the wrong value type", value.PartID, attribute.Name)
+			}
+			exported = value.ValueBoolean.Bool
+		default:
+			return nil, fmt.Errorf("CSV export: category specification %q has unsupported type %q", attribute.Name, attribute.DataType)
+		}
+		specificationsByPart[value.PartID][attribute.Name] = exported
+	}
+	result := make(map[int64][2]string, len(categoryIDByPart))
+	for partID, categoryID := range categoryIDByPart {
+		encoded, err := json.Marshal(specificationsByPart[partID])
+		if err != nil {
+			return nil, fmt.Errorf("CSV export: encode product %d category specifications: %w", partID, err)
+		}
+		result[partID] = [2]string{categoryNameByID[categoryID], string(encoded)}
+	}
+	return result, nil
+}
+
 // writeUploads streams the uploads directory into the archive. Traversal, entry
 // creation, file opening, reading and closing are all checked and propagated so
 // a failed upload archive cannot be reported as a successful backup.
+func csvNullableFloat(value sql.NullFloat64) string {
+	if !value.Valid {
+		return ""
+	}
+	return strconv.FormatFloat(value.Float64, 'f', -1, 64)
+}
+
 func (s *service) writeUploads(zw zipFileWriter) error {
 	return walkUploads(s.uploadsDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -1012,6 +1134,25 @@ func (s *service) restoreData(ctx context.Context, qtx db.Querier, manifest Mani
 			return fmt.Errorf("bin restore: %w", err)
 		}
 	}
+	for _, category := range manifest.Categories {
+		row := db.RestoreCategoryParams(category)
+		row.ParentID = sql.NullInt64{}
+		if err := qtx.RestoreCategory(ctx, row); err != nil {
+			return fmt.Errorf("category restore: %w", err)
+		}
+	}
+	for _, category := range manifest.Categories {
+		if category.ParentID.Valid {
+			if err := qtx.RestoreCategoryParent(ctx, db.RestoreCategoryParentParams{ParentID: category.ParentID, ID: category.ID}); err != nil {
+				return fmt.Errorf("category parent restore: %w", err)
+			}
+		}
+	}
+	for _, attribute := range manifest.CategoryAttributes {
+		if err := qtx.RestoreCategoryAttribute(ctx, db.RestoreCategoryAttributeParams(attribute)); err != nil {
+			return fmt.Errorf("category specification restore: %w", err)
+		}
+	}
 	for _, p := range manifest.Parts {
 		if err := qtx.RestorePart(ctx, db.RestorePartParams{
 			ID:                p.ID,
@@ -1032,6 +1173,36 @@ func (s *service) restoreData(ctx context.Context, qtx db.Querier, manifest Mani
 			UpdatedAt:         p.UpdatedAt,
 		}); err != nil {
 			return fmt.Errorf("part restore: %w", err)
+		}
+	}
+	for _, detail := range manifest.PartDetails {
+		row := db.RestorePartDetailsParams{
+			PartID: detail.PartID, Sku: detail.Sku, Brand: detail.Brand, Model: detail.Model,
+			Colour: detail.Colour, Material: detail.Material, Finish: detail.Finish, Condition: detail.Condition, Notes: detail.Notes,
+			LengthMm: detail.LengthMm, WidthMm: detail.WidthMm, HeightMm: detail.HeightMm, DepthMm: detail.DepthMm,
+			DimensionUnit: detail.DimensionUnit, WeightG: detail.WeightG, WeightUnit: detail.WeightUnit,
+			PurchasedFrom: detail.PurchasedFrom, SupplierProductCode: detail.SupplierProductCode, PurchaseDate: detail.PurchaseDate,
+			PurchasePrice: detail.PurchasePrice, Currency: detail.Currency, ProductUrl: detail.ProductUrl,
+			PurchaseNotes: detail.PurchaseNotes, UpdatedAt: detail.UpdatedAt,
+		}
+		if row.DimensionUnit == "" {
+			row.DimensionUnit = "mm"
+		}
+		if row.WeightUnit == "" {
+			row.WeightUnit = "g"
+		}
+		if err := qtx.RestorePartDetails(ctx, row); err != nil {
+			return fmt.Errorf("extended product details restore: %w", err)
+		}
+	}
+	for _, category := range manifest.PartCategories {
+		if err := qtx.RestorePartCategory(ctx, db.RestorePartCategoryParams(category)); err != nil {
+			return fmt.Errorf("product category restore: %w", err)
+		}
+	}
+	for _, value := range manifest.PartAttributeValues {
+		if err := qtx.RestorePartAttributeValue(ctx, db.RestorePartAttributeValueParams(value)); err != nil {
+			return fmt.Errorf("product specification restore: %w", err)
 		}
 	}
 	for _, a := range manifest.PartAssignments {

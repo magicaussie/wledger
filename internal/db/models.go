@@ -94,6 +94,31 @@ type CabinetLedString struct {
 	UpdatedAt      time.Time `json:"updated_at"`
 }
 
+type Category struct {
+	ID          int64         `json:"id"`
+	Name        string        `json:"name"`
+	Description string        `json:"description"`
+	ImagePath   string        `json:"image_path"`
+	ParentID    sql.NullInt64 `json:"parent_id"`
+	CreatedAt   time.Time     `json:"created_at"`
+	UpdatedAt   time.Time     `json:"updated_at"`
+}
+
+type CategoryAttribute struct {
+	ID           int64           `json:"id"`
+	CategoryID   int64           `json:"category_id"`
+	Name         string          `json:"name"`
+	DataType     string          `json:"data_type"`
+	Unit         string          `json:"unit"`
+	Options      string          `json:"options"`
+	MinValue     sql.NullFloat64 `json:"min_value"`
+	MaxValue     sql.NullFloat64 `json:"max_value"`
+	IsRequired   bool            `json:"is_required"`
+	DisplayOrder int64           `json:"display_order"`
+	CreatedAt    time.Time       `json:"created_at"`
+	UpdatedAt    time.Time       `json:"updated_at"`
+}
+
 type Container struct {
 	ID            int64          `json:"id"`
 	Name          string         `json:"name"`
@@ -185,6 +210,47 @@ type PartAssignment struct {
 	PartID   int64         `json:"part_id"`
 	BinID    sql.NullInt64 `json:"bin_id"`
 	Quantity int64         `json:"quantity"`
+}
+
+type PartAttributeValue struct {
+	PartID       int64           `json:"part_id"`
+	AttributeID  int64           `json:"attribute_id"`
+	ValueText    sql.NullString  `json:"value_text"`
+	ValueNumber  sql.NullFloat64 `json:"value_number"`
+	ValueBoolean sql.NullBool    `json:"value_boolean"`
+	UpdatedAt    time.Time       `json:"updated_at"`
+}
+
+type PartCategory struct {
+	PartID     int64 `json:"part_id"`
+	CategoryID int64 `json:"category_id"`
+}
+
+type PartDetail struct {
+	PartID              int64           `json:"part_id"`
+	Sku                 sql.NullString  `json:"sku"`
+	Brand               string          `json:"brand"`
+	Model               string          `json:"model"`
+	Colour              string          `json:"colour"`
+	Material            string          `json:"material"`
+	Finish              string          `json:"finish"`
+	Condition           string          `json:"condition"`
+	Notes               string          `json:"notes"`
+	LengthMm            sql.NullFloat64 `json:"length_mm"`
+	WidthMm             sql.NullFloat64 `json:"width_mm"`
+	HeightMm            sql.NullFloat64 `json:"height_mm"`
+	DepthMm             sql.NullFloat64 `json:"depth_mm"`
+	WeightG             sql.NullFloat64 `json:"weight_g"`
+	PurchasedFrom       string          `json:"purchased_from"`
+	SupplierProductCode string          `json:"supplier_product_code"`
+	PurchaseDate        sql.NullString  `json:"purchase_date"`
+	PurchasePrice       sql.NullFloat64 `json:"purchase_price"`
+	Currency            string          `json:"currency"`
+	ProductUrl          string          `json:"product_url"`
+	PurchaseNotes       string          `json:"purchase_notes"`
+	UpdatedAt           time.Time       `json:"updated_at"`
+	DimensionUnit       string          `json:"dimension_unit"`
+	WeightUnit          string          `json:"weight_unit"`
 }
 
 type PartDoc struct {

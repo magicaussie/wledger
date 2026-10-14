@@ -1,0 +1,205 @@
+package pages
+
+import (
+	"fmt"
+	"github.com/tuxedocurly/wledger/internal/auth"
+	"github.com/tuxedocurly/wledger/internal/categories"
+	"github.com/tuxedocurly/wledger/web/components"
+	"github.com/tuxedocurly/wledger/web/layouts"
+)
+
+templ CategoryList(user auth.User, items []categories.Category, search string) {
+	@layouts.Base("Categories", user) {
+		<div class="max-w-6xl mx-auto space-y-6">
+			@components.PageHeader("Categories", "Organize products using reusable categories", nil) {
+				if user.CanWrite() {
+					<a href="/categories/new" class="btn btn-primary">New category</a>
+				}
+			}
+			<form method="GET" action="/categories" class="flex gap-2">
+				<input name="q" value={ search } class="input input-bordered w-full" placeholder="Search categories"/>
+				<button class="btn btn-outline" type="submit">Search</button>
+			</form>
+			if len(items) == 0 {
+				<div class="alert">No categories found.</div>
+			} else {
+				<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+					for _, item := range items {
+						<a href={ templ.SafeURL(fmt.Sprintf("/categories/%d", item.ID)) } class="card bg-base-200 border border-base-300 hover:border-primary transition-colors">
+							<div class="card-body">
+								<div class="flex gap-4 items-center">
+									if item.ImagePath != "" {
+										<img src={ templ.URL(item.ImagePath) } alt={ item.Name } class="w-14 h-14 object-cover rounded"/>
+									}
+									<div class="min-w-0">
+										<h2 class="card-title">{ item.Name }</h2>
+										<p class="text-sm opacity-70 line-clamp-2">{ item.Description }</p>
+									</div>
+								</div>
+								<div class="badge badge-outline mt-3">{ fmt.Sprintf("%d products", item.ProductCount) }</div>
+							</div>
+						</a>
+					}
+				</div>
+			}
+		</div>
+	}
+}
+
+templ CategoryForm(user auth.User, item categories.Category, all []categories.Category) {
+	@layouts.Base("Category", user) {
+		<div class="max-w-3xl mx-auto space-y-6">
+			@components.PageHeader("Category", "Category identity and hierarchy", nil)
+			<form method="POST" enctype="multipart/form-data" action={ templ.SafeURL(categorySavePath(item.ID)) } class="card bg-base-200 border border-base-300">
+				<div class="card-body space-y-4">
+					@components.CSRFInput()
+					<label class="form-control">
+						<span class="label-text mb-2">Name</span>
+						<input class="input input-bordered" name="name" maxlength="120" value={ item.Name } required/>
+					</label>
+					<label class="form-control">
+						<span class="label-text mb-2">Description</span>
+						<textarea class="textarea textarea-bordered" name="description" maxlength="4000">{ item.Description }</textarea>
+					</label>
+					<div class="form-control">
+						<span class="label-text mb-2">Category image</span>
+						if item.ImagePath != "" {
+							<img src={ templ.URL(item.ImagePath) } alt={ item.Name } class="w-24 h-24 rounded object-cover mb-2"/>
+							<label class="label cursor-pointer justify-start gap-2">
+								<input class="checkbox checkbox-error" type="checkbox" name="remove_image" value="true"/>
+								<span class="label-text">Remove current image</span>
+							</label>
+						}
+						<input class="file-input file-input-bordered w-full" type="file" name="image" accept="image/jpeg,image/png,image/webp"/>
+					</div>
+					<label class="form-control">
+						<span class="label-text mb-2">Parent category</span>
+						<select class="select select-bordered" name="parent_id">
+							<option value="">No parent</option>
+							for _, parent := range all {
+								if parent.ID != item.ID {
+									<option value={ fmt.Sprintf("%d", parent.ID) } selected?={ item.ParentID.Valid && item.ParentID.Int64 == parent.ID }>{ parent.Name }</option>
+								}
+							}
+						</select>
+					</label>
+					<div class="flex justify-end gap-2">
+						<a href="/categories" class="btn btn-ghost">Cancel</a>
+						<button class="btn btn-primary" type="submit">Save category</button>
+					</div>
+				</div>
+			</form>
+		</div>
+	}
+}
+
+func categorySavePath(id int64) string {
+	if id == 0 {
+		return "/categories"
+	}
+	return fmt.Sprintf("/categories/%d/update", id)
+}
+
+templ CategoryDetail(user auth.User, item categories.Category, attributes []categories.Attribute, products []categories.Product, search string) {
+	@layouts.Base(item.Name, user) {
+		<div class="max-w-6xl mx-auto space-y-6">
+			@components.PageHeader(item.Name, item.Description, []components.Breadcrumb{{Label: "Categories", URL: "/categories"}, {Label: item.Name}}) {
+				<a href={ templ.SafeURL(fmt.Sprintf("/categories/%d/qr", item.ID)) } class="btn btn-outline">QR</a>
+				<a href={ templ.SafeURL(fmt.Sprintf("/labels/category/%d", item.ID)) } class="btn btn-outline">Print label</a>
+				if user.CanWrite() {
+					<a href={ templ.SafeURL(fmt.Sprintf("/categories/%d/edit", item.ID)) } class="btn btn-outline">Edit</a>
+				}
+			}
+			if item.ImagePath != "" {
+				<img src={ templ.URL(item.ImagePath) } alt={ item.Name } class="w-32 h-32 rounded object-cover"/>
+			}
+			<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+				<section class="card bg-base-200 border border-base-300">
+					<div class="card-body space-y-3">
+						<h2 class="card-title">Category specifications</h2>
+						if len(attributes) == 0 {
+							<p class="opacity-70">No custom specifications defined.</p>
+						}
+					for _, attribute := range attributes {
+						<div class="border border-base-300 rounded p-3">
+							if user.CanWrite() {
+								<form method="POST" action={ templ.SafeURL(fmt.Sprintf("/categories/%d/attributes/%d/update", item.ID, attribute.ID)) } class="grid grid-cols-2 gap-2">
+									@components.CSRFInput()
+									<input class="input input-bordered input-sm" name="name" value={ attribute.Name } required/>
+									<select class="select select-bordered select-sm" name="data_type">
+										<option value="text" selected?={ attribute.DataType == categories.TextType }>Text</option>
+										<option value="number" selected?={ attribute.DataType == categories.NumberType }>Number</option>
+										<option value="boolean" selected?={ attribute.DataType == categories.BooleanType }>Yes/No</option>
+									</select>
+									<input class="input input-bordered input-sm" name="unit" value={ attribute.Unit } placeholder="Unit"/>
+									<input class="input input-bordered input-sm" type="number" step="any" name="min_value" value={ attribute.MinimumInput() } placeholder="Minimum (numeric only)"/>
+									<input class="input input-bordered input-sm" type="number" step="any" name="max_value" value={ attribute.MaximumInput() } placeholder="Maximum (numeric only)"/>
+									<textarea class="textarea textarea-bordered textarea-sm col-span-2" name="options" rows="3" placeholder="Allowed options, one per line">{ attribute.OptionsText() }</textarea>
+									<input class="input input-bordered input-sm" type="number" min="0" name="display_order" value={ fmt.Sprintf("%d", attribute.DisplayOrder) } aria-label="Display order"/>
+									<label class="label cursor-pointer justify-start gap-2">
+										<input class="checkbox checkbox-sm" type="checkbox" name="required" checked?={ attribute.Required }/>
+										<span class="label-text">Required</span>
+									</label>
+									<button class="btn btn-sm btn-primary" type="submit">Save</button>
+								</form>
+								<form method="POST" action={ templ.SafeURL(fmt.Sprintf("/categories/%d/attributes/%d/delete", item.ID, attribute.ID)) } class="mt-2 text-right">
+									@components.CSRFInput()
+									<button class="btn btn-xs btn-error btn-outline" type="submit">Delete attribute</button>
+								</form>
+							} else {
+								<div class="flex justify-between gap-3"><span>{ attribute.Name }</span><span class="opacity-70">{ string(attribute.DataType) } { attribute.Unit }</span></div>
+							}
+						</div>
+					}
+					if user.CanWrite() {
+						<div class="divider">Add specification</div>
+						<form method="POST" action={ templ.SafeURL(fmt.Sprintf("/categories/%d/attributes", item.ID)) } class="grid grid-cols-2 gap-2">
+							@components.CSRFInput()
+							<input class="input input-bordered" name="name" maxlength="120" placeholder="Attribute name" required/>
+							<select class="select select-bordered" name="data_type"><option value="text">Text</option><option value="number">Number</option><option value="boolean">Yes/No</option></select>
+							<input class="input input-bordered" name="unit" maxlength="32" placeholder="Unit (optional)"/>
+							<input class="input input-bordered" type="number" step="any" name="min_value" placeholder="Minimum (numeric only)"/>
+							<input class="input input-bordered" type="number" step="any" name="max_value" placeholder="Maximum (numeric only)"/>
+							<textarea class="textarea textarea-bordered col-span-2" name="options" rows="3" placeholder="Allowed options, one per line (optional)"></textarea>
+							<input class="input input-bordered" type="number" min="0" name="display_order" value="0" aria-label="Display order"/>
+							<label class="label cursor-pointer justify-start gap-2">
+								<input class="checkbox" type="checkbox" name="required"/>
+								<span class="label-text">Required</span>
+							</label>
+							<button class="btn btn-primary" type="submit">Add attribute</button>
+						</form>
+					}
+					</div>
+				</section>
+				<section class="card bg-base-200 border border-base-300">
+					<div class="card-body space-y-3">
+						<div class="flex items-center justify-between">
+							<h2 class="card-title">Products ({ fmt.Sprintf("%d", item.ProductCount) })</h2>
+							if user.CanWrite() {
+								<a href={ templ.SafeURL(fmt.Sprintf("/parts/new?category_id=%d", item.ID)) } class="link">Add product</a>
+							}
+						</div>
+						<form method="GET" class="flex gap-2">
+							<input class="input input-bordered w-full" name="q" value={ search } placeholder="Search products in this category"/>
+							<button class="btn btn-outline">Search</button>
+						</form>
+						if len(products) == 0 {
+							<p class="opacity-70">No products in this category.</p>
+						}
+					<ul class="divide-y divide-base-300">
+						for _, product := range products {
+							<li class="py-2"><a class="link" href={ templ.SafeURL(fmt.Sprintf("/parts/%d", product.ID)) }>{ product.Name }</a></li>
+						}
+					</ul>
+				</div>
+				</section>
+			</div>
+			if user.CanWrite() {
+				<form method="POST" action={ templ.SafeURL(fmt.Sprintf("/categories/%d/delete", item.ID)) } class="text-right" onsubmit="return confirm('Delete this category? Products will remain in inventory and become uncategorized; child categories will become top-level.')">
+					@components.CSRFInput()
+					<button class="btn btn-error btn-outline" type="submit">Delete category</button>
+				</form>
+			}
+		</div>
+	}
+}

@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/tuxedocurly/wledger/internal/auth"
+	"github.com/tuxedocurly/wledger/internal/categories"
 	"github.com/tuxedocurly/wledger/internal/storage"
 	"github.com/tuxedocurly/wledger/web/pages"
 )
@@ -68,6 +69,20 @@ func (h *Handler) HandleScanLabel(w http.ResponseWriter, r *http.Request) {
 		label.Name = bin.Name
 		label.Identity = fmt.Sprintf("Inventory bin #%d", id)
 		label.QRURL = fmt.Sprintf("/storage/bins/%d/qr", id)
+	case "category":
+		category, err := categories.NewService(h.Database).Get(r.Context(), id)
+		if err != nil {
+			if errors.Is(err, categories.ErrNotFound) {
+				http.NotFound(w, r)
+			} else {
+				h.UIError.Respond(w, r, err, "Failed to load category", http.StatusInternalServerError)
+			}
+			return
+		}
+		label.Kind = "Category"
+		label.Name = category.Name
+		label.Identity = fmt.Sprintf("WLEDger category #%d", id)
+		label.QRURL = fmt.Sprintf("/categories/%d/qr", id)
 	case "part":
 		part, err := h.Queries.GetPart(r.Context(), id)
 		if err != nil {

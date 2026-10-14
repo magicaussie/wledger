@@ -144,7 +144,7 @@ func newExportHarness(t *testing.T, wrap func(db.Querier) db.Querier) (*exportSt
 }
 
 // openExportedLegacyManifest decodes the historical manifest from an exported
-// archive. It accepts the current storage_data.json 2.0 envelope, whose legacy
+// archive. It accepts the current storage_data.json 2.2 envelope, whose legacy
 // member holds the complete historical manifest, as well as a legacy
 // restore_data.json, so the machine-equality assertions keep testing the same
 // data after the export switched to the current envelope.

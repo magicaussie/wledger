@@ -19,17 +19,19 @@ import (
 //
 // Historical (legacy) backups use the restore_data.json entry holding a manifest
 // whose version is 1.0, and they keep restoring unchanged. Current backups use
-// the storage_data.json entry holding a complete version 2.0 storage manifest
+// the storage_data.json entry holding a complete version 2.2 storage manifest
 // that embeds the historical manifest plus the physical storage rows and every
 // system flag. Exactly one of the two entries must be present: a mixture is
 // rejected as ambiguous rather than resolved by ZIP entry order, a duplicate is
 // rejected rather than silently resolved, and a missing manifest is rejected
 // rather than read as an empty backup.
 const (
-	legacyManifestName              = "restore_data.json"
-	currentStorageManifestName      = "storage_data.json"
-	supportedLegacyManifestVersion  = "1.0"
-	supportedCurrentManifestVersion = "2.0"
+	legacyManifestName               = "restore_data.json"
+	currentStorageManifestName       = "storage_data.json"
+	supportedLegacyManifestVersion   = "1.0"
+	supportedPreviousManifestVersion = "2.0"
+	supportedCategoryManifestVersion = "2.1"
+	supportedCurrentManifestVersion  = "2.2"
 )
 
 // BackupFormatCode is a machine-readable classification of an unsupported
@@ -106,8 +108,8 @@ func (e *BackupFormatError) Error() string {
 
 // restoreEnvelope is the manifest a restore archive carries, discriminated by
 // format. Legacy always holds the complete historical manifest: the whole
-// archive for a 1.0 backup, or the embedded legacy member of a 2.0 envelope.
-// Current is non-nil only for a current 2.0 archive.
+// archive for a 1.0 backup, or the embedded legacy member of a current envelope.
+// Current is non-nil only for a version 2.0, 2.1 or 2.2 archive.
 type restoreEnvelope struct {
 	Legacy  Manifest
 	Current *StorageManifest
@@ -295,7 +297,13 @@ func manifestTopLevelFields() map[string]struct{} {
 // tagged omitempty (the coordinate marker and the later supplier sections) are
 // optional, so an archive that predates them stays readable.
 func manifestRequiredFields() map[string]struct{} {
-	return requiredTopLevelJSONFields(reflect.TypeOf(Manifest{}))
+	fields := requiredTopLevelJSONFields(reflect.TypeOf(Manifest{}))
+	// Category and extended product data are additive versioned fields. Keep them
+	// optional when decoding historical 1.0 and earlier current envelopes.
+	for _, name := range []string{"categories", "part_categories", "category_attributes", "part_attribute_values", "part_details"} {
+		delete(fields, name)
+	}
+	return fields
 }
 
 // topLevelJSONFields derives the accepted top-level JSON member names from a
@@ -411,9 +419,55 @@ type Manifest struct {
 	Tags                []db.Tag                `json:"tags"`
 	PartTags            []db.PartTag            `json:"part_tags"`
 	AuditLogs           []AuditLogEntry         `json:"audit_logs"`
+	Categories          []db.Category           `json:"categories,omitempty"`
+	PartCategories      []db.PartCategory       `json:"part_categories,omitempty"`
+	CategoryAttributes  []db.CategoryAttribute  `json:"category_attributes,omitempty"`
+	PartAttributeValues []db.PartAttributeValue `json:"part_attribute_values,omitempty"`
+	PartDetails         []db.PartDetail         `json:"part_details,omitempty"`
 	SupplierRefs        []db.SupplierReference  `json:"supplier_references,omitempty"`
 	PartParameters      []db.PartParameter      `json:"part_parameters,omitempty"`
 	PartPricing         []db.PartPricing        `json:"part_pricing,omitempty"`
 	SupplierCredentials []db.SupplierCredential `json:"supplier_credentials,omitempty"`
 	PriceHistory        []db.PriceHistory       `json:"price_history,omitempty"`
+}
+
+func (m Manifest) MarshalJSON() ([]byte, error) {
+	type manifestAlias Manifest
+	encoded, err := json.Marshal(manifestAlias(m))
+	if err != nil {
+		return nil, err
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(encoded, &fields); err != nil {
+		return nil, err
+	}
+	if err := addOptionalList(fields, "categories", m.Categories); err != nil {
+		return nil, err
+	}
+	if err := addOptionalList(fields, "part_categories", m.PartCategories); err != nil {
+		return nil, err
+	}
+	if err := addOptionalList(fields, "category_attributes", m.CategoryAttributes); err != nil {
+		return nil, err
+	}
+	if err := addOptionalList(fields, "part_attribute_values", m.PartAttributeValues); err != nil {
+		return nil, err
+	}
+	if err := addOptionalList(fields, "part_details", m.PartDetails); err != nil {
+		return nil, err
+	}
+	return json.Marshal(fields)
+}
+
+func addOptionalList[T any](fields map[string]json.RawMessage, name string, value []T) error {
+	if value == nil {
+		delete(fields, name)
+		return nil
+	}
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+	fields[name] = encoded
+	return nil
 }

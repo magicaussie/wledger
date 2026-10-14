@@ -23,7 +23,7 @@ import (
 )
 
 // These tests cover the completeness contract of the current storage envelope:
-// a current (2.0) archive must declare every member of the envelope, the
+// a current (2.2) archive must declare every member of the envelope, the
 // physical storage section and the embedded legacy manifest that its format
 // requires, plus a coordinate space consistent with the captured flag. An
 // incomplete archive must be rejected before any cleanup or mutation, because
@@ -558,6 +558,41 @@ func TestStorageManifest_RejectsIncompleteEnvelopesBeforeMutation(t *testing.T) 
 			wantCode: FormatMissingManifestField,
 			raw: func(t *testing.T) string {
 				return smvRebuild(t, base, func(m map[string]string) { delete(m, "system_flags") })
+			},
+		},
+		{
+			name:     "legacy omits categories",
+			wantCode: FormatMissingManifestField,
+			raw: func(t *testing.T) string {
+				return smvLegacyMutation(t, base, func(m map[string]string) { delete(m, "categories") })
+			},
+		},
+		{
+			name:     "legacy omits part_categories",
+			wantCode: FormatMissingManifestField,
+			raw: func(t *testing.T) string {
+				return smvLegacyMutation(t, base, func(m map[string]string) { delete(m, "part_categories") })
+			},
+		},
+		{
+			name:     "legacy omits category_attributes",
+			wantCode: FormatMissingManifestField,
+			raw: func(t *testing.T) string {
+				return smvLegacyMutation(t, base, func(m map[string]string) { delete(m, "category_attributes") })
+			},
+		},
+		{
+			name:     "legacy omits part_attribute_values",
+			wantCode: FormatMissingManifestField,
+			raw: func(t *testing.T) string {
+				return smvLegacyMutation(t, base, func(m map[string]string) { delete(m, "part_attribute_values") })
+			},
+		},
+		{
+			name:     "legacy omits part_details",
+			wantCode: FormatMissingManifestField,
+			raw: func(t *testing.T) string {
+				return smvLegacyMutation(t, base, func(m map[string]string) { delete(m, "part_details") })
 			},
 		},
 		{

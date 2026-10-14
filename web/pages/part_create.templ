@@ -2,13 +2,15 @@ package pages
 
 import (
 	"github.com/tuxedocurly/wledger/internal/auth"
+	"github.com/tuxedocurly/wledger/internal/categories"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/i18n"
+	"github.com/tuxedocurly/wledger/internal/productdetails"
 	"github.com/tuxedocurly/wledger/web/components"
 	"github.com/tuxedocurly/wledger/web/layouts"
 )
 
-templ PartCreate(user auth.User, allTags []db.Tag) {
+templ PartCreate(user auth.User, allTags []db.Tag, allCategories []categories.Category, selectedCategoryID int64, attributes []categories.Attribute, attributeValues []categories.AttributeValue, details productdetails.ExtendedDetails) {
 	@layouts.Base(i18n.T(ctx, "CreatePart"), user) {
 		<div class="max-w-4xl mx-auto w-full">
 			@components.PageHeader(
@@ -19,7 +21,7 @@ templ PartCreate(user auth.User, allTags []db.Tag) {
 					{Label: i18n.T(ctx, "CreateNew")},
 				},
 			)
-			@components.PartForm(db.Part{}, nil, allTags, []db.PartLink{}, []db.PartDoc{}, "/parts", false)
+			@components.PartForm(db.Part{}, nil, allTags, []db.PartLink{}, []db.PartDoc{}, allCategories, selectedCategoryID, attributes, attributeValues, details, "/parts", false)
 		</div>
 	}
 }

@@ -921,38 +921,42 @@ func (q *Queries) RestorePartLink(ctx context.Context, arg RestorePartLinkParams
 }
 
 const searchParts = `-- name: SearchParts :many
-SELECT p.id, p.name, p.description, p.part_number, p.manufacturer, p.supplier, p.unit_cost, p.reorder_level, p.min_stock_threshold, p.barcode_data, p.image_path, p.is_favorite, p.tags, p.created_at, p.updated_at, p.footprint, 
+WITH matched_parts(rowid, rank) AS (
+    SELECT rowid, rank FROM parts_fts WHERE parts_fts MATCH ?4
+    UNION
+    SELECT d.part_id, 0.0 FROM part_details d
+    WHERE (coalesce(d.sku, '') || ' ' || d.brand || ' ' || d.model || ' ' || d.colour || ' ' ||
+           d.material || ' ' || d.finish || ' ' || d.condition || ' ' || d.notes || ' ' ||
+           d.purchased_from || ' ' || d.supplier_product_code || ' ' || d.product_url || ' ' ||
+           d.purchase_notes || ' ' || coalesce(CAST(d.length_mm AS TEXT), '') || ' ' ||
+           coalesce(CAST(d.width_mm AS TEXT), '') || ' ' || coalesce(CAST(d.height_mm AS TEXT), '') || ' ' ||
+           coalesce(CAST(d.depth_mm AS TEXT), '') || ' ' || d.dimension_unit || ' ' ||
+                      coalesce(CAST(d.weight_g AS TEXT), '') || ' ' || d.weight_unit)
+          LIKE '%' || replace(?4, '*', '') || '%'
+    UNION
+    SELECT v.part_id, 0.0 FROM part_attribute_values v
+    WHERE (coalesce(v.value_text, '') || ' ' || coalesce(CAST(v.value_number AS TEXT), '')) LIKE '%' || replace(?4, '*', '') || '%'
+)
+SELECT p.id, p.name, p.description, p.part_number, p.manufacturer, p.supplier, p.unit_cost, p.reorder_level, p.min_stock_threshold, p.barcode_data, p.image_path, p.is_favorite, p.tags, p.created_at, p.updated_at, p.footprint,
     CAST(COALESCE(SUM(pa.quantity), 0) AS INTEGER) as total_stock,
     CAST(COALESCE(SUM(CASE WHEN pa.bin_id IS NOT NULL THEN pa.quantity ELSE 0 END), 0) AS INTEGER) as valid_stock,
     CAST(COALESCE(SUM(CASE WHEN pa.bin_id IS NULL THEN pa.quantity ELSE 0 END), 0) AS INTEGER) as orphaned_stock,
-    (SELECT pa2.bin_id 
-     FROM part_assignments pa2 
-     WHERE pa2.part_id = p.id AND pa2.quantity > 0 
-     ORDER BY pa2.quantity DESC, pa2.id ASC 
-     LIMIT 1) as locate_bin_id,
-    COALESCE((SELECT c2.id 
-     FROM part_assignments pa2 
-     JOIN bins b2 ON pa2.bin_id = b2.id
-     JOIN containers cont2 ON b2.container_id = cont2.id
-     JOIN controllers c2 ON cont2.controller_id = c2.id
-     WHERE pa2.part_id = p.id AND pa2.quantity > 0 
-     ORDER BY pa2.quantity DESC, pa2.id ASC 
-     LIMIT 1), 0) as locate_controller_id
-FROM parts_fts fts
+    (SELECT pa2.bin_id FROM part_assignments pa2 WHERE pa2.part_id = p.id AND pa2.quantity > 0 ORDER BY pa2.quantity DESC, pa2.id ASC LIMIT 1) as locate_bin_id,
+    COALESCE((SELECT c2.id FROM part_assignments pa2 JOIN bins b2 ON pa2.bin_id = b2.id JOIN containers cont2 ON b2.container_id = cont2.id JOIN controllers c2 ON cont2.controller_id = c2.id WHERE pa2.part_id = p.id AND pa2.quantity > 0 ORDER BY pa2.quantity DESC, pa2.id ASC LIMIT 1), 0) as locate_controller_id
+FROM matched_parts fts
 JOIN parts p ON fts.rowid = p.id
 LEFT JOIN part_assignments pa ON p.id = pa.part_id
-WHERE parts_fts MATCH ?1
-  AND (?2 IS NULL OR pa.bin_id = ?2)
+WHERE (?1 IS NULL OR pa.bin_id = ?1)
 GROUP BY p.id, fts.rank
 ORDER BY fts.rank
-LIMIT ?4 OFFSET ?3
+LIMIT ?3 OFFSET ?2
 `
 
 type SearchPartsParams struct {
-	Query  sql.NullString `json:"query"`
 	BinID  interface{}    `json:"bin_id"`
 	Offset int64          `json:"offset"`
 	Limit  int64          `json:"limit"`
+	Query  sql.NullString `json:"query"`
 }
 
 type SearchPartsRow struct {
@@ -981,10 +985,10 @@ type SearchPartsRow struct {
 
 func (q *Queries) SearchParts(ctx context.Context, arg SearchPartsParams) ([]SearchPartsRow, error) {
 	rows, err := q.query(ctx, q.searchPartsStmt, searchParts,
-		arg.Query,
 		arg.BinID,
 		arg.Offset,
 		arg.Limit,
+		arg.Query,
 	)
 	if err != nil {
 		return nil, err

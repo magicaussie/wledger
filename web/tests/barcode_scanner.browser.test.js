@@ -115,6 +115,7 @@ const scannerMock = `
     await page.waitForFunction(() => window.__barcodeScannerStats.renders === 4);
     await page.evaluate(() => window.__wledgerBarcodeScanner.scanner.onSuccess('manufacturer-part-123'));
     await page.waitForFunction(() => window.__barcodeScannerStats.clears === 4);
+
     assert.equal(await page.locator('#barcode_input').inputValue(), 'manufacturer-part-123', 'camera results fill the explicitly targeted barcode field when no stock operation is active');
     assert.equal(page.url(), scanFormURL, 'a camera scan in an active input form must not navigate away');
     const cameraFormats = await page.evaluate(() => window.__wledgerBarcodeScanner.scanner.config.formatsToSupport);

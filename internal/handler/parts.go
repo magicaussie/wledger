@@ -10,9 +10,11 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/tuxedocurly/wledger/internal/auth"
+	"github.com/tuxedocurly/wledger/internal/categories"
 	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/parts"
+	"github.com/tuxedocurly/wledger/internal/productdetails"
 	"github.com/tuxedocurly/wledger/internal/qrcode"
 	"github.com/tuxedocurly/wledger/internal/stock"
 	"github.com/tuxedocurly/wledger/internal/wled"
@@ -205,6 +207,8 @@ func (h *Handler) HandleScan(w http.ResponseWriter, r *http.Request) {
 		path = fmt.Sprintf("/drawers/%d", resolution.ID)
 	case "part":
 		path = fmt.Sprintf("/parts/%d", resolution.ID)
+	case "category":
+		path = fmt.Sprintf("/categories/%d", resolution.ID)
 	}
 	http.Redirect(w, r, path, http.StatusSeeOther)
 }
@@ -226,7 +230,22 @@ func (h *Handler) HandlePartDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pages.PartDetail(user, detail.Part, detail.Stock, detail.Links, detail.Docs, detail.Controllers).Render(r.Context(), w)
+	category, categoryErr := categories.NewService(h.Database).ForPart(r.Context(), int64(id))
+	if categoryErr != nil && !errors.Is(categoryErr, categories.ErrNotFound) {
+		h.UIError.Respond(w, r, categoryErr, "Failed to load product category", http.StatusInternalServerError)
+		return
+	}
+	specifications, err := categories.NewService(h.Database).Specifications(r.Context(), int64(id))
+	if err != nil {
+		h.UIError.Respond(w, r, err, "Failed to load product specifications", http.StatusInternalServerError)
+		return
+	}
+	productDetails, err := productdetails.GetExtendedDetails(r.Context(), h.Database, int64(id))
+	if err != nil {
+		h.UIError.Respond(w, r, err, "Failed to load extended product details", http.StatusInternalServerError)
+		return
+	}
+	pages.PartDetail(user, detail.Part, detail.Stock, detail.Links, detail.Docs, detail.Controllers, category, specifications, productDetails).Render(r.Context(), w)
 }
 
 // -----------------------------------------------------------
@@ -237,7 +256,12 @@ func (h *Handler) HandlePartDetail(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) HandlePartsNew(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUserFromRequest(r)
 	allTags, _ := h.Tags.ListAllTags(r.Context())
-	pages.PartCreate(user, allTags).Render(r.Context(), w)
+	allCategories, selectedID, attributes, values, err := h.categoryFormData(r, 0)
+	if err != nil {
+		categoryError(h, w, r, err, "Failed to load category specifications")
+		return
+	}
+	pages.PartCreate(user, allTags, allCategories, selectedID, attributes, values, productdetails.ExtendedDetails{Currency: "AUD"}).Render(r.Context(), w)
 }
 
 // POST /parts
@@ -248,6 +272,26 @@ func (h *Handler) HandlePartsCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer r.MultipartForm.RemoveAll()
+
+	productDetails, err := parsePartDetails(r, 0)
+	if err != nil {
+		productDetailsError(h, w, r, err)
+		return
+	}
+	if err := productdetails.ValidateExtendedDetails(r.Context(), h.Database, productDetails, 0); err != nil {
+		productDetailsError(h, w, r, err)
+		return
+	}
+
+	selectedID, specifications, err := h.parsePartCategory(r)
+	if err != nil {
+		categoryError(h, w, r, err, "Invalid product category or specifications")
+		return
+	}
+	if err := categories.NewService(h.Database).ValidateSpecifications(r.Context(), categoryIDValue(selectedID), specifications); err != nil {
+		categoryError(h, w, r, err, "Invalid product specifications")
+		return
+	}
 
 	newID, err := h.Parts.CreatePart(r.Context(), req)
 	if err != nil {
@@ -261,6 +305,15 @@ func (h *Handler) HandlePartsCreate(w http.ResponseWriter, r *http.Request) {
 		default:
 			h.UIError.Respond(w, r, err, "Failed to create part", http.StatusInternalServerError)
 		}
+		return
+	}
+	productDetails.PartID = newID
+	if err := productdetails.SaveExtendedDetails(r.Context(), h.Database, productDetails); err != nil {
+		productDetailsError(h, w, r, err)
+		return
+	}
+	if err := categories.NewService(h.Database).SetProductCategory(r.Context(), newID, selectedID, specifications); err != nil {
+		categoryError(h, w, r, err, "Failed to save product category and specifications")
 		return
 	}
 
@@ -280,8 +333,18 @@ func (h *Handler) HandlePartEdit(w http.ResponseWriter, r *http.Request) {
 
 	tags, _ := h.Queries.GetTagsForPart(r.Context(), int64(id))
 	allTags, _ := h.Tags.ListAllTags(r.Context())
+	allCategories, selectedID, attributes, values, err := h.categoryFormData(r, int64(id))
+	if err != nil {
+		categoryError(h, w, r, err, "Failed to load category specifications")
+		return
+	}
 
-	pages.PartEdit(user, detail.Part, tags, allTags, detail.Links, detail.Docs).Render(r.Context(), w)
+	productDetails, err := productdetails.GetExtendedDetails(r.Context(), h.Database, int64(id))
+	if err != nil {
+		h.UIError.Respond(w, r, err, "Failed to load extended product details", http.StatusInternalServerError)
+		return
+	}
+	pages.PartEdit(user, detail.Part, tags, allTags, detail.Links, detail.Docs, allCategories, selectedID, attributes, values, productDetails).Render(r.Context(), w)
 }
 
 // POST /parts/{id}/update
@@ -295,6 +358,26 @@ func (h *Handler) HandlePartUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.MultipartForm.RemoveAll()
 
+	productDetails, err := parsePartDetails(r, int64(id))
+	if err != nil {
+		productDetailsError(h, w, r, err)
+		return
+	}
+	if err := productdetails.ValidateExtendedDetails(r.Context(), h.Database, productDetails, int64(id)); err != nil {
+		productDetailsError(h, w, r, err)
+		return
+	}
+
+	selectedID, specifications, err := h.parsePartCategory(r)
+	if err != nil {
+		categoryError(h, w, r, err, "Invalid product category or specifications")
+		return
+	}
+	if err := categories.NewService(h.Database).ValidateSpecifications(r.Context(), categoryIDValue(selectedID), specifications); err != nil {
+		categoryError(h, w, r, err, "Invalid product specifications")
+		return
+	}
+
 	err = h.Parts.UpdatePart(r.Context(), req)
 	if err != nil {
 		if errors.Is(err, parts.ErrInvalidLinkURL) {
@@ -306,6 +389,15 @@ func (h *Handler) HandlePartUpdate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h.UIError.Respond(w, r, err, "Failed to update part", http.StatusInternalServerError)
+		return
+	}
+	productDetails.PartID = int64(id)
+	if err := productdetails.SaveExtendedDetails(r.Context(), h.Database, productDetails); err != nil {
+		productDetailsError(h, w, r, err)
+		return
+	}
+	if err := categories.NewService(h.Database).SetProductCategory(r.Context(), int64(id), selectedID, specifications); err != nil {
+		categoryError(h, w, r, err, "Failed to save product category and specifications")
 		return
 	}
 
@@ -605,6 +697,57 @@ func (h *Handler) HandlePartLocate(w http.ResponseWriter, r *http.Request) {
 
 // --- HELPERS ---
 
+func parsePartDetails(r *http.Request, partID int64) (productdetails.ExtendedDetails, error) {
+	parseNumber := func(name string) (sql.NullFloat64, error) {
+		raw := strings.TrimSpace(r.FormValue(name))
+		if raw == "" {
+			return sql.NullFloat64{}, nil
+		}
+		value, err := strconv.ParseFloat(raw, 64)
+		if err != nil {
+			return sql.NullFloat64{}, productdetails.ErrInvalidDetails
+		}
+		return sql.NullFloat64{Float64: value, Valid: true}, nil
+	}
+	details := productdetails.ExtendedDetails{
+		PartID: partID, SKU: r.FormValue("sku"), Brand: r.FormValue("brand"), Model: r.FormValue("model"),
+		Colour: r.FormValue("colour"), Material: r.FormValue("material"), Finish: r.FormValue("finish"), Condition: r.FormValue("condition"),
+		DimensionUnit: strings.TrimSpace(r.FormValue("dimension_unit")), WeightUnit: strings.TrimSpace(r.FormValue("weight_unit")),
+		Notes: r.FormValue("product_notes"), PurchasedFrom: r.FormValue("purchased_from"), SupplierProductCode: r.FormValue("supplier_product_code"),
+		Currency: r.FormValue("currency"), ProductURL: r.FormValue("product_url"), PurchaseNotes: r.FormValue("purchase_notes"),
+	}
+	if raw := strings.TrimSpace(r.FormValue("purchase_date")); raw != "" {
+		details.PurchaseDate = sql.NullString{String: raw, Valid: true}
+	}
+	for _, field := range []struct {
+		name   string
+		target *sql.NullFloat64
+	}{
+		{"length_mm", &details.LengthMM}, {"width_mm", &details.WidthMM}, {"height_mm", &details.HeightMM},
+		{"depth_mm", &details.DepthMM}, {"weight_g", &details.WeightG}, {"purchase_price", &details.PurchasePrice},
+	} {
+		value, err := parseNumber(field.name)
+		if err != nil {
+			return productdetails.ExtendedDetails{}, err
+		}
+		*field.target = value
+	}
+	if err := details.NormalizeAndValidate(); err != nil {
+		return productdetails.ExtendedDetails{}, err
+	}
+	return details, nil
+}
+
+func productDetailsError(h *Handler, w http.ResponseWriter, r *http.Request, err error) {
+	status, message := http.StatusInternalServerError, "Failed to save extended product details"
+	if errors.Is(err, productdetails.ErrDuplicateSKU) {
+		status, message = http.StatusConflict, "Internal SKU is already assigned to another product"
+	} else if errors.Is(err, productdetails.ErrInvalidDetails) {
+		status, message = http.StatusBadRequest, "Check product details, measurement values, date, currency and URL"
+	}
+	h.UIError.Respond(w, r, err, message, status)
+}
+
 func (h *Handler) parsePartCreateRequest(r *http.Request) (parts.CreatePartRequest, error) {
 	err := r.ParseMultipartForm(config.MaxUploadSizeParts)
 	if err != nil {
@@ -674,6 +817,120 @@ func (h *Handler) parsePartUpdateRequest(r *http.Request, id int64) (parts.Updat
 	}
 
 	return req, nil
+}
+
+func (h *Handler) categoryFormData(r *http.Request, partID int64) ([]categories.Category, int64, []categories.Attribute, []categories.AttributeValue, error) {
+	svc := categories.NewService(h.Database)
+	all, err := svc.List(r.Context(), "")
+	if err != nil {
+		return nil, 0, nil, nil, err
+	}
+	selectedID := int64(0)
+	originalID := int64(0)
+	if partID > 0 {
+		current, err := svc.ForPart(r.Context(), partID)
+		if err == nil {
+			selectedID, originalID = current.ID, current.ID
+		} else if !errors.Is(err, categories.ErrNotFound) {
+			return nil, 0, nil, nil, err
+		}
+	}
+	if r.URL.Query().Has("category_id") {
+		raw := strings.TrimSpace(r.URL.Query().Get("category_id"))
+		if raw == "" {
+			selectedID = 0
+		} else {
+			id, err := strconv.ParseInt(raw, 10, 64)
+			if err != nil || id <= 0 {
+				return nil, 0, nil, nil, categories.ErrInvalid
+			}
+			selectedID = id
+		}
+	}
+	if selectedID == 0 {
+		return all, 0, nil, nil, nil
+	}
+	if _, err := svc.Get(r.Context(), selectedID); err != nil {
+		return nil, 0, nil, nil, err
+	}
+	attributes, err := svc.ListAttributes(r.Context(), selectedID)
+	if err != nil {
+		return nil, 0, nil, nil, err
+	}
+	var values []categories.AttributeValue
+	if partID > 0 && selectedID == originalID {
+		values, err = svc.Specifications(r.Context(), partID)
+		if err != nil {
+			return nil, 0, nil, nil, err
+		}
+	}
+	return all, selectedID, attributes, values, nil
+}
+
+func (h *Handler) parsePartCategory(r *http.Request) (*int64, []categories.Specification, error) {
+	raw := strings.TrimSpace(r.FormValue("category_id"))
+	if raw == "" {
+		return nil, nil, nil
+	}
+	id, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || id <= 0 {
+		return nil, nil, categories.ErrInvalid
+	}
+	svc := categories.NewService(h.Database)
+	if _, err := svc.Get(r.Context(), id); err != nil {
+		return nil, nil, err
+	}
+	attributes, err := svc.ListAttributes(r.Context(), id)
+	if err != nil {
+		return nil, nil, err
+	}
+	var specifications []categories.Specification
+	for _, attribute := range attributes {
+		value := r.FormValue(fmt.Sprintf("spec_%d", attribute.ID))
+		spec := categories.Specification{AttributeID: attribute.ID}
+		switch attribute.DataType {
+		case categories.TextType:
+			if value == "" && !attribute.Required {
+				continue
+			}
+			spec.Text = &value
+		case categories.NumberType:
+			if value == "" {
+				if attribute.Required {
+					continue
+				}
+				continue
+			}
+			number, err := strconv.ParseFloat(value, 64)
+			if err != nil {
+				return nil, nil, categories.ErrInvalidValue
+			}
+			spec.Number = &number
+		case categories.BooleanType:
+			if value == "" {
+				if attribute.Required {
+					continue
+				}
+				continue
+			}
+			boolean, err := strconv.ParseBool(value)
+			if err != nil {
+				return nil, nil, categories.ErrInvalidValue
+			}
+			spec.Boolean = &boolean
+		default:
+			return nil, nil, categories.ErrInvalidValue
+		}
+		specifications = append(specifications, spec)
+	}
+	return &id, specifications, nil
+}
+
+func categoryIDValue(id *int64) int64 {
+	if id == nil {
+		return 0
+	}
+	return *id
 }
 
 func (h *Handler) parseFormTags(raw string) []string {

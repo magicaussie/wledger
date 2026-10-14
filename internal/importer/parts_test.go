@@ -74,6 +74,21 @@ Microcontroller,IC|SMD,http://example.com/datasheet|http://example.com/product`,
 			},
 		},
 		{
+			name: "Extended General Product Fields",
+			csvContent: `Name,SKU,Brand,Model,Colour,Material,Finish,Condition,Length mm,Width mm,Height mm,Depth mm,Dimension Unit,Weight g,Weight Unit,Notes,Purchased From,Supplier Product Code,Purchase Date,Purchase Price,Currency,Product URL,Purchase Notes
+Bolt,BOLT-M8-35,Acme,M8x35,Silver,Steel,Zinc,New,35,8,8,35,in,12.5,lb,Reusable fastener,Local shop,AC-835,2026-01-15,0.42,AUD,https://example.com/bolt,Receipt 42`,
+			expectError: false,
+			check: func(rows []PartImportRow) bool {
+				d := rows[0].Details
+				return d.SKU == "BOLT-M8-35" && d.Brand == "Acme" && d.Model == "M8x35" && d.LengthMM.Valid && d.LengthMM.Float64 == 35 && d.DimensionUnit == "in" && d.WeightG.Valid && d.WeightG.Float64 == 12.5 && d.WeightUnit == "lb" && d.Currency == "AUD" && d.PurchaseDate.String == "2026-01-15" && d.SupplierProductCode == "AC-835"
+			},
+		},
+		{
+			name:        "Invalid Product Date",
+			csvContent:  "Name,Purchase Date\nBolt,not-a-date",
+			expectError: true,
+		},
+		{
 			name: "With Location Data",
 			csvContent: `Name,Controller IP,Segment ID,LED Index
 Led,192.168.1.100,2,5`,

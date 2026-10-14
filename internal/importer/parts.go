@@ -1,33 +1,40 @@
 package importer
 
 import (
+	"database/sql"
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/tuxedocurly/wledger/internal/productdetails"
 )
 
 // PartImportRow represents a single row from the CSV
 type PartImportRow struct {
-	RowNumber         int
-	Name              string
-	Description       string
-	PartNumber        string
-	Manufacturer      string
-	Supplier          string
-	UnitCost          float64
-	ReorderLevel      int
-	MinStockThreshold int
-	Footprint         string
-	BarcodeData       string
-	InitialQuantity   int
-	Tags              []string
-	Links             []string
-	ControllerIP      string
-	SegmentID         *int
-	LEDIndex          *int
+	RowNumber              int
+	Name                   string
+	Description            string
+	PartNumber             string
+	Manufacturer           string
+	Supplier               string
+	UnitCost               float64
+	ReorderLevel           int
+	MinStockThreshold      int
+	Footprint              string
+	BarcodeData            string
+	InitialQuantity        int
+	Tags                   []string
+	Links                  []string
+	ControllerIP           string
+	SegmentID              *int
+	LEDIndex               *int
+	Details                productdetails.ExtendedDetails
+	CategoryName           string
+	CategorySpecifications map[string]json.RawMessage
 }
 
 // Validate checks the business rules for a single row
@@ -46,6 +53,12 @@ func (r PartImportRow) Validate() error {
 	}
 	if r.MinStockThreshold < 0 {
 		return fmt.Errorf("row %d: 'Min Stock' cannot be negative", r.RowNumber)
+	}
+	if err := r.Details.NormalizeAndValidate(); err != nil {
+		return fmt.Errorf("row %d: invalid extended product details: %w", r.RowNumber, err)
+	}
+	if r.CategoryName == "" && len(r.CategorySpecifications) > 0 {
+		return fmt.Errorf("row %d: category specifications require a category", r.RowNumber)
 	}
 	for _, link := range r.Links {
 		u, err := url.ParseRequestURI(link)
@@ -172,20 +185,69 @@ func ParsePartsCSV(input io.Reader) ([]PartImportRow, error) {
 		// Map Fields
 		row.Name = getString("name")
 		row.Description = getString("description")
-		
+
 		if key := findColumn("partnumber", "mpn"); key != "" {
 			row.PartNumber = getString(key)
 		}
 
 		row.Manufacturer = getString("manufacturer")
 		row.Supplier = getString("supplier")
+		row.CategoryName = getString("category")
+		if raw := getString("categoryspecifications"); raw != "" {
+			if err := json.Unmarshal([]byte(raw), &row.CategorySpecifications); err != nil {
+				return nil, fmt.Errorf("row %d: invalid category specifications JSON: %w", rowNum, err)
+			}
+			if row.CategorySpecifications == nil {
+				return nil, fmt.Errorf("row %d: category specifications must be a JSON object", rowNum)
+			}
+		}
 		row.BarcodeData = getString("barcode")
+		row.Details.SKU = getString("sku")
+		row.Details.Brand = getString("brand")
+		row.Details.Model = getString("model")
+		row.Details.Colour = getString("colour")
+		row.Details.Material = getString("material")
+		row.Details.Finish = getString("finish")
+		row.Details.Condition = getString("condition")
+		row.Details.DimensionUnit = getString("dimensionunit")
+		row.Details.WeightUnit = getString("weightunit")
+		if key := findColumn("notes", "productnotes"); key != "" {
+			row.Details.Notes = getString(key)
+		}
+		row.Details.PurchasedFrom = getString("purchasedfrom")
+		row.Details.SupplierProductCode = getString("supplierproductcode")
+		row.Details.ProductURL = getString("producturl")
+		row.Details.PurchaseNotes = getString("purchasenotes")
+		row.Details.Currency = getString("currency")
+		if value := getString("purchasedate"); value != "" {
+			row.Details.PurchaseDate = sql.NullString{String: value, Valid: true}
+		}
 
 		if key := findColumn("footprint", "package", "fp"); key != "" {
 			row.Footprint = getString(key)
 		}
 
 		// Numeric Fields
+		for _, field := range []struct {
+			aliases []string
+			target  *sql.NullFloat64
+		}{
+			{[]string{"lengthmm", "length"}, &row.Details.LengthMM},
+			{[]string{"widthmm", "width"}, &row.Details.WidthMM},
+			{[]string{"heightmm", "height"}, &row.Details.HeightMM},
+			{[]string{"depthmm", "depth"}, &row.Details.DepthMM},
+			{[]string{"weightg", "weight"}, &row.Details.WeightG},
+			{[]string{"purchaseprice"}, &row.Details.PurchasePrice},
+		} {
+			if key := findColumn(field.aliases...); key != "" && getString(key) != "" {
+				value, err := parseColumnFloat(key)
+				if err != nil {
+					return nil, fmt.Errorf("row %d: %w", rowNum, err)
+				}
+				*field.target = sql.NullFloat64{Float64: value, Valid: true}
+			}
+		}
+
 		if key := findColumn("unitcost", "cost"); key != "" {
 			if val, err := parseColumnFloat(key); err != nil {
 				return nil, fmt.Errorf("row %d: %w", rowNum, err)
@@ -272,6 +334,10 @@ func ParsePartsCSV(input io.Reader) ([]PartImportRow, error) {
 			}
 		}
 
+		// Normalize optional typed product details before validating and storing.
+		if err := row.Details.NormalizeAndValidate(); err != nil {
+			return nil, fmt.Errorf("row %d: invalid extended product details: %w", row.RowNumber, err)
+		}
 		// Validate Domain Rules
 		if err := row.Validate(); err != nil {
 			return nil, err

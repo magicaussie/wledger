@@ -28,6 +28,8 @@ type Querier interface {
 	// ClearCabinets empties the cabinet table. It must run before any legacy
 	// controller deletion, and after the drawers and cabinets it references.
 	ClearCabinets(ctx context.Context) error
+	ClearCategories(ctx context.Context) error
+	ClearCategoryAttributes(ctx context.Context) error
 	ClearContainerBinLedIndices(ctx context.Context, containerID sql.NullInt64) error
 	ClearContainers(ctx context.Context) error
 	ClearControllers(ctx context.Context) error
@@ -37,6 +39,9 @@ type Querier interface {
 	ClearDrawers(ctx context.Context) error
 	ClearPartAiPrompts(ctx context.Context) error
 	ClearPartAssignments(ctx context.Context) error
+	ClearPartAttributeValues(ctx context.Context) error
+	ClearPartCategories(ctx context.Context) error
+	ClearPartDetails(ctx context.Context) error
 	ClearPartDocs(ctx context.Context) error
 	ClearPartLinks(ctx context.Context) error
 	ClearPartParameters(ctx context.Context) error
@@ -70,6 +75,9 @@ type Querier interface {
 	CreateInspirationTemplate(ctx context.Context, arg CreateInspirationTemplateParams) (InspirationTemplate, error)
 	CreatePart(ctx context.Context, arg CreatePartParams) (int64, error)
 	CreatePartAssignment(ctx context.Context, arg CreatePartAssignmentParams) error
+	CreatePartAttributeValue(ctx context.Context, arg CreatePartAttributeValueParams) error
+	CreatePartCategory(ctx context.Context, arg CreatePartCategoryParams) error
+	CreatePartDetails(ctx context.Context, arg CreatePartDetailsParams) error
 	// DOCUMENTS
 	CreatePartDoc(ctx context.Context, arg CreatePartDocParams) error
 	// LINKS
@@ -127,11 +135,16 @@ type Querier interface {
 	// NULL state. The audit UI uses ListAuditLogs, which coalesces NULL for display.
 	GetAllAuditLogs(ctx context.Context) ([]GetAllAuditLogsRow, error)
 	GetAllBins(ctx context.Context) ([]Bin, error)
+	GetAllCategories(ctx context.Context) ([]Category, error)
+	GetAllCategoryAttributes(ctx context.Context) ([]CategoryAttribute, error)
 	GetAllContainers(ctx context.Context) ([]Container, error)
 	GetAllInspirationTemplates(ctx context.Context) ([]InspirationTemplate, error)
 	GetAllPartAiPrompts(ctx context.Context) ([]PartAiPrompt, error)
 	// STOCK ASSIGNMENTS
 	GetAllPartAssignments(ctx context.Context) ([]PartAssignment, error)
+	GetAllPartAttributeValues(ctx context.Context) ([]PartAttributeValue, error)
+	GetAllPartCategories(ctx context.Context) ([]PartCategory, error)
+	GetAllPartDetails(ctx context.Context) ([]PartDetail, error)
 	GetAllPartDocs(ctx context.Context) ([]PartDoc, error)
 	GetAllPartLinks(ctx context.Context) ([]PartLink, error)
 	GetAllPartParameters(ctx context.Context) ([]PartParameter, error)
@@ -260,6 +273,9 @@ type Querier interface {
 	RestoreCabinetController(ctx context.Context, arg RestoreCabinetControllerParams) error
 	RestoreCabinetLEDPathSection(ctx context.Context, arg RestoreCabinetLEDPathSectionParams) error
 	RestoreCabinetLEDString(ctx context.Context, arg RestoreCabinetLEDStringParams) error
+	RestoreCategory(ctx context.Context, arg RestoreCategoryParams) error
+	RestoreCategoryAttribute(ctx context.Context, arg RestoreCategoryAttributeParams) error
+	RestoreCategoryParent(ctx context.Context, arg RestoreCategoryParentParams) error
 	RestoreContainer(ctx context.Context, arg RestoreContainerParams) error
 	RestoreController(ctx context.Context, arg RestoreControllerParams) error
 	// RestoreDrawer re-inserts a captured drawer with its exact id, geometry,
@@ -269,6 +285,9 @@ type Querier interface {
 	RestorePart(ctx context.Context, arg RestorePartParams) error
 	RestorePartAiPrompt(ctx context.Context, arg RestorePartAiPromptParams) error
 	RestorePartAssignment(ctx context.Context, arg RestorePartAssignmentParams) error
+	RestorePartAttributeValue(ctx context.Context, arg RestorePartAttributeValueParams) error
+	RestorePartCategory(ctx context.Context, arg RestorePartCategoryParams) error
+	RestorePartDetails(ctx context.Context, arg RestorePartDetailsParams) error
 	RestorePartDoc(ctx context.Context, arg RestorePartDocParams) error
 	RestorePartLink(ctx context.Context, arg RestorePartLinkParams) error
 	RestorePartParameter(ctx context.Context, arg RestorePartParameterParams) error

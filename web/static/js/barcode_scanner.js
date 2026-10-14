@@ -99,7 +99,9 @@
     function bindModalClose(modal) {
         if (state.boundModal === modal) return;
         state.boundModal = modal;
-        modal.addEventListener('close', () => window.stopGlobalScanner(false));
+        modal.addEventListener('close', () => {
+            if (!modal.open) window.stopGlobalScanner(false);
+        });
     }
 
     function onGlobalScanSuccess(decodedText) {

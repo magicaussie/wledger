@@ -23,7 +23,7 @@ import (
 
 // This file tests the forthcoming M3 physical-storage backup format: the default
 // export writes exactly one current-format storage manifest and a restore
-// accepts either a legacy 1.0 manifest or a current 2.0 manifest, never a mixed,
+// accepts either a legacy 1.0 manifest or a current 2.2 manifest, never a mixed,
 // duplicate, unknown or malformed envelope. It exercises the real public surface
 // (default Export, Restore, the exported StorageManifest) and the M2 physical
 // tables (cabinets, drawers, bin_drawer_attachments) plus M1 compatibility
@@ -51,7 +51,7 @@ var (
 
 // physCurrentVersion is the default storage-manifest format version a default
 // export must carry.
-const physCurrentVersion = "2.0"
+const physCurrentVersion = "2.2"
 
 // physCustomFlagKey / physCustomFlagValue are a flag outside the three the M1
 // baseline tracks. A complete current backup must preserve it, so a restore
@@ -359,7 +359,7 @@ func physLegacyManifest() Manifest {
 	}
 }
 
-// physBaseStorageManifest is a valid current 2.0 manifest consistent with the
+// physBaseStorageManifest is a valid current 2.2 manifest consistent with the
 // seeded legacy and physical graph. Defect cases mutate one aspect of it.
 func physBaseStorageManifest() StorageManifest {
 	now := physTime()
@@ -813,7 +813,7 @@ func TestPhysicalBackup_RoundTripsLegacyAndPhysicalGraph(t *testing.T) {
 }
 
 // TestPhysicalBackup_CurrentEmptyPhysicalGraphRoundTrips verifies that a current
-// 2.0 archive whose physical graph is complete but empty is still authoritative:
+// 2.2 archive whose physical graph is complete but empty is still authoritative:
 // restoring it into a populated installation replaces the physical graph and
 // leaves it empty.
 func TestPhysicalBackup_CurrentEmptyPhysicalGraphRoundTrips(t *testing.T) {

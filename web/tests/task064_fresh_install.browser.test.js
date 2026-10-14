@@ -185,8 +185,86 @@ const path = require('node:path');
     await page.locator('form[action="/login"] button').click();
     await page.waitForURL(`${baseURL}/`);
 
+    await page.goto(`${baseURL}/categories`);
+    await page.getByRole('link', { name: 'New category' }).click();
+    const categoryImage = Buffer.from(await page.evaluate(() => {
+      const canvas = document.createElement('canvas'); canvas.width = 4; canvas.height = 4;
+      const context = canvas.getContext('2d'); context.fillStyle = '#3567aa'; context.fillRect(0, 0, 4, 4);
+      return canvas.toDataURL('image/png').split(',')[1];
+    }), 'base64');
+    const categoryCreateForm = page.locator('form[action="/categories"]');
+    await categoryCreateForm.locator('input[name="name"]').fill('Browser fasteners');
+    await categoryCreateForm.locator('textarea[name="description"]').fill('Reusable mechanical hardware');
+    await categoryCreateForm.locator('input[name="image"]').setInputFiles({ name: 'category.png', mimeType: 'image/png', buffer: categoryImage });
+    await categoryCreateForm.locator('button[type="submit"]').click();
+    await page.waitForURL(new RegExp(`${baseURL}/categories/\\d+$`));
+    const categoryID = Number(page.url().match(/\/categories\/(\d+)$/)[1]);
+    const categoryRows = readOnlyRows(databasePath, 'SELECT id,image_path FROM categories WHERE id=?', [categoryID]);
+    assert.equal(categoryRows.length, 1, 'category should be created from the management form');
+    const categoryImagePath = categoryRows[0][1];
+    const categoryImageFile = path.join(scratchDir, 'app', 'uploads', categoryImagePath.replace(/^\/uploads\//, ''));
+    assert.ok(fs.existsSync(categoryImageFile), 'category image upload should create the image asset');
+
+    const attributeForm = page.locator(`form[action="/categories/${categoryID}/attributes"]`);
+    await attributeForm.locator('input[name="name"]').fill('Grade');
+    await attributeForm.locator('select[name="data_type"]').selectOption('text');
+    await attributeForm.locator('textarea[name="options"]').fill('8.8\n10.9');
+    await attributeForm.locator('input[name="required"]').check();
+    await attributeForm.locator('button[type="submit"]').click();
+    await page.waitForURL(`${baseURL}/categories/${categoryID}`);
+    const attributeRows = readOnlyRows(databasePath, 'SELECT id FROM category_attributes WHERE category_id=? AND name=?', [categoryID, 'Grade']);
+    assert.equal(attributeRows.length, 1, 'category-defined required specification should persist');
+    const attributeID = Number(attributeRows[0][0]);
+
+    await page.getByRole('link', { name: 'Add product' }).click();
+    await page.waitForURL(`${baseURL}/parts/new?category_id=${categoryID}`);
+    const categoryPartForm = page.locator('form[action="/parts"]');
+    await categoryPartForm.locator('input[name="name"]').fill('Browser M8 bolt');
+    await categoryPartForm.locator('input[name="sku"]').fill('BROWSER-BOLT-835');
+    await categoryPartForm.locator('input[name="brand"]').fill('Browser Brand');
+    await categoryPartForm.locator('input[name="model"]').fill('M8x35');
+    await categoryPartForm.locator('input[name="material"]').fill('Steel');
+    await categoryPartForm.locator('input[name="length_mm"]').fill('35');
+    await categoryPartForm.locator('select[name="dimension_unit"]').selectOption('in');
+    await categoryPartForm.locator('input[name="weight_g"]').fill('12.5');
+    await categoryPartForm.locator('select[name="weight_unit"]').selectOption('lb');
+    await categoryPartForm.locator('input[name="purchase_date"]').fill('2026-02-14');
+    await categoryPartForm.locator('input[name="purchase_price"]').fill('0.42');
+    await categoryPartForm.locator('input[name="product_url"]').fill('https://example.com/browser-bolt');
+    await categoryPartForm.locator(`select[name="spec_${attributeID}"]`).selectOption('8.8');
+    await categoryPartForm.locator('button[type="submit"]').click();
+    await page.waitForURL(/\/parts\/\d+$/);
+    const categoryPartID = Number(page.url().match(/\/parts\/(\d+)$/)[1]);
+    const productCategoryRows = readOnlyRows(databasePath, 'SELECT pc.category_id,v.value_text FROM part_categories pc JOIN part_attribute_values v ON v.part_id=pc.part_id WHERE pc.part_id=? AND v.attribute_id=?', [categoryPartID, attributeID]);
+    assert.deepEqual(productCategoryRows, [[categoryID, '8.8']], 'product category and custom specification should persist together');
+    const standardDetails = readOnlyRows(databasePath, 'SELECT sku,brand,model,material,length_mm,dimension_unit,weight_g,weight_unit,purchase_date,purchase_price,product_url FROM part_details WHERE part_id=?', [categoryPartID]);
+    assert.deepEqual(standardDetails, [['BROWSER-BOLT-835', 'Browser Brand', 'M8x35', 'Steel', 35, 'in', 12.5, 'lb', '2026-02-14', 0.42, 'https://example.com/browser-bolt']], 'general physical, measurement-unit and purchase fields should persist');
+    await page.goto(`${baseURL}/categories/${categoryID}`);
+    await Promise.all([
+      page.waitForURL(`${baseURL}/labels/category/${categoryID}`, { waitUntil: 'domcontentloaded' }),
+      page.locator(`a[href="/labels/category/${categoryID}"]`).click(),
+    ]);
+    assert.match(await page.locator('body').innerText(), /QR.*Code 128/s, 'category label must print both QR and Code 128');
+    await page.goto(`${baseURL}/scan?q=${encodeURIComponent(`wledger:category:${categoryID}`)}`);
+    await page.waitForURL(`${baseURL}/categories/${categoryID}`);
+    await page.locator(`form[action="/categories/${categoryID}/delete"] button`).click();
+    await page.waitForURL(`${baseURL}/categories`);
+    assert.equal(Number(readOnlyRows(databasePath, 'SELECT COUNT(*) FROM parts WHERE id=?', [categoryPartID])[0][0]), 1, 'category deletion must preserve products');
+    assert.equal(Number(readOnlyRows(databasePath, 'SELECT COUNT(*) FROM part_categories WHERE part_id=?', [categoryPartID])[0][0]), 0, 'deleted category must safely uncategorize products');
+    assert.ok(!fs.existsSync(categoryImageFile), 'deleting a category should clean up its image asset');
+    const csrfToken = await page.locator('meta[name="csrf-token"]').getAttribute('content');
+    const deleteProductStatus = await page.evaluate(async ({ id, token }) => {
+      const response = await fetch(`/parts/${id}/delete`, {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ csrf_token: token }),
+      });
+      return response.status;
+    }, { id: categoryPartID, token: csrfToken });
+    assert.equal(deleteProductStatus, 200, 'temporary category acceptance product should be removable');
+
     const emptyCounts = readOnlyCounts(databasePath);
-    for (const table of ['controllers', 'cabinets', 'drawers', 'bins', 'containers', 'cabinet_controllers', 'bin_drawer_attachments', 'parts', 'part_assignments', 'cabinet_led_strings', 'cabinet_led_path_sections', 'drawer_led_allocations']) {
+    for (const table of ['controllers', 'cabinets', 'drawers', 'bins', 'containers', 'cabinet_controllers', 'bin_drawer_attachments', 'parts', 'part_assignments', 'categories', 'part_categories', 'category_attributes', 'part_attribute_values', 'cabinet_led_strings', 'cabinet_led_path_sections', 'drawer_led_allocations']) {
       assert.equal(emptyCounts[table], 0, `new-install table ${table} must begin empty`);
     }
     const migrationVersions = fs.readdirSync(path.join(repoRoot, 'sql/schema'))
@@ -1265,35 +1343,38 @@ const path = require('node:path');
     assert.equal(invalidControllerConsoleErrors.length, 2, `expected only the two deliberate invalid-controller responses: ${JSON.stringify(consoleErrors)}`);
     const nonValidationConsoleErrors = consoleErrors.filter(error => !invalidControllerConsoleErrors.includes(error));
     if (task067Enabled) {
-      const expectedFaultPaths = new Set(['/parts/2', '/storage/drawers/1?bin_id=2']);
-      const unexpected = nonValidationConsoleErrors.filter(error => {
-        const route = new URL(error.url).pathname + new URL(error.url).search;
-        return !expectedFaultPaths.has(route) || (!error.message.includes('ERR_CONNECTION_REFUSED') && !error.message.includes('409 (Conflict)'));
-      });
-      assert.deepEqual(unexpected, [], `unexpected browser console errors during Task 067 remain a failure: ${JSON.stringify(unexpected)}`);
+      const expectedTask067ConsoleErrors = [
+        ['/parts', 'Failed to load resource: the server responded with a status of 409 (Conflict)'],
+        ['/parts/2', 'Failed to load resource: the server responded with a status of 400 (Bad Request)'],
+        ['/parts/2/update', 'Failed to load resource: the server responded with a status of 500 (Internal Server Error)'],
+        ['/parts/3', 'Failed to load resource: net::ERR_CONNECTION_REFUSED'],
+        ['/parts/3', 'Failed to load resource: net::ERR_CONNECTION_REFUSED'],
+        ['/storage/drawers/1', 'Failed to load resource: net::ERR_CONNECTION_REFUSED'],
+      ];
+      assert.deepEqual(nonValidationConsoleErrors.map(error => [new URL(error.url).pathname, error.message]).sort(), expectedTask067ConsoleErrors.sort(), 'browser console errors must be limited to deliberate invalid-input and interrupted mock-locate requests');
 
     } else if (inventoryOnly) {
       const expectedInventoryValidationErrors = [
         ['/parts', 'Failed to load resource: the server responded with a status of 409 (Conflict)'],
-        ['/parts/1', 'Failed to load resource: the server responded with a status of 400 (Bad Request)'],
-        ['/parts/1/update', 'Failed to load resource: the server responded with a status of 500 (Internal Server Error)'],
+        ['/parts/2', 'Failed to load resource: the server responded with a status of 400 (Bad Request)'],
+        ['/parts/2/update', 'Failed to load resource: the server responded with a status of 500 (Internal Server Error)'],
       ];
       assert.deepEqual(nonValidationConsoleErrors.map(error => [new URL(error.url).pathname, error.message]).sort(), expectedInventoryValidationErrors.sort(), 'browser errors should be limited to deliberate duplicate/invalid/failure non-mutation cases');
 
     } else if (task065RestoreEnabled) {
       const expectedInterruptedResponses = [
         ['/parts', 'Failed to load resource: the server responded with a status of 409 (Conflict)'],
-        ['/parts/1', 'Failed to load resource: the server responded with a status of 400 (Bad Request)'],
-        ['/parts/1/update', 'Failed to load resource: the server responded with a status of 500 (Internal Server Error)'],
-        ['/parts/2', 'Failed to load resource: net::ERR_CONNECTION_REFUSED'],
+        ['/parts/2', 'Failed to load resource: the server responded with a status of 400 (Bad Request)'],
+        ['/parts/2/update', 'Failed to load resource: the server responded with a status of 500 (Internal Server Error)'],
+        ['/parts/3', 'Failed to load resource: net::ERR_CONNECTION_REFUSED'],
         ['/storage/drawers/1?bin_id=2', 'Failed to load resource: net::ERR_CONNECTION_REFUSED'],
       ];
       assert.deepEqual(nonValidationConsoleErrors.map(error => [new URL(error.url).pathname + new URL(error.url).search, error.message]).sort(), expectedInterruptedResponses.sort(), 'additional browser errors should be limited to deliberate validation failures and requests interrupted by SIGKILL');
     } else {
       const expectedInventoryValidationErrors = [
         ['/parts', 'Failed to load resource: the server responded with a status of 409 (Conflict)'],
-        ['/parts/1', 'Failed to load resource: the server responded with a status of 400 (Bad Request)'],
-        ['/parts/1/update', 'Failed to load resource: the server responded with a status of 500 (Internal Server Error)'],
+        ['/parts/2', 'Failed to load resource: the server responded with a status of 400 (Bad Request)'],
+        ['/parts/2/update', 'Failed to load resource: the server responded with a status of 500 (Internal Server Error)'],
       ];
       assert.deepEqual(nonValidationConsoleErrors.map(error => [new URL(error.url).pathname, error.message]).sort(), expectedInventoryValidationErrors.sort(), 'browser errors should be limited to deliberate duplicate/invalid/failure non-mutation cases');
     }
@@ -1442,7 +1523,7 @@ function readOnlyRows(databasePath, sql, parameters = []) {
 
 function readOnlyCounts(databasePath) {
   const result = {};
-  for (const table of ['controllers', 'cabinets', 'drawers', 'bins', 'containers', 'cabinet_controllers', 'bin_drawer_attachments', 'parts', 'part_assignments', 'cabinet_led_strings', 'cabinet_led_path_sections', 'drawer_led_allocations']) {
+  for (const table of ['controllers', 'cabinets', 'drawers', 'bins', 'containers', 'cabinet_controllers', 'bin_drawer_attachments', 'parts', 'part_assignments', 'categories', 'part_categories', 'category_attributes', 'part_attribute_values', 'cabinet_led_strings', 'cabinet_led_path_sections', 'drawer_led_allocations']) {
     result[table] = Number(readOnlyRows(databasePath, `SELECT COUNT(*) FROM ${table}`)[0][0]);
   }
   return result;

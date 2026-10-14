@@ -11,13 +11,15 @@ import templruntime "github.com/a-h/templ/runtime"
 import (
 	"fmt"
 	"github.com/tuxedocurly/wledger/internal/auth"
+	"github.com/tuxedocurly/wledger/internal/categories"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/i18n"
+	"github.com/tuxedocurly/wledger/internal/productdetails"
 	"github.com/tuxedocurly/wledger/web/components"
 	"github.com/tuxedocurly/wledger/web/layouts"
 )
 
-func PartEdit(user auth.User, part db.Part, tags []db.Tag, allTags []db.Tag, links []db.PartLink, docs []db.PartDoc) templ.Component {
+func PartEdit(user auth.User, part db.Part, tags []db.Tag, allTags []db.Tag, links []db.PartLink, docs []db.PartDoc, allCategories []categories.Category, selectedCategoryID int64, attributes []categories.Attribute, attributeValues []categories.AttributeValue, details productdetails.ExtendedDetails) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -66,7 +68,7 @@ func PartEdit(user auth.User, part db.Part, tags []db.Tag, allTags []db.Tag, lin
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = components.PartForm(part, tags, allTags, links, docs, fmt.Sprintf("/parts/%d/update", part.ID), true).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = components.PartForm(part, tags, allTags, links, docs, allCategories, selectedCategoryID, attributes, attributeValues, details, fmt.Sprintf("/parts/%d/update", part.ID), true).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

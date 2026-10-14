@@ -8,7 +8,9 @@ import (
 	"testing"
 
 	"github.com/tuxedocurly/wledger/internal/auth"
+	"github.com/tuxedocurly/wledger/internal/categories"
 	"github.com/tuxedocurly/wledger/internal/db"
+	"github.com/tuxedocurly/wledger/internal/productdetails"
 )
 
 // TestPartDetail_RendersUnsafeLinksAsInertText verifies defence in depth: even
@@ -24,7 +26,7 @@ func TestPartDetail_RendersUnsafeLinksAsInertText(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := PartDetail(auth.User{}, part, nil, links, nil, nil).Render(context.Background(), &buf); err != nil {
+	if err := PartDetail(auth.User{}, part, nil, links, nil, nil, categories.Category{}, nil, productdetails.ExtendedDetails{}).Render(context.Background(), &buf); err != nil {
 		t.Fatalf("render failed: %v", err)
 	}
 	out := buf.String()

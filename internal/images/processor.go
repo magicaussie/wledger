@@ -28,6 +28,18 @@ func Init() error {
 // Returns the filename (e.g. "part_12345.jpg").
 // The handler is responsible for prepending the web path.
 func ProcessUpload(file multipart.File, header *multipart.FileHeader) (string, error) {
+	return ProcessUploadWithPrefix(file, header, "part")
+}
+
+func ProcessUploadWithPrefix(file multipart.File, header *multipart.FileHeader, prefix string) (string, error) {
+	if prefix == "" {
+		return "", fmt.Errorf("image filename prefix is required")
+	}
+	for _, r := range prefix {
+		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' || r == '-') {
+			return "", fmt.Errorf("invalid image filename prefix")
+		}
+	}
 	// Decode image
 	img, err := imaging.Decode(file)
 	if err != nil {
@@ -41,8 +53,9 @@ func ProcessUpload(file multipart.File, header *multipart.FileHeader) (string, e
 	}
 
 	timestamp := time.Now().UnixNano()
-	baseName := fmt.Sprintf("part_%d", timestamp)
+	baseName := fmt.Sprintf("%s_%d", prefix, timestamp)
 	fileName := baseName + ".jpg" // Standardize to JPG
+	thumbName := baseName + "_thumb.jpg"
 
 	// Main Image (Fit within 1024x1024)
 	mainImg := imaging.Fit(img, 1024, 1024, imaging.Lanczos)
@@ -50,11 +63,13 @@ func ProcessUpload(file multipart.File, header *multipart.FileHeader) (string, e
 	// Thumbnail (Square crop 300x300)
 	thumbImg := imaging.Thumbnail(img, 300, 300, imaging.Lanczos)
 
-	// Save
 	if err := saveJPG(mainImg, fileName); err != nil {
+		os.Remove(filepath.Join(config.DirUploadsImages, fileName))
 		return "", err
 	}
-	if err := saveJPG(thumbImg, baseName+"_thumb.jpg"); err != nil {
+	if err := saveJPG(thumbImg, thumbName); err != nil {
+		os.Remove(filepath.Join(config.DirUploadsImages, fileName))
+		os.Remove(filepath.Join(config.DirUploadsImages, thumbName))
 		return "", err
 	}
 
@@ -84,14 +99,18 @@ func ProcessBytes(data []byte) (string, error) {
 	timestamp := time.Now().UnixNano()
 	baseName := fmt.Sprintf("part_%d", timestamp)
 	fileName := baseName + ".jpg"
+	thumbName := baseName + "_thumb.jpg"
 
 	mainImg := imaging.Fit(img, 1024, 1024, imaging.Lanczos)
 	thumbImg := imaging.Thumbnail(img, 300, 300, imaging.Lanczos)
 
 	if err := saveJPG(mainImg, fileName); err != nil {
+		os.Remove(filepath.Join(config.DirUploadsImages, fileName))
 		return "", err
 	}
-	if err := saveJPG(thumbImg, baseName+"_thumb.jpg"); err != nil {
+	if err := saveJPG(thumbImg, thumbName); err != nil {
+		os.Remove(filepath.Join(config.DirUploadsImages, fileName))
+		os.Remove(filepath.Join(config.DirUploadsImages, thumbName))
 		return "", err
 	}
 

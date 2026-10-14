@@ -24,7 +24,7 @@ const (
 	binIndexSpaceField              = "bin_index_space"
 )
 
-// StorageManifest is the complete current (version 2.0) backup envelope. It is
+// StorageManifest is the complete current (version 2.2) backup envelope.
 // the only manifest the current export writes, so one archive entry carries the
 // whole installation: the historical manifest plus the physical storage graph
 // and every system flag, all read in one transaction.
@@ -39,6 +39,28 @@ type StorageManifest struct {
 	// SystemFlags is the complete flag set, including the absence of a key, so a
 	// restore can reproduce the exact flags instead of normalizing them.
 	SystemFlags []db.SystemFlag `json:"system_flags"`
+}
+
+func (m StorageManifest) MarshalJSON() ([]byte, error) {
+	type storageManifestAlias StorageManifest
+	if m.Version != supportedPreviousManifestVersion {
+		if m.Legacy.Categories == nil {
+			m.Legacy.Categories = []db.Category{}
+		}
+		if m.Legacy.PartCategories == nil {
+			m.Legacy.PartCategories = []db.PartCategory{}
+		}
+		if m.Legacy.CategoryAttributes == nil {
+			m.Legacy.CategoryAttributes = []db.CategoryAttribute{}
+		}
+		if m.Legacy.PartAttributeValues == nil {
+			m.Legacy.PartAttributeValues = []db.PartAttributeValue{}
+		}
+	}
+	if m.Version == supportedCurrentManifestVersion && m.Legacy.PartDetails == nil {
+		m.Legacy.PartDetails = []db.PartDetail{}
+	}
+	return json.Marshal(storageManifestAlias(m))
 }
 
 // PhysicalStorageSnapshot is the complete physical storage graph: every cabinet
@@ -135,8 +157,8 @@ func requireJSONArray(raw json.RawMessage, where string) error {
 	return nil
 }
 
-// decodeCurrentStorageManifest decodes and validates the single current
-// (version 2.0) manifest. It rejects malformed JSON, trailing content, duplicate
+// decodeCurrentStorageManifest decodes and validates the current
+// (version 2.2) manifest and compatible 2.0/2.1 archives. It rejects malformed JSON, trailing content, duplicate
 // or unknown members at every level, a member the format requires being absent or
 // of the wrong shape, an unsupported envelope or embedded legacy version, a
 // coordinate marker that contradicts the captured coordinate flag, and a physical
@@ -163,15 +185,40 @@ func decodeCurrentStorageManifest(f *zip.File) (StorageManifest, error) {
 		return StorageManifest{}, err
 	}
 
-	// The embedded legacy manifest is itself a complete manifest object, so it
-	// gets the same duplicate/unknown-member boundary check and its own required
-	// members. Its omitempty fields stay optional.
+	var envelopeVersion string
+	if err := json.Unmarshal(members["version"], &envelopeVersion); err != nil {
+		return StorageManifest{}, malformedManifest("current backup version must be a string")
+	}
+	if envelopeVersion != supportedCurrentManifestVersion && envelopeVersion != supportedCategoryManifestVersion && envelopeVersion != supportedPreviousManifestVersion {
+		return StorageManifest{}, &BackupFormatError{Code: FormatUnsupportedManifestVersion, Reason: fmt.Sprintf("unsupported backup manifest version %q", envelopeVersion)}
+	}
+
+	// The embedded legacy manifest gets strict boundary validation. Category lists
+	// became required in 2.1; extended product details became required in 2.2.
+	// Earlier current archives remain readable without those later fields.
 	legacyMembers, err := requireObjectMember(members, storageManifestLegacyField, manifestTopLevelFields(), currentStorageManifestName)
 	if err != nil {
 		return StorageManifest{}, err
 	}
-	if err := requireMembers(legacyMembers, manifestRequiredFields(), storageManifestLegacyField); err != nil {
+	legacyRequired := manifestRequiredFields()
+	categoryFields := []string{"categories", "part_categories", "category_attributes", "part_attribute_values"}
+	if envelopeVersion != supportedPreviousManifestVersion {
+		for _, name := range categoryFields {
+			legacyRequired[name] = struct{}{}
+		}
+	}
+	if envelopeVersion == supportedCurrentManifestVersion {
+		legacyRequired["part_details"] = struct{}{}
+	}
+	if err := requireMembers(legacyMembers, legacyRequired, storageManifestLegacyField); err != nil {
 		return StorageManifest{}, err
+	}
+	for _, name := range append(categoryFields, "part_details") {
+		if raw, ok := legacyMembers[name]; ok {
+			if err := requireJSONArray(raw, storageManifestLegacyField+"."+name); err != nil {
+				return StorageManifest{}, err
+			}
+		}
 	}
 
 	// The physical storage section must declare every list explicitly, so a
@@ -223,10 +270,10 @@ func decodeCurrentStorageManifest(f *zip.File) (StorageManifest, error) {
 	}
 	env.PhysicalStorage.CabinetWiringDeclared = stringsDeclared && sectionsDeclared
 
-	if env.Version != supportedCurrentManifestVersion {
+	if env.Version != supportedCurrentManifestVersion && env.Version != supportedCategoryManifestVersion && env.Version != supportedPreviousManifestVersion {
 		return StorageManifest{}, &BackupFormatError{
 			Code:   FormatUnsupportedManifestVersion,
-			Reason: fmt.Sprintf("unsupported backup manifest version %q (supported: %q)", env.Version, supportedCurrentManifestVersion),
+			Reason: fmt.Sprintf("unsupported backup manifest version %q (supported: %q, %q and %q)", env.Version, supportedPreviousManifestVersion, supportedCategoryManifestVersion, supportedCurrentManifestVersion),
 		}
 	}
 	if env.Legacy.Version != supportedLegacyManifestVersion {

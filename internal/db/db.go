@@ -66,6 +66,12 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.clearCabinetsStmt, err = db.PrepareContext(ctx, clearCabinets); err != nil {
 		return nil, fmt.Errorf("error preparing query ClearCabinets: %w", err)
 	}
+	if q.clearCategoriesStmt, err = db.PrepareContext(ctx, clearCategories); err != nil {
+		return nil, fmt.Errorf("error preparing query ClearCategories: %w", err)
+	}
+	if q.clearCategoryAttributesStmt, err = db.PrepareContext(ctx, clearCategoryAttributes); err != nil {
+		return nil, fmt.Errorf("error preparing query ClearCategoryAttributes: %w", err)
+	}
 	if q.clearContainerBinLedIndicesStmt, err = db.PrepareContext(ctx, clearContainerBinLedIndices); err != nil {
 		return nil, fmt.Errorf("error preparing query ClearContainerBinLedIndices: %w", err)
 	}
@@ -86,6 +92,15 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.clearPartAssignmentsStmt, err = db.PrepareContext(ctx, clearPartAssignments); err != nil {
 		return nil, fmt.Errorf("error preparing query ClearPartAssignments: %w", err)
+	}
+	if q.clearPartAttributeValuesStmt, err = db.PrepareContext(ctx, clearPartAttributeValues); err != nil {
+		return nil, fmt.Errorf("error preparing query ClearPartAttributeValues: %w", err)
+	}
+	if q.clearPartCategoriesStmt, err = db.PrepareContext(ctx, clearPartCategories); err != nil {
+		return nil, fmt.Errorf("error preparing query ClearPartCategories: %w", err)
+	}
+	if q.clearPartDetailsStmt, err = db.PrepareContext(ctx, clearPartDetails); err != nil {
+		return nil, fmt.Errorf("error preparing query ClearPartDetails: %w", err)
 	}
 	if q.clearPartDocsStmt, err = db.PrepareContext(ctx, clearPartDocs); err != nil {
 		return nil, fmt.Errorf("error preparing query ClearPartDocs: %w", err)
@@ -185,6 +200,15 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.createPartAssignmentStmt, err = db.PrepareContext(ctx, createPartAssignment); err != nil {
 		return nil, fmt.Errorf("error preparing query CreatePartAssignment: %w", err)
+	}
+	if q.createPartAttributeValueStmt, err = db.PrepareContext(ctx, createPartAttributeValue); err != nil {
+		return nil, fmt.Errorf("error preparing query CreatePartAttributeValue: %w", err)
+	}
+	if q.createPartCategoryStmt, err = db.PrepareContext(ctx, createPartCategory); err != nil {
+		return nil, fmt.Errorf("error preparing query CreatePartCategory: %w", err)
+	}
+	if q.createPartDetailsStmt, err = db.PrepareContext(ctx, createPartDetails); err != nil {
+		return nil, fmt.Errorf("error preparing query CreatePartDetails: %w", err)
 	}
 	if q.createPartDocStmt, err = db.PrepareContext(ctx, createPartDoc); err != nil {
 		return nil, fmt.Errorf("error preparing query CreatePartDoc: %w", err)
@@ -333,6 +357,12 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.getAllBinsStmt, err = db.PrepareContext(ctx, getAllBins); err != nil {
 		return nil, fmt.Errorf("error preparing query GetAllBins: %w", err)
 	}
+	if q.getAllCategoriesStmt, err = db.PrepareContext(ctx, getAllCategories); err != nil {
+		return nil, fmt.Errorf("error preparing query GetAllCategories: %w", err)
+	}
+	if q.getAllCategoryAttributesStmt, err = db.PrepareContext(ctx, getAllCategoryAttributes); err != nil {
+		return nil, fmt.Errorf("error preparing query GetAllCategoryAttributes: %w", err)
+	}
 	if q.getAllContainersStmt, err = db.PrepareContext(ctx, getAllContainers); err != nil {
 		return nil, fmt.Errorf("error preparing query GetAllContainers: %w", err)
 	}
@@ -344,6 +374,15 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.getAllPartAssignmentsStmt, err = db.PrepareContext(ctx, getAllPartAssignments); err != nil {
 		return nil, fmt.Errorf("error preparing query GetAllPartAssignments: %w", err)
+	}
+	if q.getAllPartAttributeValuesStmt, err = db.PrepareContext(ctx, getAllPartAttributeValues); err != nil {
+		return nil, fmt.Errorf("error preparing query GetAllPartAttributeValues: %w", err)
+	}
+	if q.getAllPartCategoriesStmt, err = db.PrepareContext(ctx, getAllPartCategories); err != nil {
+		return nil, fmt.Errorf("error preparing query GetAllPartCategories: %w", err)
+	}
+	if q.getAllPartDetailsStmt, err = db.PrepareContext(ctx, getAllPartDetails); err != nil {
+		return nil, fmt.Errorf("error preparing query GetAllPartDetails: %w", err)
 	}
 	if q.getAllPartDocsStmt, err = db.PrepareContext(ctx, getAllPartDocs); err != nil {
 		return nil, fmt.Errorf("error preparing query GetAllPartDocs: %w", err)
@@ -666,6 +705,15 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.restoreCabinetLEDStringStmt, err = db.PrepareContext(ctx, restoreCabinetLEDString); err != nil {
 		return nil, fmt.Errorf("error preparing query RestoreCabinetLEDString: %w", err)
 	}
+	if q.restoreCategoryStmt, err = db.PrepareContext(ctx, restoreCategory); err != nil {
+		return nil, fmt.Errorf("error preparing query RestoreCategory: %w", err)
+	}
+	if q.restoreCategoryAttributeStmt, err = db.PrepareContext(ctx, restoreCategoryAttribute); err != nil {
+		return nil, fmt.Errorf("error preparing query RestoreCategoryAttribute: %w", err)
+	}
+	if q.restoreCategoryParentStmt, err = db.PrepareContext(ctx, restoreCategoryParent); err != nil {
+		return nil, fmt.Errorf("error preparing query RestoreCategoryParent: %w", err)
+	}
 	if q.restoreContainerStmt, err = db.PrepareContext(ctx, restoreContainer); err != nil {
 		return nil, fmt.Errorf("error preparing query RestoreContainer: %w", err)
 	}
@@ -686,6 +734,15 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.restorePartAssignmentStmt, err = db.PrepareContext(ctx, restorePartAssignment); err != nil {
 		return nil, fmt.Errorf("error preparing query RestorePartAssignment: %w", err)
+	}
+	if q.restorePartAttributeValueStmt, err = db.PrepareContext(ctx, restorePartAttributeValue); err != nil {
+		return nil, fmt.Errorf("error preparing query RestorePartAttributeValue: %w", err)
+	}
+	if q.restorePartCategoryStmt, err = db.PrepareContext(ctx, restorePartCategory); err != nil {
+		return nil, fmt.Errorf("error preparing query RestorePartCategory: %w", err)
+	}
+	if q.restorePartDetailsStmt, err = db.PrepareContext(ctx, restorePartDetails); err != nil {
+		return nil, fmt.Errorf("error preparing query RestorePartDetails: %w", err)
 	}
 	if q.restorePartDocStmt, err = db.PrepareContext(ctx, restorePartDoc); err != nil {
 		return nil, fmt.Errorf("error preparing query RestorePartDoc: %w", err)
@@ -957,6 +1014,16 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing clearCabinetsStmt: %w", cerr)
 		}
 	}
+	if q.clearCategoriesStmt != nil {
+		if cerr := q.clearCategoriesStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing clearCategoriesStmt: %w", cerr)
+		}
+	}
+	if q.clearCategoryAttributesStmt != nil {
+		if cerr := q.clearCategoryAttributesStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing clearCategoryAttributesStmt: %w", cerr)
+		}
+	}
 	if q.clearContainerBinLedIndicesStmt != nil {
 		if cerr := q.clearContainerBinLedIndicesStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing clearContainerBinLedIndicesStmt: %w", cerr)
@@ -990,6 +1057,21 @@ func (q *Queries) Close() error {
 	if q.clearPartAssignmentsStmt != nil {
 		if cerr := q.clearPartAssignmentsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing clearPartAssignmentsStmt: %w", cerr)
+		}
+	}
+	if q.clearPartAttributeValuesStmt != nil {
+		if cerr := q.clearPartAttributeValuesStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing clearPartAttributeValuesStmt: %w", cerr)
+		}
+	}
+	if q.clearPartCategoriesStmt != nil {
+		if cerr := q.clearPartCategoriesStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing clearPartCategoriesStmt: %w", cerr)
+		}
+	}
+	if q.clearPartDetailsStmt != nil {
+		if cerr := q.clearPartDetailsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing clearPartDetailsStmt: %w", cerr)
 		}
 	}
 	if q.clearPartDocsStmt != nil {
@@ -1155,6 +1237,21 @@ func (q *Queries) Close() error {
 	if q.createPartAssignmentStmt != nil {
 		if cerr := q.createPartAssignmentStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing createPartAssignmentStmt: %w", cerr)
+		}
+	}
+	if q.createPartAttributeValueStmt != nil {
+		if cerr := q.createPartAttributeValueStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing createPartAttributeValueStmt: %w", cerr)
+		}
+	}
+	if q.createPartCategoryStmt != nil {
+		if cerr := q.createPartCategoryStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing createPartCategoryStmt: %w", cerr)
+		}
+	}
+	if q.createPartDetailsStmt != nil {
+		if cerr := q.createPartDetailsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing createPartDetailsStmt: %w", cerr)
 		}
 	}
 	if q.createPartDocStmt != nil {
@@ -1402,6 +1499,16 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing getAllBinsStmt: %w", cerr)
 		}
 	}
+	if q.getAllCategoriesStmt != nil {
+		if cerr := q.getAllCategoriesStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getAllCategoriesStmt: %w", cerr)
+		}
+	}
+	if q.getAllCategoryAttributesStmt != nil {
+		if cerr := q.getAllCategoryAttributesStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getAllCategoryAttributesStmt: %w", cerr)
+		}
+	}
 	if q.getAllContainersStmt != nil {
 		if cerr := q.getAllContainersStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getAllContainersStmt: %w", cerr)
@@ -1420,6 +1527,21 @@ func (q *Queries) Close() error {
 	if q.getAllPartAssignmentsStmt != nil {
 		if cerr := q.getAllPartAssignmentsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getAllPartAssignmentsStmt: %w", cerr)
+		}
+	}
+	if q.getAllPartAttributeValuesStmt != nil {
+		if cerr := q.getAllPartAttributeValuesStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getAllPartAttributeValuesStmt: %w", cerr)
+		}
+	}
+	if q.getAllPartCategoriesStmt != nil {
+		if cerr := q.getAllPartCategoriesStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getAllPartCategoriesStmt: %w", cerr)
+		}
+	}
+	if q.getAllPartDetailsStmt != nil {
+		if cerr := q.getAllPartDetailsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getAllPartDetailsStmt: %w", cerr)
 		}
 	}
 	if q.getAllPartDocsStmt != nil {
@@ -1957,6 +2079,21 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing restoreCabinetLEDStringStmt: %w", cerr)
 		}
 	}
+	if q.restoreCategoryStmt != nil {
+		if cerr := q.restoreCategoryStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing restoreCategoryStmt: %w", cerr)
+		}
+	}
+	if q.restoreCategoryAttributeStmt != nil {
+		if cerr := q.restoreCategoryAttributeStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing restoreCategoryAttributeStmt: %w", cerr)
+		}
+	}
+	if q.restoreCategoryParentStmt != nil {
+		if cerr := q.restoreCategoryParentStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing restoreCategoryParentStmt: %w", cerr)
+		}
+	}
 	if q.restoreContainerStmt != nil {
 		if cerr := q.restoreContainerStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing restoreContainerStmt: %w", cerr)
@@ -1990,6 +2127,21 @@ func (q *Queries) Close() error {
 	if q.restorePartAssignmentStmt != nil {
 		if cerr := q.restorePartAssignmentStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing restorePartAssignmentStmt: %w", cerr)
+		}
+	}
+	if q.restorePartAttributeValueStmt != nil {
+		if cerr := q.restorePartAttributeValueStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing restorePartAttributeValueStmt: %w", cerr)
+		}
+	}
+	if q.restorePartCategoryStmt != nil {
+		if cerr := q.restorePartCategoryStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing restorePartCategoryStmt: %w", cerr)
+		}
+	}
+	if q.restorePartDetailsStmt != nil {
+		if cerr := q.restorePartDetailsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing restorePartDetailsStmt: %w", cerr)
 		}
 	}
 	if q.restorePartDocStmt != nil {
@@ -2370,6 +2522,8 @@ type Queries struct {
 	clearCabinetLEDPathSectionsStmt                           *sql.Stmt
 	clearCabinetLEDStringsStmt                                *sql.Stmt
 	clearCabinetsStmt                                         *sql.Stmt
+	clearCategoriesStmt                                       *sql.Stmt
+	clearCategoryAttributesStmt                               *sql.Stmt
 	clearContainerBinLedIndicesStmt                           *sql.Stmt
 	clearContainersStmt                                       *sql.Stmt
 	clearControllersStmt                                      *sql.Stmt
@@ -2377,6 +2531,9 @@ type Queries struct {
 	clearDrawersStmt                                          *sql.Stmt
 	clearPartAiPromptsStmt                                    *sql.Stmt
 	clearPartAssignmentsStmt                                  *sql.Stmt
+	clearPartAttributeValuesStmt                              *sql.Stmt
+	clearPartCategoriesStmt                                   *sql.Stmt
+	clearPartDetailsStmt                                      *sql.Stmt
 	clearPartDocsStmt                                         *sql.Stmt
 	clearPartLinksStmt                                        *sql.Stmt
 	clearPartParametersStmt                                   *sql.Stmt
@@ -2410,6 +2567,9 @@ type Queries struct {
 	createInspirationTemplateStmt                             *sql.Stmt
 	createPartStmt                                            *sql.Stmt
 	createPartAssignmentStmt                                  *sql.Stmt
+	createPartAttributeValueStmt                              *sql.Stmt
+	createPartCategoryStmt                                    *sql.Stmt
+	createPartDetailsStmt                                     *sql.Stmt
 	createPartDocStmt                                         *sql.Stmt
 	createPartLinkStmt                                        *sql.Stmt
 	createPartParameterStmt                                   *sql.Stmt
@@ -2459,10 +2619,15 @@ type Queries struct {
 	findExistingPartByProviderRefStmt                         *sql.Stmt
 	getAllAuditLogsStmt                                       *sql.Stmt
 	getAllBinsStmt                                            *sql.Stmt
+	getAllCategoriesStmt                                      *sql.Stmt
+	getAllCategoryAttributesStmt                              *sql.Stmt
 	getAllContainersStmt                                      *sql.Stmt
 	getAllInspirationTemplatesStmt                            *sql.Stmt
 	getAllPartAiPromptsStmt                                   *sql.Stmt
 	getAllPartAssignmentsStmt                                 *sql.Stmt
+	getAllPartAttributeValuesStmt                             *sql.Stmt
+	getAllPartCategoriesStmt                                  *sql.Stmt
+	getAllPartDetailsStmt                                     *sql.Stmt
 	getAllPartDocsStmt                                        *sql.Stmt
 	getAllPartLinksStmt                                       *sql.Stmt
 	getAllPartParametersStmt                                  *sql.Stmt
@@ -2570,6 +2735,9 @@ type Queries struct {
 	restoreCabinetControllerStmt                              *sql.Stmt
 	restoreCabinetLEDPathSectionStmt                          *sql.Stmt
 	restoreCabinetLEDStringStmt                               *sql.Stmt
+	restoreCategoryStmt                                       *sql.Stmt
+	restoreCategoryAttributeStmt                              *sql.Stmt
+	restoreCategoryParentStmt                                 *sql.Stmt
 	restoreContainerStmt                                      *sql.Stmt
 	restoreControllerStmt                                     *sql.Stmt
 	restoreDrawerStmt                                         *sql.Stmt
@@ -2577,6 +2745,9 @@ type Queries struct {
 	restorePartStmt                                           *sql.Stmt
 	restorePartAiPromptStmt                                   *sql.Stmt
 	restorePartAssignmentStmt                                 *sql.Stmt
+	restorePartAttributeValueStmt                             *sql.Stmt
+	restorePartCategoryStmt                                   *sql.Stmt
+	restorePartDetailsStmt                                    *sql.Stmt
 	restorePartDocStmt                                        *sql.Stmt
 	restorePartLinkStmt                                       *sql.Stmt
 	restorePartParameterStmt                                  *sql.Stmt
@@ -2662,6 +2833,8 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		clearCabinetLEDPathSectionsStmt:       q.clearCabinetLEDPathSectionsStmt,
 		clearCabinetLEDStringsStmt:            q.clearCabinetLEDStringsStmt,
 		clearCabinetsStmt:                     q.clearCabinetsStmt,
+		clearCategoriesStmt:                   q.clearCategoriesStmt,
+		clearCategoryAttributesStmt:           q.clearCategoryAttributesStmt,
 		clearContainerBinLedIndicesStmt:       q.clearContainerBinLedIndicesStmt,
 		clearContainersStmt:                   q.clearContainersStmt,
 		clearControllersStmt:                  q.clearControllersStmt,
@@ -2669,6 +2842,9 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		clearDrawersStmt:                      q.clearDrawersStmt,
 		clearPartAiPromptsStmt:                q.clearPartAiPromptsStmt,
 		clearPartAssignmentsStmt:              q.clearPartAssignmentsStmt,
+		clearPartAttributeValuesStmt:          q.clearPartAttributeValuesStmt,
+		clearPartCategoriesStmt:               q.clearPartCategoriesStmt,
+		clearPartDetailsStmt:                  q.clearPartDetailsStmt,
 		clearPartDocsStmt:                     q.clearPartDocsStmt,
 		clearPartLinksStmt:                    q.clearPartLinksStmt,
 		clearPartParametersStmt:               q.clearPartParametersStmt,
@@ -2702,6 +2878,9 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		createInspirationTemplateStmt:                  q.createInspirationTemplateStmt,
 		createPartStmt:                                 q.createPartStmt,
 		createPartAssignmentStmt:                       q.createPartAssignmentStmt,
+		createPartAttributeValueStmt:                   q.createPartAttributeValueStmt,
+		createPartCategoryStmt:                         q.createPartCategoryStmt,
+		createPartDetailsStmt:                          q.createPartDetailsStmt,
 		createPartDocStmt:                              q.createPartDocStmt,
 		createPartLinkStmt:                             q.createPartLinkStmt,
 		createPartParameterStmt:                        q.createPartParameterStmt,
@@ -2751,10 +2930,15 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		findExistingPartByProviderRefStmt:              q.findExistingPartByProviderRefStmt,
 		getAllAuditLogsStmt:                            q.getAllAuditLogsStmt,
 		getAllBinsStmt:                                 q.getAllBinsStmt,
+		getAllCategoriesStmt:                           q.getAllCategoriesStmt,
+		getAllCategoryAttributesStmt:                   q.getAllCategoryAttributesStmt,
 		getAllContainersStmt:                           q.getAllContainersStmt,
 		getAllInspirationTemplatesStmt:                 q.getAllInspirationTemplatesStmt,
 		getAllPartAiPromptsStmt:                        q.getAllPartAiPromptsStmt,
 		getAllPartAssignmentsStmt:                      q.getAllPartAssignmentsStmt,
+		getAllPartAttributeValuesStmt:                  q.getAllPartAttributeValuesStmt,
+		getAllPartCategoriesStmt:                       q.getAllPartCategoriesStmt,
+		getAllPartDetailsStmt:                          q.getAllPartDetailsStmt,
 		getAllPartDocsStmt:                             q.getAllPartDocsStmt,
 		getAllPartLinksStmt:                            q.getAllPartLinksStmt,
 		getAllPartParametersStmt:                       q.getAllPartParametersStmt,
@@ -2862,6 +3046,9 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		restoreCabinetControllerStmt:                   q.restoreCabinetControllerStmt,
 		restoreCabinetLEDPathSectionStmt:               q.restoreCabinetLEDPathSectionStmt,
 		restoreCabinetLEDStringStmt:                    q.restoreCabinetLEDStringStmt,
+		restoreCategoryStmt:                            q.restoreCategoryStmt,
+		restoreCategoryAttributeStmt:                   q.restoreCategoryAttributeStmt,
+		restoreCategoryParentStmt:                      q.restoreCategoryParentStmt,
 		restoreContainerStmt:                           q.restoreContainerStmt,
 		restoreControllerStmt:                          q.restoreControllerStmt,
 		restoreDrawerStmt:                              q.restoreDrawerStmt,
@@ -2869,6 +3056,9 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		restorePartStmt:                                q.restorePartStmt,
 		restorePartAiPromptStmt:                        q.restorePartAiPromptStmt,
 		restorePartAssignmentStmt:                      q.restorePartAssignmentStmt,
+		restorePartAttributeValueStmt:                  q.restorePartAttributeValueStmt,
+		restorePartCategoryStmt:                        q.restorePartCategoryStmt,
+		restorePartDetailsStmt:                         q.restorePartDetailsStmt,
 		restorePartDocStmt:                             q.restorePartDocStmt,
 		restorePartLinkStmt:                            q.restorePartLinkStmt,
 		restorePartParameterStmt:                       q.restorePartParameterStmt,

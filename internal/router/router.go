@@ -69,6 +69,11 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 		// Dashboard
 		r.Get("/", h.HandleDashboard)
 
+		// Inventory categories
+		r.Get("/categories", h.HandleCategories)
+		r.Get("/categories/{id}", h.HandleCategoryDetail)
+		r.Get("/categories/{id}/qr", h.HandleCategoryQR)
+
 		// Parts (Read)
 		r.Get("/parts", h.HandlePartsList)
 		r.Get("/parts/labels", h.HandleProductLabels)
@@ -178,6 +183,16 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 				r.Post("/storage/cabinets/{id}/drawers/{drawerID}/delete", h.HandleLayoutDrawerDelete)
 				r.Post("/storage/cabinets/{id}/bins/{binID}/detach", h.HandleLayoutBinDetach)
 			})
+
+			// Category management
+			r.Get("/categories/new", h.HandleCategoryNew)
+			r.Get("/categories/{id}/edit", h.HandleCategoryEdit)
+			r.Post("/categories", h.HandleCategoryCreate)
+			r.Post("/categories/{id}/update", h.HandleCategoryUpdate)
+			r.Post("/categories/{id}/delete", h.HandleCategoryDelete)
+			r.Post("/categories/{id}/attributes", h.HandleCategoryAttributeSave)
+			r.Post("/categories/{id}/attributes/{attributeID}/update", h.HandleCategoryAttributeSave)
+			r.Post("/categories/{id}/attributes/{attributeID}/delete", h.HandleCategoryAttributeDelete)
 
 			// Parts CRUD
 			r.Get("/parts/new", h.HandlePartsNew)

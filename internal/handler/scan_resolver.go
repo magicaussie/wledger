@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/tuxedocurly/wledger/internal/categories"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/storage"
 )
@@ -40,7 +41,7 @@ func (h *Handler) resolveScanCode(r *http.Request, raw string) (scanResolution, 
 			return scanResolution{}, &scanResolutionError{http.StatusBadRequest, "Invalid " + strings.ToLower(label) + " code"}
 		}
 		if err := lookup(id); err != nil {
-			if errors.Is(err, sql.ErrNoRows) || errors.Is(err, storage.ErrCabinetNotFound) || errors.Is(err, storage.ErrDrawerNotFound) {
+			if errors.Is(err, sql.ErrNoRows) || errors.Is(err, categories.ErrNotFound) || errors.Is(err, storage.ErrCabinetNotFound) || errors.Is(err, storage.ErrDrawerNotFound) {
 				return scanResolution{}, &scanResolutionError{http.StatusNotFound, label + " not found"}
 			}
 			return scanResolution{}, &scanResolutionError{http.StatusInternalServerError, "Failed to resolve " + label}
@@ -57,6 +58,11 @@ func (h *Handler) resolveScanCode(r *http.Request, raw string) (scanResolution, 
 	case strings.HasPrefix(code, physicalCabinetScanPrefix):
 		return resolveID(physicalCabinetScanPrefix, "physical-cabinet", "Physical cabinet", "", func(id int64) error {
 			_, err := h.browseService().GetCabinet(r.Context(), id)
+			return err
+		})
+	case strings.HasPrefix(code, categoryScanPrefix):
+		return resolveID(categoryScanPrefix, "category", "Category", "", func(id int64) error {
+			_, err := categories.NewService(h.Database).Get(r.Context(), id)
 			return err
 		})
 	case strings.HasPrefix(code, physicalDrawerScanPrefix):
@@ -166,6 +172,16 @@ func (h *Handler) HandleEntityBarcode(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		code = PhysicalDrawerScanCode(id)
+	case "category":
+		if _, err := categories.NewService(h.Database).Get(r.Context(), id); err != nil {
+			if errors.Is(err, categories.ErrNotFound) {
+				http.Error(w, "Category not found", http.StatusNotFound)
+			} else {
+				h.UIError.Respond(w, r, err, "Failed to load category", http.StatusInternalServerError)
+			}
+			return
+		}
+		code = CategoryScanCode(id)
 	case "part":
 		if _, err := h.Queries.GetPart(r.Context(), id); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
