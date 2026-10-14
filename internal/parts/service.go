@@ -50,7 +50,17 @@ type LinkDTO struct {
 
 // ErrInvalidLinkURL indicates that a product link URL failed validation. Only
 // absolute http:// and https:// URLs are accepted.
-var ErrInvalidLinkURL = errors.New("invalid link URL")
+var (
+	ErrInvalidLinkURL  = errors.New("invalid link URL")
+	ErrReservedBarcode = errors.New("barcode uses a reserved WLEDger identity prefix")
+)
+
+func validateBarcode(value string) error {
+	if strings.HasPrefix(strings.TrimSpace(value), "wledger:") {
+		return ErrReservedBarcode
+	}
+	return nil
+}
 
 // validateLinkURLs rejects any non-empty link URL that is not a well-formed
 // absolute http(s) URL. Empty URLs are ignored, matching the existing behaviour
@@ -268,6 +278,9 @@ func (s *service) GetPartDetail(ctx context.Context, id int64) (PartDetail, erro
 }
 
 func (s *service) CreatePart(ctx context.Context, req CreatePartRequest) (int64, error) {
+	if err := validateBarcode(req.BarcodeData); err != nil {
+		return 0, err
+	}
 	if err := validateLinkURLs(req.Links); err != nil {
 		return 0, err
 	}
@@ -361,6 +374,9 @@ func (s *service) CreatePart(ctx context.Context, req CreatePartRequest) (int64,
 }
 
 func (s *service) UpdatePart(ctx context.Context, req UpdatePartRequest) error {
+	if err := validateBarcode(req.BarcodeData); err != nil {
+		return err
+	}
 	if err := validateLinkURLs(req.ExistingLinks); err != nil {
 		return err
 	}

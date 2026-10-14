@@ -14,9 +14,8 @@ type ProductLabel struct {
 	Barcode string
 }
 
-// ProductLabels renders a print-friendly sheet for parts that have a barcode.
-// The QR resolves by stable part ID; the barcode remains printed as a human- and
-// scanner-readable alternative.
+// ProductLabels renders QR and Code 128 labels for every product using its stable
+// WLEDger identity. Existing manufacturer barcodes remain separately visible.
 templ ProductLabels(user auth.User, parts []ProductLabel) {
 	@layouts.Base(i18n.T(ctx, "ProductLabels"), user) {
 		<div class="max-w-6xl mx-auto">
@@ -38,15 +37,21 @@ templ ProductLabels(user auth.User, parts []ProductLabel) {
 							alt={ fmt.Sprintf("QR for %s", p.Name) }
 							class="w-24 h-24 object-contain"
 						/>
+						<img
+							src={ templ.SafeURL(fmt.Sprintf("/scan/barcode/part/%d", p.ID)) }
+							alt={ fmt.Sprintf("Code 128 barcode for %s", p.Name) }
+							class="w-full h-10 object-contain"
+						/>
+						<span class="text-[7px] font-mono text-center">WLEDger product #{ fmt.Sprintf("%d", p.ID) } · internal Code 128</span>
 						<span class="font-bold text-center text-[10px] leading-tight line-clamp-2">{ p.Name }</span>
 						if p.Barcode != "" {
-							<span class="text-[8px] font-mono text-center opacity-70">{ p.Barcode }</span>
+							<span class="text-[8px] text-center opacity-70">Manufacturer barcode: <span class="font-mono">{ p.Barcode }</span></span>
 						}
 					</div>
 				}
 				if len(parts) == 0 {
 					<div class="col-span-full text-center opacity-60 py-12">
-						{ i18n.T(ctx, "NoPartBarcodes") }
+						No products found yet.
 					</div>
 				}
 			</div>

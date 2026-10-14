@@ -5,7 +5,7 @@ Captures the desired model, the current implementation, the gaps, the locked
 decisions, and exactly where in the code each piece lives so future changes take
 scanning into account.
 
-Status: **physical cabinet/drawer QR navigation implemented; legacy electrical scan codes remain compatible.**
+Status: **physical QR and Code 128 identities use stable entity IDs; scan routing keeps legacy electrical identities distinct and stock-move scans stay in their active operation context.**
 
 ---
 
@@ -83,14 +83,14 @@ physical-storage tables; QR prefixes and destinations preserve that distinction.
    user-facing terms. `Wall` stays as-is (a dashboard grouping of drawers).
 2. **One controller per cabinet** for now; multiple strings (segments) per
    controller is already supported.
-3. **Scanning a drawer with no active context** → highlight the drawer via LEDs,
-   then open a **drawer action sheet** (add item to bin, add/remove/rename bin,
-   move bin, view contents, edit drawer). If a context *is* active (e.g. a move
-   modal), the scan sets the target instead — same pattern as the bin picker.
-4. **Reading** must support **both 1D barcodes and QR**. **Generation** stays
-   **QR-only**.
-5. **Errors** flash the relevant bin/drawer **red** (e.g. unknown code, failed
-   locate/move).
+3. **Scanning a physical drawer with no active context** opens its physical
+   storage detail. During an active stock operation, a drawer scan narrows the
+   existing destination picker instead of navigating away; the user then selects
+   a bin. Scanning does not require WLED output.
+4. **Reading and label generation** must support both QR and standard 1D Code 128 using the same stable identity for physical cabinets, drawers, bins and products.
+5. **Errors** must be visible in the active workflow (e.g. unknown code,
+   mismatched source/product, unavailable destination). Error reporting must work
+   with WLED output disabled; optional LED signaling is outside this scanning path.
 6. **LED colours + states (incl. flashing)** are a first-class, configurable
    system (see §7).
 
@@ -108,7 +108,7 @@ physical-storage tables; QR prefixes and destinations preserve that distinction.
 - legacy `wledger:drawer:<id>` → `/drawers/<id>` (container; unchanged)
 - legacy `wledger:part:<code>` and plain barcode → exact barcode match, else search
 
-**QR generation:** `internal/qrcode/qr.go` (`PNG(content, scale)`).
+**QR generation:** `internal/qrcode/qr.go` (`PNG(content, scale)`). Code 128 generation uses the same stable scan-code helpers and the `github.com/boombuler/barcode` encoder.
 
 **QR endpoints:**
 - `GET /parts/{id}/qr` → part ID QR (`HandlePartQR` in `internal/handler/parts.go`)
@@ -116,33 +116,31 @@ physical-storage tables; QR prefixes and destinations preserve that distinction.
 - `GET /storage/drawers/{id}/qr` → physical drawer QR (`HandlePhysicalDrawerQR`)
 - `GET /storage/bins/{id}/qr` and legacy `/bin/{id}/qr` → stable bin QR
 - Legacy `/cabinet/{id}/qr` and `/drawer/{id}/qr` continue producing controller/container identities.
+- `GET /scan/barcode/{type}/{id}` renders Code 128 for `bin`, `physical-cabinet`, `physical-drawer` and `part` identities only.
+- `/labels/{type}/{id}` renders a printable label containing both formats; product batch labels include every product, not only products with a manufacturer barcode.
 
-**Scan resolver (server):** `HandleScan` at `GET /scan?q=` (`internal/handler/parts.go`).
+**Scan resolver (server):** `HandleScan` at `GET /scan?q=` and its typed JSON counterpart `GET /scan/resolve?q=` (`internal/handler/scan_resolver.go`).
 
 **Scan routing (client):** `web/static/js/scan_router.js` sends typed physical,
 legacy, bin and part IDs to `/scan`; `HandleScan` validates entity existence and
 redirects. Direct entity pages perform their own database-backed validation,
 returning 400 for malformed IDs and 404 for absent records. Inputs:
 `fast_scan.js` (keyboard-wedge USB/BT scanners) and `barcode_scanner.js` (webcam
-via html5-qrcode) dispatch the same `fastscan` event.
+via html5-qrcode with QR and Code 128 enabled) dispatch the same `fastscan` event.
 
-**Label sheets:**
-- `GET /parts/labels` → `HandleProductLabels` → `web/pages/product_labels.templ`
-- `GET /hardware/labels` → `HandleBinLabels` → `web/pages/bin_labels.templ`
+**Printable labels:**
+- `GET /labels/{type}/{id}` → `HandleScanLabel` → `web/pages/scan_label.templ`; prints both identity formats for each cabinet, drawer, bin or product.
+- `GET /parts/labels` → `HandleProductLabels` → `web/pages/product_labels.templ`; product manufacturer barcode data remains separate from the generated internal Code 128.
+- `GET /hardware/labels` remains the legacy electrical controller/container/bin QR sheet and is not repurposed for physical cabinets or drawers.
 
-**Bin picker:** `web/components/bin_picker_grid.templ` + `bin_picker_card.templ`;
-`scan_router.js` can select a bin in the open picker when a bin QR is scanned
-(`window.__binPickerContext`).
+**Bin picker and stock movement:** `web/components/storage_bin_picker.templ` uses stable `bin_id` selection. `stock_move_scan.js` registers a context only while a Move Stock dialog is open; source/product scans are validated through `/scan/resolve`, cabinet/drawer scans narrow the active picker, and destination-bin scans select within that location. Manual picker selection remains available.
 
 ---
 
 ## 5. Remaining gaps vs the broader design
 
-1. **Context-aware scanning** remains limited to the bin picker and is separate
-   from physical QR identity navigation.
-2. **LED-less bins** are representable but not locatable (expected).
-3. **No 1D barcode generation** (QR-only generation remains the supported output).
-4. **No LED flashing / state system** (see §7).
+1. **LED-less bins** are representable but not locatable (expected).
+2. **No LED flashing / state system** (see §7).
 
 Physical cabinet, drawer, bin and part QR navigation is implemented independently
 of Locate. Generated entity QR endpoints reject malformed, unknown or deleted

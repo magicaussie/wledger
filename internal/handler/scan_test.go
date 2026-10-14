@@ -2,10 +2,12 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -144,6 +146,8 @@ func TestHandleQRRoutesGenerateOnlyExistingIdentities(t *testing.T) {
 	r.Get("/parts/{id}/qr", h.HandlePartQR)
 	r.Get("/storage/cabinets/{id}/qr", h.HandlePhysicalCabinetQR)
 	r.Get("/storage/drawers/{id}/qr", h.HandlePhysicalDrawerQR)
+	r.Get("/scan/barcode/{type}/{id}", h.HandleEntityBarcode)
+	r.Get("/labels/{type}/{id}", h.HandleScanLabel)
 
 	paths := []string{
 		"/bin/12/qr",
@@ -152,6 +156,10 @@ func TestHandleQRRoutesGenerateOnlyExistingIdentities(t *testing.T) {
 		"/parts/13/qr",
 		"/storage/cabinets/10/qr",
 		"/storage/drawers/11/qr",
+		"/scan/barcode/bin/12",
+		"/scan/barcode/physical-cabinet/10",
+		"/scan/barcode/physical-drawer/11",
+		"/scan/barcode/part/13",
 	}
 	for _, path := range paths {
 		req := httptest.NewRequest(http.MethodGet, path, nil)
@@ -169,11 +177,98 @@ func TestHandleQRRoutesGenerateOnlyExistingIdentities(t *testing.T) {
 		}
 	}
 
-	for _, path := range []string{"/bin/999/qr", "/cabinet/999/qr", "/drawer/999/qr", "/storage/cabinets/999/qr", "/storage/drawers/999/qr"} {
+	for _, path := range []string{"/bin/999/qr", "/cabinet/999/qr", "/drawer/999/qr", "/storage/cabinets/999/qr", "/storage/drawers/999/qr", "/scan/barcode/bin/999", "/scan/barcode/physical-cabinet/999", "/scan/barcode/physical-drawer/999", "/scan/barcode/part/999"} {
 		rr := httptest.NewRecorder()
 		r.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, path, nil))
 		if rr.Code != http.StatusNotFound {
 			t.Errorf("unknown QR identity %s returned %d, want 404", path, rr.Code)
 		}
+	}
+
+	for _, path := range []string{"/labels/physical-cabinet/10", "/labels/physical-drawer/11", "/labels/bin/12", "/labels/part/13"} {
+		rr := httptest.NewRecorder()
+		r.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, path, nil))
+		if rr.Code != http.StatusOK {
+			t.Errorf("%s: expected printable label, got %d: %s", path, rr.Code, rr.Body.String())
+			continue
+		}
+		if !strings.Contains(rr.Body.String(), "Code 128") || !strings.Contains(rr.Body.String(), "QR code") {
+			t.Errorf("%s: printable label must contain both QR and Code 128 output", path)
+		}
+	}
+}
+
+func TestHandleScanResolveReturnsOneTypedStableIdentity(t *testing.T) {
+	h, conn := setupPartTest(t)
+	defer conn.Close()
+	defer cleanupPartTest()
+
+	ctx := context.Background()
+	controller, err := h.Queries.CreateController(ctx, db.CreateControllerParams{Name: "Electrical controller", IpAddress: "127.0.0.1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	container, err := h.Queries.CreateContainer(ctx, db.CreateContainerParams{Name: "Electrical container", ControllerID: controller.ID, SegmentID: 0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, statement := range []string{
+		`INSERT INTO cabinets (id,name,coordinate_system,layout_revision,electrical_revision,display_order,archived) VALUES (20,'Physical cabinet','grid',0,0,0,0)`,
+		`INSERT INTO drawers (id,cabinet_id,label,display_order,x,y,width,height,archived) VALUES (21,20,'Physical drawer',0,0,0,10,5,0)`,
+		`INSERT INTO bins (id,name,container_id,led_index) VALUES (22,'Physical bin',NULL,NULL)`,
+		`INSERT INTO parts (id,name,barcode_data) VALUES (23,'Scanned product','maker-123')`,
+	} {
+		if _, err := conn.ExecContext(ctx, statement); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	cases := []struct {
+		code string
+		want scanResolution
+	}{
+		{"wledger:physical-cabinet:20", scanResolution{Type: "physical-cabinet", ID: 20}},
+		{"wledger:physical-drawer:21", scanResolution{Type: "physical-drawer", ID: 21, CabinetID: 20}},
+		{"wledger:bin:22", scanResolution{Type: "bin", ID: 22}},
+		{"wledger:part-id:23", scanResolution{Type: "part", ID: 23}},
+		{"maker-123", scanResolution{Type: "part", ID: 23}},
+		{"wledger:cabinet:" + strconv.FormatInt(controller.ID, 10), scanResolution{Type: "legacy-controller", ID: controller.ID}},
+		{"wledger:drawer:" + strconv.FormatInt(container, 10), scanResolution{Type: "legacy-container", ID: container}},
+	}
+	for _, tc := range cases {
+		req := httptest.NewRequest(http.MethodGet, "/scan/resolve?q="+url.QueryEscape(tc.code), nil)
+		rr := httptest.NewRecorder()
+		h.HandleScanResolve(rr, req)
+		if rr.Code != http.StatusOK {
+			t.Errorf("%s: status %d, want 200: %s", tc.code, rr.Code, rr.Body.String())
+			continue
+		}
+		var got scanResolution
+		if err := json.Unmarshal(rr.Body.Bytes(), &got); err != nil {
+			t.Errorf("%s: decode response: %v", tc.code, err)
+			continue
+		}
+		if got.Type != tc.want.Type || got.ID != tc.want.ID || got.CabinetID != tc.want.CabinetID {
+			t.Errorf("%s: got %+v, want %+v", tc.code, got, tc.want)
+		}
+	}
+
+	for _, tc := range []struct {
+		code string
+		want int
+	}{
+		{"wledger:physical-cabinet:20x", http.StatusBadRequest},
+		{"wledger:physical-drawer:999", http.StatusNotFound},
+		{"wledger:part-id:999", http.StatusNotFound},
+		{"unknown-maker-code", http.StatusNotFound},
+	} {
+		rr := httptest.NewRecorder()
+		h.HandleScanResolve(rr, httptest.NewRequest(http.MethodGet, "/scan/resolve?q="+url.QueryEscape(tc.code), nil))
+		if rr.Code != tc.want {
+			t.Errorf("%s: status %d, want %d (%s)", tc.code, rr.Code, tc.want, rr.Body.String())
+		}
+	}
+	if _, err := conn.ExecContext(ctx, `INSERT INTO parts (name,barcode_data) VALUES ('Duplicate barcode','maker-123')`); err == nil {
+		t.Fatal("duplicate manufacturer barcode unexpectedly inserted")
 	}
 }

@@ -7,8 +7,8 @@ import (
 )
 
 // MoveStockModal renders a reusable modal for moving or fixing stock assignments.
-// It loads the shared bin picker for the "move" and "fix" part buttons on part_detail.templ.
-templ MoveStockModal(modalID string, title string, message string, actionURL string, quantity int64) {
+// A scan context keeps all scans in the open transfer and validates stable source/product identities.
+templ MoveStockModal(modalID string, title string, message string, actionURL string, quantity int64, partID int64, sourceBinID int64) {
 	@Modal(ModalProps{
 		ID:         modalID,
 		Title:      title,
@@ -18,14 +18,28 @@ templ MoveStockModal(modalID string, title string, message string, actionURL str
 		<p class="text-sm text-base-content/80 mb-6">
 			{ message }
 		</p>
-		<div x-data="{ hasSelection: false }">
+		<div
+			x-data={ fmt.Sprintf("stockMoveScan('%s', %d, %d)", modalID, partID, sourceBinID) }
+			x-init="init()"
+			@bin-selected-form="hasSelection = true; selectedBinID = String($event.detail.id)"
+		>
 			<form
 				id={ fmt.Sprintf("%s_form", modalID) }
 				action={ templ.SafeURL(actionURL) }
 				method="POST"
 				class="space-y-6"
+				onsubmit="return confirm('Confirm moving this stock to the selected bin?')"
 			>
 				@CSRFInput()
+				<input id={ fmt.Sprintf("stock_move_scan_input_%s", modalID) } type="text" class="sr-only" tabindex="-1" aria-hidden="true"/>
+				<div class="rounded-lg border border-base-300 bg-base-200/40 p-3 space-y-2" role="status" aria-live="polite">
+					<p x-text="instruction()" class="text-sm font-medium"></p>
+					<p x-show="error" x-text="error" class="text-sm text-error" role="alert"></p>
+					<div class="flex flex-wrap gap-2">
+						<button type="button" class="btn btn-sm btn-outline" { templ.Attributes{"onclick": fmt.Sprintf("startGlobalScanner('stock_move_scan_input_%s')", modalID)}... }>Scan with camera</button>
+						<button type="button" class="btn btn-sm btn-ghost" @click="useManualSelection()">Use manual destination selection</button>
+					</div>
+				</div>
 				<div class="form-control w-full">
 					<span
 						id={ fmt.Sprintf("%s_bin_picker_heading", modalID) }
@@ -41,7 +55,6 @@ templ MoveStockModal(modalID string, title string, message string, actionURL str
 						hx-get="/storage/bin_picker"
 						hx-trigger="load"
 						hx-swap="innerHTML"
-						@bin-selected-form="hasSelection = true"
 					>
 						<div class="text-center text-base-content/80 py-12">
 							<p class="text-sm">{ i18n.T(ctx, "M6LoadingBins") }</p>
@@ -54,11 +67,11 @@ templ MoveStockModal(modalID string, title string, message string, actionURL str
 				<form method="dialog">
 					<button class="btn btn-ghost">{ i18n.T(ctx, "Cancel") }</button>
 				</form>
-				<button 
+				<button
 					form={ fmt.Sprintf("%s_form", modalID) }
 					type="submit"
-					class="btn btn-primary px-8" 
-					:disabled="!hasSelection"
+					class="btn btn-primary px-8"
+					:disabled="!canSubmit"
 				>
 					{ i18n.T(ctx, "M6MoveStock") }
 				</button>

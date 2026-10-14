@@ -25,6 +25,7 @@ templ PartDetail(user auth.User, part db.Part, stock []db.GetPartAssignmentsRow,
 					{Label: part.Name},
 				},
 			) {
+				<a href={ templ.SafeURL(fmt.Sprintf("/labels/part/%d", part.ID)) } class="btn btn-outline gap-2">{ i18n.T(ctx, "PrintLabels") }</a>
 if user.CanWrite() {
 				@components.PartFavoriteButton(part.ID, part.IsFavorite.Bool, true)
 				<button onclick="part_qr_modal.showModal()" class="btn btn-outline gap-2">
@@ -362,9 +363,9 @@ templ StockRow(partID int64, s db.GetPartAssignmentsRow, user auth.User, control
 					</form>
 				}
 				if user.CanWrite() {
-					if !s.BinName.Valid || !s.ControllerID.Valid {
+					if !s.BinID.Valid || !s.BinName.Valid {
 						<button
-							{ templ.Attributes{"onclick": fmt.Sprintf("move_stock_modal_%d.showModal()", s.ID)}... }
+							{ templ.Attributes{"onclick": fmt.Sprintf("openStockMoveModal('move_stock_modal_%d')", s.ID)}... }
 							class="btn btn-xs btn-outline btn-warning"
 							title={ i18n.T(ctx, "ReassignToValidBin") }
 						>
@@ -376,10 +377,12 @@ templ StockRow(partID int64, s db.GetPartAssignmentsRow, user auth.User, control
 							i18n.TD(ctx, "ReassignOrphanedStockDesc", map[string]interface{}{"Count": s.Quantity}),
 							fmt.Sprintf("/parts/%d/stock/%d/move", partID, s.ID),
 							s.Quantity,
+							partID,
+							0,
 						)
 					} else {
 						<button
-							{ templ.Attributes{"onclick": fmt.Sprintf("move_stock_modal_%d.showModal()", s.ID)}... }
+							{ templ.Attributes{"onclick": fmt.Sprintf("openStockMoveModal('move_stock_modal_%d')", s.ID)}... }
 							class="btn btn-xs btn-ghost"
 							title={ i18n.T(ctx, "MoveStock") }
 						>
@@ -391,6 +394,8 @@ templ StockRow(partID int64, s db.GetPartAssignmentsRow, user auth.User, control
 							i18n.TD(ctx, "MoveStockDesc", map[string]interface{}{"Count": s.Quantity}),
 							fmt.Sprintf("/parts/%d/stock/%d/move", partID, s.ID),
 							s.Quantity,
+							partID,
+							s.BinID.Int64,
 						)
 						}
 						<form action={ templ.SafeURL(fmt.Sprintf("/parts/%d/stock/%d/delete", partID, s.ID)) } method="POST" { templ.Attributes{"onsubmit": fmt.Sprintf("return confirm('%s');", i18n.T(ctx, "ConfirmRemoveStock"))}... }>

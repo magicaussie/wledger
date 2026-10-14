@@ -9,6 +9,7 @@ const os = require('node:os');
 const path = require('node:path');
 
 const scannerMock = `
+  window.Html5QrcodeSupportedFormats = { QR_CODE: 0, CODE_128: 1 };
   window.Html5QrcodeScanner = class {
     constructor() { window.__testScanner = this; }
     render(onSuccess) { this.onSuccess = onSuccess; }
@@ -158,15 +159,45 @@ const scannerMock = `
       return decodeQRCode(await response.body(), scratchDir, label);
     };
     const scanAndAssert = async (code, expectedURL, expectedText) => {
-      await page.goto(`${baseURL}/parts/new`);
-      await page.evaluate(() => window.startGlobalScanner('barcode_input'));
-      await page.waitForFunction(() => window.__wledgerBarcodeScanner?.scanner?.onSuccess);
-      await page.evaluate(value => {
-        document.activeElement?.blur();
-        window.__wledgerBarcodeScanner.scanner.onSuccess(value);
-      }, code);
+      await page.goto(`${baseURL}/parts`);
+      await page.keyboard.type(code, { delay: 1 });
+      await page.keyboard.press('Enter');
       await page.waitForURL(`${baseURL}${expectedURL}`);
       if (expectedText) assert.match(await page.locator('body').innerText(), expectedText);
+    };
+    const scanWithCamera = async (modalID, code) => {
+      const cameraButton = page.locator(`#${modalID}`).getByRole('button', { name: 'Scan with camera' });
+      await cameraButton.click();
+      await page.waitForFunction(() => window.__wledgerBarcodeScanner?.running === true);
+      await page.evaluate(value => window.__wledgerBarcodeScanner.scanner.onSuccess(value), code);
+      await page.waitForFunction(() => !document.getElementById('global_scanner_modal')?.open);
+    };
+    const scanWithKeyboard = async code => {
+      await page.keyboard.type(code, { delay: 1 });
+      await page.keyboard.press('Enter');
+    };
+    const decodeCode128 = async (png, label) => {
+      const dataURL = `data:image/png;base64,${png.toString('base64')}`;
+      const result = await page.evaluate(async source => {
+        const reader = new ZXing.BrowserMultiFormatReader();
+        const decoded = await reader.decodeFromImageUrl(source);
+        return { value: decoded.getText(), format: decoded.getBarcodeFormat() };
+      }, dataURL);
+      assert.equal(result.format, await page.evaluate(() => ZXing.BarcodeFormat.CODE_128), `${label} barcode must use Code 128`);
+      assert.ok(result.value, `generated ${label} Code 128 image did not decode`);
+      return result.value;
+    };
+    const printedLabel = async (type, id) => {
+      const pathName = `/labels/${type}/${id}`;
+      await page.goto(`${baseURL}${pathName}`);
+      const label = page.locator('.scan-print-label');
+      await label.waitFor();
+      await page.waitForFunction(() => [...document.querySelectorAll('.scan-print-label img')].length === 2 && [...document.querySelectorAll('.scan-print-label img')].every(image => image.complete && image.naturalWidth > 0));
+      assert.equal(await label.locator('img[alt^="QR code"]').count(), 1);
+      assert.equal(await label.locator('img[alt^="Code 128 barcode"]').count(), 1);
+      await page.evaluate(() => { window.__printedLabel = false; window.print = () => { window.__printedLabel = true; }; });
+      await page.getByRole('button', { name: 'Print Labels' }).click();
+      assert.equal(await page.evaluate(() => window.__printedLabel), true, `${pathName} print action was not available`);
     };
 
     await drawDrawer('Drawer North', 10, 10, 30, 30);
@@ -208,7 +239,9 @@ const scannerMock = `
 
     await page.goto(`${baseURL}/parts/new`);
     const partName = `Physical-first part ${Date.now()}`;
+    const manufacturerCode = `MFG-${Date.now()}`;
     await page.locator('form[action="/parts"] input[name=name]').fill(partName);
+    await page.locator('form[action="/parts"] input[name=barcode_data]').fill(manufacturerCode);
     await page.getByRole('button', { name: /Create Part/ }).click();
     await page.waitForURL(/\/parts\/\d+$/);
     const partID = Number(page.url().match(/\/parts\/(\d+)$/)[1]);
@@ -235,6 +268,46 @@ const scannerMock = `
     assert.equal(physicalBinCode, `wledger:bin:${binID}`);
     assert.equal(partCode, `wledger:part-id:${partID}`);
 
+    await page.addScriptTag({ path: path.join(repoRoot, 'node_modules/@zxing/library/umd/index.min.js') });
+    const code128For = async (type, id, label) => {
+      const response = await page.request.get(`${baseURL}/scan/barcode/${type}/${id}`);
+      assert.equal(response.status(), 200, `Code 128 endpoint for ${label} must exist`);
+      assert.match(response.headers()['content-type'], /image\/png/);
+      return decodeCode128(await response.body(), label);
+    };
+    const cabinetBarcode = await code128For('physical-cabinet', cabinetID, 'physical-cabinet');
+    const drawerBarcode = await code128For('physical-drawer', northID, 'physical-drawer');
+    const southDrawerBarcode = await code128For('physical-drawer', southID, 'destination-drawer');
+    const binBarcode = await code128For('bin', binID, 'physical-bin');
+    const destinationBinBarcode = await code128For('bin', secondBinID, 'destination-bin');
+    const partBarcode = await code128For('part', partID, 'part');
+    assert.equal(cabinetBarcode, physicalCabinetCode);
+    assert.equal(drawerBarcode, physicalDrawerCode);
+    assert.equal(binBarcode, physicalBinCode);
+    assert.equal(partBarcode, partCode, 'QR and Code 128 labels must encode the same product identity');
+    const southDrawerCode = await decodedQR(`/storage/drawers/${southID}/qr`, 'destination-drawer');
+    const destinationBinCode = await decodedQR(`/storage/bins/${secondBinID}/qr`, 'destination-bin');
+    assert.equal(southDrawerBarcode, southDrawerCode);
+    assert.equal(destinationBinBarcode, destinationBinCode);
+
+    for (const [pagePath, labelPath] of [
+      [`/storage/cabinets/${cabinetID}`, `/labels/physical-cabinet/${cabinetID}`],
+      [`/storage/drawers/${northID}`, `/labels/physical-drawer/${northID}`],
+      [`/storage/drawers/${northID}`, `/labels/bin/${binID}`],
+      [`/parts/${partID}`, `/labels/part/${partID}`],
+    ]) {
+      await page.goto(`${baseURL}${pagePath}`);
+      if (labelPath.startsWith('/labels/bin/')) await page.getByRole('button', { name: 'View Bin Layout' }).click();
+      const link = page.locator(`a[href="${labelPath}"]`);
+      await link.click();
+      await page.waitForURL(`${baseURL}${labelPath}`);
+      assert.equal(await page.locator('.scan-print-label img[alt^="QR code"]').count(), 1);
+      assert.equal(await page.locator('.scan-print-label img[alt^="Code 128 barcode"]').count(), 1);
+    }
+    for (const [type, id] of [['physical-cabinet', cabinetID], ['physical-drawer', northID], ['bin', binID], ['part', partID]]) {
+      await printedLabel(type, id);
+    }
+
     for (const pathName of [
       `/storage/cabinets/${cabinetID}`,
       `/storage/drawers/${northID}`,
@@ -250,6 +323,45 @@ const scannerMock = `
     assert.match(await page.locator('body').innerText(), /LED Locate is unavailable in inventory-only mode/);
     await scanAndAssert(physicalBinCode, `/parts?bin=${binID}`, new RegExp(`Bin #${binID}`));
     await scanAndAssert(partCode, `/parts/${partID}`, new RegExp(partName));
+    await scanAndAssert(manufacturerCode, `/parts/${partID}`, new RegExp(partName));
+
+    const assignmentID = query(databasePath, 'SELECT id FROM part_assignments WHERE part_id=? AND bin_id=?', [partID, binID])[0][0];
+    const moveModalID = `move_stock_modal_${assignmentID}`;
+    await page.locator('button[title="Move Stock"]').click();
+    await page.locator(`#${moveModalID}[open]`).waitFor();
+    assert.equal(await page.evaluate(() => typeof window.__wledgerScanContext?.handleScan), 'function', 'opening Move Stock must install its scan context');
+    const movedSubmit = page.locator(`#${moveModalID} button[form="${moveModalID}_form"][type="submit"]`);
+    assert.equal(await movedSubmit.isDisabled(), true, 'the transfer stays disabled until source, product, and destination are validated');
+    await scanWithCamera(moveModalID, 'wledger:part-id:not-an-id');
+    await page.locator(`#${moveModalID} [role="alert"]`).filter({ hasText: /Invalid part code/ }).waitFor();
+    assert.equal(new URL(page.url()).pathname, `/parts/${partID}`, 'invalid scans in an active transfer must not navigate away');
+    await scanWithKeyboard(binBarcode);
+    await page.locator(`#${moveModalID} [role="alert"]`).filter({ hasText: /Source bin confirmed/ }).waitFor();
+    await scanWithCamera(moveModalID, manufacturerCode);
+    await page.locator(`#${moveModalID} [role="alert"]`).filter({ hasText: /Product confirmed/ }).waitFor();
+    await scanWithCamera(moveModalID, cabinetBarcode);
+    await page.locator(`#${moveModalID} [role="alert"]`).filter({ hasText: /Physical cabinet/ }).waitFor();
+    const movePickerID = `${moveModalID}_visual_bin_picker`;
+    assert.equal(await page.locator(`#${movePickerID} [data-bin-group="cabinet"][data-cabinet-id="${cabinetID}"]`).isHidden(), false, 'scanned cabinet remains selected in the destination picker');
+    await scanWithCamera(moveModalID, southDrawerBarcode);
+    await page.locator(`#${moveModalID} [role="alert"]`).filter({ hasText: /Physical drawer/ }).waitFor();
+    assert.equal(await page.locator(`#${movePickerID} [data-drawer-id="${northID}"]`).isHidden(), true, 'scanned drawer narrows the picker to that physical drawer');
+    assert.equal(await page.locator(`#${movePickerID} [data-drawer-id="${southID}"]`).isHidden(), false);
+    await scanWithCamera(moveModalID, destinationBinBarcode);
+    await page.locator(`#${moveModalID} [role="alert"]`).filter({ hasText: /Destination bin/ }).waitFor();
+    assert.equal(await movedSubmit.isDisabled(), false, 'validated scan flow enables the explicit transfer confirmation');
+    assert.deepEqual(query(databasePath,
+      'SELECT quantity FROM part_assignments WHERE part_id=? AND bin_id=?', [partID, binID]), [[7]], 'scans alone must not change quantities');
+    page.once('dialog', dialog => dialog.dismiss());
+    await movedSubmit.click();
+    await page.locator(`#${moveModalID}[open]`).waitFor();
+    assert.deepEqual(query(databasePath,
+      'SELECT quantity FROM part_assignments WHERE part_id=? AND bin_id=?', [partID, binID]), [[7]], 'cancelled transfer confirmation must not change quantities');
+    page.once('dialog', dialog => dialog.accept());
+    await movedSubmit.click();
+    await page.waitForURL(`${baseURL}/parts/${partID}`);
+    assert.deepEqual(query(databasePath,
+      'SELECT bin_id,quantity FROM part_assignments WHERE part_id=? ORDER BY id', [partID]), [[secondBinID, 7]], 'confirmed scan-driven transfer must conserve and move stock');
 
     execute(databasePath, 'INSERT INTO controllers (id,name,ip_address,port) VALUES (1,?,?,?)', ['Legacy Controller', '127.0.0.1', mockPort]);
     execute(databasePath, 'INSERT INTO containers (id,name,controller_id,segment_id) VALUES (1,?,1,0)', ['Legacy Container']);
@@ -281,7 +393,7 @@ const scannerMock = `
     assert.deepEqual(query(databasePath,
       'SELECT x,y FROM bin_drawer_attachments WHERE bin_id=?', [binID]), [[2, 1]]);
     assert.deepEqual(query(databasePath,
-      'SELECT quantity FROM part_assignments WHERE part_id=? AND bin_id=?', [partID, binID]), [[7]]);
+      'SELECT quantity FROM part_assignments WHERE part_id=? AND bin_id=?', [partID, secondBinID]), [[7]]);
 
     await openEditor();
     await openDrawer('Drawer North');
@@ -296,7 +408,7 @@ const scannerMock = `
     assert.deepEqual(query(databasePath,
       'SELECT bin_id,drawer_id,x,y FROM bin_drawer_attachments WHERE bin_id=?', [binID]), [[binID, southID, 8, 1]]);
     assert.deepEqual(query(databasePath,
-      'SELECT quantity FROM part_assignments WHERE part_id=? AND bin_id=?', [partID, binID]), [[7]]);
+      'SELECT quantity FROM part_assignments WHERE part_id=? AND bin_id=?', [partID, secondBinID]), [[7]]);
     assert.equal(await qrDigest(binID), originalQR, 'moving and renaming must not change the bin QR identity');
 
     const beforeRejectedCreate = query(databasePath, 'SELECT COUNT(*) FROM bins')[0][0];
@@ -328,7 +440,7 @@ const scannerMock = `
     assert.deepEqual(query(databasePath, 'SELECT id,name FROM bins WHERE id=?', [binID]), [[binID, 'Renamed Physical Bin A']]);
     assert.equal(query(databasePath, 'SELECT COUNT(*) FROM bin_drawer_attachments WHERE bin_id=?', [binID])[0][0], 0);
     assert.deepEqual(query(databasePath,
-      'SELECT quantity FROM part_assignments WHERE part_id=? AND bin_id=?', [partID, binID]), [[7]]);
+      'SELECT quantity FROM part_assignments WHERE part_id=? AND bin_id=?', [partID, secondBinID]), [[7]]);
     assert.equal(await qrDigest(binID), originalQR, 'detaching placement must not change the bin QR identity');
 
     await page.goto(`${baseURL}/parts/${partID}`);
@@ -339,7 +451,7 @@ const scannerMock = `
 
     const finalState = query(databasePath,
       'SELECT (SELECT COUNT(*) FROM controllers),(SELECT COUNT(*) FROM containers),(SELECT controller_id FROM cabinets WHERE id=?),(SELECT container_id IS NULL AND led_index IS NULL FROM bins WHERE id=?),(SELECT quantity FROM part_assignments WHERE part_id=? AND bin_id=?)',
-      [cabinetID, binID, partID, binID]);
+      [cabinetID, binID, partID, secondBinID]);
     assert.deepEqual(finalState, [[1, 1, null, 1, 7]], 'physical cabinet/drawer/bin identities must coexist with, not replace, legacy controller/container records');
     assert.deepEqual(wledRequests, [], `layout-only UI contacted the mock WLED endpoint: ${wledRequests.join(', ')}`);
     assert.ok(mutations.some(item => item.path === `/storage/cabinets/${cabinetID}/drawers/${northID}/bins`), 'bin creation must use an ordinary CSRF-protected UI form');
@@ -347,10 +459,11 @@ const scannerMock = `
     assert.ok(mutations.filter(item => item.path.startsWith('/storage/cabinets/')).every(item => /csrf_token/.test(item.body)), 'physical layout writes must submit CSRF tokens');
     assert.deepEqual(pageErrors, []);
     assert.deepEqual(consoleErrors, [
+      'Failed to load resource: the server responded with a status of 400 (Bad Request)',
       'Failed to load resource: the server responded with a status of 404 (Not Found)',
       'Failed to load resource: the server responded with a status of 400 (Bad Request)',
       'Failed to load resource: the server responded with a status of 404 (Not Found)',
-    ], 'only the intentionally exercised deleted, malformed, and unknown QR navigations may return browser HTTP errors');
+    ], 'only intentionally exercised invalid scanner and deleted/malformed/unknown QR requests may return browser HTTP errors');
     console.log(JSON.stringify({ result: 'PASS', cabinetID, northID, southID, binID, secondBinID, partID, quantity: 7, physicalQrCodes: [physicalCabinetCode, physicalDrawerCode, physicalBinCode, partCode], legacyQrCodes: [legacyCabinetCode, legacyDrawerCode], deletedCode: deletedCabinetCode, physicalOutputEnabled: false, wledRequests, pageErrors, consoleErrors, uiMutations: mutations.length }));
   } finally {
     if (browser) await browser.close();

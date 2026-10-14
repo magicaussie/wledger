@@ -99,7 +99,7 @@ func StorageBinPicker(view StorageBinPickerView) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div x-data=\"{ selectedBinID: '' }\" @bin-selected.stop=\"selectedBinID = $event.detail.id; $dispatch('bin-selected-form', {id: $event.detail.id})\" class=\"space-y-8\" x-init=\"window.pickerReady()\"><input type=\"hidden\" name=\"bin_id\" :value=\"selectedBinID\" required> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div data-storage-bin-picker=\"true\" x-data=\"{ selectedBinID: '' }\" @bin-selected.stop=\"selectedBinID = $event.detail.id; $dispatch('bin-selected-form', {id: $event.detail.id})\" class=\"space-y-8\" x-init=\"window.pickerReady(this.$el)\"><input type=\"hidden\" name=\"bin_id\" :value=\"selectedBinID\" required> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -111,7 +111,7 @@ func StorageBinPicker(view StorageBinPickerView) templ.Component {
 			var templ_7745c5c3_Var2 string
 			templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6NoBinsConfigured"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/storage_bin_picker.templ`, Line: 83, Col: 70}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/storage_bin_picker.templ`, Line: 84, Col: 70}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 			if templ_7745c5c3_Err != nil {
@@ -124,7 +124,7 @@ func StorageBinPicker(view StorageBinPickerView) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6NoBinsConfiguredDescription"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/storage_bin_picker.templ`, Line: 84, Col: 69}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/storage_bin_picker.templ`, Line: 85, Col: 69}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -199,7 +199,7 @@ func StorageBinPickerCabinetGroup(cabinet StorageBinPickerCabinet) templ.Compone
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", cabinet.ID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/storage_bin_picker.templ`, Line: 104, Col: 49}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/storage_bin_picker.templ`, Line: 105, Col: 49}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
@@ -212,7 +212,7 @@ func StorageBinPickerCabinetGroup(cabinet StorageBinPickerCabinet) templ.Compone
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.TD(ctx, "M6PickerPhysicalPlacementCabinet", map[string]string{"Name": cabinet.Name}))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/storage_bin_picker.templ`, Line: 106, Col: 104}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/storage_bin_picker.templ`, Line: 107, Col: 104}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -225,7 +225,7 @@ func StorageBinPickerCabinetGroup(cabinet StorageBinPickerCabinet) templ.Compone
 		var templ_7745c5c3_Var7 string
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(cabinet.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/storage_bin_picker.templ`, Line: 109, Col: 72}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/storage_bin_picker.templ`, Line: 110, Col: 72}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
@@ -238,7 +238,7 @@ func StorageBinPickerCabinetGroup(cabinet StorageBinPickerCabinet) templ.Compone
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(storageBinPickerBinCountLabel(ctx, storageBinPickerBinCount(cabinet.Drawers)))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/storage_bin_picker.templ`, Line: 110, Col: 181}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/storage_bin_picker.templ`, Line: 111, Col: 181}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
@@ -291,7 +291,7 @@ func StorageBinPickerDrawerGroup(drawer StorageBinPickerDrawer) templ.Component 
 		var templ_7745c5c3_Var10 string
 		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", drawer.ID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/storage_bin_picker.templ`, Line: 122, Col: 47}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/storage_bin_picker.templ`, Line: 123, Col: 47}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 		if templ_7745c5c3_Err != nil {
@@ -304,7 +304,7 @@ func StorageBinPickerDrawerGroup(drawer StorageBinPickerDrawer) templ.Component 
 		var templ_7745c5c3_Var11 string
 		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.TD(ctx, "M6PickerDrawer", map[string]string{"Name": drawer.Label}))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/storage_bin_picker.templ`, Line: 124, Col: 86}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/storage_bin_picker.templ`, Line: 125, Col: 86}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 		if templ_7745c5c3_Err != nil {
@@ -318,7 +318,7 @@ func StorageBinPickerDrawerGroup(drawer StorageBinPickerDrawer) templ.Component 
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(drawer.Label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/storage_bin_picker.templ`, Line: 130, Col: 19}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/storage_bin_picker.templ`, Line: 131, Col: 19}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
@@ -328,7 +328,7 @@ func StorageBinPickerDrawerGroup(drawer StorageBinPickerDrawer) templ.Component 
 			var templ_7745c5c3_Var13 string
 			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.TD(ctx, "M6PickerDrawerNumber", map[string]string{"ID": fmt.Sprintf("%d", drawer.ID)}))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/storage_bin_picker.templ`, Line: 132, Col: 98}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/storage_bin_picker.templ`, Line: 133, Col: 98}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 			if templ_7745c5c3_Err != nil {
@@ -347,7 +347,7 @@ func StorageBinPickerDrawerGroup(drawer StorageBinPickerDrawer) templ.Component 
 			var templ_7745c5c3_Var14 string
 			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.TD(ctx, "M6PickerDrawerNumber", map[string]string{"ID": fmt.Sprintf("%d", drawer.ID)}))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/storage_bin_picker.templ`, Line: 136, Col: 180}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/storage_bin_picker.templ`, Line: 137, Col: 180}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 			if templ_7745c5c3_Err != nil {
@@ -370,7 +370,7 @@ func StorageBinPickerDrawerGroup(drawer StorageBinPickerDrawer) templ.Component 
 			var templ_7745c5c3_Var15 string
 			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6PickerNoBinsAttached"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/storage_bin_picker.templ`, Line: 140, Col: 87}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/storage_bin_picker.templ`, Line: 141, Col: 87}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 			if templ_7745c5c3_Err != nil {
@@ -434,7 +434,7 @@ func StorageBinPickerInactiveGroup(bins []StorageBinPickerBin) templ.Component {
 		var templ_7745c5c3_Var17 string
 		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6PickerInactivePlacement"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/storage_bin_picker.templ`, Line: 154, Col: 126}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/storage_bin_picker.templ`, Line: 155, Col: 126}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 		if templ_7745c5c3_Err != nil {
@@ -447,7 +447,7 @@ func StorageBinPickerInactiveGroup(bins []StorageBinPickerBin) templ.Component {
 		var templ_7745c5c3_Var18 string
 		templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6PickerInactivePlacement"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/storage_bin_picker.templ`, Line: 156, Col: 100}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/storage_bin_picker.templ`, Line: 157, Col: 100}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 		if templ_7745c5c3_Err != nil {
@@ -460,7 +460,7 @@ func StorageBinPickerInactiveGroup(bins []StorageBinPickerBin) templ.Component {
 		var templ_7745c5c3_Var19 string
 		templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(storageBinPickerBinCountLabel(ctx, len(bins)))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/storage_bin_picker.templ`, Line: 157, Col: 149}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/storage_bin_picker.templ`, Line: 158, Col: 149}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 		if templ_7745c5c3_Err != nil {
@@ -473,7 +473,7 @@ func StorageBinPickerInactiveGroup(bins []StorageBinPickerBin) templ.Component {
 		var templ_7745c5c3_Var20 string
 		templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6PickerInactiveDescription"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/storage_bin_picker.templ`, Line: 160, Col: 47}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/storage_bin_picker.templ`, Line: 161, Col: 47}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 		if templ_7745c5c3_Err != nil {
@@ -528,7 +528,7 @@ func StorageBinPickerUnplacedGroup(bins []StorageBinPickerBin) templ.Component {
 		var templ_7745c5c3_Var22 string
 		templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6PickerUnplacedGroup"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/storage_bin_picker.templ`, Line: 174, Col: 113}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/storage_bin_picker.templ`, Line: 175, Col: 113}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 		if templ_7745c5c3_Err != nil {
@@ -541,7 +541,7 @@ func StorageBinPickerUnplacedGroup(bins []StorageBinPickerBin) templ.Component {
 		var templ_7745c5c3_Var23 string
 		templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6PickerUnplacedGroup"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/storage_bin_picker.templ`, Line: 176, Col: 96}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/storage_bin_picker.templ`, Line: 177, Col: 96}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 		if templ_7745c5c3_Err != nil {
@@ -554,7 +554,7 @@ func StorageBinPickerUnplacedGroup(bins []StorageBinPickerBin) templ.Component {
 		var templ_7745c5c3_Var24 string
 		templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(storageBinPickerBinCountLabel(ctx, len(bins)))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/storage_bin_picker.templ`, Line: 177, Col: 149}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/storage_bin_picker.templ`, Line: 178, Col: 149}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 		if templ_7745c5c3_Err != nil {
@@ -567,7 +567,7 @@ func StorageBinPickerUnplacedGroup(bins []StorageBinPickerBin) templ.Component {
 		var templ_7745c5c3_Var25 string
 		templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "M6PickerUnplacedDescription"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/storage_bin_picker.templ`, Line: 180, Col: 47}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/storage_bin_picker.templ`, Line: 181, Col: 47}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 		if templ_7745c5c3_Err != nil {
@@ -622,7 +622,7 @@ func StorageBinPickerBinButton(bin StorageBinPickerBin) templ.Component {
 		var templ_7745c5c3_Var27 string
 		templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", bin.ID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/storage_bin_picker.templ`, Line: 196, Col: 41}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/storage_bin_picker.templ`, Line: 197, Col: 41}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 		if templ_7745c5c3_Err != nil {
@@ -635,7 +635,7 @@ func StorageBinPickerBinButton(bin StorageBinPickerBin) templ.Component {
 		var templ_7745c5c3_Var28 string
 		templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(bin.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/storage_bin_picker.templ`, Line: 197, Col: 18}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/storage_bin_picker.templ`, Line: 198, Col: 18}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 		if templ_7745c5c3_Err != nil {
@@ -648,7 +648,7 @@ func StorageBinPickerBinButton(bin StorageBinPickerBin) templ.Component {
 		var templ_7745c5c3_Var29 string
 		templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("$dispatch('bin-selected', {id: '%d'})", bin.ID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/storage_bin_picker.templ`, Line: 198, Col: 71}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/storage_bin_picker.templ`, Line: 199, Col: 71}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 		if templ_7745c5c3_Err != nil {
@@ -661,7 +661,7 @@ func StorageBinPickerBinButton(bin StorageBinPickerBin) templ.Component {
 		var templ_7745c5c3_Var30 string
 		templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("selectedBinID == '%d' ? 'bg-primary/20' : ''", bin.ID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/storage_bin_picker.templ`, Line: 199, Col: 78}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/storage_bin_picker.templ`, Line: 200, Col: 78}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 		if templ_7745c5c3_Err != nil {
@@ -674,7 +674,7 @@ func StorageBinPickerBinButton(bin StorageBinPickerBin) templ.Component {
 		var templ_7745c5c3_Var31 string
 		templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("selectedBinID == '%d'", bin.ID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/storage_bin_picker.templ`, Line: 200, Col: 62}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/storage_bin_picker.templ`, Line: 201, Col: 62}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
 		if templ_7745c5c3_Err != nil {
@@ -687,7 +687,7 @@ func StorageBinPickerBinButton(bin StorageBinPickerBin) templ.Component {
 		var templ_7745c5c3_Var32 string
 		templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("{ 'opacity-100': selectedBinID == '%d', 'opacity-0': selectedBinID != '%d' }", bin.ID, bin.ID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/storage_bin_picker.templ`, Line: 206, Col: 119}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/storage_bin_picker.templ`, Line: 207, Col: 119}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
 		if templ_7745c5c3_Err != nil {
@@ -700,7 +700,7 @@ func StorageBinPickerBinButton(bin StorageBinPickerBin) templ.Component {
 		var templ_7745c5c3_Var33 string
 		templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", bin.ID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/storage_bin_picker.templ`, Line: 208, Col: 87}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/storage_bin_picker.templ`, Line: 209, Col: 87}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
 		if templ_7745c5c3_Err != nil {
@@ -713,7 +713,7 @@ func StorageBinPickerBinButton(bin StorageBinPickerBin) templ.Component {
 		var templ_7745c5c3_Var34 string
 		templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(bin.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/storage_bin_picker.templ`, Line: 209, Col: 43}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/storage_bin_picker.templ`, Line: 210, Col: 43}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 		if templ_7745c5c3_Err != nil {

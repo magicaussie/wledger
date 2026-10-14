@@ -56,6 +56,8 @@
         // Terminator ends a scan (Enter/CR, or Tab for scanners configured that way).
         if (cfg.terminators.includes(e.key) || e.key === '\n' || e.key === '\r') {
             if (buffer.length >= cfg.minLength) {
+                e.preventDefault();
+                e.stopPropagation();
                 const code = buffer;
                 reset();
                 emit(code);

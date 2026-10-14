@@ -182,13 +182,13 @@ provider calls.
 
 ---
 
-### [ ] 1D barcode generation (Code128 / EAN)
+### [x] Stable Code 128 labels for inventory identities
 
-**Why:** Scanning supports 1D barcodes, but label generation is QR-only
-(`internal/qrcode/qr.go`). Users with 1D scanners are underserved.
-
-**Scope:**
-- [ ] Add Code128/EAN rendering and a label option.
+**Completed:** physical cabinets, drawers, bins and products now print both QR
+and Code 128 labels using the same stable WLEDger identity. Manufacturer barcodes
+remain separate, searchable values; the `wledger:` identity namespace is reserved.
+Camera scanning enables QR and Code 128. EAN generation is not needed for the v1.0
+stable-identity requirement.
 
 ---
 

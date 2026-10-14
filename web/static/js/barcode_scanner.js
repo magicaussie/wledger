@@ -57,6 +57,10 @@
                         qrbox: { width: 250, height: 250 },
                         aspectRatio: 1.0,
                         showTorchButtonIfSupported: true,
+                        formatsToSupport: [
+                            Html5QrcodeSupportedFormats.QR_CODE,
+                            Html5QrcodeSupportedFormats.CODE_128,
+                        ],
                     },
                     false
                 );
@@ -101,13 +105,17 @@
     function onGlobalScanSuccess(decodedText) {
         const targetInputId = state.activeTargetInputId;
         if (!targetInputId) return;
-        const input = document.getElementById(targetInputId);
-        if (input) {
-            input.value = decodedText;
-            input.dispatchEvent(new Event('input', { bubbles: true }));
-            input.dispatchEvent(new Event('change', { bubbles: true }));
+        if (!window.__wledgerScanContext) {
+            const input = document.getElementById(targetInputId);
+            if (input) {
+                input.value = decodedText;
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+            }
         }
         window.stopGlobalScanner();
-        document.dispatchEvent(new CustomEvent('fastscan', { detail: { code: decodedText } }));
+        document.dispatchEvent(new CustomEvent('fastscan', {
+            detail: { code: decodedText, targetInputId }
+        }));
     }
 })();

@@ -31,6 +31,7 @@
   "homepage": "https://github.com/tuxedocurly/wledger#readme",
   "devDependencies": {
     "@tailwindcss/cli": "^4.1.18",
+    "@zxing/library": "^0.21.3",
     "daisyui": "^5.5.13",
     "playwright": "^1.64.0",
     "tailwindcss": "^4.1.18"

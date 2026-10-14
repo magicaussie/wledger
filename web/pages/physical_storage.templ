@@ -106,6 +106,7 @@ templ StorageCabinet(cabinet storage.BrowseCabinet, user auth.User) {
 				<div class="flex flex-wrap items-center gap-2">
 					<span class="badge badge-ghost badge-md font-mono">{ i18n.T(ctx, "M6CabinetNumber") } #{ fmt.Sprintf("%d", cabinet.ID) }</span>
 					<img src={ templ.SafeURL(fmt.Sprintf("/storage/cabinets/%d/qr", cabinet.ID)) } alt={ fmt.Sprintf("QR for physical cabinet %s", cabinet.Name) } class="h-24 w-24 bg-white p-1 rounded"/>
+					<a class="btn btn-outline btn-sm" href={ templ.SafeURL(fmt.Sprintf("/labels/physical-cabinet/%d", cabinet.ID)) }>{ i18n.T(ctx, "PrintLabels") }</a>
 					if user.CanWrite() {
 						<a class="btn btn-outline btn-sm" href={ templ.SafeURL(fmt.Sprintf("/storage/cabinets/%d/edit", cabinet.ID)) }>Edit layout</a>
 					}
@@ -213,6 +214,7 @@ templ StorageDrawer(detail storage.BrowseDrawerDetail, cabinetName string, user 
 					<span class="badge badge-ghost badge-md font-mono">{ i18n.T(ctx, "M6Drawer") } #{ fmt.Sprintf("%d", detail.Drawer.ID) }</span>
 					<span class="badge badge-outline">{ cabinetName }</span>
 					<img src={ templ.SafeURL(fmt.Sprintf("/storage/drawers/%d/qr", detail.Drawer.ID)) } alt={ fmt.Sprintf("QR for physical drawer %s", drawerName(detail.Drawer, i18n.T(ctx, "M6Drawer"))) } class="h-24 w-24 bg-white p-1 rounded"/>
+					<a class="btn btn-outline btn-sm" href={ templ.SafeURL(fmt.Sprintf("/labels/physical-drawer/%d", detail.Drawer.ID)) }>{ i18n.T(ctx, "PrintLabels") }</a>
 				</div>
 			}
 
@@ -323,6 +325,7 @@ templ StorageDrawer(detail storage.BrowseDrawerDetail, cabinetName string, user 
 										<span class="badge badge-sm badge-outline font-mono">{ i18n.T(ctx, "M6BinNumber") } #{ fmt.Sprintf("%d", bin.BinID) }</span>
 										<img src={ templ.SafeURL(fmt.Sprintf("/storage/bins/%d/qr", bin.BinID)) } alt={ fmt.Sprintf("QR for physical bin %s", bin.Name) } class="h-24 w-24 bg-white p-1 rounded"/>
 									</div>
+								<a class="btn btn-outline btn-xs mt-2" href={ templ.SafeURL(fmt.Sprintf("/labels/bin/%d", bin.BinID)) }>{ i18n.T(ctx, "PrintLabels") }</a>
 								</div>
 								<p class="text-xs text-base-content/80 font-mono mt-1">
 									{ fmt.Sprintf("%g × %g", bin.Width, bin.Height) } { i18n.T(ctx, "M6CoordinateAt") } ({ fmt.Sprintf("%g, %g", bin.X, bin.Y) })

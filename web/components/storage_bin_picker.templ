@@ -72,10 +72,11 @@ type StorageBinPickerView struct {
 // nothing, creates no attachment and infers no placement.
 templ StorageBinPicker(view StorageBinPickerView) {
 	<div
+		data-storage-bin-picker="true"
 		x-data="{ selectedBinID: '' }"
 		@bin-selected.stop="selectedBinID = $event.detail.id; $dispatch('bin-selected-form', {id: $event.detail.id})"
 		class="space-y-8"
-		x-init="window.pickerReady()"
+		x-init="window.pickerReady(this.$el)"
 	>
 		<input type="hidden" name="bin_id" :value="selectedBinID" required/>
 		if len(view.Cabinets) == 0 && len(view.Inactive) == 0 && len(view.Unplaced) == 0 {

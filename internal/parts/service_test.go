@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"os"
 	"testing"
@@ -289,5 +290,40 @@ func TestUpdatePartClearFields(t *testing.T) {
 	}
 	if p.Manufacturer.String != "Has Manufacturer" {
 		t.Errorf("expected manufacturer to remain, got %q", p.Manufacturer.String)
+	}
+}
+
+func TestReservedInternalBarcodeNamespaceRejectedWithoutMutation(t *testing.T) {
+	database, store, cleanup := setupTestDB(t)
+	defer cleanup()
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	tagSvc := tags.NewService(database, store)
+	docSvc := documents.NewService(store, logger)
+	svc := NewService(database, store, logger, tagSvc, docSvc)
+	ctx := context.Background()
+
+	id, err := svc.CreatePart(ctx, CreatePartRequest{Name: "Stable product"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.CreatePart(ctx, CreatePartRequest{Name: "Reserved product", BarcodeData: " wledger:part-id:77 "}); !errors.Is(err, ErrReservedBarcode) {
+		t.Fatalf("reserved barcode create error = %v, want ErrReservedBarcode", err)
+	}
+	if err := svc.UpdatePart(ctx, UpdatePartRequest{ID: id, Name: "Stable product", BarcodeData: "wledger:bin:77"}); !errors.Is(err, ErrReservedBarcode) {
+		t.Fatalf("reserved barcode update error = %v, want ErrReservedBarcode", err)
+	}
+	part, err := svc.GetPart(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if part.Name != "Stable product" || part.BarcodeData.Valid || part.BarcodeData.String != "" {
+		t.Fatalf("rejected barcode changed the product: %+v", part)
+	}
+	var count int
+	if err := database.QueryRow(`SELECT COUNT(*) FROM parts`).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("part count = %d after rejected reserved insert, want 1", count)
 	}
 }

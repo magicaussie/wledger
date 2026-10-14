@@ -1093,10 +1093,10 @@
     "other": "Product Labels"
   },
   "ProductLabelsHelp": {
-    "other": "Print QR labels for every product with a barcode. Scanning a label opens that item."
+    "other": "Print QR and Code 128 labels for every product using its stable WLEDger ID. Existing manufacturer barcodes remain supported."
   },
   "NoPartBarcodes": {
-    "other": "No parts with barcodes yet. Add barcodes to parts (or import them) then print labels."
+    "other": "No products found yet."
   },
   "Labels": {
     "other": "Labels"

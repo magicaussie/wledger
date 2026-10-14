@@ -1,0 +1,58 @@
+package pages
+
+import (
+	"github.com/tuxedocurly/wledger/internal/auth"
+	"github.com/tuxedocurly/wledger/internal/i18n"
+	"github.com/tuxedocurly/wledger/web/layouts"
+)
+
+type ScanLabelView struct {
+	ID         int64
+	Kind       string
+	Name       string
+	Identity   string
+	QRURL      string
+	Code128URL string
+}
+
+templ ScanLabel(user auth.User, label ScanLabelView) {
+	@layouts.Base("Print label", user) {
+		<div class="max-w-3xl mx-auto space-y-4">
+			<div class="not-print flex items-center justify-between gap-3">
+				<div>
+					<h1 class="text-2xl font-bold">Print label</h1>
+					<p class="text-sm opacity-70">Both codes identify the same { label.Kind }.</p>
+				</div>
+				<div class="flex gap-2">
+					<a href="/storage/cabinets" class="btn btn-ghost">{ i18n.T(ctx, "Back") }</a>
+					<button type="button" onclick="window.print()" class="btn btn-primary">{ i18n.T(ctx, "PrintLabels") }</button>
+				</div>
+			</div>
+			<div class="scan-print-label bg-white text-black border border-base-300 rounded-lg p-3 flex flex-col items-center justify-between text-center">
+				<div class="w-full">
+					<div class="text-[9pt] font-bold leading-tight">{ label.Name }</div>
+					<div class="text-[6pt] font-mono leading-tight mt-1">{ label.Identity }</div>
+				</div>
+				<div class="flex flex-col items-center justify-center gap-1 w-full min-h-0">
+					<div class="flex flex-col items-center justify-center">
+						<img src={ templ.SafeURL(label.QRURL) } alt={ "QR code for " + label.Kind } class="object-contain" style="width:17mm;height:17mm"/>
+						<span class="text-[5pt] font-semibold">QR</span>
+					</div>
+					<div class="w-full flex flex-col items-center justify-center">
+						<img src={ templ.SafeURL(label.Code128URL) } alt={ "Code 128 barcode for " + label.Kind } class="object-contain" style="width:75mm;height:14mm"/>
+						<span class="text-[5pt] font-semibold">Code 128 · internal WLEDger identity</span>
+					</div>
+				</div>
+			</div>
+		</div>
+		<style>
+			@page { size: 79mm 54mm; margin: 0; }
+			@media print {
+				html, body { width: 79mm !important; height: 54mm !important; margin: 0 !important; padding: 0 !important; overflow: hidden !important; }
+				body * { visibility: hidden !important; }
+				.scan-print-label, .scan-print-label * { visibility: visible !important; }
+				.scan-print-label { position: absolute !important; left: 0 !important; top: 0 !important; width: 79mm !important; height: 54mm !important; padding: 1.5mm !important; border: 0 !important; border-radius: 0 !important; }
+			}
+		</style>
+	}
+}

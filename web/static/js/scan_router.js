@@ -1,23 +1,4 @@
-/**
- * scan_router.js — routes `fastscan` events (keyboard-wedge USB scanner and
- * webcam scans) to the right destination in the UI.
- *
- * Scanned values can be:
- *   - wledger:bin:<id>      -> open inventory filtered to that physical bin
- *   - wledger:physical-cabinet:<id> -> open a physical storage cabinet
- *   - wledger:physical-drawer:<id>  -> open a physical drawer
- *   - wledger:cabinet:<id>  -> open the legacy controller layout
- *   - wledger:drawer:<id>   -> open the legacy container view
- *   - wledger:part-id:<id>  -> open a part by stable database identity
- *   - wledger:part:<code>   -> resolve a legacy part barcode
- *   - a plain barcode       -> go to the part page if it matches exactly,
- *                              otherwise search the inventory for it
- *
- * If the fast scan arrives while a bin picker is visible (the "visual bin
- * picker" used by the Add Stock modal), the matching bin is selected instead
- * of navigating away.
- */
-
+/* Routes decoded keyboard-wedge and camera scans to navigation or the active form. */
 (function () {
     const BIN_PREFIX = 'wledger:bin:';
     const PART_PREFIX = 'wledger:part:';
@@ -26,82 +7,142 @@
     const PHYSICAL_CABINET_PREFIX = 'wledger:physical-cabinet:';
     const PHYSICAL_DRAWER_PREFIX = 'wledger:physical-drawer:';
     const PART_ID_PREFIX = 'wledger:part-id:';
+    const pickerContexts = new WeakMap();
+    let activePicker = null;
 
-    // Focused bin-picker context: {findBin, select} registered by the bin
-    // picker component when it is open.
-    window.__binPickerContext = null;
-
-    // Called by bin_picker_grid.templ (x-init) whenever the visual bin picker
-    // renders, so a scanned bin QR can select that bin in the open form.
-    window.pickerReady = function () {
-        window.__binPickerContext = {
-            findBin: function (id) {
-                return document.querySelector('[data-bin-id="' + id + '"]') ? id : null;
+    function makePickerContext(root) {
+        const context = {
+            root,
+            findBin(id) {
+                return root.querySelector(`[data-bin-id="${id}"]`) ? Number(id) : null;
             },
-            select: function (id) {
-                const picker = document.querySelector('#visual_bin_picker');
-                if (picker) {
-                    picker.dispatchEvent(new CustomEvent('bin-selected', {
-                        detail: { id: String(id) },
-                        bubbles: true
-                    }));
-                }
+            select(id) {
+                const picker = root.querySelector('[data-storage-bin-picker]');
+                if (picker) picker.dispatchEvent(new CustomEvent('bin-selected', {
+                    detail: { id: String(id) },
+                    bubbles: true
+                }));
+            },
+            locationOfBin(id) {
+                const button = root.querySelector(`[data-bin-id="${id}"]`);
+                if (!button) return null;
+                const drawer = button.closest('[data-bin-group="drawer"]');
+                const cabinet = button.closest('[data-bin-group="cabinet"]');
+                return {
+                    drawerID: drawer ? Number(drawer.dataset.drawerId) : 0,
+                    cabinetID: cabinet ? Number(cabinet.dataset.cabinetId) : 0
+                };
+            },
+            filterCabinet(id) {
+                const cabinet = root.querySelector(`[data-bin-group="cabinet"][data-cabinet-id="${id}"]`);
+                if (!cabinet) return false;
+                root.querySelectorAll('[data-bin-group="cabinet"]').forEach(group => { group.hidden = group !== cabinet; });
+                root.querySelectorAll('[data-bin-group="inactive-physical"], [data-bin-group="unplaced"]').forEach(group => { group.hidden = true; });
+                return true;
+            },
+            filterDrawer(id) {
+                const drawer = root.querySelector(`[data-bin-group="drawer"][data-drawer-id="${id}"]`);
+                if (!drawer) return null;
+                const cabinet = drawer.closest('[data-bin-group="cabinet"]');
+                root.querySelectorAll('[data-bin-group="cabinet"]').forEach(group => { group.hidden = group !== cabinet; });
+                cabinet.querySelectorAll('[data-bin-group="drawer"]').forEach(group => { group.hidden = group !== drawer; });
+                root.querySelectorAll('[data-bin-group="inactive-physical"], [data-bin-group="unplaced"]').forEach(group => { group.hidden = true; });
+                return { cabinetID: Number(cabinet.dataset.cabinetId) };
+            },
+            clearFilter() {
+                root.querySelectorAll('[data-bin-group]').forEach(group => { group.hidden = false; });
             }
         };
+        return context;
+    }
+
+    window.pickerReady = function (root) {
+        root = root || document.querySelector('#visual_bin_picker');
+        if (!root) return;
+        const context = makePickerContext(root);
+        pickerContexts.set(root, context);
+        if (!activePicker) window.__binPickerContext = context;
+    };
+
+    window.activateBinPicker = function (rootID) {
+        const root = document.getElementById(rootID);
+        if (!root) return false;
+        let context = pickerContexts.get(root);
+        if (!context) {
+            context = makePickerContext(root);
+            pickerContexts.set(root, context);
+        }
+        activePicker = context;
+        window.__binPickerContext = context;
+        return true;
+    };
+
+    window.deactivateBinPicker = function (rootID) {
+        if (activePicker && activePicker.root.id === rootID) {
+            activePicker.clearFilter();
+            activePicker = null;
+            window.__binPickerContext = null;
+        }
     };
 
     window.clearBinPicker = function () {
-        window.__binPickerContext = null;
-    };
-
-    window.clearBinPicker = function () {
+        activePicker = null;
         window.__binPickerContext = null;
     };
 
     function selectBinFromCode(code) {
-        if (!window.__binPickerContext) return false;
+        const context = activePicker || window.__binPickerContext;
+        if (!context) return false;
         const match = code.startsWith(BIN_PREFIX) ? code.slice(BIN_PREFIX.length) : code;
         if (!/^\d+$/.test(match)) return false;
-        const ctx = window.__binPickerContext;
-        const bin = ctx.findBin && ctx.findBin(Number(match));
-        if (bin) {
-            ctx.select(Number(match));
-            return true;
-        }
-        return false;
+        const bin = context.findBin(Number(match));
+        if (!bin) return false;
+        context.select(Number(match));
+        return true;
     }
 
     function navigateForScan(code) {
         if (!code) return;
-        // Typed physical and legacy identities are resolved server-side by
-        // /scan, which validates existence before redirecting to the entity page.
         if (code.startsWith(BIN_PREFIX) || code.startsWith(CABINET_PREFIX) || code.startsWith(DRAWER_PREFIX) ||
             code.startsWith(PHYSICAL_CABINET_PREFIX) || code.startsWith(PHYSICAL_DRAWER_PREFIX) || code.startsWith(PART_ID_PREFIX)) {
             window.location.href = '/scan?q=' + encodeURIComponent(code);
             return;
         }
-        // Plain barcode / part code — let the server resolve exact matches.
         const value = code.startsWith(PART_PREFIX) ? code.slice(PART_PREFIX.length) : code;
         window.location.href = '/scan?q=' + encodeURIComponent(value);
     }
 
-    document.addEventListener('fastscan', function (e) {
-        const code = e.detail && e.detail.code ? String(e.detail.code).trim() : '';
+    function fillInput(input, code) {
+        input.value = code;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    document.addEventListener('fastscan', function (event) {
+        const code = event.detail && event.detail.code ? String(event.detail.code).trim() : '';
         if (!code) return;
 
-        // If an input is focused, prefer filling it (e.g. barcode field).
-        const active = document.activeElement;
-        if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA') && !active.dataset.noScan) {
-            // Fill and notify listeners so forms/HTMX react.
-            active.value = code;
-            active.dispatchEvent(new Event('input', { bubbles: true }));
-            active.dispatchEvent(new Event('change', { bubbles: true }));
+        const operation = window.__wledgerScanContext;
+        if (operation && typeof operation.handleScan === 'function') {
+            operation.handleScan(code);
             return;
         }
 
-        if (selectBinFromCode(code)) {
+        if (event.detail && event.detail.targetInputId) {
+            const target = document.getElementById(event.detail.targetInputId);
+            if (target) {
+                if (target.value !== code) fillInput(target, code);
+                return;
+            }
+        }
+
+        const active = document.activeElement;
+        if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA') && !active.dataset.noScan) {
+            fillInput(active, code);
             return;
         }
+
+        if (selectBinFromCode(code)) return;
         navigateForScan(code);
     });
 })();

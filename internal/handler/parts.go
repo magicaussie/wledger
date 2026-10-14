@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 
@@ -16,7 +15,6 @@ import (
 	"github.com/tuxedocurly/wledger/internal/parts"
 	"github.com/tuxedocurly/wledger/internal/qrcode"
 	"github.com/tuxedocurly/wledger/internal/stock"
-	"github.com/tuxedocurly/wledger/internal/storage"
 	"github.com/tuxedocurly/wledger/internal/wled"
 	"github.com/tuxedocurly/wledger/web/components"
 	"github.com/tuxedocurly/wledger/web/pages"
@@ -173,9 +171,6 @@ func (h *Handler) HandleProductLabels(w http.ResponseWriter, r *http.Request) {
 	var parts []pages.ProductLabel
 	for _, p := range all {
 		barcode := strings.TrimSpace(p.BarcodeData.String)
-		if barcode == "" {
-			continue
-		}
 		parts = append(parts, pages.ProductLabel{
 			ID:      p.ID,
 			Name:    p.Name,
@@ -188,124 +183,30 @@ func (h *Handler) HandleProductLabels(w http.ResponseWriter, r *http.Request) {
 
 // GET /scan?q=<scanned> resolves validated physical and legacy identities to
 // their existing browse pages. Legacy cabinet/drawer prefixes retain their
-// controller/container meanings.
+// controller/container meanings; unknown plain values remain manual searches.
 func (h *Handler) HandleScan(w http.ResponseWriter, r *http.Request) {
-	code := strings.TrimSpace(r.URL.Query().Get("q"))
-	if code == "" {
-		http.Error(w, "No code provided", http.StatusBadRequest)
+	resolution, err := h.resolveScanCode(r, r.URL.Query().Get("q"))
+	if err != nil {
+		writeScanResolutionError(w, err)
 		return
 	}
 
-	switch {
-	case strings.HasPrefix(code, binScanPrefix):
-		id, ok := scanIdentityID(code, binScanPrefix)
-		if !ok {
-			http.Error(w, "Invalid bin code", http.StatusBadRequest)
-			return
-		}
-		if _, err := h.Queries.GetBin(r.Context(), id); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				http.Error(w, "Bin not found", http.StatusNotFound)
-			} else {
-				h.UIError.Respond(w, r, err, "Failed to resolve bin", http.StatusInternalServerError)
-			}
-			return
-		}
-		http.Redirect(w, r, fmt.Sprintf("/parts?bin=%d", id), http.StatusSeeOther)
-		return
-	case strings.HasPrefix(code, physicalCabinetScanPrefix):
-		id, ok := scanIdentityID(code, physicalCabinetScanPrefix)
-		if !ok {
-			http.Error(w, "Invalid physical cabinet code", http.StatusBadRequest)
-			return
-		}
-		if _, err := h.browseService().GetCabinet(r.Context(), id); err != nil {
-			if errors.Is(err, storage.ErrCabinetNotFound) {
-				http.Error(w, "Physical cabinet not found", http.StatusNotFound)
-			} else {
-				h.UIError.Respond(w, r, err, "Failed to resolve physical cabinet", http.StatusInternalServerError)
-			}
-			return
-		}
-		http.Redirect(w, r, fmt.Sprintf("/storage/cabinets/%d", id), http.StatusSeeOther)
-		return
-	case strings.HasPrefix(code, physicalDrawerScanPrefix):
-		id, ok := scanIdentityID(code, physicalDrawerScanPrefix)
-		if !ok {
-			http.Error(w, "Invalid physical drawer code", http.StatusBadRequest)
-			return
-		}
-		if _, err := h.browseService().GetDrawer(r.Context(), id); err != nil {
-			if errors.Is(err, storage.ErrDrawerNotFound) {
-				http.Error(w, "Physical drawer not found", http.StatusNotFound)
-			} else {
-				h.UIError.Respond(w, r, err, "Failed to resolve physical drawer", http.StatusInternalServerError)
-			}
-			return
-		}
-		http.Redirect(w, r, fmt.Sprintf("/storage/drawers/%d", id), http.StatusSeeOther)
-		return
-	case strings.HasPrefix(code, cabinetScanPrefix):
-		id, ok := scanIdentityID(code, cabinetScanPrefix)
-		if !ok {
-			http.Error(w, "Invalid legacy cabinet code", http.StatusBadRequest)
-			return
-		}
-		if _, err := h.Queries.GetController(r.Context(), id); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				http.Error(w, "Controller not found", http.StatusNotFound)
-			} else {
-				h.UIError.Respond(w, r, err, "Failed to resolve controller", http.StatusInternalServerError)
-			}
-			return
-		}
-		http.Redirect(w, r, fmt.Sprintf("/hardware/%d/grid", id), http.StatusSeeOther)
-		return
-	case strings.HasPrefix(code, drawerScanPrefix):
-		id, ok := scanIdentityID(code, drawerScanPrefix)
-		if !ok {
-			http.Error(w, "Invalid legacy drawer code", http.StatusBadRequest)
-			return
-		}
-		if _, err := h.Queries.GetContainer(r.Context(), id); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				http.Error(w, "Container not found", http.StatusNotFound)
-			} else {
-				h.UIError.Respond(w, r, err, "Failed to resolve container", http.StatusInternalServerError)
-			}
-			return
-		}
-		http.Redirect(w, r, fmt.Sprintf("/drawers/%d", id), http.StatusSeeOther)
-		return
-	case strings.HasPrefix(code, partIDScanPrefix):
-		id, ok := scanIdentityID(code, partIDScanPrefix)
-		if !ok {
-			http.Error(w, "Invalid part code", http.StatusBadRequest)
-			return
-		}
-		part, err := h.Queries.GetPart(r.Context(), id)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				http.Error(w, "Part not found", http.StatusNotFound)
-			} else {
-				h.UIError.Respond(w, r, err, "Failed to resolve part", http.StatusInternalServerError)
-			}
-			return
-		}
-		http.Redirect(w, r, fmt.Sprintf("/parts/%d", part.ID), http.StatusSeeOther)
-		return
-	case strings.HasPrefix(code, partScanPrefix):
-		code = strings.TrimPrefix(code, partScanPrefix)
+	path := resolution.Path
+	switch resolution.Type {
+	case "bin":
+		path = fmt.Sprintf("/parts?bin=%d", resolution.ID)
+	case "physical-cabinet":
+		path = fmt.Sprintf("/storage/cabinets/%d", resolution.ID)
+	case "physical-drawer":
+		path = fmt.Sprintf("/storage/drawers/%d", resolution.ID)
+	case "legacy-controller":
+		path = fmt.Sprintf("/hardware/%d/grid", resolution.ID)
+	case "legacy-container":
+		path = fmt.Sprintf("/drawers/%d", resolution.ID)
+	case "part":
+		path = fmt.Sprintf("/parts/%d", resolution.ID)
 	}
-
-	// Try an exact barcode match first.
-	if part, err := h.Queries.GetPartByBarcode(r.Context(), sql.NullString{String: code, Valid: code != ""}); err == nil {
-		http.Redirect(w, r, fmt.Sprintf("/parts/%d", part.ID), http.StatusSeeOther)
-		return
-	}
-
-	// Otherwise surface a search for a plain barcode or legacy part code.
-	http.Redirect(w, r, "/parts?q="+url.QueryEscape(code), http.StatusSeeOther)
+	http.Redirect(w, r, path, http.StatusSeeOther)
 }
 
 func scanIdentityID(code, prefix string) (int64, bool) {
@@ -353,6 +254,8 @@ func (h *Handler) HandlePartsCreate(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case errors.Is(err, parts.ErrInvalidLinkURL):
 			h.UIError.Respond(w, r, err, "Invalid link URL: only http:// and https:// links are allowed", http.StatusBadRequest)
+		case errors.Is(err, parts.ErrReservedBarcode):
+			h.UIError.Respond(w, r, err, "Barcode values starting with wledger: are reserved for internal scan identities", http.StatusBadRequest)
 		case strings.Contains(err.Error(), "UNIQUE constraint failed"):
 			h.UIError.Respond(w, r, err, "Part already exists (check barcode)", http.StatusConflict)
 		default:
@@ -396,6 +299,10 @@ func (h *Handler) HandlePartUpdate(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, parts.ErrInvalidLinkURL) {
 			h.UIError.Respond(w, r, err, "Invalid link URL: only http:// and https:// links are allowed", http.StatusBadRequest)
+			return
+		}
+		if errors.Is(err, parts.ErrReservedBarcode) {
+			h.UIError.Respond(w, r, err, "Barcode values starting with wledger: are reserved for internal scan identities", http.StatusBadRequest)
 			return
 		}
 		h.UIError.Respond(w, r, err, "Failed to update part", http.StatusInternalServerError)

@@ -8,8 +8,9 @@ const path = require('node:path');
 
 const scannerMock = `
   window.__barcodeScannerStats = { constructors: 0, renders: 0, clears: 0 };
+  window.Html5QrcodeSupportedFormats = { QR_CODE: 0, CODE_128: 1 };
   window.Html5QrcodeScanner = class {
-    constructor() { window.__barcodeScannerStats.constructors++; }
+    constructor(readerID, config) { this.config = config; window.__barcodeScannerStats.constructors++; }
     render(onSuccess) { this.onSuccess = onSuccess; window.__barcodeScannerStats.renders++; }
     async clear() { window.__barcodeScannerStats.clears++; }
   };
@@ -108,6 +109,16 @@ const scannerMock = `
     assert.deepEqual(stats, { constructors: 1, renders: 3, clears: 2 }, 'repeat modal initialization after HTMX navigation must not redeclare or construct another scanner');
     await page.locator('#global_scanner_modal').locator('button', { hasText: 'Cancel' }).click();
     await page.waitForFunction(() => window.__barcodeScannerStats.clears === 3);
+
+    const scanFormURL = page.url();
+    await page.evaluate(() => window.startGlobalScanner('barcode_input'));
+    await page.waitForFunction(() => window.__barcodeScannerStats.renders === 4);
+    await page.evaluate(() => window.__wledgerBarcodeScanner.scanner.onSuccess('manufacturer-part-123'));
+    await page.waitForFunction(() => window.__barcodeScannerStats.clears === 4);
+    assert.equal(await page.locator('#barcode_input').inputValue(), 'manufacturer-part-123', 'camera results fill the explicitly targeted barcode field when no stock operation is active');
+    assert.equal(page.url(), scanFormURL, 'a camera scan in an active input form must not navigate away');
+    const cameraFormats = await page.evaluate(() => window.__wledgerBarcodeScanner.scanner.config.formatsToSupport);
+    assert.deepEqual(cameraFormats, [0, 1], 'camera scanning enables both QR and Code 128');
 
     const duplicateScannerErrors = [...pageErrors, ...consoleErrors].filter(message => message.includes("Identifier 'html5QrcodeScanner' has already been declared"));
     assert.deepEqual(duplicateScannerErrors, []);
