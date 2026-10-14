@@ -85,6 +85,9 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 		r.Get("/bin/{id}/qr", h.HandleBinQR)
 		r.Get("/cabinet/{id}/qr", h.HandleCabinetQR)
 		r.Get("/drawer/{id}/qr", h.HandleDrawerQR)
+		r.Get("/storage/bins/{id}/qr", h.HandleBinQR)
+		r.Get("/storage/cabinets/{id}/qr", h.HandlePhysicalCabinetQR)
+		r.Get("/storage/drawers/{id}/qr", h.HandlePhysicalDrawerQR)
 
 		// Drawers (containers)
 		r.Get("/drawers/{id}", h.HandleDrawerDetail)

@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/tuxedocurly/wledger/internal/auth"
+	"github.com/tuxedocurly/wledger/internal/qrcode"
 	"github.com/tuxedocurly/wledger/internal/storage"
 	"github.com/tuxedocurly/wledger/internal/wled"
 	"github.com/tuxedocurly/wledger/web/pages"
@@ -17,6 +18,55 @@ import (
 
 func (h *Handler) browseService() *storage.BrowseService {
 	return storage.NewBrowseService(h.Queries)
+}
+
+// HandlePhysicalCabinetQR renders a QR code for an existing physical cabinet.
+// Its dedicated code prefix cannot be confused with legacy controller labels.
+func (h *Handler) HandlePhysicalCabinetQR(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil || id <= 0 {
+		http.Error(w, "Invalid physical cabinet id", http.StatusBadRequest)
+		return
+	}
+	if _, err := h.browseService().GetCabinet(r.Context(), id); err != nil {
+		if errors.Is(err, storage.ErrCabinetNotFound) {
+			http.Error(w, "Physical cabinet not found", http.StatusNotFound)
+		} else {
+			h.UIError.Respond(w, r, err, "Failed to load physical cabinet", http.StatusInternalServerError)
+		}
+		return
+	}
+	writeQR(w, r, PhysicalCabinetScanCode(id))
+}
+
+// HandlePhysicalDrawerQR renders a QR code for an existing physical drawer.
+// Its dedicated code prefix cannot be confused with legacy container labels.
+func (h *Handler) HandlePhysicalDrawerQR(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil || id <= 0 {
+		http.Error(w, "Invalid physical drawer id", http.StatusBadRequest)
+		return
+	}
+	if _, err := h.browseService().GetDrawer(r.Context(), id); err != nil {
+		if errors.Is(err, storage.ErrDrawerNotFound) {
+			http.Error(w, "Physical drawer not found", http.StatusNotFound)
+		} else {
+			h.UIError.Respond(w, r, err, "Failed to load physical drawer", http.StatusInternalServerError)
+		}
+		return
+	}
+	writeQR(w, r, PhysicalDrawerScanCode(id))
+}
+
+func writeQR(w http.ResponseWriter, r *http.Request, code string) {
+	image, err := qrcode.PNG(code, qrScaleFromQuery(r))
+	if err != nil {
+		http.Error(w, "Failed to generate QR", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Cache-Control", "public, max-age=3600")
+	_, _ = w.Write(image)
 }
 
 // HandleStorageCabinets renders GET /storage/cabinets: every active physical

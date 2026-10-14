@@ -5,7 +5,7 @@ Captures the desired model, the current implementation, the gaps, the locked
 decisions, and exactly where in the code each piece lives so future changes take
 scanning into account.
 
-Status: **design agreed, implementation in progress.**
+Status: **physical cabinet/drawer QR navigation implemented; legacy electrical scan codes remain compatible.**
 
 ---
 
@@ -18,14 +18,19 @@ Cabinet            (has a WLED controller assigned; 1 controller per cabinet)
               └── Item / Product   (QR or barcode)
 ```
 
-Every level is scannable:
+The physical inventory hierarchy and legacy electrical hierarchy have separate
+identities. New physical cabinet/drawer labels never reuse controller/container
+codes. Bins retain their stable `bins.id`; parts use stable `parts.id` for newly
+generated QR codes, while existing barcode-based codes remain readable.
 
-| Level   | Identifier | Code on the label    |
-| ------- | ---------- | -------------------- |
-| Cabinet | controller | QR                   |
-| Drawer  | container  | QR                   |
-| Bin     | bin        | QR                   |
-| Item    | part       | QR **or** 1D barcode |
+| Entity | New generated code | Destination |
+| --- | --- | --- |
+| Physical cabinet | `wledger:physical-cabinet:<id>` | `/storage/cabinets/<id>` |
+| Physical drawer | `wledger:physical-drawer:<id>` | `/storage/drawers/<id>` |
+| Physical bin | `wledger:bin:<id>` | `/parts?bin=<id>` |
+| Part | `wledger:part-id:<id>` | `/parts/<id>` |
+| Legacy controller | `wledger:cabinet:<id>` | `/hardware/<id>/grid` |
+| Legacy container | `wledger:drawer:<id>` | `/drawers/<id>` |
 
 The system should be able to resolve "which cabinet / drawer / bin / item am I
 in?" at any point — when locating, when moving stock, when creating/removing
@@ -33,7 +38,13 @@ items, and when scanning.
 
 ---
 
-## 2. Current model (as implemented)
+## 2. Legacy electrical model (as implemented)
+
+The diagram and terminology mapping below describe the retained electrical
+controller/container records, not physical inventory placement. Physical storage
+uses separate `cabinets` → `drawers` → `bin_drawer_attachments` → `bins` and
+`part_assignments` → `parts` records; QR identities keep those hierarchies
+separate.
 
 ```
 Controller  (WLED device: ip, port, led_count)
@@ -59,8 +70,9 @@ Wall  (display-only grouping of containers; no LED meaning)
 | Bin     | Bin        | LED optional (already supported) |
 | Item    | Part       | `parts.barcode_data` |
 
-The **data model already supports the desired hierarchy**; the work is
-terminology, QR coverage, scan routing, and LED states.
+The legacy electrical tables support the controller/container/bin mapping.
+Physical cabinet, drawer and bin placement is represented by the separate
+physical-storage tables; QR prefixes and destinations preserve that distinction.
 
 ---
 
@@ -88,22 +100,31 @@ terminology, QR coverage, scan routing, and LED states.
 
 **Code scheme** (defined in `internal/handler/parts.go`):
 
-- `wledger:bin:<id>`  → `/parts?bin=<id>` (show bin contents)
-- `wledger:part:<barcode|id>` → exact part page, else search
-- plain barcode → exact part match, else search
+- `wledger:physical-cabinet:<id>` → `/storage/cabinets/<id>`
+- `wledger:physical-drawer:<id>` → `/storage/drawers/<id>`
+- `wledger:bin:<id>` → `/parts?bin=<id>` (stable physical inventory-bin identity)
+- `wledger:part-id:<id>` → `/parts/<id>` (stable part identity used by generated QR labels)
+- legacy `wledger:cabinet:<id>` → `/hardware/<id>/grid` (controller; unchanged)
+- legacy `wledger:drawer:<id>` → `/drawers/<id>` (container; unchanged)
+- legacy `wledger:part:<code>` and plain barcode → exact barcode match, else search
 
 **QR generation:** `internal/qrcode/qr.go` (`PNG(content, scale)`).
 
 **QR endpoints:**
-- `GET /parts/{id}/qr` → `HandlePartQR` (`internal/handler/parts.go`)
-- `GET /bin/{id}/qr`   → `HandleBinQR` (`internal/handler/hardware.go`)
+- `GET /parts/{id}/qr` → part ID QR (`HandlePartQR` in `internal/handler/parts.go`)
+- `GET /storage/cabinets/{id}/qr` → physical cabinet QR (`HandlePhysicalCabinetQR`)
+- `GET /storage/drawers/{id}/qr` → physical drawer QR (`HandlePhysicalDrawerQR`)
+- `GET /storage/bins/{id}/qr` and legacy `/bin/{id}/qr` → stable bin QR
+- Legacy `/cabinet/{id}/qr` and `/drawer/{id}/qr` continue producing controller/container identities.
 
 **Scan resolver (server):** `HandleScan` at `GET /scan?q=` (`internal/handler/parts.go`).
 
-**Scan routing (client):** `web/static/js/scan_router.js` listens for the
-`fastscan` event and routes `wledger:bin:` / `wledger:part:` / plain codes.
-Inputs: `fast_scan.js` (keyboard-wedge USB/BT scanners) and `barcode_scanner.js`
-(webcam via html5-qrcode). Both dispatch the same `fastscan` event.
+**Scan routing (client):** `web/static/js/scan_router.js` sends typed physical,
+legacy, bin and part IDs to `/scan`; `HandleScan` validates entity existence and
+redirects. Direct entity pages perform their own database-backed validation,
+returning 400 for malformed IDs and 404 for absent records. Inputs:
+`fast_scan.js` (keyboard-wedge USB/BT scanners) and `barcode_scanner.js` (webcam
+via html5-qrcode) dispatch the same `fastscan` event.
 
 **Label sheets:**
 - `GET /parts/labels` → `HandleProductLabels` → `web/pages/product_labels.templ`
@@ -115,15 +136,17 @@ Inputs: `fast_scan.js` (keyboard-wedge USB/BT scanners) and `barcode_scanner.js`
 
 ---
 
-## 5. Gaps vs the desired model
+## 5. Remaining gaps vs the broader design
 
-1. **No QR for cabinets (controllers) or drawers (containers).**
-2. **Scan routing only knows `bin` and `part` prefixes.**
-3. **Terminology mismatch** (addressed by §3.1).
-4. **LED-less bins** are representable but not locatable (expected).
-5. **Scanning is not context-aware everywhere.**
-6. **No 1D barcode generation** (not needed — QR-only generation is fine).
-7. **No LED flashing / state system** (see §7).
+1. **Context-aware scanning** remains limited to the bin picker and is separate
+   from physical QR identity navigation.
+2. **LED-less bins** are representable but not locatable (expected).
+3. **No 1D barcode generation** (QR-only generation remains the supported output).
+4. **No LED flashing / state system** (see §7).
+
+Physical cabinet, drawer, bin and part QR navigation is implemented independently
+of Locate. Generated entity QR endpoints reject malformed, unknown or deleted
+identities; scanner routing preserves the legacy controller/container prefixes.
 
 ---
 

@@ -275,6 +275,7 @@ func TestPhysicalStorageRoutesAndLegacyRoutesRegistered(t *testing.T) {
 	r := router.New(middleware.New(nil, nil, nil, nil), scs.New(), h)
 
 	var gotCabinets, gotCabinet, gotDrawerStorage, gotBinPicker http.Handler
+	var gotCabinetQR, gotDrawerQR, gotBinQR http.Handler
 	var gotLegacyDrawer, gotLegacyLocate http.Handler
 
 	err := chi.Walk(r, func(method, route string, handler http.Handler, _ ...func(http.Handler) http.Handler) error {
@@ -287,6 +288,12 @@ func TestPhysicalStorageRoutesAndLegacyRoutesRegistered(t *testing.T) {
 			gotDrawerStorage = handler
 		case method == http.MethodGet && route == "/storage/bin_picker":
 			gotBinPicker = handler
+		case method == http.MethodGet && route == "/storage/cabinets/{id}/qr":
+			gotCabinetQR = handler
+		case method == http.MethodGet && route == "/storage/drawers/{id}/qr":
+			gotDrawerQR = handler
+		case method == http.MethodGet && route == "/storage/bins/{id}/qr":
+			gotBinQR = handler
 		case method == http.MethodGet && route == "/drawers/{id}":
 			gotLegacyDrawer = handler
 		case method == http.MethodPost && route == "/drawers/{id}/locate":
@@ -302,6 +309,9 @@ func TestPhysicalStorageRoutesAndLegacyRoutesRegistered(t *testing.T) {
 	assertRegistered(t, "GET /storage/cabinets/{id}", gotCabinet, http.HandlerFunc(h.HandleStorageCabinet))
 	assertRegistered(t, "GET /storage/drawers/{id}", gotDrawerStorage, http.HandlerFunc(h.HandleStorageDrawer))
 	assertRegistered(t, "GET /storage/bin_picker", gotBinPicker, http.HandlerFunc(h.HandleStorageBinPicker))
+	assertRegistered(t, "GET /storage/cabinets/{id}/qr", gotCabinetQR, http.HandlerFunc(h.HandlePhysicalCabinetQR))
+	assertRegistered(t, "GET /storage/drawers/{id}/qr", gotDrawerQR, http.HandlerFunc(h.HandlePhysicalDrawerQR))
+	assertRegistered(t, "GET /storage/bins/{id}/qr", gotBinQR, http.HandlerFunc(h.HandleBinQR))
 	assertRegistered(t, "GET /drawers/{id}", gotLegacyDrawer, http.HandlerFunc(h.HandleDrawerDetail))
 	assertRegistered(t, "POST /drawers/{id}/locate", gotLegacyLocate, http.HandlerFunc(h.HandleDrawerLocate))
 }

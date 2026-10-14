@@ -4,9 +4,12 @@
  *
  * Scanned values can be:
  *   - wledger:bin:<id>      -> open inventory filtered to that physical bin
- *   - wledger:cabinet:<id>  -> open the cabinet (controller) layout
- *   - wledger:drawer:<id>   -> open the drawer (container) view
- *   - wledger:part:<code>   -> go to the part page (or search) for that code
+ *   - wledger:physical-cabinet:<id> -> open a physical storage cabinet
+ *   - wledger:physical-drawer:<id>  -> open a physical drawer
+ *   - wledger:cabinet:<id>  -> open the legacy controller layout
+ *   - wledger:drawer:<id>   -> open the legacy container view
+ *   - wledger:part-id:<id>  -> open a part by stable database identity
+ *   - wledger:part:<code>   -> resolve a legacy part barcode
  *   - a plain barcode       -> go to the part page if it matches exactly,
  *                              otherwise search the inventory for it
  *
@@ -20,6 +23,9 @@
     const PART_PREFIX = 'wledger:part:';
     const CABINET_PREFIX = 'wledger:cabinet:';
     const DRAWER_PREFIX = 'wledger:drawer:';
+    const PHYSICAL_CABINET_PREFIX = 'wledger:physical-cabinet:';
+    const PHYSICAL_DRAWER_PREFIX = 'wledger:physical-drawer:';
+    const PART_ID_PREFIX = 'wledger:part-id:';
 
     // Focused bin-picker context: {findBin, select} registered by the bin
     // picker component when it is open.
@@ -67,9 +73,10 @@
 
     function navigateForScan(code) {
         if (!code) return;
-        // wledger:<type>:<id> codes (bin/cabinet/drawer) are resolved server-side
-        // by /scan, which redirects to the right page.
-        if (code.startsWith(BIN_PREFIX) || code.startsWith(CABINET_PREFIX) || code.startsWith(DRAWER_PREFIX)) {
+        // Typed physical and legacy identities are resolved server-side by
+        // /scan, which validates existence before redirecting to the entity page.
+        if (code.startsWith(BIN_PREFIX) || code.startsWith(CABINET_PREFIX) || code.startsWith(DRAWER_PREFIX) ||
+            code.startsWith(PHYSICAL_CABINET_PREFIX) || code.startsWith(PHYSICAL_DRAWER_PREFIX) || code.startsWith(PART_ID_PREFIX)) {
             window.location.href = '/scan?q=' + encodeURIComponent(code);
             return;
         }

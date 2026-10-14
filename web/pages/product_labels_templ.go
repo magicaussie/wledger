@@ -22,9 +22,9 @@ type ProductLabel struct {
 	Barcode string
 }
 
-// ProductLabels renders a print-friendly sheet of QR labels for every part
-// that has a barcode (product scanning relies on the barcode). Enabling a
-// scanner to find a physical item by scanning its shelf label.
+// ProductLabels renders a print-friendly sheet for parts that have a barcode.
+// The QR resolves by stable part ID; the barcode remains printed as a human- and
+// scanner-readable alternative.
 func ProductLabels(user auth.User, parts []ProductLabel) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context

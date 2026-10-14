@@ -8,6 +8,14 @@ const net = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
 
+const scannerMock = `
+  window.Html5QrcodeScanner = class {
+    constructor() { window.__testScanner = this; }
+    render(onSuccess) { this.onSuccess = onSuccess; }
+    async clear() {}
+  };
+`;
+
 (async () => {
   const repoRoot = path.resolve(__dirname, '../..');
   const scratchDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wledger-physical-first-'));
@@ -45,7 +53,7 @@ const path = require('node:path');
     if (build.status !== 0) throw new Error(`server build failed: ${build.stderr}`);
     server = spawn(binaryPath, [], {
       cwd: scratchDir,
-      env: { ...process.env, WLEDGER_INSECURE_COOKIES: '1', WLEDGER_PHYSICAL_OUTPUT_ENABLED: 'true', WLEDGER_PORT: String(port) },
+      env: { ...process.env, WLEDGER_INSECURE_COOKIES: '1', WLEDGER_PHYSICAL_OUTPUT_ENABLED: 'false', WLEDGER_PORT: String(port) },
       stdio: 'ignore',
     });
 
@@ -65,6 +73,11 @@ const path = require('node:path');
     const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
     page.on('pageerror', error => pageErrors.push(error.message));
     page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()); });
+    await page.route('https://unpkg.com/html5-qrcode**', route => route.fulfill({
+      status: 200,
+      contentType: 'application/javascript',
+      body: scannerMock,
+    }));
     page.on('request', request => {
       if (request.method() === 'POST' && new URL(request.url()).origin === baseURL) {
         mutations.push({ path: new URL(request.url()).pathname, body: request.postData() || '' });
@@ -138,6 +151,23 @@ const path = require('node:path');
       assert.match(response.headers()['content-type'], /image\/png/);
       return createHash('sha256').update(await response.body()).digest('hex');
     };
+    const decodedQR = async (pathName, label) => {
+      const response = await page.request.get(`${baseURL}${pathName}`);
+      assert.equal(response.status(), 200, `QR endpoint ${pathName} must exist`);
+      assert.match(response.headers()['content-type'], /image\/png/);
+      return decodeQRCode(await response.body(), scratchDir, label);
+    };
+    const scanAndAssert = async (code, expectedURL, expectedText) => {
+      await page.goto(`${baseURL}/parts/new`);
+      await page.evaluate(() => window.startGlobalScanner('barcode_input'));
+      await page.waitForFunction(() => window.__wledgerBarcodeScanner?.scanner?.onSuccess);
+      await page.evaluate(value => {
+        document.activeElement?.blur();
+        window.__wledgerBarcodeScanner.scanner.onSuccess(value);
+      }, code);
+      await page.waitForURL(`${baseURL}${expectedURL}`);
+      if (expectedText) assert.match(await page.locator('body').innerText(), expectedText);
+    };
 
     await drawDrawer('Drawer North', 10, 10, 30, 30);
     await openEditor();
@@ -195,6 +225,47 @@ const path = require('node:path');
     assert.match(await page.locator('table tbody').innerText(), /Physical Bin A/);
     assert.deepEqual(query(databasePath,
       'SELECT quantity FROM part_assignments WHERE part_id=? AND bin_id=?', [partID, binID]), [[7]]);
+
+    const physicalCabinetCode = await decodedQR(`/storage/cabinets/${cabinetID}/qr`, 'physical-cabinet');
+    const physicalDrawerCode = await decodedQR(`/storage/drawers/${northID}/qr`, 'physical-drawer');
+    const physicalBinCode = await decodedQR(`/storage/bins/${binID}/qr`, 'physical-bin');
+    const partCode = await decodedQR(`/parts/${partID}/qr`, 'part');
+    assert.equal(physicalCabinetCode, `wledger:physical-cabinet:${cabinetID}`);
+    assert.equal(physicalDrawerCode, `wledger:physical-drawer:${northID}`);
+    assert.equal(physicalBinCode, `wledger:bin:${binID}`);
+    assert.equal(partCode, `wledger:part-id:${partID}`);
+
+    for (const pathName of [
+      `/storage/cabinets/${cabinetID}`,
+      `/storage/drawers/${northID}`,
+      `/parts?bin=${binID}`,
+      `/parts/${partID}`,
+    ]) {
+      const direct = await page.request.get(`${baseURL}${pathName}`);
+      assert.equal(direct.status(), 200, `direct URL ${pathName} must remain available`);
+    }
+
+    await scanAndAssert(physicalCabinetCode, `/storage/cabinets/${cabinetID}`, new RegExp(cabinetName));
+    await scanAndAssert(physicalDrawerCode, `/storage/drawers/${northID}`, /Drawer North/);
+    assert.match(await page.locator('body').innerText(), /LED Locate is unavailable in inventory-only mode/);
+    await scanAndAssert(physicalBinCode, `/parts?bin=${binID}`, new RegExp(`Bin #${binID}`));
+    await scanAndAssert(partCode, `/parts/${partID}`, new RegExp(partName));
+
+    execute(databasePath, 'INSERT INTO controllers (id,name,ip_address,port) VALUES (1,?,?,?)', ['Legacy Controller', '127.0.0.1', mockPort]);
+    execute(databasePath, 'INSERT INTO containers (id,name,controller_id,segment_id) VALUES (1,?,1,0)', ['Legacy Container']);
+    const legacyCabinetCode = await decodedQR('/cabinet/1/qr', 'legacy-controller');
+    const legacyDrawerCode = await decodedQR('/drawer/1/qr', 'legacy-container');
+    assert.equal(legacyCabinetCode, 'wledger:cabinet:1');
+    assert.equal(legacyDrawerCode, 'wledger:drawer:1');
+    await scanAndAssert(legacyCabinetCode, '/hardware/1/grid', /Legacy Controller/);
+    await scanAndAssert(legacyDrawerCode, '/drawers/1', /Legacy Container/);
+
+    execute(databasePath, `INSERT INTO cabinets (id,name,coordinate_system) VALUES (9000,'Deleted QR cabinet','grid')`);
+    const deletedCabinetCode = await decodedQR('/storage/cabinets/9000/qr', 'deleted-cabinet');
+    execute(databasePath, 'DELETE FROM cabinets WHERE id=9000');
+    await scanAndAssert(deletedCabinetCode, `/scan?q=${encodeURIComponent(deletedCabinetCode)}`, /Physical cabinet not found/);
+    await scanAndAssert('wledger:physical-cabinet:not-an-id', `/scan?q=${encodeURIComponent('wledger:physical-cabinet:not-an-id')}`, /Invalid physical cabinet code/);
+    await scanAndAssert('wledger:physical-drawer:999999', `/scan?q=${encodeURIComponent('wledger:physical-drawer:999999')}`, /Physical drawer not found/);
 
     await openEditor();
     await openDrawer('Drawer North');
@@ -269,14 +340,18 @@ const path = require('node:path');
     const finalState = query(databasePath,
       'SELECT (SELECT COUNT(*) FROM controllers),(SELECT COUNT(*) FROM containers),(SELECT controller_id FROM cabinets WHERE id=?),(SELECT container_id IS NULL AND led_index IS NULL FROM bins WHERE id=?),(SELECT quantity FROM part_assignments WHERE part_id=? AND bin_id=?)',
       [cabinetID, binID, partID, binID]);
-    assert.deepEqual(finalState, [[0, 0, null, 1, 7]], 'physical-first records should remain independent of all WLED/electrical data');
+    assert.deepEqual(finalState, [[1, 1, null, 1, 7]], 'physical cabinet/drawer/bin identities must coexist with, not replace, legacy controller/container records');
     assert.deepEqual(wledRequests, [], `layout-only UI contacted the mock WLED endpoint: ${wledRequests.join(', ')}`);
     assert.ok(mutations.some(item => item.path === `/storage/cabinets/${cabinetID}/drawers/${northID}/bins`), 'bin creation must use an ordinary CSRF-protected UI form');
     assert.ok(mutations.some(item => item.path === `/storage/cabinets/${cabinetID}/bins/${binID}/move`), 'bin movement must use an ordinary UI route');
     assert.ok(mutations.filter(item => item.path.startsWith('/storage/cabinets/')).every(item => /csrf_token/.test(item.body)), 'physical layout writes must submit CSRF tokens');
     assert.deepEqual(pageErrors, []);
-    assert.deepEqual(consoleErrors, []);
-    console.log(JSON.stringify({ result: 'PASS', cabinetID, northID, southID, binID, secondBinID, partID, quantity: 7, wledRequests, pageErrors, consoleErrors, uiMutations: mutations.length }));
+    assert.deepEqual(consoleErrors, [
+      'Failed to load resource: the server responded with a status of 404 (Not Found)',
+      'Failed to load resource: the server responded with a status of 400 (Bad Request)',
+      'Failed to load resource: the server responded with a status of 404 (Not Found)',
+    ], 'only the intentionally exercised deleted, malformed, and unknown QR navigations may return browser HTTP errors');
+    console.log(JSON.stringify({ result: 'PASS', cabinetID, northID, southID, binID, secondBinID, partID, quantity: 7, physicalQrCodes: [physicalCabinetCode, physicalDrawerCode, physicalBinCode, partCode], legacyQrCodes: [legacyCabinetCode, legacyDrawerCode], deletedCode: deletedCabinetCode, physicalOutputEnabled: false, wledRequests, pageErrors, consoleErrors, uiMutations: mutations.length }));
   } finally {
     if (browser) await browser.close();
     if (server) { server.kill('SIGTERM'); await new Promise(resolve => server.once('exit', resolve)); }
@@ -284,6 +359,21 @@ const path = require('node:path');
     fs.rmSync(scratchDir, { recursive: true, force: true });
   }
 })().catch(error => { console.error(error); process.exit(1); });
+
+function decodeQRCode(png, scratchDir, label) {
+  const imagePath = path.join(scratchDir, `${label}.png`);
+  fs.writeFileSync(imagePath, png);
+  const decoded = spawnSync('python3', ['-c', 'import cv2,json,sys; image=cv2.imread(sys.argv[1]); value,_,_=cv2.QRCodeDetector().detectAndDecode(image); print(json.dumps(value))', imagePath], { encoding: 'utf8' });
+  if (decoded.status !== 0) throw new Error(`QR decoder failed for ${label}: ${decoded.stderr}`);
+  const value = JSON.parse(decoded.stdout);
+  assert.ok(value, `generated ${label} PNG did not decode to a QR value`);
+  return value;
+}
+
+function execute(databasePath, sql, parameters = []) {
+  const result = spawnSync('python3', ['-c', 'import json,sqlite3,sys; c=sqlite3.connect(sys.argv[1]); c.execute(sys.argv[2], json.loads(sys.argv[3])); c.commit(); c.close()', databasePath, sql, JSON.stringify(parameters)], { encoding: 'utf8' });
+  if (result.status !== 0) throw new Error(`disposable SQLite fixture mutation failed: ${result.stderr}`);
+}
 
 function query(databasePath, sql, parameters = []) {
   const result = spawnSync('python3', ['-c', 'import json,sqlite3,sys; c=sqlite3.connect(sys.argv[1]); rows=c.execute(sys.argv[2], json.loads(sys.argv[3])).fetchall(); print(json.dumps(rows)); c.close()', databasePath, sql, JSON.stringify(parameters)], { encoding: 'utf8' });

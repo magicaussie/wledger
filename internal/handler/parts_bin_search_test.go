@@ -57,3 +57,25 @@ func TestHandlePartsList_BinFilter(t *testing.T) {
 		t.Error("Part B should not be in response")
 	}
 }
+
+func TestHandlePartsList_BinFilterRejectsMalformedAndMissingIDs(t *testing.T) {
+	h, dbConn := setupPartTest(t)
+	defer dbConn.Close()
+	defer cleanupPartTest()
+
+	for _, tc := range []struct {
+		query string
+		want  int
+	}{
+		{"/parts?bin=not-an-id", http.StatusBadRequest},
+		{"/parts?bin=0", http.StatusBadRequest},
+		{"/parts?bin=999", http.StatusNotFound},
+	} {
+		req := httptest.NewRequest(http.MethodGet, tc.query, nil)
+		rr := httptest.NewRecorder()
+		h.HandlePartsList(rr, req)
+		if rr.Code != tc.want {
+			t.Errorf("GET %s status = %d, want %d", tc.query, rr.Code, tc.want)
+		}
+	}
+}

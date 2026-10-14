@@ -198,3 +198,16 @@ The 067B delayed-delivery failure reproducer and 067D host firmware prototype we
 **Exact next implementation task:** add a **default-off, server-enforced inventory-only WLED control gate** covering all WLED state mutations (physical and legacy Locate, flash/write, GlobalOff), with negative browser/router tests proving no loopback mock receives a state POST when the gate is off. Preserve only an explicitly specified safe recovery-cleanup path for pre-existing durable ownership. Do not add a WLED fencing architecture, touch production configuration, or contact hardware as part of that task.
 
 No production source, schema, migration, deployment or hardware was changed or used in this audit.
+
+## 13. Task 2 follow-up — physical QR navigation
+
+This follow-up records the bounded implementation requested after the audit. It updates the physical QR finding only; it does not mark the entire v1.0 release gate complete. The implementation started from `c3fa25d76c29262a43e4330cb374f535928f602f` on `development/chatgpt-m6-m7` and adds no schema or migration.
+
+- Physical cabinets use `wledger:physical-cabinet:<id>` → `/storage/cabinets/<id>`.
+- Physical drawers use `wledger:physical-drawer:<id>` → `/storage/drawers/<id>`.
+- Physical bins retain the stable `wledger:bin:<id>` identity → `/parts?bin=<id>`; direct bin filtering now rejects malformed and missing IDs consistently with scan resolution.
+- Newly generated part QRs use `wledger:part-id:<id>` → `/parts/<id>`. Existing `wledger:part:<barcode>` labels remain readable.
+- Legacy `wledger:cabinet:<id>` controller codes and `wledger:drawer:<id>` container codes retain their original `/hardware/<id>/grid` and `/drawers/<id>` destinations.
+- The browser acceptance on a fresh disposable app decoded physical cabinet, drawer, bin, part, legacy controller and legacy container QR PNGs with a camera-free OpenCV decoder, then submitted every decoded value through the real scanner success callback and `/scan` routing. Correct destinations and identities passed. Deleted, malformed and unknown identities returned graceful 404/400 responses. Physical WLED output was disabled and the test recorded zero WLED requests.
+
+The QR navigation finding is resolved for this tested scope. Image removal and stock-lifecycle browser acceptance remain outstanding; the next planned work is that bounded inventory acceptance, followed by the final v1.0 release gate. No production/staging database or physical controller was accessed.

@@ -103,8 +103,9 @@ templ StorageCabinet(cabinet storage.BrowseCabinet, user auth.User) {
 					{Label: cabinet.Name},
 				},
 			) {
-				<div class="flex flex-wrap gap-2">
+				<div class="flex flex-wrap items-center gap-2">
 					<span class="badge badge-ghost badge-md font-mono">{ i18n.T(ctx, "M6CabinetNumber") } #{ fmt.Sprintf("%d", cabinet.ID) }</span>
+					<img src={ templ.SafeURL(fmt.Sprintf("/storage/cabinets/%d/qr", cabinet.ID)) } alt={ fmt.Sprintf("QR for physical cabinet %s", cabinet.Name) } class="h-24 w-24 bg-white p-1 rounded"/>
 					if user.CanWrite() {
 						<a class="btn btn-outline btn-sm" href={ templ.SafeURL(fmt.Sprintf("/storage/cabinets/%d/edit", cabinet.ID)) }>Edit layout</a>
 					}
@@ -186,6 +187,7 @@ templ StorageCabinet(cabinet storage.BrowseCabinet, user auth.User) {
 									{ fmt.Sprintf("%g × %g", drawer.Width, drawer.Height) } · at ({ fmt.Sprintf("%g, %g", drawer.X, drawer.Y) })
 								</p>
 								<p class="text-xs text-base-content/80 mt-1">{ i18n.T(ctx, "M6OpenDrawerToViewBins") }</p>
+								<img src={ templ.SafeURL(fmt.Sprintf("/storage/drawers/%d/qr", drawer.ID)) } alt={ fmt.Sprintf("QR for physical drawer %s", drawerName(drawer, i18n.T(ctx, "M6Drawer"))) } class="h-24 w-24 bg-white p-1 rounded mt-2"/>
 							</div>
 						</a>
 					}
@@ -210,6 +212,7 @@ templ StorageDrawer(detail storage.BrowseDrawerDetail, cabinetName string, user 
 				<div class="flex flex-wrap items-center gap-2">
 					<span class="badge badge-ghost badge-md font-mono">{ i18n.T(ctx, "M6Drawer") } #{ fmt.Sprintf("%d", detail.Drawer.ID) }</span>
 					<span class="badge badge-outline">{ cabinetName }</span>
+					<img src={ templ.SafeURL(fmt.Sprintf("/storage/drawers/%d/qr", detail.Drawer.ID)) } alt={ fmt.Sprintf("QR for physical drawer %s", drawerName(detail.Drawer, i18n.T(ctx, "M6Drawer"))) } class="h-24 w-24 bg-white p-1 rounded"/>
 				</div>
 			}
 
@@ -316,7 +319,10 @@ templ StorageDrawer(detail storage.BrowseDrawerDetail, cabinetName string, user 
 											}
 										</h3>
 									</div>
-									<span class="badge badge-sm badge-outline font-mono shrink-0">{ i18n.T(ctx, "M6BinNumber") } #{ fmt.Sprintf("%d", bin.BinID) }</span>
+									<div class="flex items-center gap-2 shrink-0">
+										<span class="badge badge-sm badge-outline font-mono">{ i18n.T(ctx, "M6BinNumber") } #{ fmt.Sprintf("%d", bin.BinID) }</span>
+										<img src={ templ.SafeURL(fmt.Sprintf("/storage/bins/%d/qr", bin.BinID)) } alt={ fmt.Sprintf("QR for physical bin %s", bin.Name) } class="h-24 w-24 bg-white p-1 rounded"/>
+									</div>
 								</div>
 								<p class="text-xs text-base-content/80 font-mono mt-1">
 									{ fmt.Sprintf("%g × %g", bin.Width, bin.Height) } { i18n.T(ctx, "M6CoordinateAt") } ({ fmt.Sprintf("%g, %g", bin.X, bin.Y) })

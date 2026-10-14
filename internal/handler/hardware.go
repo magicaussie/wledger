@@ -421,8 +421,16 @@ func (h *Handler) HandleBinQR(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid bin id", http.StatusBadRequest)
 		return
 	}
+	if _, err := h.Queries.GetBin(r.Context(), id); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "Bin not found", http.StatusNotFound)
+		} else {
+			h.UIError.Respond(w, r, err, "Failed to load bin", http.StatusInternalServerError)
+		}
+		return
+	}
 
-	png, err := qrcode.PNG("wledger:bin:"+idStr, qrScaleFromQuery(r))
+	png, err := qrcode.PNG(BinScanCode(id), qrScaleFromQuery(r))
 	if err != nil {
 		h.UIError.Respond(w, r, err, "Failed to generate QR", http.StatusInternalServerError)
 		return
@@ -439,6 +447,14 @@ func (h *Handler) HandleCabinetQR(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {
 		http.Error(w, "Invalid cabinet id", http.StatusBadRequest)
+		return
+	}
+	if _, err := h.Queries.GetController(r.Context(), id); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "Controller not found", http.StatusNotFound)
+		} else {
+			h.UIError.Respond(w, r, err, "Failed to load controller", http.StatusInternalServerError)
+		}
 		return
 	}
 
@@ -459,6 +475,14 @@ func (h *Handler) HandleDrawerQR(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {
 		http.Error(w, "Invalid drawer id", http.StatusBadRequest)
+		return
+	}
+	if _, err := h.Queries.GetContainer(r.Context(), id); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "Container not found", http.StatusNotFound)
+		} else {
+			h.UIError.Respond(w, r, err, "Failed to load container", http.StatusInternalServerError)
+		}
 		return
 	}
 
