@@ -22,28 +22,36 @@ import (
 )
 
 type physicalMock struct {
-	mu                  sync.Mutex
-	count               int
-	state               string
-	config              string
-	offline             bool
-	stallMethod         string
-	stallPath           string
-	stallFor            time.Duration
-	postBodies          []map[string]any
-	failPostNumber      int
-	postCount           int
-	requestLog          []string
-	postEntered         chan struct{}
-	postRelease         chan struct{}
-	postAccepted        chan struct{}
-	postResponseRelease chan struct{}
+	mu                        sync.Mutex
+	count                     int
+	state                     string
+	config                    string
+	offline                   bool
+	stallMethod               string
+	stallPath                 string
+	stallFor                  time.Duration
+	malformedGETPath          string
+	postBodies                []map[string]any
+	postApplied               []bool
+	failPostNumber            int
+	failPostStatus            int
+	failBeforeApplyPostNumber int
+	dropResponsePostNumber    int
+	postCount                 int
+	requestLog                []string
+	postEntered               chan struct{}
+	postRelease               chan struct{}
+	postAccepted              chan struct{}
+	postResponseRelease       chan struct{}
+	framebuffer               [][3]int
 }
 
 func int64Pointer(value int64) *int64 { return &value }
 
 func newPhysicalMock() *physicalMock {
-	return &physicalMock{state: `{"on":true,"seg":[{"id":10,"start":0,"stop":100,"on":true,"fx":0,"grp":1,"spc":0,"rev":false,"mi":false,"col":[[20,30,40],[0,0,0],[0,0,0]]},{"id":20,"start":100,"stop":200,"on":true,"fx":0,"grp":1,"spc":0,"rev":false,"mi":false,"col":[[50,60,70],[0,0,0],[0,0,0]]}]}`, config: `{"hw":{"led":{"ins":[{"start":0,"len":100,"rev":false,"skip":0,"type":22,"pin":[2,-1,-1]},{"start":100,"len":100,"rev":false,"skip":0,"type":22,"pin":[4,-1,-1]}]}}}`}
+	mock := &physicalMock{state: `{"on":true,"seg":[{"id":10,"start":0,"stop":100,"on":true,"fx":0,"grp":1,"spc":0,"rev":false,"mi":false,"col":[[20,30,40],[0,0,0],[0,0,0]]},{"id":20,"start":100,"stop":200,"on":true,"fx":0,"grp":1,"spc":0,"rev":false,"mi":false,"col":[[50,60,70],[0,0,0],[0,0,0]]}]}`, config: `{"hw":{"led":{"ins":[{"start":0,"len":100,"rev":false,"skip":0,"type":22,"pin":[2,-1,-1]},{"start":100,"len":100,"rev":false,"skip":0,"type":22,"pin":[4,-1,-1]}]}}}`}
+	mock.setFramebufferCapacity(200)
+	return mock
 }
 
 func (m *physicalMock) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -61,6 +69,13 @@ func (m *physicalMock) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		case <-timer.C:
 		}
+	}
+	m.mu.Lock()
+	malformedGET := r.Method == http.MethodGet && m.malformedGETPath == r.URL.Path
+	m.mu.Unlock()
+	if malformedGET {
+		fmt.Fprint(w, "not-json")
+		return
 	}
 	switch {
 	case r.Method == http.MethodGet && r.URL.Path == "/json/info":
@@ -109,8 +124,18 @@ func (m *physicalMock) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		m.postCount++
 		m.postBodies = append(m.postBodies, body)
 		fail := m.postCount == m.failPostNumber
+		failBeforeApply := m.postCount == m.failBeforeApplyPostNumber
+		m.postApplied = append(m.postApplied, !failBeforeApply)
+		dropResponse := m.postCount == m.dropResponsePostNumber
 		accepted, responseRelease := m.postAccepted, m.postResponseRelease
 		m.postAccepted, m.postResponseRelease = nil, nil
+		if !failBeforeApply {
+			if err := applyMockPixelPayload(m.framebuffer, m.state, body); err != nil {
+				m.mu.Unlock()
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+		}
 		m.mu.Unlock()
 		if accepted != nil {
 			close(accepted)
@@ -120,8 +145,20 @@ func (m *physicalMock) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		if fail {
-			w.WriteHeader(http.StatusServiceUnavailable)
+		if dropResponse {
+			if connection, _, err := w.(http.Hijacker).Hijack(); err == nil {
+				_ = connection.Close()
+			}
+			return
+		}
+		if fail || failBeforeApply {
+			status := http.StatusServiceUnavailable
+			m.mu.Lock()
+			if fail && m.failPostStatus != 0 {
+				status = m.failPostStatus
+			}
+			m.mu.Unlock()
+			w.WriteHeader(status)
 			fmt.Fprint(w, `{"success":false}`)
 			return
 		}
@@ -141,6 +178,99 @@ func (m *physicalMock) setState(state string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.state = state
+}
+
+func (m *physicalMock) pixels() [][3]int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([][3]int(nil), m.framebuffer...)
+}
+
+func (m *physicalMock) setFramebufferCapacity(capacity int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.framebuffer = make([][3]int, capacity)
+	for pixel := range m.framebuffer {
+		m.framebuffer[pixel] = [3]int{20 + pixel%50, 30 + pixel%60, 40 + pixel%70}
+	}
+}
+
+func (m *physicalMock) appliedPosts() []bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]bool(nil), m.postApplied...)
+}
+
+func applyMockPixelPayload(framebuffer [][3]int, controllerState string, payload map[string]any) error {
+	segments, ok := payload["seg"].([]any)
+	if !ok {
+		if on, isBool := payload["on"].(bool); isBool && !on {
+			for pixel := range framebuffer {
+				framebuffer[pixel] = [3]int{0, 0, 0}
+			}
+			return nil
+		}
+		return errors.New("targeted pixel payload has no segment list")
+	}
+	var state struct {
+		Segments []struct {
+			ID    int64 `json:"id"`
+			Start int   `json:"start"`
+			Stop  int   `json:"stop"`
+		} `json:"seg"`
+	}
+	if err := json.Unmarshal([]byte(controllerState), &state); err != nil {
+		return fmt.Errorf("decode current mock segment geometry: %w", err)
+	}
+	for _, rawSegment := range segments {
+		segment, ok := rawSegment.(map[string]any)
+		if !ok {
+			return errors.New("targeted pixel payload has an invalid segment")
+		}
+		segmentID, ok := segment["id"].(float64)
+		if !ok {
+			return errors.New("targeted pixel segment has no numeric id")
+		}
+		var offset, capacity int
+		found := false
+		for _, geometry := range state.Segments {
+			if geometry.ID == int64(segmentID) {
+				offset, capacity, found = geometry.Start, geometry.Stop-geometry.Start, true
+				break
+			}
+		}
+		if !found || offset < 0 || capacity < 0 {
+			return fmt.Errorf("unsupported mock segment id or geometry %v", segmentID)
+		}
+		values, ok := segment["i"].([]any)
+		if !ok || len(values) != 3 {
+			return errors.New("targeted pixel segment has no [start,stop,color] value")
+		}
+		start, startOK := values[0].(float64)
+		stop, stopOK := values[1].(float64)
+		color, colorOK := values[2].([]any)
+		if !startOK || !stopOK || !colorOK || len(color) != 3 {
+			return errors.New("targeted pixel range has invalid coordinates or RGB color")
+		}
+		if start < 0 || stop < start || stop > float64(capacity) {
+			return fmt.Errorf("targeted mock range %v-%v is outside segment capacity %d", start, stop, capacity)
+		}
+		var rgb [3]int
+		for channel := range rgb {
+			value, ok := color[channel].(float64)
+			if !ok || value < 0 || value > 255 {
+				return errors.New("targeted mock RGB component is invalid")
+			}
+			rgb[channel] = int(value)
+		}
+		for pixel := int(start) + offset; pixel < int(stop)+offset; pixel++ {
+			if pixel < 0 || pixel >= len(framebuffer) {
+				return fmt.Errorf("targeted mock pixel %d is outside controller capacity %d", pixel, len(framebuffer))
+			}
+			framebuffer[pixel] = rgb
+		}
+	}
+	return nil
 }
 
 func (m *physicalMock) setConfig(config string) {

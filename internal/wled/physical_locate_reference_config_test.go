@@ -211,6 +211,7 @@ func configureReferencePhysicalMock(t *testing.T, mock *physicalMock, capacity i
 	}
 	half := capacity / 2
 	mock.count = int(capacity)
+	mock.setFramebufferCapacity(int(capacity))
 	mock.config = fmt.Sprintf(`{"hw":{"led":{"ins":[{"start":0,"len":%d,"rev":false,"skip":0,"type":22,"pin":[2,-1,-1]},{"start":%d,"len":%d,"rev":false,"skip":0,"type":22,"pin":[4,-1,-1]}]}}}`, half, half, half)
 	state, err := json.Marshal(map[string]any{"on": true, "seg": []map[string]any{
 		{"id": 10, "start": 0, "stop": half, "on": true, "fx": 0, "grp": 1, "spc": 0, "rev": false, "mi": false, "col": [][]int{{20, 30, 40}, {0, 0, 0}, {0, 0, 0}}},

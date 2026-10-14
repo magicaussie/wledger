@@ -13,6 +13,7 @@
     "test:csrf-browser": "node web/tests/csrf.browser.test.js",
     "test:fresh-install": "node web/tests/task064_fresh_install.browser.test.js",
     "test:task065-restore": "WLEDGER_TASK065_RESTORE=1 node web/tests/task064_fresh_install.browser.test.js",
+    "test:task067-locate": "WLEDGER_TASK067_LOCATE=1 node web/tests/task064_fresh_install.browser.test.js",
     "build:css": "npx @tailwindcss/cli -i ./web/static/css/input.css -o ./web/static/css/output.css",
     "build:css:prod": "npx @tailwindcss/cli -i ./web/static/css/input.css -o ./web/static/css/output.css --minify"
   },

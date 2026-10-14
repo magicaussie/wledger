@@ -48,6 +48,57 @@ func addSecondaryPhysicalTarget(t *testing.T, f *physicalFixture, label string) 
 	return controller.ID, mock
 }
 
+func addTertiaryPhysicalTarget(t *testing.T, f *physicalFixture, label string) (int64, *physicalMock) {
+	t.Helper()
+	ctx := context.Background()
+	mock := newPhysicalMock()
+	server := httptest.NewServer(mock)
+	t.Cleanup(server.Close)
+	host, portText, err := net.SplitHostPort(server.Listener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var port int64
+	if _, err := fmt.Sscan(portText, &port); err != nil {
+		t.Fatal(err)
+	}
+	controller, err := f.store.CreateController(ctx, db.CreateControllerParams{Name: label, IpAddress: host, Port: sql.NullInt64{Int64: port, Valid: true}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.store.UpdateControllerLedCount(ctx, db.UpdateControllerLedCountParams{LedCount: 200, ID: controller.ID, LedCount_2: 0}); err != nil {
+		t.Fatal(err)
+	}
+	cabinet, err := f.store.GetCabinet(ctx, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.store.CreateCabinetController(ctx, db.CreateCabinetControllerParams{CabinetID: cabinet.ID, ControllerID: controller.ID, Slot: 2}); err != nil {
+		t.Fatal(err)
+	}
+	return controller.ID, mock
+}
+
+func makeThreeControllerDrawer(t *testing.T, f *physicalFixture) (int64, int64) {
+	t.Helper()
+	ctx := context.Background()
+	drawer, err := f.store.CreateDrawer(ctx, db.CreateDrawerParams{CabinetID: 1, Label: "Three-controller drawer", DisplayOrder: 4, X: 30, Y: 30, Width: 10, Height: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	bin, err := f.store.CreateBin(ctx, db.CreateBinParams{Name: "Three-controller bin", Width: sql.NullInt64{Int64: 1, Valid: true}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.store.CreateBinDrawerAttachment(ctx, db.CreateBinDrawerAttachmentParams{BinID: bin, DrawerID: drawer, Width: 1, Height: 1}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.store.CreateDrawerLEDAllocation(ctx, db.CreateDrawerLEDAllocationParams{CabinetID: 1, DrawerID: drawer, StartPixel: 195, PixelCount: 210}); err != nil {
+		t.Fatal(err)
+	}
+	return drawer, bin
+}
+
 func makeCrossControllerDrawer(t *testing.T, f *physicalFixture) (int64, int64) {
 	t.Helper()
 	ctx := context.Background()
@@ -423,6 +474,133 @@ func TestPhysicalLocateAutomaticRetryCleansHealthyTargetWithinBudget(t *testing.
 	}
 	if len(f.mock.posts()) != 2 || len(secondary.posts()) != 2 {
 		t.Fatalf("restart did not target only unresolved controller: primary=%d secondary=%d", len(f.mock.posts()), len(secondary.posts()))
+	}
+}
+
+func TestPhysicalLocateThreeControllerPartialDeliveryAndRepeatedRecovery(t *testing.T) {
+	f := newPhysicalFixture(t)
+	ctx := context.Background()
+	secondaryID, secondary := addSecondaryPhysicalTarget(t, f, "three-controller middle target")
+	tertiaryID, tertiary := addTertiaryPhysicalTarget(t, f, "three-controller final target")
+	drawer, bin := makeThreeControllerDrawer(t, f)
+	for _, controllerID := range []int64{secondaryID, tertiaryID} {
+		if err := f.service.SaveControllerMappingVerification(ctx, controllerID, true); err != nil {
+			t.Fatalf("verify controller #%d mapping: %v", controllerID, err)
+		}
+	}
+	initial := [][][3]int{f.mock.pixels(), secondary.pixels(), tertiary.pixels()}
+	secondary.dropResponsePostNumber = 1
+	secondary.failPostNumber = 2
+
+	session, locateErr := f.service.LocateDrawerBin(ctx, drawer, bin, 7)
+	if locateErr == nil || session.State != "partial" {
+		t.Fatalf("three-controller partial delivery session=%+v err=%v, want unresolved partial state", session, locateErr)
+	}
+	if !strings.Contains(strings.ToLower(locateErr.Error()), "cleanup") && !strings.Contains(strings.ToLower(session.LastError), "cleanup") {
+		t.Fatalf("partial-delivery error omitted unresolved cleanup detail: session=%+v err=%v", session, locateErr)
+	}
+
+	targets := durablePhysicalTargets(t, f, session.ID)
+	if len(targets) != 3 || targets[f.controller].MayHaveReceived != 0 || targets[secondaryID].MayHaveReceived != 1 || targets[tertiaryID].MayHaveReceived != 0 {
+		t.Fatalf("durable ownership after A-success/B-lost-response/C-not-reached and B cleanup failure = %+v", targets)
+	}
+	if len(f.mock.posts()) != 2 || len(secondary.posts()) != 2 || len(tertiary.posts()) != 0 {
+		t.Fatalf("three-controller request counts A=%d B=%d C=%d; want A activation+cleanup, B activation+failed cleanup, C untouched", len(f.mock.posts()), len(secondary.posts()), len(tertiary.posts()))
+	}
+	for controllerIndex, posts := range [][]map[string]any{f.mock.posts(), secondary.posts(), tertiary.posts()} {
+		for writeIndex, post := range posts {
+			if _, exists := post["on"]; exists {
+				t.Fatalf("controller %d write %d used controller-wide state: %#v", controllerIndex+1, writeIndex, post)
+			}
+		}
+	}
+
+	// Repeated Stop retries the original durable B ranges, not new topology-derived
+	// ranges. It must not resend to A (already confirmed) or contact C (never tried).
+	if err := f.service.StopDrawer(ctx, drawer, 7); err != nil {
+		t.Fatalf("repeated Stop did not settle the unresolved controller: %v", err)
+	}
+	if got := durablePhysicalTargets(t, f, session.ID); len(got) != 3 || got[secondaryID].MayHaveReceived != 0 || got[f.controller].MayHaveReceived != 0 || got[tertiaryID].MayHaveReceived != 0 {
+		t.Fatalf("repeated Stop did not resolve exact persisted ownership: %+v", got)
+	}
+	if len(f.mock.posts()) != 2 || len(secondary.posts()) != 4 || len(tertiary.posts()) != 0 {
+		t.Fatalf("repeated recovery expanded targets: A=%d B=%d C=%d", len(f.mock.posts()), len(secondary.posts()), len(tertiary.posts()))
+	}
+
+	finalFrames := [][][3]int{f.mock.pixels(), secondary.pixels(), tertiary.pixels()}
+	for controllerIndex := range finalFrames {
+		for pixel := range finalFrames[controllerIndex] {
+			owned := false
+			switch controllerIndex {
+			case 0:
+				owned = pixel >= 194 && pixel < 200
+			case 1:
+				owned = true
+			case 2:
+				owned = false // controller C was not reached after B's uncertain response
+			}
+			if owned {
+				if finalFrames[controllerIndex][pixel] != [3]int{0, 0, 0} {
+					t.Errorf("owned pixel controller %d:%d = %v, want black", controllerIndex+1, pixel, finalFrames[controllerIndex][pixel])
+				}
+			} else if finalFrames[controllerIndex][pixel] != initial[controllerIndex][pixel] {
+				t.Errorf("unowned pixel changed at controller %d:%d: before=%v after=%v", controllerIndex+1, pixel, initial[controllerIndex][pixel], finalFrames[controllerIndex][pixel])
+			}
+		}
+	}
+}
+
+func TestPhysicalLocateThreeControllerThirdFailsBeforeApplication(t *testing.T) {
+	f := newPhysicalFixture(t)
+	ctx := context.Background()
+	secondaryID, secondary := addSecondaryPhysicalTarget(t, f, "three-controller acknowledged middle target")
+	tertiaryID, tertiary := addTertiaryPhysicalTarget(t, f, "three-controller pre-apply failure target")
+	drawer, bin := makeThreeControllerDrawer(t, f)
+	for _, controllerID := range []int64{secondaryID, tertiaryID} {
+		if err := f.service.SaveControllerMappingVerification(ctx, controllerID, true); err != nil {
+			t.Fatalf("verify controller #%d mapping: %v", controllerID, err)
+		}
+	}
+	initial := [][][3]int{f.mock.pixels(), secondary.pixels(), tertiary.pixels()}
+	tertiary.failBeforeApplyPostNumber = 1
+
+	if _, err := f.service.LocateDrawerBin(ctx, drawer, bin, 7); err == nil {
+		t.Fatal("Locate succeeded although controller C failed before applying its activation")
+	}
+	if applied := tertiary.appliedPosts(); len(applied) != 2 || applied[0] || !applied[1] {
+		t.Fatalf("controller C delivery simulation = %v, want failed activation then applied cleanup", applied)
+	}
+
+	sessions, err := f.store.ListPhysicalLocateSessions(ctx)
+	if err != nil || len(sessions) != 1 {
+		t.Fatalf("three-controller session rows = %+v err=%v", sessions, err)
+	}
+	targets := durablePhysicalTargets(t, f, sessions[0].SessionID)
+	if len(targets) != 3 || targets[f.controller].MayHaveReceived != 0 || targets[secondaryID].MayHaveReceived != 0 || targets[tertiaryID].MayHaveReceived != 0 {
+		t.Fatalf("cleanup did not resolve each persisted delivery target: %+v", targets)
+	}
+	if len(f.mock.posts()) != 2 || len(secondary.posts()) != 4 || len(tertiary.posts()) != 2 {
+		t.Fatalf("three-controller request counts A=%d B=%d C=%d; expected targeted activation/cleanup for A, B and C", len(f.mock.posts()), len(secondary.posts()), len(tertiary.posts()))
+	}
+	frames := [][][3]int{f.mock.pixels(), secondary.pixels(), tertiary.pixels()}
+	for controllerIndex := range frames {
+		for pixel := range frames[controllerIndex] {
+			owned := controllerIndex == 1 || (controllerIndex == 0 && pixel >= 194) || (controllerIndex == 2 && pixel < 4)
+			if owned {
+				if frames[controllerIndex][pixel] != [3]int{0, 0, 0} {
+					t.Errorf("owned pixel controller %d:%d = %v, want black", controllerIndex+1, pixel, frames[controllerIndex][pixel])
+				}
+			} else if frames[controllerIndex][pixel] != initial[controllerIndex][pixel] {
+				t.Errorf("unrelated pixel controller %d:%d changed: before=%v after=%v", controllerIndex+1, pixel, initial[controllerIndex][pixel], frames[controllerIndex][pixel])
+			}
+		}
+	}
+	for controllerIndex, posts := range [][]map[string]any{f.mock.posts(), secondary.posts(), tertiary.posts()} {
+		for writeIndex, post := range posts {
+			if _, exists := post["on"]; exists {
+				t.Fatalf("controller %d write %d used controller-wide state: %#v", controllerIndex+1, writeIndex, post)
+			}
+		}
 	}
 }
 

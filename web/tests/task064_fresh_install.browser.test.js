@@ -12,12 +12,17 @@ const path = require('node:path');
   const repoRoot = path.resolve(__dirname, '../..');
   const scratchDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wledger-task064-fresh-'));
   const databasePath = path.join(scratchDir, 'data', 'wledger.db');
-  const task065RestoreEnabled = process.env.WLEDGER_TASK065_RESTORE === '1';
+  const task067Enabled = process.env.WLEDGER_TASK067_LOCATE === '1';
+  const task065RestoreEnabled = process.env.WLEDGER_TASK065_RESTORE === '1' || task067Enabled;
   let restoreScratchDir;
   let restoreServer;
   let restoreContext;
   let restorePage;
+  let secondServer;
+  let secondContext;
+  let secondPage;
   let restoreEvidence = { status: 'NOT RUN' };
+  let multiProcessEvidence = { status: 'NOT RUN' };
   const mocks = [];
   const mockRequests = [];
   const mockWrites = [];
@@ -933,6 +938,169 @@ const path = require('node:path');
       };
     }
 
+    if (task067Enabled) {
+      const adminRows = readOnlyRows(databasePath, 'SELECT id,password_hash FROM users WHERE email=?', ['ui-only-admin@example.invalid']);
+      assert.equal(adminRows.length, 1, 'multi-process fixture requires the existing synthetic administrator');
+      const secondAdminEmail = 'task067-second-process-admin@example.invalid';
+      const secondAdminID = executeSQLite(databasePath, 'INSERT INTO users(email,password_hash,role,change_password_required) VALUES (?,?,?,0)', [secondAdminEmail, adminRows[0][1], 'admin']);
+      const secondProcessPort = await availablePort();
+      const secondProcessURL = `http://127.0.0.1:${secondProcessPort}`;
+      secondServer = startServer(scratchDir, secondProcessPort);
+      await waitForServer(secondProcessURL, secondServer);
+      secondContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+      secondPage = await secondContext.newPage();
+      await secondPage.goto(`${secondProcessURL}/login`);
+      await secondPage.locator('form[action="/login"] input[name="email"]').fill(secondAdminEmail);
+      await secondPage.locator('form[action="/login"] input[name="password"]').fill('ui-only-safe-password-123');
+      await secondPage.locator('form[action="/login"] button').click();
+      await secondPage.waitForURL(`${secondProcessURL}/`);
+      const sharedLocateRows = () => readOnlyRows(databasePath, 'SELECT session_id,state,drawer_id,bin_id,owner_id FROM physical_locate_sessions WHERE state IN (\'activating\',\'active\',\'stopping\',\'partial\')');
+      const sharedTargetRows = sessionID => readOnlyRows(databasePath, 'SELECT controller_id,may_have_received,commands_json FROM physical_locate_session_targets WHERE session_id=? ORDER BY controller_id', [sessionID]);
+      const assertNoSharedOwnership = label => {
+        assert.deepEqual(sharedLocateRows(), [], `${label}: no active or partial Locate sessions should exist before injection`);
+        assert.equal(Number(readOnlyRows(databasePath, 'SELECT COUNT(*) FROM physical_locate_session_targets WHERE may_have_received=1')[0][0]), 0, `${label}: no targets should retain uncertain-delivery ownership before injection`);
+      };
+      const awaitSharedMockDisconnect = async record => {
+        for (let attempt = 0; attempt < 100; attempt++) {
+          if (record.responseBehavior === 'command applied; client disconnected before response') return;
+          await new Promise(resolve => setTimeout(resolve, 25));
+        }
+        throw new Error(`shared-process controller request did not observe client termination: ${JSON.stringify(record)}`);
+      };
+
+      assertNoSharedOwnership('before Task 067 multi-process Locate race');
+      const multiProcessPixelsBefore = structuredClone(mockPixels);
+      const processPIDs = [server.pid, secondServer.pid];
+      const writesBeforeConcurrentLocate = mockWrites.length;
+      let acceptedActivation;
+      const activationAccepted = new Promise(resolve => { acceptedActivation = resolve; });
+      mockBehaviors[0].dropNextPostResponse = true;
+      mockBehaviors[0].onDropAccepted = record => acceptedActivation(record);
+
+      const targetBinID = inventoryBins[1][0];
+      const targetPartID = firstPart.id + 1;
+      await Promise.all([
+        page.goto(`${baseURL}/parts/${targetPartID}`),
+        secondPage.goto(`${secondProcessURL}/parts/${targetPartID}`),
+      ]);
+      const locatePath = `/parts/${targetPartID}/locate-bin`;
+      const requestA = page.waitForRequest(request => request.method() === 'POST' && new URL(request.url()).pathname === locatePath, { timeout: 15000 });
+      const formA = page.locator(`form[action="${locatePath}"]`).filter({ has: page.locator(`input[name="bin_id"][value="${targetBinID}"]`) });
+      const formB = secondPage.locator(`form[action="${locatePath}"]`).filter({ has: secondPage.locator(`input[name="bin_id"][value="${targetBinID}"]`) });
+      await submitFormWithoutWaiting(formA);
+      await requestA;
+      const acceptedRequest = await Promise.race([
+        activationAccepted,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('process A did not reach the shared mock WLED controller')), 10000)),
+      ]);
+      const activeConcurrentRows = sharedLocateRows();
+      assert.equal(activeConcurrentRows.length, 1, `process A reservation count = ${activeConcurrentRows.length}: ${JSON.stringify(activeConcurrentRows)}`);
+      assert.equal(activeConcurrentRows[0][1], 'activating');
+      const concurrentSessionID = activeConcurrentRows[0][0];
+      const concurrentOwnerID = Number(activeConcurrentRows[0][4]);
+      assert.equal(concurrentOwnerID, Number(adminRows[0][0]), 'process A should own the deliberately first reserved operation');
+      const ownerWasMainProcess = true;
+      const concurrentTargets = sharedTargetRows(concurrentSessionID);
+      assert.deepEqual(concurrentTargets.map(target => Number(target[1])), [1], 'attempt marker must commit before the shared controller accepts the POST');
+
+      // Process B submits a conflicting Locate while A holds the acknowledged
+      // activation response open and SQLite operation claim active.
+      const requestB = secondPage.waitForRequest(request => request.method() === 'POST' && new URL(request.url()).pathname === locatePath, { timeout: 15000 });
+      const locateResponseB = secondPage.waitForResponse(response => response.request().method() === 'POST' && new URL(response.url()).pathname === locatePath, { timeout: 15000 });
+      await submitFormWithoutWaiting(formB);
+      await requestB;
+      const losingLocateResponse = await locateResponseB;
+      assert.equal(losingLocateResponse.status(), 409, `process B conflicting Locate response was ${losingLocateResponse.status()}`);
+      assert.deepEqual(sharedLocateRows(), activeConcurrentRows, 'process B must not replace process A durable ownership');
+      assert.equal(mockWrites.length, writesBeforeConcurrentLocate + 1, 'only process A may activate while its controller response is withheld');
+
+      const stopPath = '/storage/drawers/1/stop';
+      const foreignPage = ownerWasMainProcess ? secondPage : page;
+      const foreignURL = ownerWasMainProcess ? secondProcessURL : baseURL;
+      const processBStopResponse = foreignPage.waitForResponse(response => response.request().method() === 'POST' && new URL(response.url()).pathname === stopPath);
+      await submitPostWithoutWaiting(foreignPage, `${foreignURL}${stopPath}`);
+      const rejectedForeignStop = await processBStopResponse;
+      assert.equal(rejectedForeignStop.status(), 409, `second-process Stop response was ${rejectedForeignStop.status()}`);
+      assert.deepEqual(sharedLocateRows(), activeConcurrentRows, 'a different owner/process must not change the active durable reservation');
+      assert.equal(mockWrites.length, writesBeforeConcurrentLocate + 1, 'conflicting Locate/Stop from process B must not send additional WLED commands');
+
+      const owningProcess = ownerWasMainProcess ? server : secondServer;
+      if (!owningProcess) throw new Error(`could not identify the Locate-owning process for user ${concurrentOwnerID}`);
+      owningProcess.kill('SIGKILL');
+      await waitForProcessExit(owningProcess);
+      await awaitSharedMockDisconnect(acceptedRequest);
+      if (ownerWasMainProcess) server = null;
+      else secondServer = null;
+
+      const unresolvedAfterKill = sharedLocateRows();
+      assert.equal(unresolvedAfterKill.length, 1, 'owner process SIGKILL must leave one durable unresolved session');
+      assert.equal(unresolvedAfterKill[0][0], concurrentSessionID);
+      assert.equal(unresolvedAfterKill[0][1], 'activating');
+      assert.deepEqual(sharedTargetRows(concurrentSessionID).map(target => Number(target[1])), [1], 'owner process SIGKILL must preserve the possible-delivery marker');
+
+      const controllerRow = readOnlyRows(databasePath, 'SELECT id,ip_address,port FROM controllers WHERE name=?', ['UI Controller A Edited'])[0];
+      const controllerUpdateResponse = secondPage.waitForResponse(response => response.request().method() === 'POST' && new URL(response.url()).pathname === `/hardware/${controllerRow[0]}/update`);
+      await submitPostWithoutWaiting(secondPage, `${secondProcessURL}/hardware/${controllerRow[0]}/update`, { name: 'Unsafe concurrent endpoint change', ip_address: '192.0.2.99', port: '8080' });
+      const rejectedEndpointChange = await controllerUpdateResponse;
+      const endpointAfterRejectedChange = readOnlyRows(databasePath, 'SELECT ip_address,port FROM controllers WHERE id=?', [controllerRow[0]]);
+      assert.equal(rejectedEndpointChange.status(), 409, `unresolved cross-process endpoint edit response was ${rejectedEndpointChange.status()}`);
+      assert.deepEqual(endpointAfterRejectedChange, [[controllerRow[1], controllerRow[2]]], 'rejected cross-process endpoint edit must preserve the original recovery target');
+      assert.equal(mockWrites.length, writesBeforeConcurrentLocate + 1, 'rejected cross-process endpoint edit must not write WLED');
+
+      // The other process attempts recovery but cannot impersonate the saved owner.
+      await foreignPage.goto(`${foreignURL}/storage/drawers/1?bin_id=${targetBinID}`);
+      const foreignRetry = foreignPage.waitForResponse(response => response.request().method() === 'POST' && new URL(response.url()).pathname === stopPath);
+      await submitPostWithoutWaiting(foreignPage, `${foreignURL}${stopPath}`);
+      const foreignRetryResponse = await foreignRetry;
+      assert.equal(foreignRetryResponse.status(), 409, `foreign recovery request response was ${foreignRetryResponse.status()}`);
+      assert.deepEqual(sharedLocateRows(), unresolvedAfterKill, 'foreign-owner recovery must fail closed without releasing durable ownership');
+      assert.equal(mockWrites.length, writesBeforeConcurrentLocate + 1, 'foreign-owner recovery must not issue cleanup commands');
+
+      // Restart the owning application process; its original durable owner can
+      // now issue the saved targeted cleanup against the same loopback mock.
+      const owningPage = ownerWasMainProcess ? page : secondPage;
+      const owningURL = ownerWasMainProcess ? baseURL : secondProcessURL;
+      if (ownerWasMainProcess) {
+        server = startServer(scratchDir, appPort);
+        await waitForServer(baseURL, server);
+      } else {
+        secondServer = startServer(scratchDir, secondProcessPort);
+        await waitForServer(secondProcessURL, secondServer);
+      }
+      await owningPage.goto(`${owningURL}/storage/drawers/1?bin_id=${targetBinID}`);
+      const ownerStopResponse = owningPage.waitForResponse(response => response.request().method() === 'POST' && new URL(response.url()).pathname === stopPath);
+      await submitFormWithoutWaiting(owningPage.locator(`form[action="${stopPath}"]`));
+      const ownerStop = await ownerStopResponse;
+      assert.ok(ownerStop.status() < 400, `restarted owner Stop response was ${ownerStop.status()}`);
+      assert.deepEqual(sharedLocateRows(), [], 'restarted owner recovery should release the session only after confirmed cleanup');
+      const multiProcessRecoveryWrites = mockWrites.slice(writesBeforeConcurrentLocate + 1);
+      assert.deepEqual(multiProcessRecoveryWrites.map(write => write.payload.seg[0].i), [[24, 34, [0, 0, 0]], [49, 54, [0, 0, 0]]], 'restarted owner must use only the saved pixel ranges');
+      assert.ok(multiProcessRecoveryWrites.every(write => !Object.hasOwn(write.payload, 'on')), 'cross-process recovery must never issue GlobalOff');
+      for (let controllerIndex = 0; controllerIndex < mockPixels.length; controllerIndex++) {
+        for (let pixelIndex = 0; pixelIndex < mockPixels[controllerIndex].length; pixelIndex++) {
+          const owned = controllerIndex === 0 && ((pixelIndex >= 24 && pixelIndex < 34) || (pixelIndex >= 49 && pixelIndex < 54));
+          if (owned) assert.deepEqual(mockPixels[controllerIndex][pixelIndex], [0, 0, 0], `owned shared-process pixel ${controllerIndex + 1}:${pixelIndex} should be black after recovery`);
+          else assert.deepEqual(mockPixels[controllerIndex][pixelIndex], multiProcessPixelsBefore[controllerIndex][pixelIndex], `unrelated shared-process pixel ${controllerIndex + 1}:${pixelIndex} must be preserved`);
+        }
+      }
+      multiProcessEvidence = {
+        status: 'PASS',
+        databasePath,
+        uploadsPath: path.join(scratchDir, 'app', 'uploads'),
+        processPorts: [appPort, secondProcessPort],
+        processIDs: processPIDs,
+        independentProcesses: true,
+        simultaneousConflictingLocates: true,
+        durableOwner: concurrentOwnerID,
+        processAKilledBy: 'SIGKILL while mock had applied activation and withheld response',
+        processBStopRejectedWithoutWLEDWrite: true,
+        unresolvedControllerEndpointEditRejected: true,
+        foreignRecoveryRejectedWithoutReleasingOwnership: true,
+        restartedOwnerTargetedRecovery: multiProcessRecoveryWrites,
+        framebufferUnrelatedPixelsPreserved: true,
+      };
+    }
+
     const persistedBeforeRestart = installationSnapshot(databasePath, cabinetID);
     let reloggedAfterRestart = false;
     server.kill('SIGTERM');
@@ -958,11 +1126,20 @@ const path = require('node:path');
     const invalidControllerConsoleErrors = consoleErrors.filter(error => error.url.endsWith('/hardware') && error.message.includes('400 (Bad Request)'));
     assert.equal(invalidControllerConsoleErrors.length, 2, `expected only the two deliberate invalid-controller responses: ${JSON.stringify(consoleErrors)}`);
     const nonValidationConsoleErrors = consoleErrors.filter(error => !invalidControllerConsoleErrors.includes(error));
-    if (task065RestoreEnabled) {
-      assert.deepEqual(nonValidationConsoleErrors.map(error => [new URL(error.url).pathname + new URL(error.url).search, error.message]).sort(), [
+    if (task067Enabled) {
+      const expectedFaultPaths = new Set(['/parts/2', '/storage/drawers/1?bin_id=2']);
+      const unexpected = nonValidationConsoleErrors.filter(error => {
+        const route = new URL(error.url).pathname + new URL(error.url).search;
+        return !expectedFaultPaths.has(route) || (!error.message.includes('ERR_CONNECTION_REFUSED') && !error.message.includes('409 (Conflict)'));
+      });
+      assert.deepEqual(unexpected, [], `unexpected browser console errors during Task 067 remain a failure: ${JSON.stringify(unexpected)}`);
+
+    } else if (task065RestoreEnabled) {
+      const expectedInterruptedResponses = [
         ['/parts/2', 'Failed to load resource: net::ERR_CONNECTION_REFUSED'],
         ['/storage/drawers/1?bin_id=2', 'Failed to load resource: net::ERR_CONNECTION_REFUSED'],
-      ], 'the only additional browser errors should be the two expected responses interrupted by SIGKILL');
+      ];
+      assert.deepEqual(nonValidationConsoleErrors.map(error => [new URL(error.url).pathname + new URL(error.url).search, error.message]).sort(), expectedInterruptedResponses.sort(), 'additional browser errors should only be expected responses interrupted by SIGKILL');
     } else {
       assert.deepEqual(nonValidationConsoleErrors, [], `unexpected browser console errors remain a failure: ${JSON.stringify(nonValidationConsoleErrors)}`);
     }
@@ -991,6 +1168,7 @@ const path = require('node:path');
       locateEvidence,
       crashRecoveryEvidence,
       restoreEvidence,
+      multiProcessEvidence,
       mockPixelPreservation: { initial: initialMockPixels, final: mockPixels, ownedPixels: ownedMockPixels.map(pixels => [...pixels].sort((a, b) => a - b)), unrelatedPreserved: crashRecoveryEvidence.status === 'PASS' },
       persistedBeforeRestart,
       persistedAfterRestart,
@@ -1005,9 +1183,11 @@ const path = require('node:path');
     }));
   } finally {
     if (restoreContext) await restoreContext.close();
+    if (secondContext) await secondContext.close();
     if (browser) await browser.close();
     for (const mock of mocks) if (mock.listening) await new Promise(resolve => mock.close(resolve));
     if (restoreServer) await stopProcess(restoreServer);
+    if (secondServer) await stopProcess(secondServer);
     if (restoreScratchDir) fs.rmSync(restoreScratchDir, { recursive: true, force: true });
     if (server) await stopProcess(server);
     fs.rmSync(scratchDir, { recursive: true, force: true });
@@ -1019,6 +1199,14 @@ async function submitFormWithoutWaiting(formLocator) {
     const body = new FormData(form);
     fetch(form.action, { method: form.method || 'POST', body, credentials: 'same-origin' }).catch(() => {});
   });
+}
+
+async function submitPostWithoutWaiting(page, url, fields = {}) {
+  const token = await page.locator('meta[name="csrf-token"]').getAttribute('content');
+  await page.evaluate(({ url, fields, token }) => {
+    const body = new URLSearchParams({ ...fields, csrf_token: token });
+    fetch(url, { method: 'POST', body, credentials: 'same-origin' }).catch(() => {});
+  }, { url, fields, token });
 }
 
 async function waitForProcessExit(process) {
@@ -1049,6 +1237,20 @@ function setRestoreGeneration(databasePath, generationID) {
   const script = 'import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); c.execute("UPDATE restore_generation SET generation_id=? WHERE id=1",(sys.argv[2],)); c.commit(); c.close()';
   const result = spawnSync('python3', ['-c', script, databasePath, generationID], { encoding: 'utf8' });
   if (result.status !== 0) throw new Error(`failed to set disposable restore generation: ${result.stderr}`);
+}
+
+function executeSQLite(databasePath, sql, parameters = []) {
+  const script = 'import json,sqlite3,sys; c=sqlite3.connect(sys.argv[1]); cur=c.execute(sys.argv[2],json.loads(sys.argv[3])); c.commit(); print(json.dumps(cur.lastrowid)); c.close()';
+  const result = spawnSync('python3', ['-c', script, databasePath, sql, JSON.stringify(parameters)], { encoding: 'utf8' });
+  if (result.status !== 0) throw new Error(`disposable SQLite fixture write failed: ${result.stderr}`);
+  return JSON.parse(result.stdout);
+}
+
+function executeSQLite(databasePath, sql, parameters = []) {
+  const script = 'import json,sqlite3,sys; c=sqlite3.connect(sys.argv[1]); cur=c.execute(sys.argv[2],json.loads(sys.argv[3])); c.commit(); print(json.dumps(cur.lastrowid)); c.close()';
+  const result = spawnSync('python3', ['-c', script, databasePath, sql, JSON.stringify(parameters)], { encoding: 'utf8' });
+  if (result.status !== 0) throw new Error(`disposable SQLite fixture write failed: ${result.stderr}`);
+  return JSON.parse(result.stdout);
 }
 
 async function availablePort() {
