@@ -308,6 +308,83 @@ func TestUpdatePart_SuccessfulImageReplacement(t *testing.T) {
 	}
 }
 
+func TestUpdatePart_RemoveImageAfterSuccessfulPersistence(t *testing.T) {
+	svc, _, ctx := setupImageTestService(t)
+	id, err := svc.CreatePart(ctx, CreatePartRequest{
+		Name:  "Target",
+		Image: newTestImageUpload(t, "original.png"),
+	})
+	if err != nil {
+		t.Fatalf("CreatePart failed: %v", err)
+	}
+
+	before, err := svc.GetPart(ctx, id)
+	if err != nil {
+		t.Fatalf("GetPart failed: %v", err)
+	}
+	originalImage := before.ImagePath.String
+	assertImageFilesExist(t, originalImage, true)
+
+	if err := svc.UpdatePart(ctx, UpdatePartRequest{ID: id, Name: "Target", RemoveImage: true}); err != nil {
+		t.Fatalf("UpdatePart failed: %v", err)
+	}
+
+	after, err := svc.GetPart(ctx, id)
+	if err != nil {
+		t.Fatalf("GetPart failed: %v", err)
+	}
+	if after.ImagePath.Valid || after.ImagePath.String != "" {
+		t.Errorf("expected image reference to be cleared, got %+v", after.ImagePath)
+	}
+	assertImageFilesExist(t, originalImage, false)
+	if files := listImageFiles(t); len(files) != 0 {
+		t.Errorf("expected removed image and thumbnail to be the only files removed, got %v", files)
+	}
+}
+
+func TestUpdatePart_FailedImageRemovalPreservesExistingFiles(t *testing.T) {
+	svc, _, ctx := setupImageTestService(t)
+	if _, err := svc.CreatePart(ctx, CreatePartRequest{Name: "Conflict", BarcodeData: "DUP-BC"}); err != nil {
+		t.Fatalf("failed to create conflicting part: %v", err)
+	}
+	id, err := svc.CreatePart(ctx, CreatePartRequest{
+		Name:        "Target",
+		BarcodeData: "ORIG-BC",
+		Image:       newTestImageUpload(t, "original.png"),
+	})
+	if err != nil {
+		t.Fatalf("CreatePart failed: %v", err)
+	}
+	before, err := svc.GetPart(ctx, id)
+	if err != nil {
+		t.Fatalf("GetPart failed: %v", err)
+	}
+	originalImage := before.ImagePath.String
+	filesBefore := listImageFiles(t)
+
+	err = svc.UpdatePart(ctx, UpdatePartRequest{
+		ID:          id,
+		Name:        "Target",
+		BarcodeData: "DUP-BC",
+		RemoveImage: true,
+	})
+	if err == nil {
+		t.Fatal("expected duplicate barcode update to fail")
+	}
+
+	after, err := svc.GetPart(ctx, id)
+	if err != nil {
+		t.Fatalf("GetPart failed: %v", err)
+	}
+	if after.ImagePath.String != originalImage {
+		t.Errorf("expected failed update to preserve image reference %q, got %q", originalImage, after.ImagePath.String)
+	}
+	assertImageFilesExist(t, originalImage, true)
+	if filesAfter := listImageFiles(t); !reflect.DeepEqual(filesBefore, filesAfter) {
+		t.Errorf("failed image removal changed files: before=%v after=%v", filesBefore, filesAfter)
+	}
+}
+
 // TestUpdatePart_UpdateWithoutImageChange verifies that updating ordinary fields
 // leaves the existing image and thumbnail untouched.
 func TestUpdatePart_UpdateWithoutImageChange(t *testing.T) {

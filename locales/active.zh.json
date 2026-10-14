@@ -686,6 +686,9 @@
   "CurrentCoverImage": {
     "other": "当前封面图像"
   },
+  "RemoveImage": {
+    "other": "删除图像"
+  },
   "ReplaceImageNote": {
     "other": "如果已上传，则替换当前图像。"
   },

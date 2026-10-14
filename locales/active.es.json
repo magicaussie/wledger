@@ -704,6 +704,9 @@
   "CurrentCoverImage": {
     "other": "Imagen de Portada Actual"
   },
+  "RemoveImage": {
+    "other": "Eliminar imagen"
+  },
   "ReplaceImageNote": {
     "other": "Reemplaza la imagen actual si se sube una nueva."
   },

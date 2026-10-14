@@ -686,6 +686,9 @@
   "CurrentCoverImage": {
     "other": "Immagine Copertina Attuale"
   },
+  "RemoveImage": {
+    "other": "Rimuovi immagine"
+  },
   "ReplaceImageNote": {
     "other": "Sostituisce l'immagine attuale se caricata."
   },

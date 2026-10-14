@@ -771,6 +771,9 @@
   "CurrentCoverImage": {
     "other": "Current Cover Image"
   },
+  "RemoveImage": {
+    "other": "Remove image"
+  },
   "ReplaceImageNote": {
     "other": "Replaces current image if uploaded."
   },

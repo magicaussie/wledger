@@ -112,6 +112,7 @@ type UpdatePartRequest struct {
 	MinStockThreshold int
 	Footprint         string
 	Image             *DocUpload
+	RemoveImage       bool
 	ExistingLinks     []LinkDTO
 	NewLinks          []LinkDTO
 	NewDocuments      []DocUpload
@@ -391,6 +392,10 @@ func (s *service) UpdatePart(ctx context.Context, req UpdatePartRequest) error {
 
 	newImagePath := oldPart.ImagePath.String
 	uploadedNewImage := false
+	removeOldImage := req.RemoveImage && (req.Image == nil || req.Image.File == nil)
+	if removeOldImage {
+		newImagePath = ""
+	}
 	if req.Image != nil && req.Image.File != nil {
 		s.logger.Debug("processing new image upload", "id", req.ID)
 		if mf, ok := req.Image.File.(multipart.File); ok {
@@ -530,7 +535,7 @@ func (s *service) UpdatePart(ctx context.Context, req UpdatePartRequest) error {
 		return fmt.Errorf("failed to update part: %w", err)
 	}
 
-	if uploadedNewImage && oldPart.ImagePath.Valid {
+	if (uploadedNewImage || removeOldImage) && oldPart.ImagePath.Valid {
 		images.DeleteByWebPath(oldPart.ImagePath.String)
 	}
 

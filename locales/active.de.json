@@ -686,6 +686,9 @@
   "CurrentCoverImage": {
     "other": "Aktuelles Titelbild"
   },
+  "RemoveImage": {
+    "other": "Bild entfernen"
+  },
   "ReplaceImageNote": {
     "other": "Ersetzt das aktuelle Bild, falls hochgeladen."
   },

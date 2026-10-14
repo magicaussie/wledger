@@ -661,6 +661,7 @@ func (h *Handler) parsePartUpdateRequest(r *http.Request, id int64) (parts.Updat
 		ReorderLevel:      reorder,
 		MinStockThreshold: minStock,
 		Footprint:         r.FormValue("footprint"),
+		RemoveImage:       r.FormValue("remove_image") == "true",
 		Tags:              h.parseFormTags(r.FormValue("tags")),
 		ExistingLinks:     h.parseFormLinks(r, "existing_"),
 		NewLinks:          h.parseFormLinks(r, ""),

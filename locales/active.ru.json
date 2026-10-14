@@ -686,6 +686,9 @@
   "CurrentCoverImage": {
     "other": "Текущая обложка"
   },
+  "RemoveImage": {
+    "other": "Удалить изображение"
+  },
   "ReplaceImageNote": {
     "other": "Заменяет текущее изображение, если оно загружено."
   },

@@ -13,6 +13,7 @@ const path = require('node:path');
   const scratchDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wledger-task064-fresh-'));
   const databasePath = path.join(scratchDir, 'data', 'wledger.db');
   const task067Enabled = process.env.WLEDGER_TASK067_LOCATE === '1';
+  const inventoryOnly = process.env.WLEDGER_TASK064_INVENTORY_ONLY === '1';
   const task065RestoreEnabled = process.env.WLEDGER_TASK065_RESTORE === '1' || task067Enabled;
   let restoreScratchDir;
   let restoreServer;
@@ -27,6 +28,7 @@ const path = require('node:path');
   const mockRequests = [];
   const mockWrites = [];
   const findings = [];
+  let acceptDialogs = true;
   let server;
   let browser;
   let baseURL;
@@ -131,7 +133,7 @@ const path = require('node:path');
     const startServer = (workingDirectory = scratchDir, port = appPort) => {
       const child = spawn(binaryPath, [], {
         cwd: workingDirectory,
-        env: { ...process.env, WLEDGER_INSECURE_COOKIES: '1', WLEDGER_PHYSICAL_OUTPUT_ENABLED: 'true', WLEDGER_PORT: String(port) },
+        env: { ...process.env, WLEDGER_INSECURE_COOKIES: '1', WLEDGER_PHYSICAL_OUTPUT_ENABLED: inventoryOnly ? 'false' : 'true', WLEDGER_PORT: String(port) },
         stdio: ['ignore', 'pipe', 'pipe'],
       });
       let output = '';
@@ -157,7 +159,7 @@ const path = require('node:path');
         appMutations.push({ method: request.method(), path: new URL(request.url()).pathname });
       }
     });
-    page.on('dialog', dialog => dialog.accept());
+    page.on('dialog', dialog => acceptDialogs ? dialog.accept() : dialog.dismiss());
 
     await page.goto(`${baseURL}/setup`);
     assert.equal(new URL(page.url()).pathname, '/setup');
@@ -511,6 +513,92 @@ const path = require('node:path');
     }
 
     const firstPart = createdParts[0];
+    const uploadedImage = readOnlyRows(databasePath, 'SELECT image_path FROM parts WHERE id=?', [firstPart.id])[0][0];
+    assert.ok(uploadedImage, 'part creation should persist the initial browser image upload');
+    const imageFiles = webPath => {
+      const name = path.basename(webPath);
+      const base = path.parse(name).name;
+      return [path.join(scratchDir, 'app', 'uploads', 'images', name), path.join(scratchDir, 'app', 'uploads', 'images', `${base}_thumb.jpg`)];
+    };
+    const assertImageFiles = (webPath, exists) => {
+      for (const file of imageFiles(webPath)) assert.equal(fs.existsSync(file), exists, `${file} exists should be ${exists}`);
+    };
+    assertImageFiles(uploadedImage, true);
+
+    const duplicateOwner = createdParts[1];
+    await page.goto(`${baseURL}/parts/${duplicateOwner.id}/edit`);
+    const duplicateOwnerForm = page.locator(`form[action="/parts/${duplicateOwner.id}/update"]`);
+    await duplicateOwnerForm.locator('input[name="barcode_data"]').fill('UI-DUPLICATE-BARCODE');
+    await duplicateOwnerForm.locator('button[type="submit"]').click();
+    await page.waitForURL(`${baseURL}/parts/${duplicateOwner.id}`);
+
+    await page.goto(`${baseURL}/parts/${firstPart.id}/edit`);
+    let imageEditForm = page.locator(`form[action="/parts/${firstPart.id}/update"]`);
+    await imageEditForm.locator('textarea[name="description"]').fill('Edited without changing the cover image');
+    await imageEditForm.locator('button[type="submit"]').click();
+    await page.waitForURL(`${baseURL}/parts/${firstPart.id}`);
+    assert.equal(readOnlyRows(databasePath, 'SELECT image_path FROM parts WHERE id=?', [firstPart.id])[0][0], uploadedImage, 'ordinary edits should preserve the existing image reference');
+    assertImageFiles(uploadedImage, true);
+
+    await page.goto(`${baseURL}/parts/${firstPart.id}/edit`);
+    imageEditForm = page.locator(`form[action="/parts/${firstPart.id}/update"]`);
+    await imageEditForm.locator('input[name="image"]').setInputFiles({ name: 'replacement.png', mimeType: 'image/png', buffer: testImage });
+    await imageEditForm.locator('button[type="submit"]').click();
+    await page.waitForURL(`${baseURL}/parts/${firstPart.id}`);
+    const replacementImage = readOnlyRows(databasePath, 'SELECT image_path FROM parts WHERE id=?', [firstPart.id])[0][0];
+    assert.ok(replacementImage && replacementImage !== uploadedImage, 'replacement should persist a new image reference');
+    assertImageFiles(uploadedImage, false);
+    assertImageFiles(replacementImage, true);
+    await page.locator(`img[src="${replacementImage}"]`).waitFor();
+
+    const duplicatePartCount = Number(readOnlyRows(databasePath, 'SELECT COUNT(*) FROM parts')[0][0]);
+    await page.goto(`${baseURL}/parts/new`);
+    const duplicatePartForm = page.locator('form[action="/parts"]');
+    await duplicatePartForm.locator('input[name="name"]').fill('Duplicate barcode should be rejected');
+    await duplicatePartForm.locator('input[name="barcode_data"]').fill('UI-DUPLICATE-BARCODE');
+    const duplicatePartResponse = page.waitForResponse(response => response.request().method() === 'POST' && new URL(response.url()).pathname === '/parts');
+    await duplicatePartForm.locator('button[type="submit"]').click();
+    assert.equal((await duplicatePartResponse).status(), 409, 'duplicate product barcode should be rejected');
+    assert.equal(Number(readOnlyRows(databasePath, 'SELECT COUNT(*) FROM parts')[0][0]), duplicatePartCount, 'duplicate create must not mutate the product table');
+
+    await page.goto(`${baseURL}/parts/${firstPart.id}/edit`);
+    imageEditForm = page.locator(`form[action="/parts/${firstPart.id}/update"]`);
+    await imageEditForm.locator('input[name="remove_image"]').check();
+    await imageEditForm.locator('input[name="barcode_data"]').fill('UI-DUPLICATE-BARCODE');
+    const failedRemovalResponse = page.waitForResponse(response => response.request().method() === 'POST' && new URL(response.url()).pathname === `/parts/${firstPart.id}/update`);
+    await imageEditForm.locator('button[type="submit"]').click();
+    assert.ok((await failedRemovalResponse).status() >= 400, 'failed duplicate update with image removal should return an error');
+    assert.equal(readOnlyRows(databasePath, 'SELECT image_path FROM parts WHERE id=?', [firstPart.id])[0][0], replacementImage, 'failed update must preserve the database image reference');
+    assertImageFiles(replacementImage, true);
+
+    await page.goto(`${baseURL}/parts/${firstPart.id}/edit`);
+    imageEditForm = page.locator(`form[action="/parts/${firstPart.id}/update"]`);
+    await imageEditForm.locator('input[name="remove_image"]').check();
+    await imageEditForm.locator('button[type="submit"]').click();
+    await page.waitForURL(`${baseURL}/parts/${firstPart.id}`);
+    assert.equal(readOnlyRows(databasePath, 'SELECT image_path FROM parts WHERE id=?', [firstPart.id])[0][0], null, 'explicit removal should clear the persisted image reference');
+    assertImageFiles(replacementImage, false);
+    assert.equal(await page.locator('figure img').count(), 0, 'part detail should stop displaying the removed image');
+
+    await page.goto(`${baseURL}/parts/${duplicateOwner.id}/edit`);
+    const retainedImageForm = page.locator(`form[action="/parts/${duplicateOwner.id}/update"]`);
+    await retainedImageForm.locator('input[name="image"]').setInputFiles({ name: 'archive-image.png', mimeType: 'image/png', buffer: testImage });
+    await retainedImageForm.locator('button[type="submit"]').click();
+    await page.waitForURL(`${baseURL}/parts/${duplicateOwner.id}`);
+    const retainedImage = readOnlyRows(databasePath, 'SELECT image_path FROM parts WHERE id=?', [duplicateOwner.id])[0][0];
+    assert.ok(retainedImage, 'a separate image remains available for backup/restore acceptance');
+    assertImageFiles(retainedImage, true);
+
+    await page.goto(`${baseURL}/parts/${firstPart.id}`);
+    const stockRowsBeforeInvalid = readOnlyRows(databasePath, 'SELECT id,bin_id,quantity FROM part_assignments WHERE part_id=? ORDER BY id', [firstPart.id]);
+    const invalidAssignForm = page.locator(`form[action="/parts/${firstPart.id}/assign"]`);
+    const invalidAssignResponse = await page.evaluate(async form => {
+      const body = new FormData(form); body.set('bin_id', '0'); body.set('quantity', '0');
+      return (await fetch(form.action, { method: 'POST', body, credentials: 'same-origin' })).status;
+    }, await invalidAssignForm.elementHandle());
+    assert.equal(invalidAssignResponse, 400, 'invalid stock assignment must be rejected');
+    assert.deepEqual(readOnlyRows(databasePath, 'SELECT id,bin_id,quantity FROM part_assignments WHERE part_id=? ORDER BY id', [firstPart.id]), stockRowsBeforeInvalid, 'invalid assignment must not mutate existing stock');
+
     await page.goto(`${baseURL}/parts/${firstPart.id}`);
     const firstStockRow = page.locator('tr').filter({ hasText: inventoryBins[0][1] });
     await firstStockRow.locator('button[hx-post$="delta=1"]').click();
@@ -524,16 +612,61 @@ const path = require('node:path');
     const movePicker = page.locator(`#${moveModalID}_visual_bin_picker button[data-bin-id="${inventoryBins[1][0]}"]`);
     await movePicker.waitFor({ state: 'visible' });
     await movePicker.click();
+    acceptDialogs = false;
+    await page.locator(`button[form="${moveModalID}_form"]`).click();
+    await page.waitForTimeout(100);
+    assert.equal(new URL(page.url()).pathname, `/parts/${firstPart.id}`, 'cancelled manual stock move should leave the browser on the product');
+    assert.deepEqual(readOnlyRows(databasePath, 'SELECT bin_id, quantity FROM part_assignments WHERE part_id = ? ORDER BY bin_id', [firstPart.id]).map(row => row.map(Number)), [[firstPart.binID, 8]], 'cancelled manual move must not change stock');
+    acceptDialogs = true;
     const moveNavigation = page.waitForNavigation();
     await page.locator(`button[form="${moveModalID}_form"]`).click();
     await moveNavigation;
     const movedAssignments = readOnlyRows(databasePath, 'SELECT bin_id, quantity FROM part_assignments WHERE part_id = ? ORDER BY bin_id', [firstPart.id]);
     assert.deepEqual(movedAssignments.map(row => row.map(Number)), [[Number(inventoryBins[1][0]), 8]], 'moving stock should preserve quantity and change its bin through the browser');
 
+    await page.goto(`${baseURL}/parts/${firstPart.id}`);
+    await page.locator('button[onclick="stock_modal.showModal()"]:visible').click();
+    const extraBin = page.locator(`#visual_bin_picker button[data-bin-id="${inventoryBins[2][0]}"]`);
+    await extraBin.waitFor({ state: 'visible' });
+    await extraBin.click();
+    const extraStockForm = page.locator(`form[action="/parts/${firstPart.id}/assign"]`);
+    await extraStockForm.locator('input[name="quantity"]').fill('3');
+    const extraAssignNavigation = page.waitForNavigation();
+    await extraStockForm.locator('button[type="submit"]').click();
+    await extraAssignNavigation;
+    let lifecycleAssignments = readOnlyRows(databasePath, 'SELECT id,bin_id,quantity FROM part_assignments WHERE part_id=? ORDER BY bin_id', [firstPart.id]);
+    assert.deepEqual(lifecycleAssignments.map(row => row.map(Number)), [[lifecycleAssignments[0][0], Number(inventoryBins[1][0]), 8], [lifecycleAssignments[1][0], Number(inventoryBins[2][0]), 3]], 'manual assignment should add stock to a second physical bin');
+
+    const removeAssignmentID = Number(lifecycleAssignments[1][0]);
+    await page.goto(`${baseURL}/parts/${firstPart.id}`);
+
+    const removeStockForm = page.locator(`form[action="/parts/${firstPart.id}/stock/${removeAssignmentID}/delete"]`);
+    acceptDialogs = false;
+    await removeStockForm.locator('button').click();
+    await page.waitForTimeout(100);
+    assert.deepEqual(readOnlyRows(databasePath, 'SELECT id,bin_id,quantity FROM part_assignments WHERE part_id=? ORDER BY bin_id', [firstPart.id]).map(row => row.map(Number)), lifecycleAssignments.map(row => row.map(Number)), 'cancelled stock assignment removal must not mutate either location');
+    acceptDialogs = true;
+    const removeStockNavigation = page.waitForNavigation();
+    await removeStockForm.locator('button').click();
+    await removeStockNavigation;
+    lifecycleAssignments = readOnlyRows(databasePath, 'SELECT id,bin_id,quantity FROM part_assignments WHERE part_id=? ORDER BY bin_id', [firstPart.id]);
+    assert.deepEqual(lifecycleAssignments.map(row => row.slice(1).map(Number)), [[Number(inventoryBins[1][0]), 8]], 'removing one assignment should preserve stock in the other physical bin');
+
+    await page.getByRole('button', { name: 'Delete', exact: true }).click();
+    const deletePartNavigation = page.waitForNavigation();
+    await page.locator(`#delete_modal_${firstPart.id} form[action="/parts/${firstPart.id}/delete"] button[type="submit"]`).click();
+    await deletePartNavigation;
+    assert.equal(Number(readOnlyRows(databasePath, 'SELECT COUNT(*) FROM parts WHERE id=?', [firstPart.id])[0][0]), 0, 'confirmed product deletion should follow existing application rules');
+    assert.deepEqual(readOnlyRows(databasePath, 'SELECT id FROM part_assignments WHERE part_id=?', [firstPart.id]), [], 'part deletion should remove its remaining stock assignment through existing database semantics');
+
+    await page.goto(`${baseURL}/parts?bin=${inventoryBins[1][0]}`);
+    assert.match(await page.locator('#parts-grid').innerText(), /UI Part 2/, 'physical-bin stock search should find the product assigned to that bin');
+    assert.doesNotMatch(await page.locator('#parts-grid').innerText(), /UI Part 10/, 'physical-bin search should exclude products without stock in the selected bin');
+
     await page.goto(`${baseURL}/parts`);
     await page.locator('#scan-target-q').fill('UI Part 10');
     await page.waitForFunction(() => new URL(location.href).searchParams.get('q') === 'UI Part 10' && document.body.innerText.includes('UI Part 10'));
-    assert.doesNotMatch(await page.locator('#parts-grid').innerText(), /UI Part 1(?!0)/, 'search should filter to the matching part');
+    assert.doesNotMatch(await page.locator('#parts-grid').innerText(), /UI Part 1(?!0)/, 'search after deletion should show the matching product, not the deleted product');
 
     await page.goto(`${baseURL}/settings`);
     const roleUsers = [
@@ -637,12 +770,15 @@ const path = require('node:path');
     }
 
     let locateEvidence = { status: 'BLOCKED', reason: 'Controller mapping attestation did not pass for every controller; no Locate request was issued.' };
-    if (mappingAttestationsPassed === controllers.length) {
+    if (inventoryOnly) {
+      locateEvidence = { status: 'SKIPPED', reason: 'Inventory lifecycle acceptance keeps WLED output disabled and does not initiate Locate/Stop.' };
+    } else if (mappingAttestationsPassed === controllers.length) {
       locateEvidence = await exerciseMockLocate(page, baseURL, firstPart.id, inventoryBins, mockWrites, mockRequests);
     }
+    if (inventoryOnly) assert.equal(mockWrites.length, 0, 'inventory-only browser acceptance must not send WLED state writes');
 
     let crashRecoveryEvidence = { status: 'NOT RUN' };
-    if (task065RestoreEnabled && mappingAttestationsPassed === controllers.length) {
+    if (task065RestoreEnabled && !inventoryOnly && mappingAttestationsPassed === controllers.length) {
 
       const crashWrites = [];
       const stopPageForDrawer = async () => {
@@ -1136,6 +1272,14 @@ const path = require('node:path');
       });
       assert.deepEqual(unexpected, [], `unexpected browser console errors during Task 067 remain a failure: ${JSON.stringify(unexpected)}`);
 
+    } else if (inventoryOnly) {
+      const expectedInventoryValidationErrors = [
+        ['/parts', 'Failed to load resource: the server responded with a status of 409 (Conflict)'],
+        ['/parts/1', 'Failed to load resource: the server responded with a status of 400 (Bad Request)'],
+        ['/parts/1/update', 'Failed to load resource: the server responded with a status of 500 (Internal Server Error)'],
+      ];
+      assert.deepEqual(nonValidationConsoleErrors.map(error => [new URL(error.url).pathname, error.message]).sort(), expectedInventoryValidationErrors.sort(), 'browser errors should be limited to deliberate duplicate/invalid/failure non-mutation cases');
+
     } else if (task065RestoreEnabled) {
       const expectedInterruptedResponses = [
         ['/parts/2', 'Failed to load resource: net::ERR_CONNECTION_REFUSED'],
@@ -1147,8 +1291,8 @@ const path = require('node:path');
     }
 
     console.log(JSON.stringify({
-      result: mappingAttestationsPassed === controllers.length && locateEvidence.status === 'PASS' ? 'PARTIAL' : 'BLOCKED',
-      reason: 'Fresh setup, five controllers, cabinet/drawers, UI-created bins/placements, five-controller 1000-pixel wiring, reference allocations, ten parts, stock assignment/adjustment/move and restart persistence were browser-tested. Locate/Stop is reported separately based on mock-controller attestation and payload results.',
+      result: inventoryOnly ? 'PASS' : mappingAttestationsPassed === controllers.length && locateEvidence.status === 'PASS' ? 'PARTIAL' : 'BLOCKED',
+      reason: inventoryOnly ? 'Inventory-only acceptance used a fresh disposable app with WLED output explicitly disabled; part image lifecycle, physical-bin stock lifecycle, search, restart persistence and separate-app backup/restore were exercised. Locate/Stop was intentionally skipped.' : 'Fresh setup, five controllers, cabinet/drawers, UI-created bins/placements, five-controller 1000-pixel wiring, reference allocations, ten parts, stock assignment/adjustment/move and restart persistence were browser-tested. Locate/Stop is reported separately based on mock-controller attestation and payload results.',
       databasePath,
       initialEmptyCounts: emptyCounts,
       appliedMigrationVersions,

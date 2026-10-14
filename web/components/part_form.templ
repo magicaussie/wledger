@@ -50,6 +50,10 @@ templ PartForm(part db.Part, tags []db.Tag, allTags []db.Tag, links []db.PartLin
 										<img src={ part.ImagePath.String } alt={ i18n.T(ctx, "CurrentCoverImage") } class="object-cover w-full h-full"/>
 									</div>
 								</div>
+								<label class="label cursor-pointer justify-start gap-3">
+									<input type="checkbox" name="remove_image" value="true" class="checkbox checkbox-error"/>
+									<span class="label-text">{ i18n.T(ctx, "RemoveImage") }</span>
+								</label>
 							}
 							<input type="file" name="image" accept="image/*" class="file-input file-input-bordered file-input-primary w-full"/>
 						</div>
