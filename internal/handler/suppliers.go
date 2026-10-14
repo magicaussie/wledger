@@ -220,10 +220,7 @@ func (h *Handler) HandleSupplierOAuthStart(w http.ResponseWriter, r *http.Reques
 	state := providerKey + ":" + hex.EncodeToString(stateBytes)
 	h.Session.Put(r.Context(), supplierOAuthStateSessionKey, state)
 
-	scheme := "http"
-	if r.Header.Get("X-Forwarded-Proto") == "https" {
-		scheme = "https"
-	}
+	scheme := requestScheme(r)
 	base := strings.TrimRight(config.PublicURL(), "/")
 	if base == "" {
 		base = scheme + "://" + r.Host
@@ -237,6 +234,13 @@ func (h *Handler) HandleSupplierOAuthStart(w http.ResponseWriter, r *http.Reques
 	}
 
 	http.Redirect(w, r, authURL, http.StatusSeeOther)
+}
+
+func requestScheme(r *http.Request) string {
+	if r.TLS != nil {
+		return "https"
+	}
+	return "http"
 }
 
 func consumeSupplierOAuthState(ctx context.Context, sm *scs.SessionManager, state string) bool {

@@ -8,7 +8,7 @@ deployment environment or a local `.env` file that is not tracked by Git.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `WLEDGER_PUBLIC_URL` | *(empty)* | Externally reachable base URL, used to build absolute callback URLs (e.g. DigiKey OAuth). Must be HTTPS and match the redirect URI registered with the provider. |
+| `WLEDGER_PUBLIC_URL` | *(empty)* | Externally reachable base URL, used to build absolute callback URLs (e.g. DigiKey OAuth). Must be HTTPS and match the redirect URI registered with the provider. Set it explicitly behind a TLS-terminating reverse proxy; forwarding headers are not used to determine the callback scheme. |
 | `WLEDGER_API_TOKEN` | *(empty)* | Machine-to-machine bearer token for the `/api/v1` API (Home Assistant + MCP). When empty, the API routes are not mounted. Generate one, e.g. `openssl rand -hex 32`. |
 | `WLEDGER_INSECURE_COOKIES` | *(unset)* | Session-cookie hardening opt-out. See below. |
 

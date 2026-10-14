@@ -1,12 +1,27 @@
 package handler
 
 import (
+	"crypto/tls"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/alexedwards/scs/v2"
 )
+
+func TestRequestSchemeDoesNotTrustForwardedProto(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/suppliers/oauth/start", nil)
+	req.Header.Set("X-Forwarded-Proto", "https")
+	if scheme := requestScheme(req); scheme != "http" {
+		t.Fatalf("scheme from untrusted forwarding header = %q, want transport scheme http", scheme)
+	}
+
+	req.TLS = &tls.ConnectionState{}
+	req.Header.Set("X-Forwarded-Proto", "http")
+	if scheme := requestScheme(req); scheme != "https" {
+		t.Fatalf("scheme from TLS connection = %q, want https", scheme)
+	}
+}
 
 func TestConsumeSupplierOAuthStateIsSessionBoundAndSingleUse(t *testing.T) {
 	sm := scs.New()

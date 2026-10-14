@@ -13,7 +13,7 @@ COPY web ./web
 RUN npx @tailwindcss/cli -i ./web/static/css/input.css -o ./web/static/css/output.css --minify
 
 # Stage 2: Build Go Binary
-FROM golang:1.25-alpine AS go-builder
+FROM golang:1.26.9-alpine AS go-builder
 WORKDIR /build
 
 # Install build dependencies (CGO requires gcc/musl-dev)

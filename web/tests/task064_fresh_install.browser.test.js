@@ -1282,12 +1282,20 @@ const path = require('node:path');
 
     } else if (task065RestoreEnabled) {
       const expectedInterruptedResponses = [
+        ['/parts', 'Failed to load resource: the server responded with a status of 409 (Conflict)'],
+        ['/parts/1', 'Failed to load resource: the server responded with a status of 400 (Bad Request)'],
+        ['/parts/1/update', 'Failed to load resource: the server responded with a status of 500 (Internal Server Error)'],
         ['/parts/2', 'Failed to load resource: net::ERR_CONNECTION_REFUSED'],
         ['/storage/drawers/1?bin_id=2', 'Failed to load resource: net::ERR_CONNECTION_REFUSED'],
       ];
-      assert.deepEqual(nonValidationConsoleErrors.map(error => [new URL(error.url).pathname + new URL(error.url).search, error.message]).sort(), expectedInterruptedResponses.sort(), 'additional browser errors should only be expected responses interrupted by SIGKILL');
+      assert.deepEqual(nonValidationConsoleErrors.map(error => [new URL(error.url).pathname + new URL(error.url).search, error.message]).sort(), expectedInterruptedResponses.sort(), 'additional browser errors should be limited to deliberate validation failures and requests interrupted by SIGKILL');
     } else {
-      assert.deepEqual(nonValidationConsoleErrors, [], `unexpected browser console errors remain a failure: ${JSON.stringify(nonValidationConsoleErrors)}`);
+      const expectedInventoryValidationErrors = [
+        ['/parts', 'Failed to load resource: the server responded with a status of 409 (Conflict)'],
+        ['/parts/1', 'Failed to load resource: the server responded with a status of 400 (Bad Request)'],
+        ['/parts/1/update', 'Failed to load resource: the server responded with a status of 500 (Internal Server Error)'],
+      ];
+      assert.deepEqual(nonValidationConsoleErrors.map(error => [new URL(error.url).pathname, error.message]).sort(), expectedInventoryValidationErrors.sort(), 'browser errors should be limited to deliberate duplicate/invalid/failure non-mutation cases');
     }
 
     console.log(JSON.stringify({

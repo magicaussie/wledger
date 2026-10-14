@@ -22,7 +22,6 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 
 	// Global Middlewares
 	r.Use(chimiddleware.RequestID)
-	r.Use(chimiddleware.RealIP)
 	r.Use(chimiddleware.Recoverer)
 	r.Use(mw.RequestLogger)
 	r.Use(sessionManager.LoadAndSave)
