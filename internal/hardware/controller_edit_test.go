@@ -201,6 +201,87 @@ func TestUpdateControllerPreservesIdentityAndRelationships(t *testing.T) {
 	}
 }
 
+func TestControllerMutationMatrixFailsClosedForEveryDurableLocateState(t *testing.T) {
+	states := []struct {
+		name            string
+		state           string
+		mayHaveReceived int64
+	}{
+		{name: "activating", state: "activating", mayHaveReceived: 1},
+		{name: "active", state: "active", mayHaveReceived: 1},
+		{name: "stopping", state: "stopping", mayHaveReceived: 1},
+		{name: "partial", state: "partial", mayHaveReceived: 1},
+		{name: "stopped with unresolved marker", state: "stopped", mayHaveReceived: 1},
+	}
+	for _, tc := range states {
+		t.Run(tc.name, func(t *testing.T) {
+			service, store, conn := setupTest(t)
+			defer conn.Close()
+			ctx := context.Background()
+			controller, err := store.CreateController(ctx, controllerParams("Target", "192.0.2.70", 80))
+			if err != nil {
+				t.Fatal(err)
+			}
+			other, err := store.CreateController(ctx, controllerParams("Other", "192.0.2.71", 80))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := store.SavePhysicalLocateSession(ctx, db.SavePhysicalLocateSessionParams{
+				ControllerID: controller.ID, ControllerAddress: controller.IpAddress, ControllerPort: 80,
+				SessionID: "mutation-matrix", DrawerID: 1, BinID: 1, OwnerID: 1, State: tc.state,
+				RangesJson: `[{"start":25,"count":8}]`, CommandsJson: `[{"segment_id":10,"start":24,"stop":32}]`,
+				Fingerprint: "saved-fingerprint", Color: "#ff0000", Brightness: 128,
+				LastOperation: "activation", LastOperationAt: time.Now(), LastError: "cleanup pending",
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if err := store.SavePhysicalLocateSessionTarget(ctx, db.SavePhysicalLocateSessionTargetParams{
+				SessionID: "mutation-matrix", ControllerID: controller.ID, ControllerAddress: controller.IpAddress,
+				ControllerPort: 80, RangesJson: `[{"start":25,"count":8}]`,
+				CommandsJson: `[{"segment_id":10,"start":24,"stop":32}]`, Fingerprint: "saved-fingerprint",
+				MayHaveReceived: tc.mayHaveReceived, LastError: "cleanup pending",
+			}); err != nil {
+				t.Fatal(err)
+			}
+
+			if err := service.UpdateController(ctx, controller.ID, controllerParams("Target renamed", controller.IpAddress, 80)); err != nil {
+				t.Fatalf("name-only mutation should not affect targeting: %v", err)
+			}
+			for _, mutation := range []struct {
+				name string
+				call func() error
+			}{
+				{name: "IP address", call: func() error {
+					return service.UpdateController(ctx, controller.ID, controllerParams("Changed", "192.0.2.72", 80))
+				}},
+				{name: "port", call: func() error {
+					return service.UpdateController(ctx, controller.ID, controllerParams("Changed", controller.IpAddress, 8080))
+				}},
+				{name: "controller deletion", call: func() error { return service.DeleteController(ctx, controller.ID) }},
+				{name: "unrelated controller deletion while any session is owned", call: func() error { return service.DeleteController(ctx, other.ID) }},
+			} {
+				t.Run(mutation.name, func(t *testing.T) {
+					if err := mutation.call(); !errors.Is(err, db.ErrPhysicalLocateActive) {
+						t.Fatalf("mutation error=%v, want ErrPhysicalLocateActive", err)
+					}
+				})
+			}
+
+			stored, err := store.GetController(ctx, controller.ID)
+			if err != nil || stored.Name != "Target renamed" || stored.IpAddress != "192.0.2.70" || !stored.Port.Valid || stored.Port.Int64 != 80 {
+				t.Fatalf("rejected endpoint edits changed controller: %+v err=%v", stored, err)
+			}
+			if _, err := store.GetController(ctx, other.ID); err != nil {
+				t.Fatalf("rejected unrelated controller deletion removed controller: %v", err)
+			}
+			targets, err := store.ListPhysicalLocateSessionTargets(ctx, "mutation-matrix")
+			if err != nil || len(targets) != 1 || targets[0].ControllerAddress != "192.0.2.70" || targets[0].ControllerPort != 80 || targets[0].RangesJson != `[{"start":25,"count":8}]` || targets[0].CommandsJson != `[{"segment_id":10,"start":24,"stop":32}]` || targets[0].MayHaveReceived != tc.mayHaveReceived {
+				t.Fatalf("rejected mutations changed the saved recovery target: %+v err=%v", targets, err)
+			}
+		})
+	}
+}
+
 func TestUpdateControllerLocateOwnershipAllowsNameOnlyAndBlocksEndpoint(t *testing.T) {
 	service, store, conn := setupTest(t)
 	defer conn.Close()

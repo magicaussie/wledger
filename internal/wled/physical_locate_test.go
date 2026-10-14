@@ -43,6 +43,9 @@ type physicalMock struct {
 	postRelease               chan struct{}
 	postAccepted              chan struct{}
 	postResponseRelease       chan struct{}
+	applyPostEntered          chan struct{}
+	applyPostRelease          chan struct{}
+	delayApplyPostNumber      int
 	framebuffer               [][3]int
 }
 
@@ -125,10 +128,22 @@ func (m *physicalMock) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		m.postBodies = append(m.postBodies, body)
 		fail := m.postCount == m.failPostNumber
 		failBeforeApply := m.postCount == m.failBeforeApplyPostNumber
-		m.postApplied = append(m.postApplied, !failBeforeApply)
+		delayApply := m.postCount == m.delayApplyPostNumber
 		dropResponse := m.postCount == m.dropResponsePostNumber
 		accepted, responseRelease := m.postAccepted, m.postResponseRelease
+		applyEntered, applyRelease := m.applyPostEntered, m.applyPostRelease
 		m.postAccepted, m.postResponseRelease = nil, nil
+		if delayApply {
+			m.applyPostEntered, m.applyPostRelease = nil, nil
+			m.mu.Unlock()
+			if applyEntered != nil {
+				close(applyEntered)
+			}
+			if applyRelease != nil {
+				<-applyRelease
+			}
+			m.mu.Lock()
+		}
 		if !failBeforeApply {
 			if err := applyMockPixelPayload(m.framebuffer, m.state, body); err != nil {
 				m.mu.Unlock()
@@ -136,6 +151,7 @@ func (m *physicalMock) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+		m.postApplied = append(m.postApplied, !failBeforeApply)
 		m.mu.Unlock()
 		if accepted != nil {
 			close(accepted)
