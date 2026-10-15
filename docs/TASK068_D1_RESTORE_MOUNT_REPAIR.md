@@ -10,8 +10,15 @@ directories. Data-integrity, rollback and crash-recovery guarantees are
 preserved and covered by new regression tests, including a real Docker
 bind-mount reproduction of the original `EBUSY` failure.
 
+A follow-up repair (see “D1 follow-up repair” below) moves the durable restore
+journal inside the persistent uploads mount, so recovery no longer depends on
+any file that disappears when Docker recreates the container, and adds a real
+Docker container-recreation regression harness.
+
 - Baseline (published) commit: `6dc85d3`
 - D1 repair implementation commit: `863e2274ca302ac1185c834a474da1e1d643dbf3`
+- D1 follow-up repair commit: `e8ab2a2` (durable recovery metadata inside the
+  persistent uploads mount)
 - Branch: `fix/d1-mount-aware-restore` (local only; not pushed — publication
   requires owner approval)
 
@@ -185,23 +192,128 @@ Environment: host Go 1.26.0 toolchain (CGO, gcc) and a disposable
 
 (D4 and D5 from the `6dc85d3` acceptance remain informational and out of scope.)
 
+## D1 follow-up repair — durable recovery metadata inside the persistent mount
+
+### Identified gap
+
+The mount-aware protocol kept the durable restore journal in the sibling control
+directory, `maintenance.ControlDir(uploadsDir)` =
+`<parent-of-uploads>/.wledger-restore-control-<hash>`. In the standard Docker
+deployment the uploads path is `/wledger/app/uploads` and its parent
+`/wledger/app` is **not** a persistent volume (only `./data`, `./uploads` and
+`./logs` are bind-mounted), so the journal lived on the container filesystem.
+`docker restart` kept it, but `docker compose up --force-recreate` (or any
+container recreation) discarded it while the uploads bind mount persisted.
+
+Recovery metadata locations before this repair:
+
+| Metadata | Location | Survives container recreation? |
+| --- | --- | --- |
+| Restore journal | sibling control dir (`/wledger/app/.wledger-restore-control-<hash>`) | **No — the gap** |
+| Maintenance lock | sibling control dir | No (recreated on demand; not recovery state) |
+| Candidate / previous generation dirs | in-mount `.wledger-restore/<id>.{candidate,previous}` | Yes |
+| Durable drain marker | in-mount `<previous>/.drained` | Yes |
+| Committed generation marker | SQLite database (`./data`) | Yes |
+
+A container recreation part-way through activation therefore lost the journal
+while the mount kept a half-swapped namespace, and startup recovery had nothing
+to act on: the live namespace could be served in a mixed generation.
+
+### Repair
+
+1. **The journal now lives inside the persistent mount.** `journalPath` writes
+the journal to `<uploads>/.wledger-restore/.wledger-restore-journal.json` when
+the uploads path is a mount point (the same hidden control directory that
+already holds the generation staging), and to the sibling control directory
+otherwise. The journal is written and fsynced before any live-namespace
+mutation, so it is durable before the drain begins.
+2. **The in-mount generation directories are self-describing recovery
+metadata.** If the journal is missing (lost, or removed by an operator) but
+durable generation staging directories exist inside the mount, startup recovery
+reconstructs the pending generation from the directory names and the
+in-database committed-generation marker. It fails closed when the on-disk state
+is ambiguous (more than one generation ID, or an unrecognised entry).
+3. **The fail-closed middleware covers both journal locations.** `Gate` now
+remembers its uploads directory and `hasPendingRestore` checks the in-mount
+journal as well as the sibling one, so a pending restore blocks every request
+regardless of where the journal lives.
+4. **The uploads route never serves the control plane.** `HandleUploads` refuses
+any path with a hidden segment, so the in-mount journal and generation
+directories are unreachable over HTTP.
+5. **Cleanup is journal-aware.** Recovery removes the now-empty in-mount control
+directory only after the journal has been retired, so no restore artifact is
+left in the served uploads namespace.
+
+The default whole-directory swap for an ordinary (non-mount) uploads directory
+is unchanged.
+
+### Failure scenarios
+
+| # | Scenario | Outcome |
+| --- | --- | --- |
+| 1 | Container killed during the drain phase | Exact recovery of the previous generation (journal in-mount, or reconstructed from the durable generation directories). |
+| 2 | Container killed during the fill phase | Exact recovery of the previous generation (the durable `.drained` marker distinguishes the phase). |
+| 3 | Container recreated with the same uploads bind mount and a fresh container filesystem | Exact recovery: the in-mount journal and generation directories persist, so recovery runs exactly as after a restart. |
+| 4 | Database committed, then container recreated before cleanup | Exact completion of the committed new generation; the replaced generation is retired. |
+| 5 | Failure after moving some, but not all, top-level uploads entries | Exact recovery of the previous generation (partial drain or partial fill). |
+| 6 | Missing, corrupted or contradictory journal / generation markers | Missing journal with unambiguous durable generations: exact recovery. Ambiguous generations, a corrupted journal, or a journal that contradicts the on-disk generation: fail-closed startup that preserves every file and requires explicit recovery. |
+
+### Changes (follow-up repair)
+
+| File | Change |
+| --- | --- |
+| `internal/maintenance/gate.go` | Add `InMountControlDir`/`JournalPaths`; the fail-closed check now covers the in-mount journal. |
+| `internal/backup/restore_generation.go` | Durable in-mount `journalPath`; dual-location journal read/retire; reconstruct a missing journal from the durable in-mount generation directories; fail closed on ambiguity or contradiction. |
+| `internal/backup/restore_generation_mount.go` | Share the control-directory name with `maintenance`; add a deterministic activation failpoint. |
+| `internal/handler/uploads.go` | Refuse to serve any hidden path. |
+| `internal/backup/restore_mount_persistence_test.go` | New. Deterministic scenario regression tests. |
+| `internal/backup/restore_mount_recreate_test.go` | New. In-container half of the real container-recreation harness. |
+| `internal/maintenance/gate_test.go`, `internal/router/router_uploads_test.go` | New fail-closed and hidden-path tests. |
+| `scripts/test-restore-mount-recreate.sh` | New. Real Docker container-recreation harness. |
+
+### Tests and verification (follow-up repair)
+
+- Deterministic unit/regression tests (`internal/backup/restore_mount_persistence_test.go`):
+  `JournalLivesInsideMountDuringActivation`,
+  `RecoversInterruptedDrainWithoutJournal`,
+  `RecoversInterruptedFillWithoutJournal`, `RollsForwardCommittedWithoutJournal`,
+  `JournalSurvivesContainerRecreation`, `MissingJournalAmbiguousFailsClosed`,
+  `CorruptedJournalFailsClosed`, `ContradictoryJournalFailsClosed`. Each was
+  confirmed to fail against the pre-repair behaviour.
+- `internal/maintenance/gate_test.go`: `TestGateMiddlewareFailsClosedForInMountJournal`.
+- `internal/router/router_uploads_test.go`: `TestUploadsHandlerRefusesHiddenControlPlane`.
+- Real Docker container recreation (`scripts/test-restore-mount-recreate.sh`):
+  for each of the `drain`, `drain-marker`, `fill` and `commit` failpoints, one
+  container performs a restore that is killed at the failpoint and a second,
+  freshly created container over the same persistent `uploads` and `data` bind
+  mounts runs startup recovery and asserts the outcome. Confirmed to fail
+  against the pre-repair behaviour.
+- `go test -tags fts5 -count=1 ./...` — PASS.
+- `go test -race -tags fts5 -count=1 ./internal/backup/ ./internal/maintenance/ ./internal/router/ ./internal/handler/` — PASS.
+- `go vet -tags fts5 ./...` — PASS; `gofmt` clean on changed files;
+  `git diff --check` clean.
+- `scripts/test-restore-mount.sh` (original D1 EBUSY regression) — PASS.
+
 ## Remaining limitations
 
 - A mount point cannot be swapped in one syscall, so activation on a mount is a
   sequence of atomic per-entry renames rather than a single atomic directory
   rename. Serving consistency during the swap is provided by the exclusive
   maintenance gate, not by a single syscall; recovery consistency is provided
-  by the durable journal, the in-mount drain marker and the in-database
-  generation marker.
+  by the durable in-mount journal, the in-mount drain marker and the
+  in-database generation marker.
 - Mount detection relies on Linux `/proc/self/mountinfo`. On other platforms the
   behaviour falls back to the unchanged directory swap (the Docker deployment
   this repair targets is Linux).
-- The restore journal remains in the sibling control directory (outside the
-  mount) so the existing middleware fail-closed check is unchanged. A container
-  *recreation* part-way through activation (not a restart) can therefore lose
-  the journal while the mount persists; this pre-dates D1 and is not a
-  regression. The mount-aware protocol never deletes operator recovery
-  directories.
+- The maintenance lock file remains in the sibling control directory (outside
+  the mount). It is not recovery state: it is recreated on demand and a
+  recreated container simply creates a new one. The durable restore journal now
+  lives inside the mount, so recovery no longer depends on any file that
+  disappears when Docker recreates the container.
+- Reconstruction of a missing journal is performed only for a mounted uploads
+  directory. For an ordinary uploads directory the journal and the generation
+  staging share the container filesystem and are lost together, so there is
+  nothing to reconstruct.
 - No physical WLED output was enabled and no real controller was contacted.
 
 ## Guardrails observed
