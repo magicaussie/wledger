@@ -135,38 +135,48 @@ func SplitTopologyRange(topology Topology, start, count int64) ([]PhysicalPiece,
 	return pieces, nil
 }
 
+func outputSettings(output String) controllerconfig.Output {
+	return controllerconfig.Output{
+		DisplayOrder: 0, Name: "pixel mapping", PixelCount: output.Record.PixelCount,
+		Direction: output.Direction, Pattern: output.Pattern, Rows: output.Rows,
+		Columns: output.Columns, CustomOrder: append([]int64(nil), output.CustomOrder...),
+	}
+}
+
 func validateOutputMapping(output String) error {
-	pixelCount := output.Record.PixelCount
-	if pixelCount < 1 || pixelCount > controllerconfig.MaxPixelsPerOutput {
-		return ErrInvalidTopology
-	}
-	if output.Direction != "" && output.Direction != "forward" && output.Direction != "reverse" {
-		return ErrInvalidTopology
-	}
-	switch output.Pattern {
-	case "", "linear":
-		if len(output.CustomOrder) != 0 {
-			return ErrInvalidTopology
-		}
-	case "serpentine_rows", "serpentine_columns":
-		if output.Rows < 1 || output.Columns < 1 || output.Rows > math.MaxInt64/output.Columns || output.Rows*output.Columns != pixelCount || len(output.CustomOrder) != 0 {
-			return ErrInvalidTopology
-		}
-	case "custom":
-		if int64(len(output.CustomOrder)) != pixelCount {
-			return ErrInvalidTopology
-		}
-		seen := make([]bool, len(output.CustomOrder))
-		for _, pixel := range output.CustomOrder {
-			if pixel < 0 || pixel >= int64(len(seen)) || seen[int(pixel)] {
-				return ErrInvalidTopology
-			}
-			seen[int(pixel)] = true
-		}
-	default:
+	settings := controllerconfig.Settings{Outputs: []controllerconfig.Output{outputSettings(output)}}
+	if _, err := settings.NormalizeAndValidate(); err != nil {
 		return ErrInvalidTopology
 	}
 	return nil
+}
+
+// MapOutputRange returns the exact zero-based physical output indexes selected
+// by a zero-based logical pixel range. It is the output-level mapping primitive
+// used by preview consumers and by cabinet topology resolution.
+func MapOutputRange(output controllerconfig.Output, logicalStart, count int64) ([]int64, error) {
+	settings := controllerconfig.Settings{Outputs: []controllerconfig.Output{output}}
+	if _, err := settings.NormalizeAndValidate(); err != nil {
+		return nil, ErrInvalidTopology
+	}
+	output = settings.Outputs[0]
+	if logicalStart < 0 || count < 1 || count > output.PixelCount-logicalStart {
+		return nil, ErrRangeOutOfBounds
+	}
+	mappedOutput := String{
+		Record: db.CabinetLedString{PixelCount: output.PixelCount}, Direction: output.Direction,
+		Pattern: output.Pattern, Rows: output.Rows, Columns: output.Columns,
+		CustomOrder: output.CustomOrder,
+	}
+	pixels := make([]int64, 0, count)
+	for logical := logicalStart; logical < logicalStart+count; logical++ {
+		physical, err := outputPixelIndex(mappedOutput, logical+1)
+		if err != nil {
+			return nil, err
+		}
+		pixels = append(pixels, physical)
+	}
+	return pixels, nil
 }
 
 func outputPixelIndex(output String, logicalPixel int64) (int64, error) {

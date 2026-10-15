@@ -30,6 +30,21 @@ type Settings struct {
 	Outputs             []Output `json:"outputs"`
 }
 
+func MaxOutputsForType(controllerType string) int {
+	switch strings.TrimSpace(strings.ToLower(controllerType)) {
+	case "wled-esp8266":
+		return 1
+	case "wled-esp32":
+		return 10
+	case "wled":
+		return 32
+	case "wled-compatible":
+		return 64
+	default:
+		return 0
+	}
+}
+
 func (s *Settings) NormalizeAndValidate() (int64, error) {
 	s.ControllerType = strings.TrimSpace(strings.ToLower(s.ControllerType))
 	if s.ControllerType == "" {
@@ -49,16 +64,8 @@ func (s *Settings) NormalizeAndValidate() (int64, error) {
 	if s.Outputs == nil {
 		s.Outputs = []Output{}
 	}
-	maxOutputs := int64(64)
-	switch s.ControllerType {
-	case "wled-esp8266":
-		maxOutputs = 1
-	case "wled-esp32":
-		maxOutputs = 10
-	case "wled":
-		maxOutputs = 32
-	}
-	if int64(len(s.Outputs)) > maxOutputs {
+	maxOutputs := MaxOutputsForType(s.ControllerType)
+	if int64(len(s.Outputs)) > int64(maxOutputs) {
 		return 0, ErrInvalidConfiguration
 	}
 	sort.Slice(s.Outputs, func(i, j int) bool { return s.Outputs[i].DisplayOrder < s.Outputs[j].DisplayOrder })

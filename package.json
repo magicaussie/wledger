@@ -7,8 +7,8 @@
     "doc": "docs"
   },
   "scripts": {
-    "test": "node web/tests/grid_painter.test.js",
-    "test:js": "node web/tests/grid_painter.test.js",
+    "test": "node web/tests/grid_painter.test.js && node web/tests/pixel_mapping.test.js",
+    "test:js": "node web/tests/grid_painter.test.js && node web/tests/pixel_mapping.test.js",
     "test:layout-browser": "node web/tests/layout_editor.browser.test.js && node web/tests/physical_first.browser.test.js && node web/tests/barcode_scanner.browser.test.js",
     "test:csrf-browser": "node web/tests/csrf.browser.test.js",
     "test:fresh-install": "node web/tests/task064_fresh_install.browser.test.js",

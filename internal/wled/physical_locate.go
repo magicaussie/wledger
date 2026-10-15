@@ -18,11 +18,12 @@ import (
 	"time"
 
 	"github.com/tuxedocurly/wledger/internal/cabinetpixels"
+	"github.com/tuxedocurly/wledger/internal/controllerconfig"
 	"github.com/tuxedocurly/wledger/internal/db"
 )
 
 var (
-	ErrLocateMappingUnverified = errors.New("physical drawer Locate is disabled until an administrator verifies the controller's linear WLED output mapping")
+	ErrLocateMappingUnverified = errors.New("physical drawer Locate is disabled until an administrator verifies the controller's WLED output topology")
 	ErrPhysicalBinMissing      = errors.New("inventory bin has no physical drawer association")
 	ErrNoDrawerLEDAllocation   = errors.New("physical drawer has no saved LED ranges")
 	ErrLocateSessionOwned      = errors.New("active Locate session belongs to another user")
@@ -435,6 +436,9 @@ type PhysicalOutput struct {
 	FirstIndex int64 `json:"first_index"`
 	// LastIndex is the 1-based inclusive controller-wide number of the last LED.
 	LastIndex int64 `json:"last_index"`
+	// Reversed reflects WLED's device-level output reversal. Locate accounts for
+	// this separately from WLEDger's physical cabinet/output mapping.
+	Reversed bool `json:"reversed"`
 }
 
 // PhysicalOutputLayout is the verified, read-only view of a controller's
@@ -444,18 +448,21 @@ type PhysicalOutputLayout struct {
 	ControllerID int64            `json:"controller_id"`
 	Capacity     int64            `json:"capacity"`
 	MAC          string           `json:"mac"`
+	Firmware     string           `json:"firmware"`
+	Architecture string           `json:"architecture"`
 	Fingerprint  string           `json:"fingerprint"`
 	Outputs      []PhysicalOutput `json:"outputs"`
 }
 
 // DiscoverPhysicalOutputs reads a controller's explicit WLED output geometry
 // using GET /json/info and GET /json/cfg only. It validates controller
-// capacity and identity together with a complete, contiguous, non-reversed and
-// non-skipped output layout using the same safety logic as mapping
-// verification, then reports each output's order, zero-based controller-wide
-// start, length, active GPIO pins and the corresponding 1-based inclusive
-// controller-wide numbering. Missing starts are rejected rather than inferred,
-// and outputs are never conflated with WLED segments.
+// capacity and identity together with a complete, contiguous and non-skipped
+// output layout using the same safety logic as mapping verification. Reversed
+// WLED outputs are reported and their address transform is applied by Locate.
+// The result reports each output's order, zero-based controller-wide start,
+// length, active GPIO pins and corresponding 1-based inclusive numbering.
+// Missing starts are rejected rather than inferred, and outputs are never
+// conflated with WLED segments.
 func (s *PhysicalLocateService) DiscoverPhysicalOutputs(ctx context.Context, controllerID int64) (PhysicalOutputLayout, error) {
 	if controllerID <= 0 {
 		return PhysicalOutputLayout{}, errors.New("controller id is required for physical output discovery")
@@ -495,12 +502,15 @@ func (s *PhysicalLocateService) DiscoverPhysicalOutputs(ctx context.Context, con
 			Pins:       pins,
 			FirstIndex: start + 1,
 			LastIndex:  start + output.Length,
+			Reversed:   output.Reverse,
 		})
 	}
 	return PhysicalOutputLayout{
 		ControllerID: controller.ID,
 		Capacity:     controller.LedCount,
 		MAC:          info.MAC,
+		Firmware:     info.Version,
+		Architecture: info.Architecture,
 		Fingerprint:  fingerprint,
 		Outputs:      outputs,
 	}, nil
@@ -1546,10 +1556,13 @@ func newLocateSessionID() (string, error) {
 }
 
 type physicalInfo struct {
-	MAC  string `json:"mac"`
-	LEDs struct {
-		Count int64 `json:"count"`
-		RGBW  bool  `json:"rgbw"`
+	MAC          string `json:"mac"`
+	Version      string `json:"ver"`
+	Architecture string `json:"arch"`
+	LEDs         struct {
+		Count       int64 `json:"count"`
+		RGBW        bool  `json:"rgbw"`
+		MaxSegments int   `json:"maxseg"`
 	} `json:"leds"`
 }
 
@@ -1629,11 +1642,39 @@ func physicalMappingFingerprint(controller db.Controller, info physicalInfo, cfg
 	if len(cfg.Hardware.LED.Inputs) == 0 {
 		return "", fmt.Errorf("%w: WLED output configuration is missing or unsupported", ErrLocateTopology)
 	}
+	controllerType := strings.TrimSpace(strings.ToLower(controller.ControllerType))
+	configuredMaximum := controllerconfig.MaxOutputsForType(controllerType)
+	if configuredMaximum == 0 {
+		return "", fmt.Errorf("%w: saved controller type %q has no supported output capability profile", ErrLocateTopology, controller.ControllerType)
+	}
+	architecture := strings.ToLower(strings.TrimSpace(info.Architecture))
+	architectureMaximum := 0
+	switch {
+	case strings.Contains(architecture, "esp8266"):
+		architectureMaximum = 1
+	case strings.Contains(architecture, "esp32"):
+		architectureMaximum = 10
+	}
+	if controllerType == "wled-esp8266" || controllerType == "wled-esp32" {
+		if architecture == "" {
+			return "", fmt.Errorf("%w: saved controller type %q requires an explicit WLED architecture in /json/info", ErrLocateTopology, controller.ControllerType)
+		}
+		if (controllerType == "wled-esp8266" && !strings.Contains(architecture, "esp8266")) || (controllerType == "wled-esp32" && !strings.Contains(architecture, "esp32")) {
+			return "", fmt.Errorf("%w: saved controller type %q conflicts with WLED-reported architecture %q", ErrLocateTopology, controller.ControllerType, info.Architecture)
+		}
+	}
+	maximumOutputs := configuredMaximum
+	if architectureMaximum > 0 && architectureMaximum < maximumOutputs {
+		maximumOutputs = architectureMaximum
+	}
+	if len(cfg.Hardware.LED.Inputs) > maximumOutputs {
+		return "", fmt.Errorf("%w: WLED reports %d active outputs, exceeding the %d-output capability for controller type %q and architecture %q", ErrLocateTopology, len(cfg.Hardware.LED.Inputs), maximumOutputs, controller.ControllerType, info.Architecture)
+	}
 	var cursor int64
 	seenPins := make(map[int64]struct{})
 	for _, output := range cfg.Hardware.LED.Inputs {
-		if output.Start == nil || *output.Start != cursor || output.Length <= 0 || output.Type <= 0 || output.Reverse || output.Skip != 0 {
-			return "", fmt.Errorf("%w: output starts, lengths, reversal, or skipped LEDs are unsupported", ErrLocateTopology)
+		if output.Start == nil || *output.Start != cursor || output.Length <= 0 || output.Type <= 0 || output.Skip != 0 {
+			return "", fmt.Errorf("%w: output starts must form an explicit contiguous layout; output lengths/types must be positive and skipped LEDs are unsupported", ErrLocateTopology)
 		}
 		if output.Length > capacity-cursor {
 			return "", fmt.Errorf("%w: output configuration exceeds controller capacity", ErrLocateTopology)
@@ -1668,10 +1709,12 @@ func physicalMappingFingerprint(controller db.Controller, info physicalInfo, cfg
 		return "", fmt.Errorf("%w: custom LED mapping is not supported", ErrLocateTopology)
 	}
 	encoded, err := json.Marshal(struct {
-		MAC     string
-		Count   int64
-		Outputs []physicalOutput
-	}{strings.ToLower(strings.TrimSpace(info.MAC)), capacity, cfg.Hardware.LED.Inputs})
+		MAC          string
+		Version      string
+		Architecture string
+		Count        int64
+		Outputs      []physicalOutput
+	}{strings.ToLower(strings.TrimSpace(info.MAC)), strings.TrimSpace(info.Version), architecture, capacity, cfg.Hardware.LED.Inputs})
 	if err != nil {
 		return "", fmt.Errorf("fingerprint WLED outputs: %w", err)
 	}
@@ -1724,6 +1767,49 @@ func controllerURL(controller db.Controller, path string) string {
 	return controllerURLForAddress(controller.IpAddress, controllerPort(controller), path)
 }
 
+// controllerRangesToWLEDAddresses translates physical controller-local pixels
+// to WLED's logical controller indices. WLED output reversal is a device-level
+// transform and is intentionally applied after WLEDger's cabinet/output mapping.
+func controllerRangesToWLEDAddresses(ranges []ControllerRange, outputs []physicalOutput, capacity int64) ([]ControllerRange, error) {
+	var apiRanges []ControllerRange
+	for _, allocated := range ranges {
+		if allocated.Start < 1 || allocated.Count < 1 || allocated.Start-1 > capacity-allocated.Count {
+			return nil, fmt.Errorf("saved controller-wide range %d + %d is outside capacity %d", allocated.Start, allocated.Count, capacity)
+		}
+		start, stop := allocated.Start-1, allocated.Start-1+allocated.Count
+		for _, output := range outputs {
+			if output.Start == nil || output.Length <= 0 {
+				return nil, fmt.Errorf("%w: WLED output has no explicit start or positive length", ErrLocateTopology)
+			}
+			outputStart, outputStop := *output.Start, *output.Start+output.Length
+			left, right := max(start, outputStart), min(stop, outputStop)
+			if left >= right {
+				continue
+			}
+			if output.Reverse {
+				left, right = outputStart+output.Length-(right-outputStart), outputStart+output.Length-(left-outputStart)
+			}
+			apiRanges = append(apiRanges, ControllerRange{Start: left + 1, Count: right - left})
+		}
+	}
+	mapped := int64(0)
+	for _, item := range apiRanges {
+		mapped += item.Count
+	}
+	if mapped != countControllerRanges(ranges) {
+		return nil, fmt.Errorf("%w: WLED output configuration does not map every allocated physical pixel", ErrLocateTopology)
+	}
+	return mergeControllerRanges(apiRanges), nil
+}
+
+func countControllerRanges(ranges []ControllerRange) int64 {
+	var count int64
+	for _, item := range ranges {
+		count += item.Count
+	}
+	return count
+}
+
 func mapPhysicalRanges(ranges []ControllerRange, controller db.Controller, capacity int64, info physicalInfo, cfg physicalConfig, state physicalState, color string, brightness int) ([]physicalPixelCommand, string, error) {
 	if capacity <= 0 || !state.On {
 		return nil, "", ErrLocateTopology
@@ -1755,6 +1841,9 @@ func mapPhysicalRanges(ranges []ControllerRange, controller db.Controller, capac
 	if cursor != capacity {
 		return nil, "", fmt.Errorf("%w: WLED segments do not cover the full controller", ErrLocateTopology)
 	}
+	if info.LEDs.MaxSegments > 0 && len(segments) > info.LEDs.MaxSegments {
+		return nil, "", fmt.Errorf("%w: WLED reports %d segments, exceeding its /json/info limit of %d", ErrLocateTopology, len(segments), info.LEDs.MaxSegments)
+	}
 	fingerprintData := struct {
 		Mapping  string
 		Segments []physicalSegment
@@ -1768,28 +1857,42 @@ func mapPhysicalRanges(ranges []ControllerRange, controller db.Controller, capac
 	if _, err := HexToRGB(color); err != nil {
 		return nil, "", err
 	}
+	apiRanges, err := controllerRangesToWLEDAddresses(ranges, cfg.Hardware.LED.Inputs, capacity)
+	if err != nil {
+		return nil, "", err
+	}
 	var commands []physicalPixelCommand
-	for _, allocated := range ranges {
-		if allocated.Start < 1 || allocated.Count < 1 || allocated.Start-1 > capacity-allocated.Count {
-			return nil, "", fmt.Errorf("saved controller-wide range %d + %d is outside capacity %d", allocated.Start, allocated.Count, capacity)
-		}
+	for _, allocated := range apiRanges {
 		start, stop := allocated.Start-1, allocated.Start-1+allocated.Count
 		for _, seg := range segments {
 			left, right := max(start, seg.Start), min(stop, seg.Stop)
 			if left >= right {
 				continue
 			}
-			if !seg.On || seg.FX != 0 || seg.Group != 1 || seg.Space != 0 || seg.Rev || seg.Mirror || seg.Offset != 0 {
-				return nil, "", fmt.Errorf("%w: target segment %d must be on, solid, ungrouped, unspaced, unreversed, and have compatible solid segment state", ErrLocateTopology, seg.ID)
+			if !seg.On || seg.FX != 0 || seg.Group != 1 || seg.Space != 0 || seg.Mirror || seg.Offset != 0 {
+				return nil, "", fmt.Errorf("%w: target segment %d must be on, solid, ungrouped, unspaced, unmirrored, and have zero offset", ErrLocateTopology, seg.ID)
+			}
+			segmentStart, segmentStop := left-seg.Start, right-seg.Start
+			if seg.Rev {
+				segmentStart, segmentStop = seg.Stop-right, seg.Stop-left
 			}
 			commands = append(commands, physicalPixelCommand{
-				SegmentID: seg.ID, Start: left - seg.Start, Stop: right - seg.Start,
+				SegmentID: seg.ID, Start: segmentStart, Stop: segmentStop,
 			})
 		}
 	}
 	if len(commands) == 0 {
 		return nil, "", ErrNoDrawerLEDAllocation
 	}
+	sort.Slice(commands, func(i, j int) bool {
+		if commands[i].SegmentID == commands[j].SegmentID {
+			if commands[i].Start == commands[j].Start {
+				return commands[i].Stop < commands[j].Stop
+			}
+			return commands[i].Start < commands[j].Start
+		}
+		return commands[i].SegmentID < commands[j].SegmentID
+	})
 	return commands, fingerprint, nil
 }
 

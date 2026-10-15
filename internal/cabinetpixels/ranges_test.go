@@ -3,6 +3,7 @@ package cabinetpixels
 import (
 	"errors"
 	"reflect"
+	"sort"
 	"testing"
 
 	"github.com/tuxedocurly/wledger/internal/db"
@@ -38,7 +39,7 @@ func TestSplitCabinetRangeAcrossControllers(t *testing.T) {
 	}
 }
 
-func TestSplitTopologyRangeAppliesOutputWiringPatterns(t *testing.T) {
+func TestSplitTopologyRangeAppliesEveryWiringPatternToEveryExactRange(t *testing.T) {
 	makeTopology := func(pattern, direction string, rows, columns int64, custom []int64) Topology {
 		return Topology{Total: 6, Controllers: []Controller{{
 			Record: db.Controller{ID: 1},
@@ -51,31 +52,54 @@ func TestSplitTopologyRangeAppliesOutputWiringPatterns(t *testing.T) {
 		}}}
 	}
 	cases := []struct {
-		name        string
-		topology    Topology
-		start       int64
-		count       int64
-		localStarts []int64
+		name     string
+		topology Topology
+		mapping  []int64
 	}{
-		{name: "serpentine rows", topology: makeTopology("serpentine_rows", "forward", 2, 3, nil), start: 3, count: 2, localStarts: []int64{3, 6}},
-		{name: "serpentine columns", topology: makeTopology("serpentine_columns", "forward", 2, 3, nil), start: 2, count: 3, localStarts: []int64{4, 5, 2}},
-		{name: "custom order", topology: makeTopology("custom", "forward", 1, 1, []int64{0, 2, 1, 3, 5, 4}), start: 2, count: 2, localStarts: []int64{3, 2}},
-		{name: "reversed serpentine rows", topology: makeTopology("serpentine_rows", "reverse", 2, 3, nil), start: 3, count: 2, localStarts: []int64{4, 1}},
+		{name: "left-to-right", topology: makeTopology("linear", "forward", 1, 1, nil), mapping: []int64{1, 2, 3, 4, 5, 6}},
+		{name: "right-to-left", topology: makeTopology("linear", "reverse", 1, 1, nil), mapping: []int64{6, 5, 4, 3, 2, 1}},
+		{name: "serpentine rows", topology: makeTopology("serpentine_rows", "forward", 2, 3, nil), mapping: []int64{1, 2, 3, 6, 5, 4}},
+		{name: "reversed serpentine rows", topology: makeTopology("serpentine_rows", "reverse", 2, 3, nil), mapping: []int64{6, 5, 4, 1, 2, 3}},
+		{name: "serpentine columns", topology: makeTopology("serpentine_columns", "forward", 2, 3, nil), mapping: []int64{1, 4, 5, 2, 3, 6}},
+		{name: "reversed serpentine columns", topology: makeTopology("serpentine_columns", "reverse", 2, 3, nil), mapping: []int64{6, 3, 2, 5, 4, 1}},
+		{name: "top-to-bottom columns", topology: makeTopology("custom", "forward", 1, 1, []int64{0, 2, 4, 1, 3, 5}), mapping: []int64{1, 3, 5, 2, 4, 6}},
+		{name: "bottom-to-top columns", topology: makeTopology("custom", "forward", 1, 1, []int64{1, 3, 5, 0, 2, 4}), mapping: []int64{2, 4, 6, 1, 3, 5}},
+		{name: "independently reversed rows", topology: makeTopology("custom", "forward", 1, 1, []int64{2, 1, 0, 3, 4, 5}), mapping: []int64{3, 2, 1, 4, 5, 6}},
+		{name: "mixed custom directions", topology: makeTopology("custom", "forward", 1, 1, []int64{0, 3, 1, 4, 2, 5}), mapping: []int64{1, 4, 2, 5, 3, 6}},
+		{name: "custom permutation plus reverse", topology: makeTopology("custom", "reverse", 1, 1, []int64{0, 2, 1, 3, 5, 4}), mapping: []int64{6, 4, 5, 3, 1, 2}},
 	}
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
-			pieces, err := SplitTopologyRange(test.topology, test.start, test.count)
-			if err != nil {
-				t.Fatal(err)
-			}
-			var actual []int64
-			for _, piece := range pieces {
-				for pixel := int64(0); pixel < piece.Count; pixel++ {
-					actual = append(actual, piece.LocalStart+pixel)
+			for start := int64(1); start <= 6; start++ {
+				for count := int64(1); count <= 7-start; count++ {
+					pieces, err := SplitTopologyRange(test.topology, start, count)
+					if err != nil {
+						t.Fatalf("range %d+%d: %v", start, count, err)
+					}
+					var actual []int64
+					for _, piece := range pieces {
+						for pixel := int64(0); pixel < piece.Count; pixel++ {
+							actual = append(actual, piece.LocalStart+pixel)
+						}
+					}
+					want := append([]int64(nil), test.mapping[start-1:start+count-1]...)
+					sort.Slice(actual, func(i, j int) bool { return actual[i] < actual[j] })
+					sort.Slice(want, func(i, j int) bool { return want[i] < want[j] })
+					if !reflect.DeepEqual(actual, want) {
+						t.Errorf("range %d+%d mapped pixels = %v (pieces %+v), want %v", start, count, actual, pieces, want)
+					}
+					outputPixels, err := MapOutputRange(outputSettings(test.topology.Controllers[0].Strings[0]), start-1, count)
+					if err != nil {
+						t.Fatalf("canonical output map range %d+%d: %v", start, count, err)
+					}
+					wantOutputPixels := append([]int64(nil), test.mapping[start-1:start+count-1]...)
+					for index := range wantOutputPixels {
+						wantOutputPixels[index]--
+					}
+					if !reflect.DeepEqual(outputPixels, wantOutputPixels) {
+						t.Errorf("canonical output map range %d+%d = %v, want zero-based %v", start, count, outputPixels, wantOutputPixels)
+					}
 				}
-			}
-			if !reflect.DeepEqual(actual, test.localStarts) {
-				t.Errorf("mapped pixels = %v (pieces %+v), want %v", actual, pieces, test.localStarts)
 			}
 		})
 	}

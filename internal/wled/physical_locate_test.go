@@ -161,7 +161,7 @@ func (m *physicalMock) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			m.mu.Lock()
 		}
 		if !failBeforeApply {
-			if err := applyMockPixelPayload(m.framebuffer, m.state, body); err != nil {
+			if err := applyMockPixelPayload(m.framebuffer, m.state, m.config, body); err != nil {
 				m.mu.Unlock()
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
@@ -251,7 +251,7 @@ func (m *physicalMock) appliedPosts() []bool {
 	return append([]bool(nil), m.postApplied...)
 }
 
-func applyMockPixelPayload(framebuffer [][3]int, controllerState string, payload map[string]any) error {
+func applyMockPixelPayload(framebuffer [][3]int, controllerState, controllerConfig string, payload map[string]any) error {
 	segments, ok := payload["seg"].([]any)
 	if !ok {
 		if on, isBool := payload["on"].(bool); isBool && !on {
@@ -264,13 +264,18 @@ func applyMockPixelPayload(framebuffer [][3]int, controllerState string, payload
 	}
 	var state struct {
 		Segments []struct {
-			ID    int64 `json:"id"`
-			Start int   `json:"start"`
-			Stop  int   `json:"stop"`
+			ID      int64 `json:"id"`
+			Start   int   `json:"start"`
+			Stop    int   `json:"stop"`
+			Reverse bool  `json:"rev"`
 		} `json:"seg"`
 	}
 	if err := json.Unmarshal([]byte(controllerState), &state); err != nil {
 		return fmt.Errorf("decode current mock segment geometry: %w", err)
+	}
+	var config physicalConfig
+	if err := json.Unmarshal([]byte(controllerConfig), &config); err != nil {
+		return fmt.Errorf("decode current mock output geometry: %w", err)
 	}
 	for _, rawSegment := range segments {
 		segment, ok := rawSegment.(map[string]any)
@@ -281,14 +286,21 @@ func applyMockPixelPayload(framebuffer [][3]int, controllerState string, payload
 		if !ok {
 			return errors.New("targeted pixel segment has no numeric id")
 		}
-		var offset, capacity int
+		var geometry struct {
+			ID      int64
+			Start   int
+			Stop    int
+			Reverse bool
+		}
 		found := false
-		for _, geometry := range state.Segments {
-			if geometry.ID == int64(segmentID) {
-				offset, capacity, found = geometry.Start, geometry.Stop-geometry.Start, true
+		for _, candidate := range state.Segments {
+			if candidate.ID == int64(segmentID) {
+				geometry.ID, geometry.Start, geometry.Stop, geometry.Reverse = candidate.ID, candidate.Start, candidate.Stop, candidate.Reverse
+				found = true
 				break
 			}
 		}
+		offset, capacity := geometry.Start, geometry.Stop-geometry.Start
 		if !found || offset < 0 || capacity < 0 {
 			return fmt.Errorf("unsupported mock segment id or geometry %v", segmentID)
 		}
@@ -313,11 +325,25 @@ func applyMockPixelPayload(framebuffer [][3]int, controllerState string, payload
 			}
 			rgb[channel] = int(value)
 		}
-		for pixel := int(start) + offset; pixel < int(stop)+offset; pixel++ {
-			if pixel < 0 || pixel >= len(framebuffer) {
-				return fmt.Errorf("targeted mock pixel %d is outside controller capacity %d", pixel, len(framebuffer))
+		for segmentPixel := int(start); segmentPixel < int(stop); segmentPixel++ {
+			controllerPixel := offset + segmentPixel
+			if geometry.Reverse {
+				controllerPixel = geometry.Stop - 1 - segmentPixel
 			}
-			framebuffer[pixel] = rgb
+			physicalPixel := controllerPixel
+			for _, output := range config.Hardware.LED.Inputs {
+				if output.Start == nil || controllerPixel < int(*output.Start) || int64(controllerPixel) >= *output.Start+output.Length {
+					continue
+				}
+				if output.Reverse {
+					physicalPixel = int(*output.Start + output.Length - 1 - int64(controllerPixel) + *output.Start)
+				}
+				break
+			}
+			if physicalPixel < 0 || physicalPixel >= len(framebuffer) {
+				return fmt.Errorf("targeted mock pixel %d is outside controller capacity %d", physicalPixel, len(framebuffer))
+			}
+			framebuffer[physicalPixel] = rgb
 		}
 	}
 	return nil
@@ -620,6 +646,168 @@ func TestPhysicalLocateBlocksLegacyWritersUntilConfirmedStop(t *testing.T) {
 	}
 }
 
+func TestPhysicalLocateAppliesSavedSerpentineMappingAndReversedWLEDOutputExactly(t *testing.T) {
+	f := newPhysicalFixture(t)
+	ctx := context.Background()
+	var outputID int64
+	if err := f.database.QueryRowContext(ctx, `INSERT INTO controller_outputs (controller_id,display_order,name,pixel_count,direction,pattern,rows,columns,custom_order_json) VALUES (?,0,'Serpentine output',200,'reverse','serpentine_rows',10,20,'[]') RETURNING id`, f.controller).Scan(&outputID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.database.ExecContext(ctx, `INSERT INTO cabinet_led_strings (cabinet_id,controller_id,name,display_order,pixel_count,layout_complete,controller_output_id) VALUES (1,?,'Serpentine output',0,200,1,?)`, f.controller, outputID); err != nil {
+		t.Fatal(err)
+	}
+	f.mock.setConfig(`{"hw":{"led":{"ins":[{"start":0,"len":90,"rev":false,"skip":0,"type":22,"pin":[2,-1,-1]},{"start":90,"len":60,"rev":true,"skip":0,"type":22,"pin":[4,-1,-1]},{"start":150,"len":50,"rev":false,"skip":0,"type":22,"pin":[16,-1,-1]}]}}}`)
+	f.mock.mu.Lock()
+	f.mock.state = `{"on":true,"seg":[{"id":10,"start":0,"stop":75,"on":true,"fx":0,"grp":1,"spc":0,"rev":false,"mi":false,"of":0,"col":[[20,30,40],[0,0,0],[0,0,0]]},{"id":20,"start":75,"stop":150,"on":true,"fx":0,"grp":1,"spc":0,"rev":true,"mi":false,"of":0,"col":[[50,60,70],[0,0,0],[0,0,0]]},{"id":30,"start":150,"stop":200,"on":true,"fx":0,"grp":1,"spc":0,"rev":false,"mi":false,"of":0,"col":[[70,80,90],[0,0,0],[0,0,0]]}]}`
+	f.mock.mu.Unlock()
+	if err := f.service.SaveControllerMappingVerification(ctx, f.controller, true); err != nil {
+		t.Fatalf("verify read-only reversed WLED output mapping: %v", err)
+	}
+
+	initial := f.mock.pixels()
+	session, err := f.service.LocateDrawerBin(ctx, f.drawer1, f.bin1, 7)
+	if err != nil {
+		t.Fatalf("locate with saved serpentine/reverse mapping and reversed WLED output: %v", err)
+	}
+	if session.State != "active" {
+		t.Fatalf("Locate state = %q, want active", session.State)
+	}
+	wantLocate := []string{
+		`{"seg":[{"i":[49,51,[128,0,0]],"id":10}]}`,
+		`{"seg":[{"i":[10,14,[128,0,0]],"id":20}]}`,
+		`{"seg":[{"i":[66,70,[128,0,0]],"id":20}]}`,
+	}
+	if got := f.mock.rawPosts(); !reflect.DeepEqual(got, wantLocate) {
+		t.Fatalf("Locate JSON commands = %q, want exact reversed-output/segment-boundary commands %q", got, wantLocate)
+	}
+	selected := map[int]bool{49: true, 50: true, 80: true, 81: true, 82: true, 83: true, 100: true, 101: true, 102: true, 103: true}
+	locatedFrames := f.mock.pixels()
+	for pixel, before := range initial {
+		want := before
+		if selected[pixel] {
+			want = [3]int{128, 0, 0}
+		}
+		if got := locatedFrames[pixel]; got != want {
+			t.Fatalf("physical pixel %d after Locate = %v, want %v", pixel, got, want)
+		}
+	}
+	if err := f.service.StopDrawer(ctx, f.drawer1, 7); err != nil {
+		t.Fatalf("stop exact mapped Locate: %v", err)
+	}
+	wantPosts := append(append([]string(nil), wantLocate...),
+		`{"seg":[{"i":[49,51,[0,0,0]],"id":10}]}`,
+		`{"seg":[{"i":[10,14,[0,0,0]],"id":20}]}`,
+		`{"seg":[{"i":[66,70,[0,0,0]],"id":20}]}`,
+	)
+	if got := f.mock.rawPosts(); !reflect.DeepEqual(got, wantPosts) {
+		t.Fatalf("Locate/Stop JSON commands = %q, want exact saved targeted commands %q", got, wantPosts)
+	}
+	frames := f.mock.pixels()
+	for pixel, before := range initial {
+		want := before
+		if selected[pixel] {
+			want = [3]int{0, 0, 0}
+		}
+		if frames[pixel] != want {
+			t.Errorf("physical pixel %d after Stop = %v, want %v", pixel, frames[pixel], want)
+		}
+	}
+}
+
+func TestPhysicalMappingFingerprintChecksReportedControllerCapabilities(t *testing.T) {
+	var info physicalInfo
+	info.LEDs.Count = 8
+	info.Architecture = "esp32"
+	var cfg physicalConfig
+	cfg.Hardware.LED.Inputs = []physicalOutput{
+		{Start: int64Pointer(0), Length: 4, Pins: json.RawMessage(`[2,-1,-1]`), Type: 22},
+		{Start: int64Pointer(4), Length: 4, Pins: json.RawMessage(`[4,-1,-1]`), Type: 22},
+	}
+	if _, err := physicalMappingFingerprint(db.Controller{ControllerType: "wled-esp8266"}, info, cfg, 8); err == nil || !strings.Contains(err.Error(), "conflicts") {
+		t.Fatalf("architecture mismatch error = %v, want specific controller type conflict", err)
+	}
+	info.Architecture = "esp8266"
+	if _, err := physicalMappingFingerprint(db.Controller{ControllerType: "wled-esp8266"}, info, cfg, 8); err == nil || !strings.Contains(err.Error(), "exceeding the 1-output capability") {
+		t.Fatalf("output capability error = %v, want explicit one-output limit", err)
+	}
+	info.Architecture = "esp32"
+	if _, err := physicalMappingFingerprint(db.Controller{ControllerType: "wled-esp32"}, info, cfg, 8); err != nil {
+		t.Fatalf("matching read-only WLED architecture/output capability was rejected: %v", err)
+	}
+}
+
+func TestPhysicalLocateAppliesExplicitCustomPermutationToExactPixels(t *testing.T) {
+	f := newPhysicalFixture(t)
+	ctx := context.Background()
+	customOrder := make([]int64, 200)
+	for logical := range customOrder {
+		customOrder[logical] = int64((logical + 1) % len(customOrder))
+	}
+	encodedOrder, err := json.Marshal(customOrder)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var outputID int64
+	if err := f.database.QueryRowContext(ctx, `INSERT INTO controller_outputs (controller_id,display_order,name,pixel_count,direction,pattern,rows,columns,custom_order_json) VALUES (?,0,'Custom permuted output',200,'forward','custom',1,1,?) RETURNING id`, f.controller, string(encodedOrder)).Scan(&outputID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.database.ExecContext(ctx, `INSERT INTO cabinet_led_strings (cabinet_id,controller_id,name,display_order,pixel_count,layout_complete,controller_output_id) VALUES (1,?,'Custom permuted output',0,200,1,?)`, f.controller, outputID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.database.ExecContext(ctx, `DELETE FROM drawer_led_allocations WHERE drawer_id=?`, f.drawer1); err != nil {
+		t.Fatal(err)
+	}
+	for _, allocation := range []db.CreateDrawerLEDAllocationParams{
+		{CabinetID: 1, DrawerID: f.drawer1, StartPixel: 197, PixelCount: 4, DisplayOrder: 0},
+		{CabinetID: 1, DrawerID: f.drawer1, StartPixel: 50, PixelCount: 2, DisplayOrder: 1},
+	} {
+		if _, err := f.store.CreateDrawerLEDAllocation(ctx, allocation); err != nil {
+			t.Fatal(err)
+		}
+	}
+	f.mock.setConfig(`{"hw":{"led":{"ins":[{"start":0,"len":90,"rev":false,"skip":0,"type":22,"pin":[2,-1,-1]},{"start":90,"len":60,"rev":true,"skip":0,"type":22,"pin":[4,-1,-1]},{"start":150,"len":50,"rev":false,"skip":0,"type":22,"pin":[16,-1,-1]}]}}}`)
+	if err := f.service.SaveControllerMappingVerification(ctx, f.controller, true); err != nil {
+		t.Fatalf("verify controller before custom-permutation Locate: %v", err)
+	}
+
+	initial := f.mock.pixels()
+	if _, err := f.service.LocateDrawerBin(ctx, f.drawer1, f.bin1, 7); err != nil {
+		t.Fatalf("Locate custom permutation: %v", err)
+	}
+	wantLocate := []string{
+		`{"seg":[{"i":[0,1,[128,0,0]],"id":10}]}`,
+		`{"seg":[{"i":[50,52,[128,0,0]],"id":10}]}`,
+		`{"seg":[{"i":[97,100,[128,0,0]],"id":20}]}`,
+	}
+	if got := f.mock.rawPosts(); !reflect.DeepEqual(got, wantLocate) {
+		t.Fatalf("custom-permutation Locate JSON = %q, want exact disjoint physical pixels %q", got, wantLocate)
+	}
+	selected := map[int]bool{0: true, 50: true, 51: true, 197: true, 198: true, 199: true}
+	located := f.mock.pixels()
+	for pixel, before := range initial {
+		want := before
+		if selected[pixel] {
+			want = [3]int{128, 0, 0}
+		}
+		if located[pixel] != want {
+			t.Errorf("custom permutation physical pixel %d = %v, want %v", pixel, located[pixel], want)
+		}
+	}
+	if err := f.service.StopDrawer(ctx, f.drawer1, 7); err != nil {
+		t.Fatalf("Stop custom-permutation Locate: %v", err)
+	}
+	cleared := f.mock.pixels()
+	for pixel, before := range initial {
+		want := before
+		if selected[pixel] {
+			want = [3]int{0, 0, 0}
+		}
+		if cleared[pixel] != want {
+			t.Errorf("custom permutation physical pixel %d after Stop = %v, want %v", pixel, cleared[pixel], want)
+		}
+	}
+}
+
 func TestMapPhysicalRangesControllerBoundariesAndDisjointAllocations(t *testing.T) {
 	mock := newPhysicalMock()
 	var info physicalInfo
@@ -633,7 +821,7 @@ func TestMapPhysicalRangesControllerBoundariesAndDisjointAllocations(t *testing.
 	if err := json.Unmarshal([]byte(mock.state), &state); err != nil {
 		t.Fatal(err)
 	}
-	commands, _, err := mapPhysicalRanges([]ControllerRange{{Start: 97, Count: 8}, {Start: 150, Count: 2}}, db.Controller{LedCount: 200}, 200, info, cfg, state, "#FF0000", locateBrightness)
+	commands, _, err := mapPhysicalRanges([]ControllerRange{{Start: 97, Count: 8}, {Start: 150, Count: 2}}, db.Controller{LedCount: 200, ControllerType: "wled"}, 200, info, cfg, state, "#FF0000", locateBrightness)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -645,6 +833,33 @@ func TestMapPhysicalRangesControllerBoundariesAndDisjointAllocations(t *testing.
 		if commands[i].SegmentID != want[i].SegmentID || commands[i].Start != want[i].Start || commands[i].Stop != want[i].Stop {
 			t.Errorf("command %d = %+v, want %+v", i, commands[i], want[i])
 		}
+	}
+}
+
+func TestMapPhysicalRangesComposesWLEDOutputAndSegmentReversal(t *testing.T) {
+	var info physicalInfo
+	info.MAC = "AA:BB:CC:DD:EE:FF"
+	info.LEDs.Count = 8
+	var cfg physicalConfig
+	cfg.Hardware.LED.Inputs = []physicalOutput{
+		{Start: int64Pointer(0), Length: 4, Reverse: true, Pins: json.RawMessage(`[2,-1,-1]`), Type: 22},
+		{Start: int64Pointer(4), Length: 4, Pins: json.RawMessage(`[4,-1,-1]`), Type: 22},
+	}
+	var state physicalState
+	if err := json.Unmarshal([]byte(`{"on":true,"seg":[{"id":3,"start":0,"stop":4,"on":true,"fx":0,"grp":1,"spc":0,"rev":true,"mi":false,"of":0},{"id":9,"start":4,"stop":8,"on":true,"fx":0,"grp":1,"spc":0,"rev":false,"mi":false,"of":0}]}`), &state); err != nil {
+		t.Fatal(err)
+	}
+	commands, _, err := mapPhysicalRanges([]ControllerRange{{Start: 1, Count: 2}, {Start: 4, Count: 1}, {Start: 7, Count: 2}}, db.Controller{LedCount: 8, ControllerType: "wled"}, 8, info, cfg, state, "#00FF00", locateBrightness)
+	if err != nil {
+		t.Fatalf("map reversed device outputs and WLED segments: %v", err)
+	}
+	want := []physicalPixelCommand{
+		{SegmentID: 3, Start: 0, Stop: 2},
+		{SegmentID: 3, Start: 3, Stop: 4},
+		{SegmentID: 9, Start: 2, Stop: 4},
+	}
+	if !reflect.DeepEqual(commands, want) {
+		t.Fatalf("commands = %+v, want exact segment-local commands %+v", commands, want)
 	}
 }
 
@@ -1300,7 +1515,7 @@ func assertReadOnlyDiscovery(t *testing.T, mock *physicalMock, since int) {
 
 func TestDiscoverPhysicalOutputsReportsOrderedExplicitGeometry(t *testing.T) {
 	f := newDiscoveryFixture(t)
-	f.mock.setConfig(`{"hw":{"led":{"ins":[{"start":0,"len":90,"rev":false,"skip":0,"type":22,"pin":[2,-1,-1]},{"start":90,"len":60,"rev":false,"skip":0,"type":22,"pin":[4,5,-1]},{"start":150,"len":50,"rev":false,"skip":0,"type":22,"pin":[16,-1,-1]}]}}}`)
+	f.mock.setConfig(`{"hw":{"led":{"ins":[{"start":0,"len":90,"rev":false,"skip":0,"type":22,"pin":[2,-1,-1]},{"start":90,"len":60,"rev":true,"skip":0,"type":22,"pin":[4,5,-1]},{"start":150,"len":50,"rev":false,"skip":0,"type":22,"pin":[16,-1,-1]}]}}}`)
 	before := f.mock.requestCount()
 
 	layout, err := f.service.DiscoverPhysicalOutputs(context.Background(), f.controller)
@@ -1315,7 +1530,7 @@ func TestDiscoverPhysicalOutputsReportsOrderedExplicitGeometry(t *testing.T) {
 	}
 	want := []PhysicalOutput{
 		{Order: 0, Start: 0, Length: 90, Pins: []int64{2}, FirstIndex: 1, LastIndex: 90},
-		{Order: 1, Start: 90, Length: 60, Pins: []int64{4, 5}, FirstIndex: 91, LastIndex: 150},
+		{Order: 1, Start: 90, Length: 60, Pins: []int64{4, 5}, FirstIndex: 91, LastIndex: 150, Reversed: true},
 		{Order: 2, Start: 150, Length: 50, Pins: []int64{16}, FirstIndex: 151, LastIndex: 200},
 	}
 	if !reflect.DeepEqual(layout.Outputs, want) {
@@ -1387,10 +1602,7 @@ func TestDiscoverPhysicalOutputsRejectsMalformedOrIncompleteGeometry(t *testing.
 			name:   "duplicate pin",
 			config: `{"hw":{"led":{"ins":[{"start":0,"len":100,"rev":false,"skip":0,"type":22,"pin":[2,-1,-1]},{"start":100,"len":100,"rev":false,"skip":0,"type":22,"pin":[2,-1,-1]}]}}}`,
 		},
-		{
-			name:   "reversed output",
-			config: `{"hw":{"led":{"ins":[{"start":0,"len":200,"rev":true,"skip":0,"type":22,"pin":[2,-1,-1]}]}}}`,
-		},
+
 		{
 			name:   "skipped leds",
 			config: `{"hw":{"led":{"ins":[{"start":0,"len":200,"rev":false,"skip":1,"type":22,"pin":[2,-1,-1]}]}}}`,

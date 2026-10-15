@@ -59,7 +59,7 @@ const path = require('node:path');
         response.setHeader('Content-Type', 'application/json');
         if (request.method === 'GET' && request.url === '/json/info') {
           requestRecord.responseBehavior = 'normal JSON response'; requestRecord.responseStatus = 200;
-          response.end(JSON.stringify({ mac: `02:00:00:00:59:${String(index + 1).padStart(2, '0')}`, leds: { count: capacity, rgbw: false } }));
+          response.end(JSON.stringify({ ver: '0.15.0', arch: 'esp32', mac: `02:00:00:00:59:${String(index + 1).padStart(2, '0')}`, leds: { count: capacity, rgbw: false, maxseg: 32 } }));
           return;
         }
         if (request.method === 'GET' && request.url === '/json/cfg') {

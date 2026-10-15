@@ -14,6 +14,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/tuxedocurly/wledger/internal/auth"
+	"github.com/tuxedocurly/wledger/internal/cabinetpixels"
 	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/internal/controllerconfig"
 	"github.com/tuxedocurly/wledger/internal/db"
@@ -98,6 +99,82 @@ func (h *Handler) HandleHardwareEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	pages.HardwareControllerEdit(auth.GetUserFromRequest(r), controller, "", controller.Name, controller.IpAddress, strconv.FormatInt(port, 10), settings).Render(r.Context(), w)
+}
+
+// POST /hardware/output-mapping-preview
+type outputMappingPreviewPixel struct {
+	Logical  int64 `json:"logical"`
+	Physical int64 `json:"physical"`
+}
+
+type outputMappingPreview struct {
+	DisplayOrder int64                       `json:"display_order"`
+	PixelCount   int64                       `json:"pixel_count"`
+	Pixels       []outputMappingPreviewPixel `json:"pixels"`
+}
+
+type outputMappingPreviewRequest struct {
+	ControllerType      string                    `json:"controller_type"`
+	ConnectionTimeoutMS int64                     `json:"connection_timeout_ms"`
+	Outputs             []controllerconfig.Output `json:"outputs"`
+	PreviewOrder        int64                     `json:"preview_order"`
+	PreviewStart        int64                     `json:"preview_start"`
+}
+
+// HandleControllerOutputMappingPreview calculates the Hardware editor preview
+// with the same Go pixel mapper used by cabinet validation and physical Locate.
+func (h *Handler) HandleControllerOutputMappingPreview(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 4<<20)
+	var request outputMappingPreviewRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, `{"error":"invalid output mapping preview request"}`, http.StatusBadRequest)
+		return
+	}
+	settings := controllerconfig.Settings{
+		ControllerType: request.ControllerType, ConnectionTimeoutMS: request.ConnectionTimeoutMS,
+		Outputs: request.Outputs,
+	}
+	if _, err := settings.NormalizeAndValidate(); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	const previewLimit int64 = 40
+	previews := make([]outputMappingPreview, 0, len(settings.Outputs))
+	if request.PreviewStart < 0 {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "pixel preview start cannot be negative"})
+		return
+	}
+	for _, output := range settings.Outputs {
+		start := int64(0)
+		if output.DisplayOrder == request.PreviewOrder {
+			start = request.PreviewStart
+		}
+		if start >= output.PixelCount {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("pixel preview start %d is outside output %d", start+1, output.DisplayOrder+1)})
+			return
+		}
+		count := min(output.PixelCount-start, previewLimit)
+		physicalPixels, err := cabinetpixels.MapOutputRange(output, start, count)
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "could not map configured output pixels: " + err.Error()})
+			return
+		}
+		preview := outputMappingPreview{DisplayOrder: output.DisplayOrder, PixelCount: output.PixelCount, Pixels: make([]outputMappingPreviewPixel, len(physicalPixels))}
+		for index, physical := range physicalPixels {
+			preview.Pixels[index] = outputMappingPreviewPixel{Logical: start + int64(index) + 1, Physical: physical + 1}
+		}
+		previews = append(previews, preview)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(previews)
 }
 
 // POST /hardware/{id}/update

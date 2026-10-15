@@ -24,6 +24,8 @@ function physicalLayoutEditor() {
     controllerSaveError: '',
     ledRanges: {},
     persistedLedRanges: {},
+    canonicalAllocationMappings: {},
+    canonicalMappingRequests: {},
     electricalRevision: 0,
     allowElectricalNavigation: false,
     capacitySaveNotice: '',
@@ -73,7 +75,10 @@ function physicalLayoutEditor() {
         const record = item.Record;
         return {
           id: Number(record.id), key: `string-${record.id}`, controller_id: Number(record.controller_id),
-          name: record.name, display_order: Number(record.display_order), pixel_count: String(record.pixel_count),
+          name: record.name, display_order: Number(record.display_order), pixel_count: Number(record.pixel_count),
+          direction: item.Direction || "forward", pattern: item.Pattern || "linear",
+          rows: Number(item.Rows) || 1, columns: Number(item.Columns) || 1,
+          custom_order: Array.isArray(item.CustomOrder) ? item.CustomOrder.map(Number) : [],
           layout_complete: Number(record.layout_complete) === 1,
           sections: (item.Sections || []).map(section => {
             let points = [];
@@ -171,6 +176,8 @@ function physicalLayoutEditor() {
       this.selection = { kind: this.state.uiSelectionKind || '', key: this.state.uiSelectionKey || '' };
       this.lastStateJSON = this.layoutFingerprint();
       this.pushHistoryBase();
+      const initiallySelectedDrawer = this.selectedDrawer();
+      if (initiallySelectedDrawer) this.loadCanonicalDrawerMapping(initiallySelectedDrawer);
       this.$watch('state', () => {
         const current = this.layoutFingerprint();
         if (!this.saving && current !== this.lastStateJSON) {
@@ -425,27 +432,29 @@ function physicalLayoutEditor() {
           let sectionOffset = 0;
           for (const section of [...string.sections].sort((a, b) => Number(a.display_order) - Number(b.display_order))) {
             const count = Number(section.pixel_count) || 0;
-            const pixelStart = span.start + stringOffset + sectionOffset;
-            const pixelEnd = pixelStart + count - 1;
+            const physicalPixelStart = sectionOffset + 1;
+            const physicalPixelEnd = physicalPixelStart + count - 1;
             const points = section.points || [];
             if (points.length >= 2) {
-              const group = this.svgElement('g', { 'data-wiring-string': string.key, role: 'button', tabindex: 0, 'aria-label': `${string.name}, section ${Number(section.display_order) + 1}, cabinet pixels ${pixelStart}–${pixelEnd}` });
+              const group = this.svgElement('g', { 'data-wiring-string': string.key, role: 'button', tabindex: 0, 'aria-label': `${string.name}, section ${Number(section.display_order) + 1}, physical output pixels ${physicalPixelStart}–${physicalPixelEnd}` });
               group.addEventListener('click', event => { event.stopPropagation(); this.selectWiringString(string); });
               const polyline = values => values.map(point => `${point.x},${point.y}`).join(' ');
               const selected = this.selectedStringKey === string.key;
               group.appendChild(this.svgElement('polyline', { points: polyline(points), fill: 'none', stroke: colors[controllerIndex % colors.length], 'stroke-width': selected ? 0.9 : 0.55, 'stroke-dasharray': string.layout_complete ? null : '1 0.6', 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
               const first = points[0], last = points[points.length - 1];
               const label = this.svgElement('text', { x: first.x + 0.4, y: first.y - 0.5, 'font-size': 1.25, fill: colors[controllerIndex % colors.length] });
-              label.textContent = `${controllerIndex + 1}.${stringIndex + 1} ${pixelStart}–${pixelEnd}`;
+              label.textContent = `${controllerIndex + 1}.${stringIndex + 1} output ${physicalPixelStart}–${physicalPixelEnd}`;
               group.appendChild(label);
               const arrow = this.svgElement('text', { x: last.x + 0.3, y: last.y + 1.3, 'font-size': 2, fill: colors[controllerIndex % colors.length] });
               arrow.textContent = '›'; group.appendChild(arrow);
               if (selectedDrawer) for (const range of this.ledRangesFor(selectedDrawer)) {
-                const rangeStart = Number(range.start_pixel), rangeEnd = rangeStart + Number(range.pixel_count) - 1;
-                const left = Math.max(pixelStart, rangeStart), right = Math.min(pixelEnd, rangeEnd);
-                if (left > right) continue;
-                const sliced = this.sliceWiringPolyline(points, (left - pixelStart) / count, (right - pixelStart + 1) / count);
-                if (sliced.length >= 2) group.appendChild(this.svgElement('polyline', { points: polyline(sliced), fill: 'none', stroke: 'var(--color-primary)', 'stroke-width': 1.35, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'data-drawer-highlight': selectedDrawer.key }));
+                const pieces = this.splitAllocationRange(range, selectedDrawer).filter(piece => piece.controller_id === span.controller_id && String(piece.string_id) === String(string.id || string.key));
+                for (const piece of pieces) {
+                  const left = Math.max(physicalPixelStart, piece.string_start), right = Math.min(physicalPixelEnd, piece.string_start + piece.count - 1);
+                  if (left > right) continue;
+                  const sliced = this.sliceWiringPolyline(points, (left - physicalPixelStart) / count, (right - physicalPixelStart + 1) / count);
+                  if (sliced.length >= 2) group.appendChild(this.svgElement('polyline', { points: polyline(sliced), fill: 'none', stroke: 'var(--color-primary)', 'stroke-width': 1.35, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'data-drawer-highlight': selectedDrawer.key }));
+                }
               }
               layer.appendChild(group);
             }
@@ -548,7 +557,7 @@ function physicalLayoutEditor() {
     boundsFor(kind) { return kind === 'bin' ? this.activeDrawer() : { width: this.state.width, height: this.state.height }; },
     entity(kind, key) { if (kind === 'drawer') return this.state.drawers.find(item => item.key === key); if (kind === 'bin') return this.activeDrawer()?.bins.find(item => item.key === key); return this.state.decorations.find(item => item.key === key); },
     selectEntity(kind, object) { this.setSelection(kind, object.key); },
-    selectDrawer(drawer) { this.selectEntity('drawer', drawer); },
+    selectDrawer(drawer) { this.selectEntity('drawer', drawer); this.loadCanonicalDrawerMapping(drawer); },
     selectBin(bin) {
       this.moveTargetDrawerID = '';
       this.moveBinX = Number(bin.x) || 0;
@@ -625,24 +634,89 @@ function physicalLayoutEditor() {
       const start = Number(startValue), count = Number(countValue), end = start + count - 1;
       if (!Number.isSafeInteger(start) || start < 1 || !Number.isSafeInteger(count) || count < 1 || !Number.isSafeInteger(end)) return [];
       const spans = this.controllerSpans(order, strings, configuredIDs); const pieces = [];
+      const mapping = window.WLEDgerPixelMapping;
+      if (!mapping) return [];
       for (const span of spans) {
         const left = Math.max(start, span.start), right = Math.min(end, span.end);
-        if (left <= right) {
-          let stringOffset = 0; const stringRows = this.stringRows(span.controller_id, strings);
-          if (!stringRows.length) pieces.push({ controller_id: span.controller_id, start: left - span.start + 1, count: right - left + 1, string_id: 0, string_start: left - span.start + 1 });
-          else for (const string of stringRows) {
-            const localStart = stringOffset + 1, localEnd = stringOffset + Number(string.pixel_count);
-            const stringLeft = Math.max(left - span.start + 1, localStart), stringRight = Math.min(right - span.start + 1, localEnd);
-            if (stringLeft <= stringRight) pieces.push({ controller_id: span.controller_id, start: stringLeft, count: stringRight - stringLeft + 1, string_id: string.id || string.key, string_start: stringLeft - localStart + 1 });
-            stringOffset += Number(string.pixel_count);
+        if (left > right) continue;
+        const stringRows = this.stringRows(span.controller_id, strings);
+        if (!stringRows.length) {
+          pieces.push({ controller_id: span.controller_id, start: left - span.start + 1, count: right - left + 1, string_id: 0, string_start: left - span.start + 1 });
+          continue;
+        }
+        let stringOffset = 0;
+        for (const string of stringRows) {
+          const pixelCount = Number(string.pixel_count) || 0;
+          const localStart = stringOffset + 1, localEnd = stringOffset + pixelCount;
+          const stringLeft = Math.max(left - span.start + 1, localStart), stringRight = Math.min(right - span.start + 1, localEnd);
+          if (stringLeft <= stringRight) {
+            const outputMapping = { pixel_count: pixelCount, direction: string.direction || "forward", pattern: string.pattern || "linear", rows: string.rows || 1, columns: string.columns || 1, custom_order: string.custom_order || [] };
+            let physicalPixels;
+            try { physicalPixels = mapping.physicalIndices(outputMapping, stringLeft - localStart, stringRight - stringLeft + 1); } catch { return []; }
+            for (const physical of physicalPixels) {
+              pieces.push({ controller_id: span.controller_id, start: stringOffset + physical + 1, count: 1, string_id: string.id || string.key, string_start: physical + 1 });
+            }
           }
+          stringOffset += pixelCount;
         }
       }
-      return pieces.reduce((total, piece) => total + piece.count, 0) === count ? pieces : [];
+      const controllerOrder = new Map(spans.map((span, index) => [span.controller_id, index]));
+      pieces.sort((a, b) => (controllerOrder.get(a.controller_id) ?? 0) - (controllerOrder.get(b.controller_id) ?? 0) || a.start - b.start);
+      const merged = [];
+      for (const piece of pieces) {
+        const previous = merged[merged.length - 1];
+        if (previous && previous.controller_id === piece.controller_id && previous.string_id === piece.string_id && previous.start + previous.count === piece.start && previous.string_start + previous.count === piece.string_start) previous.count += piece.count;
+        else merged.push({ ...piece });
+      }
+      return merged.reduce((total, piece) => total + piece.count, 0) === count ? merged : [];
     },
-    allocationDestinationPreview(range, order = this.controllerDraft, strings = this.wiringStrings, configuredIDs = this.configuredControllerIDs) {
+    async loadCanonicalDrawerMapping(drawer) {
+      if (!drawer?.id) return;
+      const drawerID = Number(drawer.id);
+      const request = (this.canonicalMappingRequests[drawerID] || 0) + 1;
+      this.canonicalMappingRequests[drawerID] = request;
+      try {
+        const response = await fetch(`/storage/cabinets/${this.state.id}/drawers/${drawerID}/pixel-map`, { headers: { Accept: 'application/json' } });
+        const data = await response.json();
+        if (!response.ok || this.canonicalMappingRequests[drawerID] !== request) return;
+        if (Number(data.electrical_revision) !== Number(this.electricalRevision)) {
+          delete this.canonicalAllocationMappings[drawerID];
+          this.error = 'Controller wiring changed while this editor was open. Reload the cabinet before reviewing pixel previews.';
+          return;
+        }
+        this.canonicalAllocationMappings[drawerID] = Array.isArray(data.allocations) ? data.allocations : [];
+        this.renderCanvas();
+      } catch {
+        if (this.canonicalMappingRequests[drawerID] === request) delete this.canonicalAllocationMappings[drawerID];
+      }
+    },
+    savedCanonicalPieces(range, drawer) {
+      if (!drawer?.id || this.controllerAssignmentChanged() || this.controllerCapacityChanged() || this.wiringChanged()) return null;
+      const allocation = (this.canonicalAllocationMappings[Number(drawer.id)] || []).find(item => Number(item.id) === Number(range?.id) && Number(item.start_pixel) === Number(range?.start_pixel) && Number(item.pixel_count) === Number(range?.pixel_count));
+      if (!allocation) return null;
+      const rank = new Map(this.controllerSpans().map((span, index) => [Number(span.controller_id), index]));
+      const pieces = (allocation.pieces || []).map(piece => ({
+        controller_id: Number(piece.controller_id), string_id: Number(piece.string_id),
+        start: Number(piece.local_start), count: Number(piece.count), string_start: Number(piece.string_start),
+      })).sort((a, b) => (rank.get(a.controller_id) ?? 0) - (rank.get(b.controller_id) ?? 0) || a.start - b.start);
+      const merged = [];
+      for (const piece of pieces) {
+        const previous = merged[merged.length - 1];
+        if (previous && previous.controller_id === piece.controller_id && previous.string_id === piece.string_id && previous.start + previous.count === piece.start && previous.string_start + previous.count === piece.string_start) previous.count += piece.count;
+        else merged.push({ ...piece });
+      }
+      return merged;
+    },
+    splitAllocationRange(range, drawer, order = this.controllerDraft, strings = this.wiringStrings, configuredIDs = this.configuredControllerIDs) {
+      if (order === this.controllerDraft && strings === this.wiringStrings && configuredIDs === this.configuredControllerIDs) {
+        const canonical = this.savedCanonicalPieces(range, drawer);
+        if (canonical) return canonical;
+      }
+      return this.splitRange(range?.start_pixel, range?.pixel_count, order, strings, configuredIDs);
+    },
+    allocationDestinationPreview(range, order = this.controllerDraft, strings = this.wiringStrings, configuredIDs = this.configuredControllerIDs, drawer = this.selectedDrawer()) {
       const start = Number(range?.start_pixel), count = Number(range?.pixel_count), end = start + count - 1;
-      const pieces = this.splitRange(start, count, order, strings, configuredIDs);
+      const pieces = this.splitAllocationRange(range, drawer, order, strings, configuredIDs);
       const capacity = this.controllerSpans(order, strings, configuredIDs).reduce((sum, span) => sum + span.pixels, 0);
       const valid = Number.isSafeInteger(start) && start >= 1 && Number.isSafeInteger(count) && count >= 1 && Number.isSafeInteger(end) && end <= capacity && pieces.reduce((sum, piece) => sum + piece.count, 0) === count;
       const destinations = valid ? pieces.map(piece => {
@@ -653,15 +727,15 @@ function physicalLayoutEditor() {
       }) : ['Invalid or incomplete destination'];
       return { valid, destinations };
     },
-    allocationDestinations(range, order = this.controllerDraft, strings = this.wiringStrings, configuredIDs = this.configuredControllerIDs) {
-      return this.allocationDestinationPreview(range, order, strings, configuredIDs).destinations;
+    allocationDestinations(range, order = this.controllerDraft, strings = this.wiringStrings, configuredIDs = this.configuredControllerIDs, drawer = this.selectedDrawer()) {
+      return this.allocationDestinationPreview(range, order, strings, configuredIDs, drawer).destinations;
     },
     changedMappingPreview(oldOrder, oldStrings, oldConfigured, newOrder, newStrings, newConfigured) {
       const changes = [];
       for (const drawer of this.state.drawers) for (const range of this.ledRangesFor(drawer)) {
         if (!String(range.start_pixel ?? '').trim() && !String(range.pixel_count ?? '').trim()) continue;
-        const beforePreview = this.allocationDestinationPreview(range, oldOrder, oldStrings, oldConfigured);
-        const afterPreview = this.allocationDestinationPreview(range, newOrder, newStrings, newConfigured);
+        const beforePreview = this.allocationDestinationPreview(range, oldOrder, oldStrings, oldConfigured, drawer);
+        const afterPreview = this.allocationDestinationPreview(range, newOrder, newStrings, newConfigured, drawer);
         const before = beforePreview.destinations, after = afterPreview.destinations;
         if (!beforePreview.valid || !afterPreview.valid || JSON.stringify(before) !== JSON.stringify(after)) {
           changes.push({ drawer: drawer.label, start: range.start_pixel, count: range.pixel_count, before, after, valid: beforePreview.valid && afterPreview.valid });
@@ -742,8 +816,8 @@ function physicalLayoutEditor() {
       const changes = this.changedMappingPreview(order, previousStrings, configured, order, this.wiringStrings, this.configuredControllerIDs);
       if (changes.length || !this.wiringStructureChanged()) return changes;
       const structural = this.state.drawers.flatMap(drawer => this.ledRangesFor(drawer).filter(range => String(range.start_pixel ?? '').trim() || String(range.pixel_count ?? '').trim()).map(range => {
-        const before = this.allocationDestinationPreview(range, order, previousStrings, configured);
-        const after = this.allocationDestinationPreview(range, order, this.wiringStrings, this.configuredControllerIDs);
+        const before = this.allocationDestinationPreview(range, order, previousStrings, configured, drawer);
+        const after = this.allocationDestinationPreview(range, order, this.wiringStrings, this.configuredControllerIDs, drawer);
         return {
           drawer: drawer.label, start: range.start_pixel, count: range.pixel_count,
           before: [...before.destinations, 'existing physical path'],
@@ -766,16 +840,15 @@ function physicalLayoutEditor() {
     outputAllocationMarkers(output, drawer) {
       if (!output || !drawer || Number(this.diagnosticControllerID) !== Number(this.physicalOutputLayout?.controller_id)) return [];
       const first = Number(output.first_index), last = Number(output.last_index), length = Number(output.length);
-      const span = this.controllerSpans().find(item => item.controller_id === Number(this.physicalOutputLayout.controller_id));
-      if (!span) return [];
+      if (!Number.isSafeInteger(first) || !Number.isSafeInteger(last) || !Number.isSafeInteger(length) || length < 1) return [];
       return this.ledRangesFor(drawer).flatMap((range, index) => {
-        const globalStart = Number(range.start_pixel), count = Number(range.pixel_count), globalEnd = globalStart + count - 1;
-        const localStart = Math.max(globalStart, span.start) - span.start + 1;
-        const localEnd = Math.min(globalEnd, span.end) - span.start + 1;
-        if (!Number.isSafeInteger(globalStart) || !Number.isSafeInteger(globalEnd) || globalStart > span.end || globalEnd < span.start || localStart > localEnd) return [];
-        const clippedStart = Math.max(localStart, first), clippedEnd = Math.min(localEnd, last);
-        if (clippedStart > clippedEnd) return [];
-        return [{ key: `${range.id || index}-${output.order}`, start: clippedStart, end: clippedEnd, left: (clippedStart - first) / length * 100, width: (clippedEnd - clippedStart + 1) / length * 100 }];
+        const pieces = this.splitAllocationRange(range, drawer).filter(piece => piece.controller_id === Number(this.physicalOutputLayout.controller_id));
+        return pieces.flatMap((piece, pieceIndex) => {
+          const pieceStart = piece.start, pieceEnd = piece.start + piece.count - 1;
+          const clippedStart = Math.max(pieceStart, first), clippedEnd = Math.min(pieceEnd, last);
+          if (clippedStart > clippedEnd) return [];
+          return [{ key: `${range.id || index}-${pieceIndex}-${output.order}`, start: clippedStart, end: clippedEnd, left: (clippedStart - first) / length * 100, width: (clippedEnd - clippedStart + 1) / length * 100 }];
+        });
       });
     },
     addLedRange(drawer) {

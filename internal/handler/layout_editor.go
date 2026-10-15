@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/tuxedocurly/wledger/internal/auth"
+	"github.com/tuxedocurly/wledger/internal/cabinetpixels"
 	"github.com/tuxedocurly/wledger/internal/storage"
 	"github.com/tuxedocurly/wledger/web/pages"
 )
@@ -33,6 +34,77 @@ func (h *Handler) HandleLayoutEditor(w http.ResponseWriter, r *http.Request) {
 	}
 	pages.StorageLayoutEditor(layout, auth.GetUserFromRequest(r)).Render(r.Context(), w)
 }
+
+type drawerPixelMappingPreviewPiece struct {
+	ControllerID int64 `json:"controller_id"`
+	StringID     int64 `json:"string_id"`
+	CabinetStart int64 `json:"cabinet_start"`
+	LocalStart   int64 `json:"local_start"`
+	StringStart  int64 `json:"string_start"`
+	Count        int64 `json:"count"`
+}
+
+type drawerPixelMappingPreviewAllocation struct {
+	ID         int64                            `json:"id"`
+	StartPixel int64                            `json:"start_pixel"`
+	PixelCount int64                            `json:"pixel_count"`
+	Pieces     []drawerPixelMappingPreviewPiece `json:"pieces"`
+}
+
+// HandleDrawerPixelMappingPreview returns the saved allocation's exact mapped
+// physical pixels from the canonical cabinet topology engine. It is read-only.
+func (h *Handler) HandleDrawerPixelMappingPreview(w http.ResponseWriter, r *http.Request) {
+	cabinetID, cabinetErr := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	drawerID, drawerErr := strconv.ParseInt(chi.URLParam(r, "drawerID"), 10, 64)
+	if cabinetErr != nil || drawerErr != nil || cabinetID <= 0 || drawerID <= 0 {
+		http.Error(w, `{"error":"invalid cabinet or drawer id"}`, http.StatusBadRequest)
+		return
+	}
+	layout, err := h.layoutService().Get(r.Context(), cabinetID)
+	if errors.Is(err, storage.ErrLayoutNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		h.UIError.Respond(w, r, err, "Could not calculate the saved drawer pixel mapping", http.StatusInternalServerError)
+		return
+	}
+	var drawer *storage.DrawerLayout
+	for i := range layout.Drawers {
+		if layout.Drawers[i].Drawer.ID == drawerID {
+			drawer = &layout.Drawers[i]
+			break
+		}
+	}
+	if drawer == nil {
+		http.NotFound(w, r)
+		return
+	}
+	allocations := make([]drawerPixelMappingPreviewAllocation, 0, len(drawer.LedAllocations))
+	for _, allocation := range drawer.LedAllocations {
+		pieces, err := cabinetpixels.SplitTopologyRange(layout.Wiring, allocation.StartPixel, allocation.PixelCount)
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusConflict)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("saved allocation #%d cannot be resolved: %v", allocation.ID, err)})
+			return
+		}
+		preview := drawerPixelMappingPreviewAllocation{
+			ID: allocation.ID, StartPixel: allocation.StartPixel, PixelCount: allocation.PixelCount,
+			Pieces: make([]drawerPixelMappingPreviewPiece, len(pieces)),
+		}
+		for i, piece := range pieces {
+			preview.Pieces[i] = drawerPixelMappingPreviewPiece{
+				ControllerID: piece.ControllerID, StringID: piece.StringID, CabinetStart: piece.CabinetStart,
+				LocalStart: piece.LocalStart, StringStart: piece.StringStart, Count: piece.Count,
+			}
+		}
+		allocations = append(allocations, preview)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"cabinet_id": cabinetID, "drawer_id": drawerID, "electrical_revision": layout.Cabinet.ElectricalRevision, "allocations": allocations})
+}
+
 func (h *Handler) HandleLayoutSave(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
