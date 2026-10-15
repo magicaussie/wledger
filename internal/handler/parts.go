@@ -305,6 +305,8 @@ func (h *Handler) HandlePartsCreate(w http.ResponseWriter, r *http.Request) {
 			h.UIError.Respond(w, r, err, "Invalid link URL: only http:// and https:// links are allowed", http.StatusBadRequest)
 		case errors.Is(err, parts.ErrReservedBarcode):
 			h.UIError.Respond(w, r, err, "Barcode values starting with wledger: are reserved for internal scan identities", http.StatusBadRequest)
+		case errors.Is(err, parts.ErrInvalidImage):
+			h.UIError.Respond(w, r, err, "Invalid image upload: choose a valid JPG, PNG or WebP image", http.StatusBadRequest)
 		case strings.Contains(err.Error(), "UNIQUE constraint failed"):
 			h.UIError.Respond(w, r, err, "Part already exists (check barcode)", http.StatusConflict)
 		default:
@@ -396,6 +398,10 @@ func (h *Handler) HandlePartUpdate(w http.ResponseWriter, r *http.Request) {
 		}
 		if errors.Is(err, parts.ErrReservedBarcode) {
 			h.UIError.Respond(w, r, err, "Barcode values starting with wledger: are reserved for internal scan identities", http.StatusBadRequest)
+			return
+		}
+		if errors.Is(err, parts.ErrInvalidImage) {
+			h.UIError.Respond(w, r, err, "Invalid image upload: choose a valid JPG, PNG or WebP image", http.StatusBadRequest)
 			return
 		}
 		h.UIError.Respond(w, r, err, "Failed to update part", http.StatusInternalServerError)

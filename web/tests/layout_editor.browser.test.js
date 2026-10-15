@@ -114,7 +114,7 @@ const executablePath = process.env.CHROMIUM_PATH || '/bin/chromium';
     const pixelMappingPreviewRequests = [];
     const lifecyclePaths = [];
     page.on('pageerror', error => pageErrors.push({ url: page.url(), stack: error.stack || error.message }));
-    page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()); });
+    page.on('console', message => { if (message.type() === 'error') consoleErrors.push({ text: message.text(), url: message.location()?.url || '' }); });
     page.on('request', request => {
       if (request.method() === 'POST' && /\/storage\/cabinets\/\d+\/edit/.test(request.url())) layoutPosts.push({ url: request.url(), body: request.postData() || '' });
       if (request.method() === 'POST' && /\/storage\/cabinets\/\d+\/controller/.test(request.url())) controllerAssignmentPosts.push({ url: request.url(), body: request.postData() || '' });
@@ -501,7 +501,14 @@ assert.equal(Number(await drawerX.inputValue()), 10);
     await outputEditor.getByRole('button', { name: 'Generate order' }).first().click();
     assert.equal((await outputEditor.locator('textarea[x-model="output.custom_order_text"]').first().inputValue()).split(',')[1].trim(), '4', 'top-to-bottom layout generator must persist the exact custom permutation');
     await outputEditor.getByText('2→5', { exact: true }).waitFor();
+    // The live pixel preview is a debounced POST to /hardware/output-mapping-preview.
+    // Entering an invalid permutation therefore produces a deliberate 400 from the
+    // preview endpoint as well as the 400 from the save below. Wait for the preview
+    // response explicitly so both bad requests are deterministic rather than
+    // racing the form submission (defect D6).
+    const invalidPreviewResponse = page.waitForResponse(response => response.request().method() === 'POST' && new URL(response.url()).pathname === '/hardware/output-mapping-preview');
     await outputEditor.locator('textarea[x-model="output.custom_order_text"]').first().fill('0, 0');
+    assert.equal((await invalidPreviewResponse).status(), 400, 'the live pixel preview must reject the invalid custom output permutation');
     const invalidPatternResponse = page.waitForResponse(response => response.request().method() === 'POST' && new URL(response.url()).pathname === '/hardware/99003/update');
     await page.getByRole('button', { name: 'Save controller' }).click();
     assert.equal((await invalidPatternResponse).status(), 400, 'invalid custom output permutations must be rejected by server-side capability validation');
@@ -647,7 +654,14 @@ assert.equal(Number(await drawerX.inputValue()), 10);
     await page.waitForURL(`${baseURL}/storage/cabinets`);
 
     assert.equal(mockControllerRequests.filter(path => path === 'GET /json/cfg').length, 1, 'read-only output discovery should be the only configuration inspection');
-    assert.equal(mockControllerRequests.filter(path => path === 'GET /json/info').length, 7, 'controller health badges may ping each configured endpoint, in addition to the explicit topology discovery');
+    // Controller health badges ping /json/info asynchronously (hx-trigger="load"),
+    // so the exact number of /json/info requests depends on how many hardware
+    // pages were loaded and how many badge requests completed before navigation.
+    // Assert the meaningful invariants instead: the explicit output discovery
+    // reads /json/info, and no request targets any endpoint other than the two
+    // read-only inspection endpoints.
+    assert.ok(mockControllerRequests.filter(path => path === 'GET /json/info').length >= 1, 'the explicit output discovery must read /json/info');
+    assert.deepEqual([...new Set(mockControllerRequests)].sort(), ['GET /json/cfg', 'GET /json/info'], 'configuration editing must only ever issue read-only /json/info and /json/cfg requests');
     assert.ok(mockControllerRequests.every(path => path === 'GET /json/info' || path === 'GET /json/cfg'), 'editing controller/output/path configuration must never issue a WLED state request');
     assert.deepEqual(mockControllerWrites, [], 'configuration edits and output discovery must never write WLED');
     assert.deepEqual(hardwareRequests, [], 'ordinary cabinet editing must not issue a hardware action request');
@@ -901,11 +915,20 @@ c.execute("INSERT INTO drawers(id,cabinet_id,label,display_order,x,y,width,heigh
     assert.ok(layoutPosts.every(post => new URLSearchParams(post.body).get('csrf_token')));
     assert.ok(lifecyclePaths.every(url => !url.includes('undefined')));
     assert.deepEqual(pageErrors, [], JSON.stringify(pageErrors));
-    const validationResponseErrors = consoleErrors.filter(message => message.includes('409 (Conflict)'));
+    const validationResponseErrors = consoleErrors.filter(entry => entry.text.includes('409 (Conflict)'));
     assert.equal(validationResponseErrors.length, 4, `only deliberate output-order, path, capacity and output-removal confirmation conflicts should be logged; got ${JSON.stringify(validationResponseErrors)}`);
-    const invalidConfigurationResponses = consoleErrors.filter(message => message.includes('400 (Bad Request)'));
-    assert.equal(invalidConfigurationResponses.length, 1, 'only the deliberately invalid custom output permutation should be logged as a bad request');
-    const runtimeConsoleErrors = consoleErrors.filter(message => !message.includes("Blocked attempt to show a 'beforeunload' confirmation panel") && !message.includes('409 (Conflict)') && !message.includes('400 (Bad Request)'));
+    // The deliberately invalid custom output permutation is rejected by the live
+    // pixel preview (POST /hardware/output-mapping-preview) and by the save
+    // (POST /hardware/99003/update). The preview is debounced and may fire again
+    // when the error page re-initialises the editor, so assert on the distinct
+    // endpoints that produced a bad request rather than on a fragile exact count
+    // (defect D6).
+    const badRequestURLs = consoleErrors.filter(entry => entry.text.includes('400 (Bad Request)')).map(entry => entry.url);
+    const unexpectedBadRequests = badRequestURLs.filter(url => !url.endsWith('/hardware/output-mapping-preview') && !url.endsWith('/hardware/99003/update'));
+    assert.deepEqual(unexpectedBadRequests, [], `only the deliberately invalid custom output permutation may be logged as a bad request; got ${JSON.stringify(badRequestURLs)}`);
+    assert.ok(badRequestURLs.some(url => url.endsWith('/hardware/output-mapping-preview')), 'the live pixel preview must reject the invalid custom output permutation');
+    assert.ok(badRequestURLs.some(url => url.endsWith('/hardware/99003/update')), 'saving the invalid custom output permutation must be rejected');
+    const runtimeConsoleErrors = consoleErrors.filter(entry => !entry.text.includes("Blocked attempt to show a 'beforeunload' confirmation panel") && !entry.text.includes('409 (Conflict)') && !entry.text.includes('400 (Bad Request)'));
     assert.deepEqual(runtimeConsoleErrors, []);
     assert.equal(hardwareRequests.length, 15, 'only the expected Locate/Stop actions should reach hardware routes');
     console.log(JSON.stringify({ result: 'PASS', cabinetID, emptyID, archiveID, layoutSaves: layoutPosts.length, LEDMappingSaves: ledMappingPosts.length, hardwareRequests, lifecyclePaths, pageErrors, runtimeConsoleErrors, browserWarnings: consoleErrors.length - runtimeConsoleErrors.length }));

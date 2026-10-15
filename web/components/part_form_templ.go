@@ -228,7 +228,7 @@ func PartForm(part db.Part, tags []db.Tag, allTags []db.Tag, links []db.PartLink
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "</span></label></div></div></div></div><div class=\"card bg-base-200 shadow-sm border border-base-300\"><div class=\"card-body p-6\"><h3 class=\"card-title text-sm opacity-50 uppercase tracking-widest mb-4\">Category and custom specifications</h3><label class=\"form-control max-w-xl\"><span class=\"label-text mb-2\">Category</span> <select class=\"select select-bordered\" name=\"category_id\" onchange=\"const u = new URL(window.location.href); u.searchParams.set('category_id', this.value); window.location.href = u.toString()\"><option value=\"\">Uncategorized</option> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "</span></label></div></div></div></div><div class=\"card bg-base-200 shadow-sm border border-base-300\"><div class=\"card-body p-6\"><h3 class=\"card-title text-sm opacity-50 uppercase tracking-widest mb-4\">Category and custom specifications</h3><label class=\"form-control max-w-xl\"><span class=\"label-text mb-2\">Category</span> <select class=\"select select-bordered\" name=\"category_id\" onchange=\"const u = new window.URL(window.location.href); u.searchParams.set('category_id', this.value); window.location.href = u.toString()\"><option value=\"\">Uncategorized</option> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

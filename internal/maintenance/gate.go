@@ -29,6 +29,8 @@ const (
 	// recovery metadata survives container recreation, unlike the sibling control
 	// directory (ControlDir), which lives on the container filesystem.
 	InMountControlDirName = ".wledger-restore"
+	// maintenanceLockName is the cross-process maintenance lock file name.
+	maintenanceLockName = ".wledger-maintenance.lock"
 )
 
 func ControlDir(uploadsDir string) string {
@@ -60,10 +62,29 @@ func JournalPaths(uploadsDir string) []string {
 	}
 }
 
+// mountPointDetector is a test seam over IsMountPoint so the mount-aware lock
+// placement can be exercised without creating a real mount.
+var mountPointDetector = IsMountPoint
+
+// LockPath returns the location of the cross-process maintenance lock. When the
+// uploads path is a mount point the lock lives inside the persistent mount, so
+// every container sharing that bind mount contends on the same lock file and
+// cannot run a restore concurrently with another container. It is a hidden file
+// at the mount root: the mount-aware restore protocol never swaps hidden
+// entries, so the lock is never moved, and the uploads route never serves it.
+// For an ordinary uploads directory the lock lives in the sibling control
+// directory, because that directory is renamed wholesale during a restore.
+func LockPath(uploadsDir string) string {
+	if mountPointDetector(uploadsDir) {
+		return filepath.Join(uploadsDir, maintenanceLockName)
+	}
+	return filepath.Join(ControlDir(uploadsDir), maintenanceLockName)
+}
+
 func New(uploadsDir string) *Gate {
 	return &Gate{
 		uploadsDir: uploadsDir,
-		lockPath:   filepath.Join(ControlDir(uploadsDir), ".wledger-maintenance.lock"),
+		lockPath:   LockPath(uploadsDir),
 	}
 }
 

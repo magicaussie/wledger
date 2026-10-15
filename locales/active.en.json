@@ -1428,5 +1428,37 @@
   },
   "M6ViewBinLayout": {
     "other": "View Bin Layout"
+  },
+  "UploadMaintenance": {
+    "description": "Title of the upload maintenance page",
+    "other": "Upload maintenance"
+  },
+  "UploadMaintenanceDescription": {
+    "description": "Sub-header on the upload maintenance page",
+    "other": "Find and remove upload files that no part, category or document references."
+  },
+  "ReferencedUploads": {
+    "other": "Referenced files"
+  },
+  "OrphanedUploads": {
+    "other": "Orphaned files"
+  },
+  "NoOrphanedUploads": {
+    "other": "No orphaned upload files were found."
+  },
+  "OrphanedUploadsWarning": {
+    "other": "Deleting orphaned files is permanent. Only files that nothing references are removed; referenced files are always preserved."
+  },
+  "DeleteOrphanedUploads": {
+    "other": "Delete orphaned files"
+  },
+  "BackToSettings": {
+    "other": "Back to settings"
+  },
+  "File": {
+    "other": "File"
+  },
+  "Size": {
+    "other": "Size"
   }
 }

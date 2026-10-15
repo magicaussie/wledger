@@ -74,6 +74,30 @@ func TestGateMiddlewareFailsClosedForPendingJournal(t *testing.T) {
 	}
 }
 
+// TestLockPathIsSharedInsideTheMount verifies that when the uploads path is a
+// mount point the maintenance lock lives inside the persistent mount, so every
+// container sharing that bind mount contends on the same lock file. For an
+// ordinary uploads directory it stays in the sibling control directory.
+func TestLockPathIsSharedInsideTheMount(t *testing.T) {
+	uploads := filepath.Join(t.TempDir(), "uploads")
+	if err := os.Mkdir(uploads, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	original := mountPointDetector
+	t.Cleanup(func() { mountPointDetector = original })
+
+	mountPointDetector = func(string) bool { return false }
+	if got, want := LockPath(uploads), filepath.Join(ControlDir(uploads), maintenanceLockName); got != want {
+		t.Errorf("non-mount lock path = %q, want %q", got, want)
+	}
+
+	mountPointDetector = func(string) bool { return true }
+	if got, want := LockPath(uploads), filepath.Join(uploads, maintenanceLockName); got != want {
+		t.Errorf("mount lock path = %q, want %q", got, want)
+	}
+}
+
 // TestGateMiddlewareFailsClosedForInMountJournal verifies the fail-closed check
 // also covers the durable in-mount journal, which lives inside the persistent
 // uploads mount rather than the container filesystem.

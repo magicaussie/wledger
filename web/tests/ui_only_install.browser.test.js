@@ -151,6 +151,10 @@ const path = require('node:path');
       await form.locator('input[name="name"]').fill(`UI Controller ${index + 1}`);
       await form.locator('input[name="ip_address"]').fill(controllerEndpoints[index].host);
       await form.locator('input[name="port"]').fill(String(controllerEndpoints[index].port));
+      const outputEditor = form.locator('[x-data^="controllerOutputEditor"]');
+      await outputEditor.getByRole('button', { name: 'Add output' }).click();
+      await outputEditor.locator('input[x-model="output.name"]').first().fill(`Physical string ${index + 1}`);
+      await outputEditor.locator('input[x-model\\.number="output.pixel_count"]').first().fill(String(capacities[index]));
       await form.locator('button.btn-primary').click();
       await page.waitForURL(`${baseURL}/hardware`);
       const rows = readOnlyRows(databasePath, 'SELECT id, name, ip_address, port, led_count FROM controllers WHERE name = ? ORDER BY id', [`UI Controller ${index + 1}`]);
@@ -282,22 +286,22 @@ const path = require('node:path');
     assert.deepEqual(reordered, controllers.map(controller => controller.id), 'controller order should be restored through the UI');
 
     await page.goto(`${baseURL}/storage/cabinets/${cabinetID}/edit`);
-    const configureButtons = page.getByRole('button', { name: 'Configure physical strings' });
-    for (let index = 0; index < controllers.length; index++) {
-      await configureButtons.first().click();
-      const panel = page.locator('div.rounded.bg-base-100.p-2.space-y-2').filter({ hasText: `Controller ${index + 1}: ${controllers[index].name}` }).first();
-      await panel.getByRole('button', { name: '＋ Add string' }).click();
-      const stringName = `Physical string ${index + 1}`;
-      const capacity = capacities[index];
-      await panel.locator('input[x-model="string.name"]').fill(stringName);
-      await panel.locator('input[x-model="string.pixel_count"]').fill(String(capacity));
-      await panel.getByRole('button', { name: '＋ Add path section' }).click();
-      await panel.getByRole('button', { name: '＋ Add path section' }).click();
-      const sections = panel.locator('input[x-model="section.pixel_count"]');
-      await sections.nth(0).fill(String(capacity / 2));
-      await sections.nth(1).fill(String(capacity / 2));
+    const cabinetOutputs = readOnlyRows(databasePath, 'SELECT controller_id,id,name,pixel_count,display_order FROM cabinet_led_strings WHERE cabinet_id=? ORDER BY controller_id,display_order', [cabinetID]);
+    assert.equal(cabinetOutputs.length, controllers.length, 'each hardware-configured controller output should be projected as a cabinet path row');
+    for (let index = 0; index < cabinetOutputs.length; index++) {
+      const [controllerID, outputID, outputName, pixelCount] = cabinetOutputs[index];
+      const controllerIndex = controllers.findIndex(controller => controller.id === controllerID);
+      const controller = controllers[controllerIndex];
+      const panel = page.locator('div.rounded.bg-base-100.p-2.space-y-2').filter({ hasText: `Controller ${controllerIndex + 1}: ${controller.name}` }).first();
+      const outputPanel = panel.locator('div.rounded.border.border-base-300.p-2.space-y-2').filter({ hasText: outputName }).first();
+      assert.ok(await outputPanel.count(), `output ${outputID} should be shown as a cabinet path target`);
+      await outputPanel.getByRole('button', { name: '＋ Add path section' }).click();
+      await outputPanel.getByRole('button', { name: '＋ Add path section' }).click();
+      const sections = outputPanel.locator('input[x-model="section.pixel_count"]');
+      await sections.nth(0).fill(String(pixelCount / 2));
+      await sections.nth(1).fill(String(pixelCount / 2));
       for (let sectionIndex = 0; sectionIndex < 2; sectionIndex++) {
-        await panel.getByRole('button', { name: 'Draw path' }).nth(sectionIndex).click();
+        await outputPanel.getByRole('button', { name: 'Draw path' }).nth(sectionIndex).click();
         await canvas.scrollIntoViewIfNeeded();
         const y = 20 + index * 18 + sectionIndex * 5;
         if (sectionIndex === 0) {
@@ -309,18 +313,18 @@ const path = require('node:path');
         }
         await canvas.evaluate(svg => svg.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
       }
-      await panel.locator('input[x-model="string.layout_complete"]').check();
+      await outputPanel.locator('input[x-model="string.layout_complete"]').check();
     }
-    await page.getByRole('button', { name: 'Save strings and wiring paths' }).click();
+    await page.getByRole('button', { name: 'Save output paths' }).click();
     try {
       await page.waitForURL(/wiring_saved=1/, { timeout: 5000 });
     } catch (error) {
       throw new Error(`wiring save did not complete: url=${page.url()} body=${(await page.locator('body').innerText()).slice(-5000)} cause=${error.message}`);
     }
     const stringRows = readOnlyRows(databasePath, 'SELECT controller_id, pixel_count FROM cabinet_led_strings WHERE cabinet_id = ? ORDER BY controller_id, display_order', [cabinetID]);
-    assert.deepEqual(stringRows.map(row => [Number(row[0]), Number(row[1])]), controllers.map((controller, index) => [controller.id, capacities[index]]));
+    assert.deepEqual(stringRows.map(row => [Number(row[0]), Number(row[1])]), cabinetOutputs.map(row => [Number(row[0]), Number(row[3])]));
     const sectionRows = readOnlyRows(databasePath, 'SELECT string_id, display_order, pixel_count, points_json FROM cabinet_led_path_sections WHERE string_id IN (SELECT id FROM cabinet_led_strings WHERE cabinet_id = ?) ORDER BY string_id, display_order', [cabinetID]);
-    assert.equal(sectionRows.length, 10, 'each of the five UI-configured strings should have two directed path sections');
+    assert.equal(sectionRows.length, controllers.length * 2, 'each of the five UI-configured outputs should have two directed path sections');
     assert.equal(sectionRows.reduce((total, row) => total + Number(row[2]), 0), 1000);
 
     const allocationInputs = [

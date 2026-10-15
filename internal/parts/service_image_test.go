@@ -3,6 +3,7 @@ package parts
 import (
 	"bytes"
 	"context"
+	"errors"
 	"image"
 	"image/png"
 	"log/slog"
@@ -133,6 +134,115 @@ func listImageFiles(t *testing.T) []string {
 	}
 	sort.Strings(names)
 	return names
+}
+
+// newTestInvalidImageUpload builds a DocUpload whose bytes are not a decodable
+// image, so images.ProcessUpload fails. It exercises the same multipart path as
+// a real browser upload of a corrupt or mislabelled file.
+func newTestInvalidImageUpload(t *testing.T, filename string) *DocUpload {
+	t.Helper()
+
+	var body bytes.Buffer
+	mw := multipart.NewWriter(&body)
+	fw, err := mw.CreateFormFile("image", filename)
+	if err != nil {
+		t.Fatalf("failed to create form file: %v", err)
+	}
+	if _, err := fw.Write([]byte("this is not an image")); err != nil {
+		t.Fatalf("failed to write form file: %v", err)
+	}
+	if err := mw.Close(); err != nil {
+		t.Fatalf("failed to close multipart writer: %v", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, "/", &body)
+	if err != nil {
+		t.Fatalf("failed to build request: %v", err)
+	}
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	if err := req.ParseMultipartForm(1 << 20); err != nil {
+		t.Fatalf("failed to parse multipart form: %v", err)
+	}
+
+	file, header, err := req.FormFile("image")
+	if err != nil {
+		t.Fatalf("failed to read form file: %v", err)
+	}
+
+	return &DocUpload{File: file, Header: header}
+}
+
+// TestCreatePart_RejectsInvalidImage verifies defect D5: an undecodable image
+// upload must fail the request with a clear validation error instead of being
+// silently dropped while the part is created without it.
+func TestCreatePart_RejectsInvalidImage(t *testing.T) {
+	svc, _, ctx := setupImageTestService(t)
+
+	_, err := svc.CreatePart(ctx, CreatePartRequest{
+		Name:  "Corrupt image part",
+		Image: newTestInvalidImageUpload(t, "corrupt.png"),
+	})
+	if !errors.Is(err, ErrInvalidImage) {
+		t.Fatalf("CreatePart with an invalid image: expected ErrInvalidImage, got %v", err)
+	}
+
+	// No part row and no image files may be left behind.
+	parts, err := svc.ListParts(ctx, "", 1, nil)
+	if err != nil {
+		t.Fatalf("ListParts failed: %v", err)
+	}
+	for _, p := range parts {
+		if p.Name == "Corrupt image part" {
+			t.Fatalf("invalid image upload must not create a part, found %+v", p)
+		}
+	}
+	if files := listImageFiles(t); len(files) != 0 {
+		t.Errorf("invalid image upload must not leave image files, got %v", files)
+	}
+}
+
+// TestUpdatePart_RejectsInvalidReplacementImage verifies that an undecodable
+// replacement image fails the update and leaves the existing image intact.
+func TestUpdatePart_RejectsInvalidReplacementImage(t *testing.T) {
+	svc, _, ctx := setupImageTestService(t)
+
+	id, err := svc.CreatePart(ctx, CreatePartRequest{
+		Name:  "Target",
+		Image: newTestImageUpload(t, "original.png"),
+	})
+	if err != nil {
+		t.Fatalf("CreatePart failed: %v", err)
+	}
+	before, err := svc.GetPart(ctx, id)
+	if err != nil {
+		t.Fatalf("GetPart failed: %v", err)
+	}
+	originalImage := before.ImagePath.String
+	filesBefore := listImageFiles(t)
+
+	err = svc.UpdatePart(ctx, UpdatePartRequest{
+		ID:    id,
+		Name:  "Target Renamed",
+		Image: newTestInvalidImageUpload(t, "corrupt.png"),
+	})
+	if !errors.Is(err, ErrInvalidImage) {
+		t.Fatalf("UpdatePart with an invalid replacement image: expected ErrInvalidImage, got %v", err)
+	}
+
+	after, err := svc.GetPart(ctx, id)
+	if err != nil {
+		t.Fatalf("GetPart failed: %v", err)
+	}
+	if after.ImagePath.String != originalImage {
+		t.Errorf("failed image replacement must preserve image reference %q, got %q", originalImage, after.ImagePath.String)
+	}
+	if after.Name != "Target" {
+		t.Errorf("failed image replacement must not apply other field changes, name = %q", after.Name)
+	}
+	assertImageFilesExist(t, originalImage, true)
+	if filesAfter := listImageFiles(t); !reflect.DeepEqual(filesBefore, filesAfter) {
+		t.Errorf("failed image replacement changed files: before=%v after=%v", filesBefore, filesAfter)
+	}
 }
 
 // TestUpdatePart_FailurePreservesExistingImage reproduces defect D1: a failed

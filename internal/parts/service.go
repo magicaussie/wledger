@@ -50,9 +50,15 @@ type LinkDTO struct {
 
 // ErrInvalidLinkURL indicates that a product link URL failed validation. Only
 // absolute http:// and https:// URLs are accepted.
+// ErrReservedBarcode indicates a barcode that uses WLEDger's reserved internal
+// identity prefix.
+// ErrInvalidImage indicates that an uploaded image could not be decoded or is
+// not a supported image type. The upload is rejected with a clear message
+// instead of being silently dropped.
 var (
 	ErrInvalidLinkURL  = errors.New("invalid link URL")
 	ErrReservedBarcode = errors.New("barcode uses a reserved WLEDger identity prefix")
+	ErrInvalidImage    = errors.New("invalid image upload")
 )
 
 func validateBarcode(value string) error {
@@ -289,16 +295,19 @@ func (s *service) CreatePart(ctx context.Context, req CreatePartRequest) (int64,
 	var imagePath string
 	if req.Image != nil && req.Image.File != nil {
 		s.logger.Debug("processing image upload", "name", req.Name)
-		if mf, ok := req.Image.File.(multipart.File); ok {
-			fileName, err := images.ProcessUpload(mf, req.Image.Header)
-			mf.Close() // Close after processing
-			if err == nil {
-				imagePath = config.UrlPrefixImages + fileName
-				s.logger.Debug("image uploaded successfully", "path", imagePath)
-			} else {
-				s.logger.Warn("failed to process image upload", "err", err)
-			}
+		mf, ok := req.Image.File.(multipart.File)
+		if !ok {
+			return 0, fmt.Errorf("%w: unsupported upload stream", ErrInvalidImage)
 		}
+		fileName, err := images.ProcessUpload(mf, req.Image.Header)
+		mf.Close() // Close after processing
+		if err != nil {
+			// Reject the whole request with a clear validation error rather than
+			// silently creating the part without the image the user selected.
+			return 0, fmt.Errorf("%w: %v", ErrInvalidImage, err)
+		}
+		imagePath = config.UrlPrefixImages + fileName
+		s.logger.Debug("image uploaded successfully", "path", imagePath)
 	}
 
 	var newID int64
@@ -398,17 +407,20 @@ func (s *service) UpdatePart(ctx context.Context, req UpdatePartRequest) error {
 	}
 	if req.Image != nil && req.Image.File != nil {
 		s.logger.Debug("processing new image upload", "id", req.ID)
-		if mf, ok := req.Image.File.(multipart.File); ok {
-			fileName, err := images.ProcessUpload(mf, req.Image.Header)
-			mf.Close() // Close after processing
-			if err == nil {
-				newImagePath = config.UrlPrefixImages + fileName
-				uploadedNewImage = true
-				s.logger.Debug("new image uploaded", "id", req.ID, "path", newImagePath)
-			} else {
-				s.logger.Warn("failed to process new image upload", "err", err)
-			}
+		mf, ok := req.Image.File.(multipart.File)
+		if !ok {
+			return fmt.Errorf("%w: unsupported upload stream", ErrInvalidImage)
 		}
+		fileName, err := images.ProcessUpload(mf, req.Image.Header)
+		mf.Close() // Close after processing
+		if err != nil {
+			// Reject the whole update with a clear validation error rather than
+			// silently saving the other fields without the replacement image.
+			return fmt.Errorf("%w: %v", ErrInvalidImage, err)
+		}
+		newImagePath = config.UrlPrefixImages + fileName
+		uploadedNewImage = true
+		s.logger.Debug("new image uploaded", "id", req.ID, "path", newImagePath)
 	}
 
 	var uploadedDocs []string

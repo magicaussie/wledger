@@ -272,6 +272,10 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 			r.Get("/settings/backup/download", h.HandleBackupDownload)
 			r.Post("/settings/backup/restore", h.HandleBackupRestore)
 
+			// Upload maintenance: detect and remove orphaned upload files.
+			r.Get("/settings/uploads", h.HandleUploadsMaintenance)
+			r.Post("/settings/uploads/delete", h.HandleUploadsMaintenanceDelete)
+
 			// User Management
 			r.Post("/settings/users", h.HandleUserCreate)
 			r.Post("/settings/users/{id}/delete", h.HandleUserDelete)
