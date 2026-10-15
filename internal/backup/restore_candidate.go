@@ -48,10 +48,14 @@ func validateReferencedAssets(ctx context.Context, store db.Store, uploadsDir st
 	if err != nil {
 		return fmt.Errorf("read document asset references: %w", err)
 	}
-	return validateManifestAssetRefs(uploadsDir, parts, docs)
+	categories, err := store.GetAllCategories(ctx)
+	if err != nil {
+		return fmt.Errorf("read category asset references: %w", err)
+	}
+	return validateManifestAssetRefs(uploadsDir, parts, docs, categories)
 }
 
-func validateManifestAssetRefs(uploadsDir string, parts []db.Part, docs []db.PartDoc) error {
+func validateManifestAssetRefs(uploadsDir string, parts []db.Part, docs []db.PartDoc, categories []db.Category) error {
 	for _, part := range parts {
 		if part.ImagePath.Valid && part.ImagePath.String != "" {
 			if err := requireReferencedAsset(uploadsDir, part.ImagePath.String); err != nil {
@@ -62,6 +66,13 @@ func validateManifestAssetRefs(uploadsDir string, parts []db.Part, docs []db.Par
 	for _, doc := range docs {
 		if err := requireReferencedAsset(uploadsDir, doc.FilePath); err != nil {
 			return fmt.Errorf("part document %d: %w", doc.ID, err)
+		}
+	}
+	for _, category := range categories {
+		if category.ImagePath != "" {
+			if err := requireReferencedAsset(uploadsDir, category.ImagePath); err != nil {
+				return fmt.Errorf("category %d image: %w", category.ID, err)
+			}
 		}
 	}
 	return nil

@@ -849,7 +849,7 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 		}
 	}
 
-	if err := validateManifestAssetRefs(tempDir, manifest.Parts, manifest.PartDocs); err != nil {
+	if err := validateManifestAssetRefs(tempDir, manifest.Parts, manifest.PartDocs, manifest.Categories); err != nil {
 		return fmt.Errorf("candidate upload references are invalid: %w", err)
 	}
 	if err := syncTree(tempDir); err != nil {
@@ -1062,6 +1062,11 @@ func validateRestoreArchive(zr *zip.Reader) error {
 }
 
 func (s *service) restoreData(ctx context.Context, qtx db.Querier, manifest Manifest) error {
+	// Reject archives whose category graph or specifications violate the rules
+	// the category service enforces on write, before any row is inserted.
+	if err := validateRestoredCategorySemantics(manifest); err != nil {
+		return err
+	}
 	// Settings
 	err := qtx.RestoreSettings(ctx, db.RestoreSettingsParams{
 		RequireAuthForRead:      manifest.Settings.RequireAuthForRead,
