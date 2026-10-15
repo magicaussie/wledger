@@ -4,11 +4,10 @@
 
 - Task: recover the continuation checkpoint and complete controller output, cabinet/drawer mapping, WLED safety/recovery, and inventory/backup acceptance.
 - Authorized branch: `development/chatgpt-m6-m7`.
-- Current local HEAD: `41d9506df896c9dc0a22d57d341fe8a02042b8ea` (`feat: add category-aware product CSV`).
-- Current `origin/development/chatgpt-m6-m7`: `41d9506df896c9dc0a22d57d341fe8a02042b8ea`; fetched and confirmed 0 ahead / 0 behind.
+- Task start HEAD and pre-publication `origin/development/chatgpt-m6-m7`: `41d9506df896c9dc0a22d57d341fe8a02042b8ea`; fetched and confirmed 0 ahead / 0 behind.
 - Owner-provided published baseline: `46aec54fa6a97c59f34776add009568b18991783`.
-- Published commits since that baseline: `41d9506df896c9dc0a22d57d341fe8a02042b8ea`.
-- Implementation baseline SHA before this checkpoint: `41d9506df896c9dc0a22d57d341fe8a02042b8ea`; the reviewed source changes are currently in the working tree and are not yet committed. The implementation commit SHA will be recorded immediately after commit, followed by a handover-only status commit.
+- Published commits since that baseline before this task: `41d9506df896c9dc0a22d57d341fe8a02042b8ea`.
+- Completed implementation source commit: `79c8cbb` (`feat: configure controller outputs and physical mappings`), full SHA `79c8cbbdec1861c754b9275c5bf27ba391321a38`; parent `41d9506df896c9dc0a22d57d341fe8a02042b8ea`. This handover update is the documentation-only follow-up commit.
 - Owner authorization covers implementation, isolated testing, and publication to the authorized development branch. No production/staging DB, deployment, main merge/release, LED coordinate conversion, or real WLED controller operations are authorized.
 
 ## Safety and architecture invariants
@@ -53,7 +52,7 @@
 
 ## Verification evidence (re-run 2026-10-15; all database/controller fixtures disposable)
 
-- Current source tree is based on Git SHA `41d9506df896c9dc0a22d57d341fe8a02042b8ea`; implementation commit SHA is pending and will be added in the follow-up handover update.
+- The verified implementation source is commit `79c8cbbdec1861c754b9275c5bf27ba391321a38`, parent `41d9506df896c9dc0a22d57d341fe8a02042b8ea`.
 - `git diff --check`: PASS.
 - Go 1.26.9 using the disposable `golang:1.26.9` Docker toolchain: `go test -tags fts5 ./...` PASS; `go test -race -tags fts5 ./...` PASS; `go vet -tags fts5 ./...` PASS; server and MCP `go build -tags fts5` PASS. Temporary binaries were removed.
 - Node 22.23.2: `npm test` PASS (20 grid-painter behavioural tests); `npm audit --audit-level=high` PASS (0 vulnerabilities).
@@ -72,8 +71,8 @@
 ## Remaining work and publication
 
 - Owner-requested implementation requirements are complete in the reviewed working tree: controller/output settings and visual mapping; cabinet controller assignment separated from output config; multiple drawer pixel ranges and overlap/capacity validation; multi-controller Locate/Stop/Global Off guards and durable recovery; category/specification/product purchasing/unit/CSV workflows; and migration plus backup/restore compatibility.
-- The next step is to publish only the reviewed task source/tests/migration/generated files and this active development note to `origin/development/chatgpt-m6-m7`. Protected files and `.task055b-staging/` remain excluded.
-- After the implementation commit, record its full SHA and parent SHA here in a documentation-only follow-up commit, then push and stop for the owner's independent GitHub source review.
+- Implementation is committed locally. The only remaining code-publication step is to push the implementation commit and this handover-only status commit to `origin/development/chatgpt-m6-m7`. Protected files and `.task055b-staging/` remain excluded.
+- After pushing, verify remote alignment and stop for the owner's independent GitHub source review.
 - Remaining non-code acceptance is owner-controlled hardware commissioning against verified real controller firmware/wiring and subsequent independent published-source review. No physical WLED operation is authorized by this task.
 
 ## Owner hardware-acceptance checklist (not performed)
