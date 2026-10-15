@@ -26,7 +26,7 @@ func TestService_Locate(t *testing.T) {
 		if r.URL.Path == "/json/state" {
 			body, _ := io.ReadAll(r.Body)
 			receivedColor = string(body)
-			w.WriteHeader(http.StatusOK)
+			writeWLEDWriteSuccess(w)
 		}
 	}))
 	defer server.Close()
@@ -178,7 +178,7 @@ func TestService_GlobalOff(t *testing.T) {
 		okBody = string(b)
 		okHit = true
 		mu.Unlock()
-		w.WriteHeader(http.StatusOK)
+		writeWLEDWriteSuccess(w)
 	}))
 	defer okServer.Close()
 
@@ -238,6 +238,36 @@ func TestService_GlobalOff(t *testing.T) {
 	}
 }
 
+func TestService_GlobalOffReportsWLEDJSONRejection(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/json/state" {
+			http.Error(w, "unexpected request", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"success":false,"error":"controller rejected Global Off"}`)
+	}))
+	defer server.Close()
+
+	conn, err := db.Open("file:globaloff_json_rejection?mode=memory&cache=shared")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	if err := db.Migrate(conn); err != nil {
+		t.Fatal(err)
+	}
+	store := db.NewStore(conn)
+	if _, err := store.CreateController(context.Background(), db.CreateControllerParams{Name: "Rejecting controller", IpAddress: server.URL[7:]}); err != nil {
+		t.Fatal(err)
+	}
+
+	service := NewService(store, NewClient(), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err := service.GlobalOff(context.Background()); err == nil || !strings.Contains(err.Error(), "controller rejected Global Off") {
+		t.Fatalf("GlobalOff error = %v, want firmware JSON rejection detail", err)
+	}
+}
+
 func TestService_GlobalOffTurnsOffEverySimulatedControllerFramebuffer(t *testing.T) {
 	type simulatedController struct {
 		mu           sync.Mutex
@@ -270,7 +300,7 @@ func TestService_GlobalOffTurnsOffEverySimulatedControllerFramebuffer(t *testing
 				}
 			}
 			controller.mu.Unlock()
-			w.WriteHeader(http.StatusOK)
+			writeWLEDWriteSuccess(w)
 		}))
 		servers = append(servers, server)
 		t.Cleanup(server.Close)
@@ -325,7 +355,7 @@ func TestService_LocateDrawerUsesAllocation(t *testing.T) {
 		mu.Lock()
 		body = string(b)
 		mu.Unlock()
-		w.WriteHeader(http.StatusOK)
+		writeWLEDWriteSuccess(w)
 	}))
 	defer server.Close()
 	ip := server.URL[7:]
@@ -425,7 +455,7 @@ func TestService_LocateFailsWhenCoordinateSpaceUnresolved(t *testing.T) {
 		mu.Lock()
 		hits++
 		mu.Unlock()
-		w.WriteHeader(http.StatusOK)
+		writeWLEDWriteSuccess(w)
 	}))
 	defer server.Close()
 	ip := server.URL[7:]
@@ -494,7 +524,7 @@ func drawerTestServer(t *testing.T) (*httptest.Server, func() (string, int)) {
 		body = string(b)
 		hits++
 		mu.Unlock()
-		w.WriteHeader(http.StatusOK)
+		writeWLEDWriteSuccess(w)
 	}))
 	return server, func() (string, int) {
 		mu.Lock()

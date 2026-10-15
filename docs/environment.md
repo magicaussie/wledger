@@ -10,7 +10,21 @@ deployment environment or a local `.env` file that is not tracked by Git.
 | --- | --- | --- |
 | `WLEDGER_PUBLIC_URL` | *(empty)* | Externally reachable base URL, used to build absolute callback URLs (e.g. DigiKey OAuth). Must be HTTPS and match the redirect URI registered with the provider. Set it explicitly behind a TLS-terminating reverse proxy; forwarding headers are not used to determine the callback scheme. |
 | `WLEDGER_API_TOKEN` | *(empty)* | Machine-to-machine bearer token for the `/api/v1` API (Home Assistant + MCP). When empty, the API routes are not mounted. Generate one, e.g. `openssl rand -hex 32`. |
+| `WLEDGER_PHYSICAL_OUTPUT_ENABLED` | `false` | Explicitly enables WLED state writes, including physical/legacy Locate, flash, and Global Off. Truthy values: `1`, `true`, `yes`, `on` (case-insensitive). Keep disabled except during an authorized, commissioned installation. See [physical WLED commissioning](WLED_PHYSICAL_COMMISSIONING.md). |
 | `WLEDGER_INSECURE_COOKIES` | *(unset)* | Session-cookie hardening opt-out. See below. |
+
+### Physical WLED output (`WLEDGER_PHYSICAL_OUTPUT_ENABLED`)
+
+The Docker Compose service passes this option to the application container. Set
+`WLEDGER_PHYSICAL_OUTPUT_ENABLED=true` in the deployment environment or `.env`
+file to opt in; unset or any false/unrecognized value leaves state writes
+blocked. After changing it, recreate the `wledger` service so the container
+receives the new value. Do not enable it for verification-only work: read-only
+controller discovery and mapping attestation remain available while disabled.
+
+The switch is a capability gate, not a safety substitute for correct mappings,
+controller access controls, or authorization. Follow the commissioning checklist
+before enabling physical output.
 
 ### Session cookie security (`WLEDGER_INSECURE_COOKIES`)
 

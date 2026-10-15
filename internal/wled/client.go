@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"strconv"
@@ -264,8 +265,39 @@ func (c *Client) postStateAt(ctx context.Context, address string, port int64, pa
 		return err
 	}
 	defer resp.Body.Close()
+	if err := checkWLEDWriteResponse(resp); err != nil {
+		return err
+	}
+	return nil
+}
+
+func checkWLEDWriteResponse(resp *http.Response) error {
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+	if err != nil {
+		return fmt.Errorf("read WLED command acknowledgement: %w", err)
+	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("wled returned status: %d", resp.StatusCode)
+		message := strings.TrimSpace(string(body))
+		if message != "" {
+			return fmt.Errorf("WLED returned %s: %s", resp.Status, message)
+		}
+		return fmt.Errorf("WLED returned %s", resp.Status)
+	}
+	var acknowledgement struct {
+		Success *bool  `json:"success"`
+		Error   string `json:"error"`
+	}
+	if err := json.Unmarshal(body, &acknowledgement); err != nil {
+		return fmt.Errorf("decode WLED command acknowledgement: %w", err)
+	}
+	if acknowledgement.Success == nil {
+		return fmt.Errorf("WLED command acknowledgement is missing its success field")
+	}
+	if !*acknowledgement.Success {
+		if message := strings.TrimSpace(acknowledgement.Error); message != "" {
+			return fmt.Errorf("WLED rejected the command: %s", message)
+		}
+		return fmt.Errorf("WLED rejected the command")
 	}
 	return nil
 }
@@ -411,8 +443,8 @@ func (c *Client) lightUpUnlocked(ctx context.Context, address string, port int64
 		return err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("wled returned status: %d", resp.StatusCode)
+	if err := checkWLEDWriteResponse(resp); err != nil {
+		return err
 	}
 	return nil
 }

@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"reflect"
 	"strings"
 	"sync"
@@ -24,6 +25,7 @@ import (
 type physicalMock struct {
 	mu                        sync.Mutex
 	count                     int
+	info                      string
 	state                     string
 	config                    string
 	offline                   bool
@@ -32,6 +34,8 @@ type physicalMock struct {
 	stallFor                  time.Duration
 	malformedGETPath          string
 	postBodies                []map[string]any
+	postRawBodies             []string
+	postContentTypes          []string
 	postApplied               []bool
 	failPostNumber            int
 	failPostStatus            int
@@ -85,10 +89,15 @@ func (m *physicalMock) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		m.mu.Lock()
 		offline := m.offline
 		count := m.count
+		info := m.info
 		m.mu.Unlock()
 		if offline {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			fmt.Fprint(w, `{"error":"offline"}`)
+			return
+		}
+		if info != "" {
+			fmt.Fprint(w, info)
 			return
 		}
 		if count == 0 {
@@ -118,14 +127,21 @@ func (m *physicalMock) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+		data, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		var body map[string]any
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		if err := json.Unmarshal(data, &body); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		m.mu.Lock()
 		m.postCount++
 		m.postBodies = append(m.postBodies, body)
+		m.postRawBodies = append(m.postRawBodies, string(data))
+		m.postContentTypes = append(m.postContentTypes, r.Header.Get("Content-Type"))
 		fail := m.postCount == m.failPostNumber
 		failBeforeApply := m.postCount == m.failBeforeApplyPostNumber
 		delayApply := m.postCount == m.delayApplyPostNumber
@@ -188,6 +204,24 @@ func (m *physicalMock) posts() []map[string]any {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return append([]map[string]any(nil), m.postBodies...)
+}
+
+func (m *physicalMock) setInfo(info string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.info = info
+}
+
+func (m *physicalMock) rawPosts() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]string(nil), m.postRawBodies...)
+}
+
+func (m *physicalMock) postTypes() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]string(nil), m.postContentTypes...)
 }
 
 func (m *physicalMock) setState(state string) {
@@ -614,6 +648,82 @@ func TestMapPhysicalRangesControllerBoundariesAndDisjointAllocations(t *testing.
 	}
 }
 
+func TestPhysicalLocateWLED015FixturesExactWireProtocol(t *testing.T) {
+	f := newPhysicalFixture(t)
+	readFixture := func(name string) string {
+		t.Helper()
+		data, err := os.ReadFile("testdata/" + name)
+		if err != nil {
+			t.Fatalf("read WLED firmware fixture %s: %v", name, err)
+		}
+		return string(data)
+	}
+	f.mock.setInfo(readFixture("wled-0.15-info.json"))
+	f.mock.setConfig(readFixture("wled-0.15-cfg.json"))
+	f.mock.setState(readFixture("wled-0.15-state.json"))
+	if _, err := f.database.ExecContext(context.Background(), `UPDATE controllers SET mac_address='AA:BB:CC:DD:EE:FF' WHERE id=?`, f.controller); err != nil {
+		t.Fatalf("save fixture controller identity: %v", err)
+	}
+
+	requestBase := f.mock.requestCount()
+	if err := f.service.SaveControllerMappingVerification(context.Background(), f.controller, true); err != nil {
+		t.Fatalf("verify firmware-shaped /json/info and /json/cfg fixtures: %v", err)
+	}
+	if got := f.mock.requestsSince(requestBase); !reflect.DeepEqual(got, []string{"GET /json/info", "GET /json/cfg"}) {
+		t.Fatalf("mapping verification requests = %v, want GET /json/info then GET /json/cfg only", got)
+	}
+
+	initial := f.mock.pixels()
+	session, err := f.service.LocateInventoryBin(context.Background(), f.partID, f.bin1, 7)
+	if err != nil {
+		t.Fatalf("Locate using firmware-shaped WLED responses: %v", err)
+	}
+	if session.State != "active" || session.ControllerID != f.controller {
+		t.Fatalf("firmware fixture Locate session = %+v", session)
+	}
+	if err := f.service.StopDrawer(context.Background(), f.drawer1, 7); err != nil {
+		t.Fatalf("Stop firmware fixture Locate: %v", err)
+	}
+
+	wantRequests := []string{
+		"GET /json/info", "GET /json/cfg",
+		"GET /json/info", "GET /json/cfg", "GET /json/state",
+		"POST /json/state", "POST /json/state", "POST /json/state",
+		"GET /json/info", "GET /json/cfg", "GET /json/state",
+		"POST /json/state", "POST /json/state", "POST /json/state",
+	}
+	if got := f.mock.requestsSince(requestBase); !reflect.DeepEqual(got, wantRequests) {
+		t.Fatalf("WLED protocol sequence = %v, want %v", got, wantRequests)
+	}
+	wantBodies := []string{
+		`{"seg":[{"i":[96,100,[128,0,0]],"id":10}]}`,
+		`{"seg":[{"i":[0,4,[128,0,0]],"id":20}]}`,
+		`{"seg":[{"i":[49,51,[128,0,0]],"id":20}]}`,
+		`{"seg":[{"i":[96,100,[0,0,0]],"id":10}]}`,
+		`{"seg":[{"i":[0,4,[0,0,0]],"id":20}]}`,
+		`{"seg":[{"i":[49,51,[0,0,0]],"id":20}]}`,
+	}
+	if got := f.mock.rawPosts(); !reflect.DeepEqual(got, wantBodies) {
+		t.Fatalf("WLED state POST bodies = %q, want exact targeted protocol payloads %q", got, wantBodies)
+	}
+	for index, contentType := range f.mock.postTypes() {
+		if contentType != "application/json" {
+			t.Errorf("POST %d Content-Type = %q, want application/json", index+1, contentType)
+		}
+	}
+	frames := f.mock.pixels()
+	for pixel, before := range initial {
+		owned := (pixel >= 96 && pixel < 104) || (pixel >= 149 && pixel < 151)
+		if owned {
+			if frames[pixel] != [3]int{0, 0, 0} {
+				t.Errorf("owned pixel %d remained %v after Stop", pixel, frames[pixel])
+			}
+		} else if frames[pixel] != before {
+			t.Errorf("unowned pixel %d changed from %v to %v", pixel, before, frames[pixel])
+		}
+	}
+}
+
 func TestPhysicalLocateSendsExactSegmentRelativeCommandsAndTurnsOffOnlyOwnedRanges(t *testing.T) {
 	f := newPhysicalFixture(t)
 	session, err := f.service.LocateInventoryBin(context.Background(), f.partID, f.bin1, 7)
@@ -816,6 +926,18 @@ func TestPhysicalLocateTimeoutTurnsOffOwnedRanges(t *testing.T) {
 	}
 	session, _ := f.service.SessionForDrawer(f.drawer2)
 	t.Fatalf("timeout did not send range-off commands; session=%+v", session)
+}
+
+func TestPhysicalLocateMappingVerificationReportsOfflineControllerDetails(t *testing.T) {
+	f := newPhysicalFixture(t)
+	f.mock.mu.Lock()
+	f.mock.offline = true
+	f.mock.mu.Unlock()
+
+	_, err := f.service.VerifyControllerMapping(context.Background(), f.controller)
+	if err == nil || !strings.Contains(err.Error(), "GET /json/info") || !strings.Contains(err.Error(), "503 Service Unavailable") || !strings.Contains(err.Error(), "offline") {
+		t.Fatalf("offline verification error = %v, want endpoint, status and firmware detail", err)
+	}
 }
 
 func TestPhysicalLocateMappingVerificationFailsClosedWithoutOutputStartsAndPins(t *testing.T) {

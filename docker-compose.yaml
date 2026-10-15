@@ -11,6 +11,8 @@ services:
       # mounted and requires this bearer token. Generate one, e.g.
       #   openssl rand -hex 32
       - WLEDGER_API_TOKEN=${WLEDGER_API_TOKEN:-}
+      # Physical state writes remain disabled unless explicitly opted in.
+      - WLEDGER_PHYSICAL_OUTPUT_ENABLED=${WLEDGER_PHYSICAL_OUTPUT_ENABLED:-false}
 
     ports:
       # Maps ports in the format "HOST:CONTAINER"

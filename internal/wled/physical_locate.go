@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"reflect"
 	"sort"
@@ -1704,7 +1705,14 @@ func (c *Client) getControllerJSON(ctx context.Context, controller db.Controller
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("HTTP status %d", resp.StatusCode)
+		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		if readErr != nil {
+			return fmt.Errorf("GET %s returned %s (could not read error response: %v)", path, resp.Status, readErr)
+		}
+		if message := strings.TrimSpace(string(body)); message != "" {
+			return fmt.Errorf("GET %s returned %s: %s", path, resp.Status, message)
+		}
+		return fmt.Errorf("GET %s returned %s", path, resp.Status)
 	}
 	if err := json.NewDecoder(resp.Body).Decode(target); err != nil {
 		return fmt.Errorf("decode WLED response: %w", err)
@@ -1814,19 +1822,7 @@ func (c *Client) setPhysicalPixels(ctx context.Context, controller db.Controller
 		return err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("WLED returned HTTP status %d", resp.StatusCode)
-	}
-	var response struct {
-		Success *bool `json:"success"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
-		return fmt.Errorf("decode WLED command acknowledgement: %w", err)
-	}
-	if response.Success == nil || !*response.Success {
-		return errors.New("WLED did not confirm the pixel command")
-	}
-	return nil
+	return checkWLEDWriteResponse(resp)
 }
 
 func colorRGB(color string) []int {

@@ -500,7 +500,7 @@ func TestConvertToDrawerRelative_ConcurrentLocate(t *testing.T) {
 		mu.Lock()
 		payloads = append(payloads, string(body))
 		mu.Unlock()
-		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, `{"success":true}`)
 	}))
 	defer server.Close()
 	ip := server.URL[7:]
@@ -634,7 +634,7 @@ func TestConvertToDrawerRelative_LocatePartAndFlashEquivalence(t *testing.T) {
 		mu.Lock()
 		payloads = append(payloads, string(body))
 		mu.Unlock()
-		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, `{"success":true}`)
 	}))
 	defer server.Close()
 	ip := server.URL[7:]

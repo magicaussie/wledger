@@ -1,0 +1,40 @@
+{
+  "ver": "0.15.0",
+  "vid": 2411160,
+  "leds": {
+    "count": 200,
+    "pwr": 2400,
+    "fps": 0,
+    "maxpwr": 65000,
+    "maxseg": 32,
+    "seglc": [0, 0],
+    "lc": 1,
+    "rgbw": false,
+    "wv": false,
+    "cct": false
+  },
+  "str": true,
+  "name": "WLEDger fixture",
+  "udpport": 21324,
+  "live": false,
+  "fxcount": 187,
+  "palcount": 71,
+  "wifi": {
+    "bssid": "00:11:22:33:44:55",
+    "rssi": -48,
+    "signal": 100,
+    "channel": 6
+  },
+  "fs": {
+    "u": 1024,
+    "t": 4096,
+    "pmt": 0
+  },
+  "ndc": 1,
+  "arch": "esp32",
+  "core": "3.3.5",
+  "clock": 240,
+  "uptime": 12345,
+  "mac": "AA:BB:CC:DD:EE:FF",
+  "ip": "192.0.2.10"
+}

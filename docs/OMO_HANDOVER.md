@@ -1380,3 +1380,16 @@ SQLite file are coordinated. External WLED applications are not fenced, and
 SQLite cannot retract an HTTP request already received by a controller.
 Independent GitHub source review is the next acceptance gate. Existing unrelated
 M6/handover working-tree changes remain uncommitted and excluded from this task.
+
+---
+
+## Task 068 — Physical WLED Output Acceptance — 2026-10-15
+
+- **Baseline/branch:** requested candidate `c6b16aa448392353252976dde7b78e5f2586a5e3` on `development/chatgpt-m6-m7`; checkout matched this baseline and `origin` at task start.
+- **Authorization/safety:** owner requested source review, software fixes, verification and publication. Do not access production, enable physical output, or contact real controllers; no such operations were performed.
+- **Finding/fix:** physical Locate already checked WLED JSON acknowledgements, but legacy state writes and Global Off accepted any HTTP 2xx, including firmware `success:false`. All WLED state writes now require a valid `{"success":true}` acknowledgement and include firmware error details. Mapping HTTP failures report endpoint, status and response body.
+- **Acceptance evidence:** added representative WLED 0.15-shaped `/json/info`, `/json/cfg`, and `/json/state` fixtures. The integration test asserts mapping verification's read-only GETs, Locate and Stop request sequence, exact `/json/state` range payloads and content types, and that unrelated mock pixels remain unchanged. Existing suites exercise inventory-product/bin routing, up to five controllers, output/segment mapping, stale layouts, multi-process coordination, timeout, restart recovery, targeted cleanup and Global Off.
+- **Operator documentation:** `docs/WLED_PHYSICAL_COMMISSIONING.md` and `docs/environment.md`; Compose passes `WLEDGER_PHYSICAL_OUTPUT_ENABLED` with a default of `false`.
+- **Verification:** `/home/spetchal/gotoolchain/go/bin/go test -tags fts5 -count=1 ./...`, `go test -race -tags fts5 -count=1 ./...`, `go vet -tags fts5 ./...`, `go build -tags fts5 ./...`, `docker compose config --quiet`, and `git diff --check` passed. Tests use local mocks only.
+- **Limitations:** actual firmware, GPIO wiring, physical strip order, power/network behavior and external writers cannot be validated by software fixtures. Commissioning requires separate owner authorization. Existing cabinet assignment is limited to five controllers, and supported physical mapping remains limited to the documented linear RGB topology. No separate model was delegated.
+- **Publication status:** implementation reviewed locally; publication pending exact staging and authorized-branch synchronization checks. Existing unrelated working-tree changes remain excluded.

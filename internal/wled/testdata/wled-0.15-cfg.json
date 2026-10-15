@@ -1,0 +1,34 @@
+{
+  "hw": {
+    "led": {
+      "total": 200,
+      "maxpwr": 65000,
+      "maxseg": 32,
+      "ins": [
+        {
+          "pin": [2, -1, -1],
+          "order": 0,
+          "rev": false,
+          "skip": 0,
+          "start": 0,
+          "len": 100,
+          "colorOrder": 0,
+          "type": 22
+        },
+        {
+          "pin": [4, -1, -1],
+          "order": 1,
+          "rev": false,
+          "skip": 0,
+          "start": 100,
+          "len": 100,
+          "colorOrder": 0,
+          "type": 22
+        }
+      ],
+      "matrix": false,
+      "map": 0,
+      "ledmap": 0
+    }
+  }
+}

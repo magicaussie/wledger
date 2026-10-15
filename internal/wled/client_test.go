@@ -16,6 +16,11 @@ import (
 	"github.com/tuxedocurly/wledger/internal/db"
 )
 
+func writeWLEDWriteSuccess(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = io.WriteString(w, `{"success":true}`)
+}
+
 func newClientTestClient(t *testing.T) *Client {
 	t.Helper()
 	conn, err := db.Open("file:client-" + strings.ReplaceAll(t.Name(), "/", "-") + "?mode=memory&cache=shared")
@@ -38,7 +43,7 @@ func TestClient_ApplySolid(t *testing.T) {
 		mu.Lock()
 		body = string(b)
 		mu.Unlock()
-		w.WriteHeader(http.StatusOK)
+		writeWLEDWriteSuccess(w)
 	}))
 	defer server.Close()
 	ip := server.URL[7:]
@@ -73,7 +78,7 @@ func TestService_FlashError(t *testing.T) {
 			bodies = append(bodies, string(b))
 			mu.Unlock()
 		}
-		w.WriteHeader(http.StatusOK)
+		writeWLEDWriteSuccess(w)
 	}))
 	defer server.Close()
 	ip := server.URL[7:]
@@ -162,7 +167,7 @@ func TestClient_ClearPayload(t *testing.T) {
 		method = r.Method
 		path = r.URL.Path
 		mu.Unlock()
-		w.WriteHeader(http.StatusOK)
+		writeWLEDWriteSuccess(w)
 	}))
 	defer server.Close()
 	ip := server.URL[7:]
@@ -215,7 +220,7 @@ func TestClient_ClearNoSegmentDiscovery(t *testing.T) {
 		mu.Lock()
 		paths = append(paths, r.URL.Path)
 		mu.Unlock()
-		w.WriteHeader(http.StatusOK)
+		writeWLEDWriteSuccess(w)
 	}))
 	defer server.Close()
 	ip := server.URL[7:]
@@ -247,6 +252,19 @@ func TestClient_ClearHTTPError(t *testing.T) {
 
 // TestClient_ClearUnavailableController verifies an unreachable controller is
 // reported as an error rather than silently succeeding.
+func TestClient_ClearRejectsWLEDJSONFailure(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"success":false,"error":"invalid state command"}`)
+	}))
+	defer server.Close()
+
+	err := newClientTestClient(t).Clear(context.Background(), server.URL[7:])
+	if err == nil || !strings.Contains(err.Error(), "invalid state command") {
+		t.Fatalf("Clear error = %v, want the WLED JSON rejection details", err)
+	}
+}
+
 func TestClient_ClearUnavailableController(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	ip := server.URL[7:]
@@ -282,7 +300,7 @@ func TestClient_ApplyDoesNotPowerOff(t *testing.T) {
 		mu.Lock()
 		body = string(b)
 		mu.Unlock()
-		w.WriteHeader(http.StatusOK)
+		writeWLEDWriteSuccess(w)
 	}))
 	defer server.Close()
 	ip := server.URL[7:]

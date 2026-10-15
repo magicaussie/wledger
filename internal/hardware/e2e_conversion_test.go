@@ -84,7 +84,7 @@ func TestEndToEndConversionAndLocate(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		pr.add(string(body))
-		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, `{"success":true}`)
 	}))
 	defer server.Close()
 	ip := server.URL[7:]
