@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/internal/db"
+	"github.com/tuxedocurly/wledger/internal/uierror"
 )
 
 // setupUploadsMaintenanceHandler builds a Handler whose uploads directory is a
@@ -20,7 +22,7 @@ func setupUploadsMaintenanceHandler(t *testing.T) (*Handler, string) {
 	t.Chdir(t.TempDir())
 	dbConn := openTestDB(t)
 	setupTestSchema(t, dbConn)
-	h := &Handler{Database: dbConn, Queries: db.NewStore(dbConn)}
+	h := &Handler{Database: dbConn, Queries: db.NewStore(dbConn), UIError: uierror.New(slog.Default())}
 	uploadsDir := config.DirUploads
 	if err := os.MkdirAll(filepath.Join(uploadsDir, "images"), 0o755); err != nil {
 		t.Fatalf("create uploads dir: %v", err)
@@ -91,5 +93,21 @@ func TestUploadsMaintenanceDeleteRemovesOnlyOrphans(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(uploadsDir, "images", "part_1_thumb.jpg")); err != nil {
 		t.Errorf("referenced thumbnail was removed: %v", err)
+	}
+}
+
+func TestUploadsMaintenanceReportsAuditFailureAfterRemoval(t *testing.T) {
+	h, dir := setupUploadsMaintenanceHandler(t)
+	writeMaintenanceUpload(t, dir, "images/orphan.jpg", "obsolete")
+	if _, err := h.Database.Exec(`CREATE TRIGGER fail_upload_audit BEFORE INSERT ON audit_logs BEGIN SELECT RAISE(ABORT, 'forced audit failure'); END`); err != nil {
+		t.Fatal(err)
+	}
+	rec := httptest.NewRecorder()
+	h.HandleUploadsMaintenanceDelete(rec, httptest.NewRequest(http.MethodPost, "/settings/uploads/delete", nil))
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("audit failure falsely reported success: %d %s", rec.Code, rec.Body.String())
+	}
+	if _, err := os.Stat(filepath.Join(dir, "images/orphan.jpg")); !os.IsNotExist(err) {
+		t.Fatalf("expected removal before audit failure: %v", err)
 	}
 }

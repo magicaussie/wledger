@@ -635,6 +635,10 @@ func (s *service) writeUploads(zw zipFileWriter) error {
 }
 
 func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64) error {
+	if maintenance.HoldsUploadReferences(ctx, s.uploadsDir) {
+		return fmt.Errorf("restore cannot acquire maintenance gate inside upload reference claim")
+	}
+
 	s.logger.Debug("starting system restore", "size", size)
 	if s.gate.Unavailable() {
 		return &RestoreRecoveryError{Reason: "this process is fail-closed after an earlier recovery error; restart the service to recover the pending journal"}
@@ -644,6 +648,11 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 		return fmt.Errorf("acquire restore maintenance gate: %w", err)
 	}
 	defer unlock()
+	releaseUploads, err := maintenance.UploadCleanup(ctx, s.uploadsDir)
+	if err != nil {
+		return fmt.Errorf("acquire restore upload claim: %w", err)
+	}
+	defer releaseUploads()
 	s.restoreMu.Lock()
 	defer s.restoreMu.Unlock()
 	if err := recoverPendingRestore(ctx, s.db, s.uploadsDir, s.logger); err != nil {

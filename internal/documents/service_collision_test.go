@@ -60,3 +60,28 @@ func TestUploadDocumentDoesNotCollide(t *testing.T) {
 		t.Errorf("second document bytes = %q, want %q", got, "second")
 	}
 }
+
+func TestDocumentTransactionRequiresPreTransactionClaim(t *testing.T) {
+	t.Chdir(t.TempDir())
+	_, store, cleanup := setupTestDB(t)
+	defer cleanup()
+	svc := NewService(store, slog.Default())
+	ctx := context.Background()
+	id, err := store.CreatePart(ctx, db.CreatePartParams{Name: "Claim test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = store.ExecTx(ctx, func(q db.Querier) error {
+		_, err := svc.UploadDocument(ctx, q, id, strings.NewReader("must not write"), "unsafe.txt")
+		if err == nil || !strings.Contains(err.Error(), "enclosing upload reference claim") {
+			t.Fatalf("unclaimed transaction accepted: %v", err)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat("app/uploads/docs"); !os.IsNotExist(err) {
+		t.Fatalf("unclaimed upload touched filesystem: %v", err)
+	}
+}

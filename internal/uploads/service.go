@@ -4,9 +4,8 @@
 // Orphaned files are harmless but they are carried into every backup and are
 // restored into the target installation, so an administrator may want to remove
 // them. Detection is read-only and cleanup is deliberately conservative: it
-// re-scans immediately before deleting and refuses to remove any file that has
-// become referenced in the meantime, so a concurrent upload, edit or restore can
-// never cause a referenced asset to be deleted.
+// holds a cross-process upload claim across revalidation and removal. Reference
+// writers and restore must participate in that protocol (see maintenance).
 package uploads
 
 import (
@@ -21,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/tuxedocurly/wledger/internal/config"
+	"github.com/tuxedocurly/wledger/internal/maintenance"
 )
 
 // Orphan describes a single unreferenced upload file.
@@ -53,6 +53,15 @@ func NewService(database *sql.DB, uploadsDir string) *Service {
 // Scan lists every upload file that no part image, category image or part
 // document references. It never modifies the filesystem or the database.
 func (s *Service) Scan(ctx context.Context) (Report, error) {
+	_, releaseUploads, err := maintenance.UploadReferences(ctx, s.uploadsDir)
+	if err != nil {
+		return Report{}, err
+	}
+	defer releaseUploads()
+	return s.scan(ctx)
+}
+
+func (s *Service) scan(ctx context.Context) (Report, error) {
 	referenced, err := s.referencedPaths(ctx)
 	if err != nil {
 		return Report{}, err
@@ -93,6 +102,9 @@ func (s *Service) Scan(ctx context.Context) (Report, error) {
 		if err != nil {
 			return err
 		}
+		if !info.Mode().IsRegular() {
+			return nil
+		}
 		report.Orphans = append(report.Orphans, Orphan{RelPath: rel, Size: info.Size()})
 		return nil
 	})
@@ -108,7 +120,12 @@ func (s *Service) Scan(ctx context.Context) (Report, error) {
 // referenced or no longer present, so it can never delete a live asset. A
 // requested path that escapes the uploads directory is ignored.
 func (s *Service) Delete(ctx context.Context, relPaths []string) ([]string, error) {
-	report, err := s.Scan(ctx)
+	releaseUploads, err := maintenance.UploadCleanup(ctx, s.uploadsDir)
+	if err != nil {
+		return nil, err
+	}
+	defer releaseUploads()
+	report, err := s.scan(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -117,6 +134,11 @@ func (s *Service) Delete(ctx context.Context, relPaths []string) ([]string, erro
 		orphans[orphan.RelPath] = struct{}{}
 	}
 
+	root, err := os.OpenRoot(s.uploadsDir)
+	if err != nil {
+		return nil, fmt.Errorf("open uploads root: %w", err)
+	}
+	defer root.Close()
 	var deleted []string
 	for _, rel := range relPaths {
 		clean := filepath.ToSlash(filepath.Clean(strings.TrimSpace(rel)))
@@ -131,7 +153,20 @@ func (s *Service) Delete(ctx context.Context, relPaths []string) ([]string, erro
 		if !withinDir(s.uploadsDir, full) {
 			continue
 		}
-		if err := os.Remove(full); err != nil {
+		if err := ctx.Err(); err != nil {
+			return deleted, err
+		}
+		info, err := root.Lstat(filepath.FromSlash(clean))
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return deleted, fmt.Errorf("inspect orphan %q: %w", clean, err)
+		}
+		if !info.Mode().IsRegular() {
+			continue
+		}
+		if err := root.Remove(filepath.FromSlash(clean)); err != nil {
 			if errors.Is(err, fs.ErrNotExist) {
 				continue
 			}

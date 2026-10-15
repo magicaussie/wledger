@@ -17,6 +17,7 @@ import (
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/documents"
 	"github.com/tuxedocurly/wledger/internal/images"
+	"github.com/tuxedocurly/wledger/internal/maintenance"
 	"github.com/tuxedocurly/wledger/internal/tags"
 	"github.com/tuxedocurly/wledger/internal/utils"
 	"github.com/tuxedocurly/wledger/web/pages"
@@ -285,6 +286,11 @@ func (s *service) GetPartDetail(ctx context.Context, id int64) (PartDetail, erro
 }
 
 func (s *service) CreatePart(ctx context.Context, req CreatePartRequest) (int64, error) {
+	ctx, releaseUploads, claimErr := maintenance.UploadReferences(ctx, config.DirUploads)
+	if claimErr != nil {
+		return 0, claimErr
+	}
+	defer releaseUploads()
 	if err := validateBarcode(req.BarcodeData); err != nil {
 		return 0, err
 	}
@@ -384,6 +390,11 @@ func (s *service) CreatePart(ctx context.Context, req CreatePartRequest) (int64,
 }
 
 func (s *service) UpdatePart(ctx context.Context, req UpdatePartRequest) error {
+	ctx, releaseUploads, claimErr := maintenance.UploadReferences(ctx, config.DirUploads)
+	if claimErr != nil {
+		return claimErr
+	}
+	defer releaseUploads()
 	if err := validateBarcode(req.BarcodeData); err != nil {
 		return err
 	}

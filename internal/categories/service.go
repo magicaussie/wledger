@@ -6,11 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"os"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/tuxedocurly/wledger/internal/config"
+	"github.com/tuxedocurly/wledger/internal/maintenance"
 )
 
 var (
@@ -88,9 +91,20 @@ type Specification struct {
 	Boolean     *bool
 }
 
-type Service struct{ db *sql.DB }
+type Service struct {
+	db         *sql.DB
+	uploadsDir string
+}
 
-func NewService(database *sql.DB) *Service { return &Service{db: database} }
+func NewService(database *sql.DB) *Service {
+	return NewServiceWithUploadsDir(database, config.DirUploads)
+}
+
+// NewServiceWithUploadsDir binds image validation and locking to the same upload
+// namespace used by cleanup and restore.
+func NewServiceWithUploadsDir(database *sql.DB, uploadsDir string) *Service {
+	return &Service{db: database, uploadsDir: uploadsDir}
+}
 
 func (s *Service) List(ctx context.Context, search string) ([]Category, error) {
 	rows, err := s.db.QueryContext(ctx, `
@@ -143,6 +157,11 @@ func (s *Service) Get(ctx context.Context, id int64) (Category, error) {
 }
 
 func (s *Service) Save(ctx context.Context, category Category) (int64, error) {
+	ctx, releaseUploads, claimErr := maintenance.UploadReferences(ctx, s.uploadsDir)
+	if claimErr != nil {
+		return 0, claimErr
+	}
+	defer releaseUploads()
 	category.Name = strings.TrimSpace(category.Name)
 	category.Description = strings.TrimSpace(category.Description)
 	category.ImagePath = strings.TrimSpace(category.ImagePath)
@@ -156,6 +175,18 @@ func (s *Service) Save(ctx context.Context, category Category) (int64, error) {
 		return 0, ErrInvalid
 	}
 
+	// Check under the claim: cleanup may have completed before this save began.
+	if category.ImagePath != "" {
+		root, err := os.OpenRoot(s.uploadsDir)
+		if err != nil {
+			return 0, ErrInvalid
+		}
+		info, err := root.Lstat(filepath.Join("images", path.Base(category.ImagePath)))
+		root.Close()
+		if err != nil || !info.Mode().IsRegular() {
+			return 0, ErrInvalid
+		}
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, err

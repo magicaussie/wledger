@@ -17,6 +17,7 @@ import (
 	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/images"
+	"github.com/tuxedocurly/wledger/internal/maintenance"
 )
 
 // Service provides orchestration for supplier search, detail retrieval, and import.
@@ -289,6 +290,11 @@ func (s *service) getDetailsFresh(ctx context.Context, providerKey, providerID s
 }
 
 func (s *service) ImportFromProvider(ctx context.Context, req ImportRequest) (int64, error) {
+	ctx, releaseUploads, claimErr := maintenance.UploadReferences(ctx, config.DirUploads)
+	if claimErr != nil {
+		return 0, claimErr
+	}
+	defer releaseUploads()
 	// Check if part already exists with this provider reference
 	existing, err := s.store.FindExistingPartByProviderRef(ctx, db.FindExistingPartByProviderRefParams{
 		ProviderKey: req.ProviderKey,
@@ -417,6 +423,11 @@ func (s *service) ImportFromProvider(ctx context.Context, req ImportRequest) (in
 // safe to call on parts that were imported before richer provider parsing was
 // added.
 func (s *service) ResyncFromProvider(ctx context.Context, partID int64) error {
+	ctx, releaseUploads, claimErr := maintenance.UploadReferences(ctx, config.DirUploads)
+	if claimErr != nil {
+		return claimErr
+	}
+	defer releaseUploads()
 	refs, err := s.store.GetSupplierReferencesByPart(ctx, partID)
 	if err != nil {
 		return fmt.Errorf("failed to get supplier references: %w", err)

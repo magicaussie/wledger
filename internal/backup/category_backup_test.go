@@ -25,7 +25,7 @@ func TestCategoryAndProductSpecificationsBackupRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	categoryService := categories.NewService(sourceDB)
+	categoryService := categories.NewServiceWithUploadsDir(sourceDB, sourceUploads)
 	categoryImage := filepath.Join(sourceUploads, "images", "category-backup.jpg")
 	if err := os.MkdirAll(filepath.Dir(categoryImage), 0o755); err != nil {
 		t.Fatal(err)

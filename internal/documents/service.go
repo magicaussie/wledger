@@ -14,6 +14,7 @@ import (
 
 	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/internal/db"
+	"github.com/tuxedocurly/wledger/internal/maintenance"
 )
 
 type Service interface {
@@ -52,6 +53,17 @@ func (s *service) DeleteLink(ctx context.Context, id int64) error {
 }
 
 func (s *service) UploadDocument(ctx context.Context, q db.Querier, partID int64, file io.Reader, filename string) (string, error) {
+	// A transaction-bound querier must inherit its caller's pre-transaction claim.
+	if !maintenance.HoldsUploadReferences(ctx, config.DirUploads) {
+		if _, ok := q.(db.Store); !ok {
+			return "", fmt.Errorf("document transaction requires enclosing upload reference claim")
+		}
+	}
+	ctx, releaseUploads, claimErr := maintenance.UploadReferences(ctx, config.DirUploads)
+	if claimErr != nil {
+		return "", claimErr
+	}
+	defer releaseUploads()
 	s.logger.Debug("saving part document", "part_id", partID, "filename", filename)
 	savedWebPath, err := s.saveDocument(file, filename)
 	if err != nil {

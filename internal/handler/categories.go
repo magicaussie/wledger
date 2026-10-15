@@ -13,6 +13,7 @@ import (
 	"github.com/tuxedocurly/wledger/internal/categories"
 	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/internal/images"
+	"github.com/tuxedocurly/wledger/internal/maintenance"
 	"github.com/tuxedocurly/wledger/internal/qrcode"
 	"github.com/tuxedocurly/wledger/web/pages"
 )
@@ -93,6 +94,13 @@ func (h *Handler) HandleCategoryEdit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) HandleCategoryCreate(w http.ResponseWriter, r *http.Request) {
+	ctx, releaseUploads, claimErr := maintenance.UploadReferences(r.Context(), config.DirUploads)
+	if claimErr != nil {
+		h.UIError.Respond(w, r, claimErr, "Upload lock unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	defer releaseUploads()
+	r = r.WithContext(ctx)
 	if !limitRequestBody(w, r, config.MaxUploadSizeParts) {
 		return
 	}
@@ -129,6 +137,13 @@ func (h *Handler) HandleCategoryCreate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) HandleCategoryUpdate(w http.ResponseWriter, r *http.Request) {
+	ctx, releaseUploads, claimErr := maintenance.UploadReferences(r.Context(), config.DirUploads)
+	if claimErr != nil {
+		h.UIError.Respond(w, r, claimErr, "Upload lock unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	defer releaseUploads()
+	r = r.WithContext(ctx)
 	id, err := categoryID(r)
 	if err != nil {
 		http.Error(w, "Category not found", http.StatusNotFound)

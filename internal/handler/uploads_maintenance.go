@@ -1,8 +1,12 @@
 package handler
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/tuxedocurly/wledger/internal/audit"
 	"github.com/tuxedocurly/wledger/internal/auth"
@@ -45,13 +49,20 @@ func (h *Handler) HandleUploadsMaintenanceDelete(w http.ResponseWriter, r *http.
 		paths = append(paths, orphan.RelPath)
 	}
 	deleted, err := svc.Delete(r.Context(), paths)
-	if err != nil {
-		h.UIError.Respond(w, r, err, "Failed to delete orphaned uploads", http.StatusInternalServerError)
-		return
-	}
 	if len(deleted) > 0 {
-		audit.Log(r.Context(), h.Queries, "DELETE", "UPLOADS", 0,
+		// File removal is not transactional. Record successful removals even
+		// when a later removal fails or the initiating request is canceled.
+		auditCtx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 5*time.Second)
+		auditErr := audit.LogTx(auditCtx, h.Queries, "DELETE", "UPLOADS", 0,
 			"Deleted "+strconv.Itoa(len(deleted))+" orphaned upload file(s)", nil, deleted)
+		cancel()
+		if auditErr != nil {
+			err = errors.Join(err, fmt.Errorf("files removed but cleanup audit failed: %w", auditErr))
+		}
+	}
+	if err != nil {
+		h.UIError.Respond(w, r, err, "Upload cleanup partially completed; deleted "+strconv.Itoa(len(deleted))+" file(s)", http.StatusInternalServerError)
+		return
 	}
 	http.Redirect(w, r, "/settings/uploads?deleted="+strconv.Itoa(len(deleted)), http.StatusSeeOther)
 }

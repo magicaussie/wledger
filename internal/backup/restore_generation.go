@@ -502,6 +502,12 @@ func RecoverStartup(ctx context.Context, database *sql.DB, uploadsDir string, ga
 // RecoverStartupLocked is used by the server while it holds the exclusive gate
 // across database open, migration, restore recovery and integrity validation.
 func RecoverStartupLocked(ctx context.Context, database *sql.DB, uploadsDir string, logger *slog.Logger) error {
+	releaseUploads, err := maintenance.UploadCleanup(ctx, uploadsDir)
+	if err != nil {
+		return err
+	}
+	defer releaseUploads()
+
 	if err := recoverPendingRestore(ctx, database, uploadsDir, logger); err != nil {
 		return err
 	}

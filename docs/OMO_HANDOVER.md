@@ -1393,3 +1393,91 @@ M6/handover working-tree changes remain uncommitted and excluded from this task.
 - **Verification:** `/home/spetchal/gotoolchain/go/bin/go test -tags fts5 -count=1 ./...`, `go test -race -tags fts5 -count=1 ./...`, `go vet -tags fts5 ./...`, `go build -tags fts5 ./...`, `docker compose config --quiet`, and `git diff --check` passed. Tests use local mocks only.
 - **Limitations:** actual firmware, GPIO wiring, physical strip order, power/network behavior and external writers cannot be validated by software fixtures. Commissioning requires separate owner authorization. Existing cabinet assignment is limited to five controllers, and supported physical mapping remains limited to the documented linear RGB topology. No separate model was delegated.
 - **Publication:** commit `0b48621a4b43c2c60ed544c4c4d259bfe836322d`, parent `c6b16aa448392353252976dde7b78e5f2586a5e3`, pushed to `origin/development/chatgpt-m6-m7`; post-push fetch confirmed local/remote equality. Independent published-source review remains pending. Existing unrelated working-tree changes remain excluded.
+
+
+## Isolated RC orphan cleanup race fix — 2026-10-16
+
+- **Authorization/baseline:** owner approved an isolated correction and local
+  commit, explicitly prohibiting push, merge and deployment. Chosen worktree:
+  `.rc-cleanup-worktree`, branch `fix/rc-orphan-cleanup-race`, baseline `b81052d`.
+  Production data, running instances, ports 8090–8093 and physical hardware
+  remain untouched. Docker verification uses only disposable test containers.
+  Implementation and validation were delegated using the configured default
+  model; the lead reviewed the actual source and writer/lock ordering.
+- **Root cause:** the orphan service queried references, then removed files
+  without excluding reference creation. The maintenance gate admits ordinary
+  requests concurrently (shared locks); acquiring its exclusive lock from the
+  cleanup handler would upgrade an already-held shared lock and deadlock.
+- **Protocol:** `maintenance.UploadReferences`/`UploadCleanup` use a separate
+  cross-process flock inode at `maintenance.LockPath(uploadsDir) + ".uploads"`.
+  This retains mount-aware, restore-stable placement. Reference writers take SH
+  before file publication or SQLite work and hold it through commit/rollback and
+  cleanup. Delete takes EX before its authoritative rescan and holds EX through
+  every removal. Public Scan takes SH to exclude restore but remains advisory
+  relative to other SH writers. Lock acquisition polls nonblocking flock with
+  request cancellation; the lock file itself is opened with O_NOFOLLOW.
+- **Lock order:** maintenance gate (when applicable) -> upload claim -> SQLite.
+  No upload operation acquires/upgrades the maintenance gate. Restore rejects a
+  shared upload context before acquiring its maintenance gate; normal restore
+  and startup recovery acquire upload EX after maintenance EX and before their
+  database/filesystem work. Transactional document calls reuse a context-bound
+  pre-transaction SH claim; an unclaimed transaction querier is rejected before
+  any file I/O. Standalone Store document calls acquire their own SH claim.
+- **Reference-writer trace:** parts CreatePart/UpdatePart cover image processing,
+  document uploads inside ExecTx, commit/rollback, and failed-upload cleanup.
+  Category create/update handlers cover image processing through Save and file
+  cleanup; Save also participates for direct callers. Supplier ImportFromProvider
+  and ResyncFromProvider cover downloaded images through reference persistence.
+  Backup Restore and startup recovery cover generation swaps and restored part,
+  category, and document references. CSV bulk import sets no upload references.
+  Generated db query methods remain low-level APIs: callers adding reference
+  mutations must participate before starting a transaction.
+- **Path/late-writer safety:** Scan ignores symlinks, nonregular entries and hidden
+  control/recovery paths. Delete rechecks regular-file type and removes using
+  os.Root, confining resolution even if a parent is replaced with an escaping
+  symlink. Category Save checks the file under SH using the same confined root,
+  rejecting missing/nonregular images rather than committing a reference after
+  cleanup already removed it. A custom-uploads category constructor keeps tests
+  and other custom namespace callers on the correct claim/file namespace.
+- **Audit/partial errors:** Delete retains exact successful paths on later error
+  or cancellation; the HTTP handler audits those paths before returning failure.
+  Audit uses a bounded 5-second context detached from request cancellation and
+  surfaces audit insertion failure rather than returning a success redirect.
+  File removal and SQLite audit insertion are NOT crash-atomic; process death
+  after unlink or a failed audit write can leave an unaudited deletion. No new
+  crash journal is claimed or introduced.
+- **Tests:** a real subprocess, independent flock and SQLite connection pauses
+  reference creation strictly after initial identification. A cleanup attempt
+  must time out without removing anything while that writer owns SH. The writer
+  then commits through the category service; a stale-path Delete revalidates and
+  preserves the image/thumbnail, with the reference and PRAGMA integrity_check
+  verified. Additional tests cover post-cleanup reference rejection, symlink and
+  traversal exclusion, upgrade rejection, unclaimed document transactions, and
+  audit insertion failure after successful removal. Existing backup category
+  round-trip fixture now explicitly supplies its custom uploads namespace.
+- **Verification passed:** targeted normal tests for uploads, maintenance, parts,
+  categories, documents, suppliers, handler, backup; final
+  `go test -race -tags fts5 -count=1` and `go vet -tags fts5` for the same eight
+  packages; 20 repetitions of the three new cleanup race/path/late-reference
+  tests; `git diff --check`. Go tools used from
+  `/home/spetchal/gotoolchain/go/bin`. Full build, vet, Go and race suites,
+  npm tests, layout browser (five runs), physical-first, barcode, CSRF, UI-only,
+  fresh-install Locate and inventory/restore suites passed before commit.
+  Physical-first initially required linking existing node_modules in this
+  isolated worktree; it passed after that environment-only correction.
+  Full gates are repeated against the final local commit before reporting.
+  Initial verification caught
+  and corrected a duplicate import, a fixture using the wrong uploads namespace,
+  and a missing test error responder.
+- **Remaining limits:** advisory flock protects cooperating upgraded processes
+  only, on supported local filesystems. Old binaries, manual SQL/filesystem edits,
+  lock-file replacement, malicious control-directory changes, or differently
+  configured/aliased upload namespaces are outside the contract. All processes
+  sharing a namespace must be upgraded together and resolve the same stable lock
+  location. Long supplier network calls/uploads can delay cleanup or restore;
+  flock does not guarantee fairness. An existing category whose image is already
+  missing will now need its image cleared/replaced before Save succeeds. No
+  schema migration or operational action is required by the source change.
+- **Status:** correction prepared for an authorized local commit and full
+  post-commit verification. Publication requires new explicit owner approval;
+  independent source review remains required before merge or deployment.
