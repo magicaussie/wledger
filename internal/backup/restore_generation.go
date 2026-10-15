@@ -181,6 +181,9 @@ func renameSynced(oldPath, newPath string) error {
 }
 
 func finishGeneration(uploadsDir string, record restoreJournal) error {
+	if uploadsDirIsMountPoint(uploadsDir) {
+		return finishGenerationMount(uploadsDir, record)
+	}
 	_, candidate, previous, _ := generationPaths(uploadsDir, record.ID)
 	candidateExists, err := pathExists(candidate)
 	if err != nil {
@@ -219,6 +222,9 @@ func finishGeneration(uploadsDir string, record restoreJournal) error {
 }
 
 func rollbackGeneration(uploadsDir string, record restoreJournal) error {
+	if uploadsDirIsMountPoint(uploadsDir) {
+		return rollbackGenerationMount(uploadsDir, record)
+	}
 	parent, candidate, previous, _ := generationPaths(uploadsDir, record.ID)
 	candidateExists, err := pathExists(candidate)
 	if err != nil {
@@ -287,8 +293,11 @@ func recoverPendingRestore(ctx context.Context, database *sql.DB, uploadsDir str
 		if err := retireRestoreJournal(uploadsDir, record.ID); err != nil {
 			return fmt.Errorf("retire recovered restore journal: %w", err)
 		}
-		_, _, previous, _ := generationPaths(uploadsDir, record.ID)
-		if record.HadUploads {
+		if uploadsDirIsMountPoint(uploadsDir) {
+			_, _, previous := mountGenerationPaths(uploadsDir, record.ID)
+			cleanupMountGeneration(uploadsDir, previous, logger)
+		} else if record.HadUploads {
+			_, _, previous, _ := generationPaths(uploadsDir, record.ID)
 			preserve, err := containsRecoveryDirectory(previous)
 			if err != nil {
 				logger.Warn("could not inspect old uploads generation for recovery data; preserving it", "path", previous, "err", err)

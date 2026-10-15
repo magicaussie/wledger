@@ -779,9 +779,27 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 		return err
 	}
 
-	parent, tempDir, _, _ := generationPaths(s.uploadsDir, generation)
+	// Choose the candidate generation location. On a mount point the candidate
+	// must live inside the mount so activation renames stay on one filesystem;
+	// otherwise it is staged in the control directory beside the live uploads
+	// directory.
+	var parent, tempDir, control string
+	uploadsIsMount := uploadsDirIsMountPoint(s.uploadsDir)
+	if uploadsIsMount {
+		control, tempDir, _ = mountGenerationPaths(s.uploadsDir, generation)
+		parent = control
+	} else {
+		parent, tempDir, _, _ = generationPaths(s.uploadsDir, generation)
+	}
 	if err := os.MkdirAll(parent, 0755); err != nil {
 		return fmt.Errorf("create uploads parent directory: %w", err)
+	}
+	if uploadsIsMount {
+		// Recovery above already resolved any pending journal, so a generation
+		// directory that is still present here is abandoned and can be cleared.
+		if err := cleanAbandonedMountGenerations(control); err != nil {
+			return fmt.Errorf("clear abandoned uploads generations: %w", err)
+		}
 	}
 	s.logger.Debug("extracting uploads to candidate generation", "candidate_dir", tempDir)
 	if err := os.Mkdir(tempDir, 0755); err != nil {
