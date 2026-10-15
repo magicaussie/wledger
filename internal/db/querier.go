@@ -74,6 +74,9 @@ type Querier interface {
 	CreateControllerOutput(ctx context.Context, arg CreateControllerOutputParams) (int64, error)
 	CreateDrawer(ctx context.Context, arg CreateDrawerParams) (int64, error)
 	CreateDrawerLEDAllocation(ctx context.Context, arg CreateDrawerLEDAllocationParams) (int64, error)
+	// Atomic first-run guard: inserts the initial administrator only while no user
+	// exists, so concurrent setup requests cannot both create one.
+	CreateFirstUser(ctx context.Context, arg CreateFirstUserParams) (User, error)
 	CreateInspirationTemplate(ctx context.Context, arg CreateInspirationTemplateParams) (InspirationTemplate, error)
 	CreatePart(ctx context.Context, arg CreatePartParams) (int64, error)
 	CreatePartAssignment(ctx context.Context, arg CreatePartAssignmentParams) error

@@ -10,6 +10,14 @@ INSERT INTO users (email, password_hash, role, change_password_required)
 VALUES (?, ?, ?, ?)
 RETURNING id, email, role, created_at;
 
+-- name: CreateFirstUser :one
+-- Atomic first-run guard: inserts the initial administrator only while no user
+-- exists, so concurrent setup requests cannot both create one.
+INSERT INTO users (email, password_hash, role, change_password_required)
+SELECT ?, ?, ?, ?
+WHERE NOT EXISTS (SELECT 1 FROM users)
+RETURNING *;
+
 -- name: GetUserByEmail :one
 SELECT id, email, password_hash, role, change_password_required, created_at 
 FROM users 

@@ -198,6 +198,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.createDrawerLEDAllocationStmt, err = db.PrepareContext(ctx, createDrawerLEDAllocation); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateDrawerLEDAllocation: %w", err)
 	}
+	if q.createFirstUserStmt, err = db.PrepareContext(ctx, createFirstUser); err != nil {
+		return nil, fmt.Errorf("error preparing query CreateFirstUser: %w", err)
+	}
 	if q.createInspirationTemplateStmt, err = db.PrepareContext(ctx, createInspirationTemplate); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateInspirationTemplate: %w", err)
 	}
@@ -1259,6 +1262,11 @@ func (q *Queries) Close() error {
 	if q.createDrawerLEDAllocationStmt != nil {
 		if cerr := q.createDrawerLEDAllocationStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing createDrawerLEDAllocationStmt: %w", cerr)
+		}
+	}
+	if q.createFirstUserStmt != nil {
+		if cerr := q.createFirstUserStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing createFirstUserStmt: %w", cerr)
 		}
 	}
 	if q.createInspirationTemplateStmt != nil {
@@ -2638,6 +2646,7 @@ type Queries struct {
 	createControllerOutputStmt                                *sql.Stmt
 	createDrawerStmt                                          *sql.Stmt
 	createDrawerLEDAllocationStmt                             *sql.Stmt
+	createFirstUserStmt                                       *sql.Stmt
 	createInspirationTemplateStmt                             *sql.Stmt
 	createPartStmt                                            *sql.Stmt
 	createPartAssignmentStmt                                  *sql.Stmt
@@ -2958,6 +2967,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		createControllerOutputStmt:                     q.createControllerOutputStmt,
 		createDrawerStmt:                               q.createDrawerStmt,
 		createDrawerLEDAllocationStmt:                  q.createDrawerLEDAllocationStmt,
+		createFirstUserStmt:                            q.createFirstUserStmt,
 		createInspirationTemplateStmt:                  q.createInspirationTemplateStmt,
 		createPartStmt:                                 q.createPartStmt,
 		createPartAssignmentStmt:                       q.createPartAssignmentStmt,

@@ -1,7 +1,10 @@
 package handler
 
 import (
+	"database/sql"
+	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/internal/config"
@@ -104,37 +107,60 @@ func (h *Handler) HandleSetup(w http.ResponseWriter, r *http.Request) {
 
 // POST /setup
 func (h *Handler) HandleSetupPost(w http.ResponseWriter, r *http.Request) {
-	email := r.FormValue("email")
+	email := strings.TrimSpace(r.FormValue("email"))
 	password := r.FormValue("password")
 
-	// Check count (Race condition prevention)
-	count, _ := h.Queries.CountUsers(r.Context())
+	// The count is a fast pre-check; the authoritative guard against concurrent
+	// first-run submissions is the atomic insert below. Its error is surfaced
+	// rather than ignored, so a database failure cannot be mistaken for "no
+	// users yet".
+	count, err := h.Queries.CountUsers(r.Context())
+	if err != nil {
+		h.UIError.Respond(w, r, err, "Failed to verify setup state", http.StatusInternalServerError)
+		return
+	}
 	if count > 0 {
 		h.UIError.Respond(w, r, nil, "Setup already completed", http.StatusForbidden)
 		return
 	}
-
+	if email == "" {
+		h.UIError.Respond(w, r, nil, "An email address is required", http.StatusBadRequest)
+		return
+	}
 	// The initial administrator password must satisfy the same policy as every
-	// other password-setting path. Previously an empty or trivially short
-	// password was accepted here because only bcrypt was invoked.
+	// other password-setting path.
 	if err := auth.ValidatePassword(password); err != nil {
 		h.UIError.Respond(w, r, err, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	// Hash password
 	hash, err := auth.HashPassword(password)
 	if err != nil {
 		h.UIError.Respond(w, r, err, "Failed to process password", http.StatusInternalServerError)
 		return
 	}
 
-	// Create admin user
-	user, err := h.Queries.CreateUser(r.Context(), db.CreateUserParams{
-		Email:        email,
-		PasswordHash: hash,
-		Role:         "admin",
+	// Create the initial administrator atomically. The guarded insert makes the
+	// "first user wins" decision inside a single immediate transaction, so two
+	// concurrent setup requests can never both create an administrator.
+	var user db.User
+	err = db.WithOperationClaim(r.Context(), h.Queries, func(q db.Querier) error {
+		created, err := q.CreateFirstUser(r.Context(), db.CreateFirstUserParams{
+			Email:                  email,
+			PasswordHash:           hash,
+			Role:                   "admin",
+			ChangePasswordRequired: sql.NullBool{Bool: false, Valid: true},
+		})
+		if err != nil {
+			return err
+		}
+		user = created
+		return nil
 	})
+	if errors.Is(err, sql.ErrNoRows) {
+		h.UIError.Respond(w, r, nil, "Setup already completed", http.StatusForbidden)
+		return
+	}
 	if err != nil {
 		h.UIError.Respond(w, r, err, "Failed to create initial user", http.StatusInternalServerError)
 		return

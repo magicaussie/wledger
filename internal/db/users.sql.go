@@ -30,6 +30,41 @@ func (q *Queries) CountUsers(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+const createFirstUser = `-- name: CreateFirstUser :one
+INSERT INTO users (email, password_hash, role, change_password_required)
+SELECT ?, ?, ?, ?
+WHERE NOT EXISTS (SELECT 1 FROM users)
+RETURNING id, email, password_hash, role, change_password_required, created_at
+`
+
+type CreateFirstUserParams struct {
+	Email                  string       `json:"email"`
+	PasswordHash           string       `json:"password_hash"`
+	Role                   string       `json:"role"`
+	ChangePasswordRequired sql.NullBool `json:"change_password_required"`
+}
+
+// Atomic first-run guard: inserts the initial administrator only while no user
+// exists, so concurrent setup requests cannot both create one.
+func (q *Queries) CreateFirstUser(ctx context.Context, arg CreateFirstUserParams) (User, error) {
+	row := q.queryRow(ctx, q.createFirstUserStmt, createFirstUser,
+		arg.Email,
+		arg.PasswordHash,
+		arg.Role,
+		arg.ChangePasswordRequired,
+	)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.Role,
+		&i.ChangePasswordRequired,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const createSession = `-- name: CreateSession :exec
 INSERT INTO sessions (token, data, expiry) VALUES (?, ?, ?)
 `
