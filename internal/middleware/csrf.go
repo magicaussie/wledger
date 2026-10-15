@@ -18,6 +18,13 @@ import (
 // stored. It is deliberately separate from the authentication session data.
 const csrfSessionKey = "csrf_token"
 
+// csrfMultipartBodyLimit bounds the multipart body the CSRF middleware will
+// spool in order to read a form token. ParseMultipartForm's argument is only a
+// memory threshold, not a size limit, so without this cap an oversized
+// multipart request could be written to disk without bound before the token was
+// rejected. It allows the largest legitimate upload plus multipart overhead.
+const csrfMultipartBodyLimit = config.MaxUploadSizeParts + (8 << 20)
+
 // ErrCSRFUnavailable is returned when a CSRF token is requested without a session
 // manager.
 var ErrCSRFUnavailable = errors.New("csrf unavailable: no session manager")
@@ -109,11 +116,23 @@ func (m *Manager) RequireCSRF(next http.Handler) http.Handler {
 		submitted := r.Header.Get("X-CSRF-Token")
 		if submitted == "" {
 			if strings.HasPrefix(strings.ToLower(r.Header.Get("Content-Type")), "multipart/form-data") {
+				// Reading the form token requires parsing the multipart body, so the
+				// parse itself must be bounded before it happens.
+				if r.ContentLength > csrfMultipartBodyLimit {
+					m.UIError.Respond(w, r, nil, "Request body too large", http.StatusRequestEntityTooLarge)
+					return
+				}
+				r.Body = http.MaxBytesReader(w, r.Body, csrfMultipartBodyLimit)
 				parseErr := r.ParseMultipartForm(1 << 20)
 				if r.MultipartForm != nil {
 					defer r.MultipartForm.RemoveAll()
 				}
 				if parseErr != nil {
+					var maxBytesErr *http.MaxBytesError
+					if errors.As(parseErr, &maxBytesErr) {
+						m.UIError.Respond(w, r, nil, "Request body too large", http.StatusRequestEntityTooLarge)
+						return
+					}
 					m.UIError.Respond(w, r, nil, "Invalid or missing CSRF token", http.StatusForbidden)
 					return
 				}

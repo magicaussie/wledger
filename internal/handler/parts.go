@@ -266,6 +266,11 @@ func (h *Handler) HandlePartsNew(w http.ResponseWriter, r *http.Request) {
 
 // POST /parts
 func (h *Handler) HandlePartsCreate(w http.ResponseWriter, r *http.Request) {
+	// ParseMultipartForm's maxMemory is only a memory threshold; cap the whole
+	// request body so an oversized upload cannot be spooled without bound.
+	if !limitRequestBody(w, r, config.MaxUploadSizeParts) {
+		return
+	}
 	req, err := h.parsePartCreateRequest(r)
 	if err != nil {
 		h.UIError.Respond(w, r, err, "Failed to parse form", http.StatusBadRequest)
@@ -351,6 +356,11 @@ func (h *Handler) HandlePartEdit(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) HandlePartUpdate(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
 
+	// ParseMultipartForm's maxMemory is only a memory threshold; cap the whole
+	// request body so an oversized upload cannot be spooled without bound.
+	if !limitRequestBody(w, r, config.MaxUploadSizeParts) {
+		return
+	}
 	req, err := h.parsePartUpdateRequest(r, int64(id))
 	if err != nil {
 		h.UIError.Respond(w, r, err, "Failed to parse form", http.StatusBadRequest)
