@@ -7,7 +7,8 @@
 - Task start HEAD and pre-publication `origin/development/chatgpt-m6-m7`: `41d9506df896c9dc0a22d57d341fe8a02042b8ea`; fetched and confirmed 0 ahead / 0 behind.
 - Owner-provided published baseline: `46aec54fa6a97c59f34776add009568b18991783`.
 - Published commits since that baseline before this task: `41d9506df896c9dc0a22d57d341fe8a02042b8ea`.
-- Completed implementation source commit: `79c8cbb` (`feat: configure controller outputs and physical mappings`), full SHA `79c8cbbdec1861c754b9275c5bf27ba391321a38`; parent `41d9506df896c9dc0a22d57d341fe8a02042b8ea`. This handover update is the documentation-only follow-up commit.
+- Completed implementation source commit: `79c8cbb` (`feat: configure controller outputs and physical mappings`), full SHA `79c8cbbdec1861c754b9275c5bf27ba391321a38`; parent `41d9506df896c9dc0a22d57d341fe8a02042b8ea`.
+- Published implementation and verification-note commits. The current GitHub tip before this final publication-status note is `f0243ab322869955ad8c938a55f0651fa361ee2f`, matching local HEAD; this status note will be pushed as a documentation-only child commit.
 - Owner authorization covers implementation, isolated testing, and publication to the authorized development branch. No production/staging DB, deployment, main merge/release, LED coordinate conversion, or real WLED controller operations are authorized.
 
 ## Safety and architecture invariants
@@ -71,8 +72,8 @@
 ## Remaining work and publication
 
 - Owner-requested implementation requirements are complete in the reviewed working tree: controller/output settings and visual mapping; cabinet controller assignment separated from output config; multiple drawer pixel ranges and overlap/capacity validation; multi-controller Locate/Stop/Global Off guards and durable recovery; category/specification/product purchasing/unit/CSV workflows; and migration plus backup/restore compatibility.
-- Implementation is committed locally. The only remaining code-publication step is to push the implementation commit and this handover-only status commit to `origin/development/chatgpt-m6-m7`. Protected files and `.task055b-staging/` remain excluded.
-- After pushing, verify remote alignment and stop for the owner's independent GitHub source review.
+- Implementation commit `79c8cbbdec1861c754b9275c5bf27ba391321a38` and verification-note commit `f0243ab322869955ad8c938a55f0651fa361ee2f` are pushed to `origin/development/chatgpt-m6-m7`; the fetched remote and local HEAD matched with 0 ahead / 0 behind.
+- This final publication-status update is documentation-only. After pushing it and verifying the final remote SHA, stop for the owner's independent GitHub source review.
 - Remaining non-code acceptance is owner-controlled hardware commissioning against verified real controller firmware/wiring and subsequent independent published-source review. No physical WLED operation is authorized by this task.
 
 ## Owner hardware-acceptance checklist (not performed)
