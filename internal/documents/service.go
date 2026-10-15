@@ -2,14 +2,15 @@ package documents
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/internal/db"
@@ -71,11 +72,18 @@ func (s *service) UploadDocument(ctx context.Context, q db.Querier, partID int64
 }
 
 func (s *service) DeleteDocument(ctx context.Context, id int64) error {
+	// Resolve the stored path first, then remove the database row before the
+	// file. Deleting the file first would lose the bytes if the subsequent
+	// database delete failed.
 	doc, err := s.store.GetPartDoc(ctx, id)
-	if err == nil {
-		s.deleteFile(doc.FilePath)
+	if err != nil {
+		return s.store.DeletePartDoc(ctx, id)
 	}
-	return s.store.DeletePartDoc(ctx, id)
+	if err := s.store.DeletePartDoc(ctx, id); err != nil {
+		return err
+	}
+	s.deleteFile(doc.FilePath)
+	return nil
 }
 
 func (s *service) saveDocument(src io.Reader, filename string) (string, error) {
@@ -92,10 +100,19 @@ func (s *service) saveDocument(src io.Reader, filename string) (string, error) {
 		return '_'
 	}, base)
 
-	cleanName := fmt.Sprintf("%s_%d%s", base, time.Now().Unix(), ext)
+	// The stored name must be unique. A whole-second timestamp meant two uploads
+	// with the same sanitized basename in the same second collided, and the
+	// second silently overwrote the first while separate records still
+	// referenced it. A random token plus O_EXCL guarantees distinct files; the
+	// original filename is preserved separately as record metadata.
+	token := make([]byte, 12)
+	if _, err := rand.Read(token); err != nil {
+		return "", err
+	}
+	cleanName := fmt.Sprintf("%s_%s%s", base, hex.EncodeToString(token), ext)
 	destPath := filepath.Join(config.DirUploadsDocs, cleanName)
 
-	dst, err := os.Create(destPath)
+	dst, err := os.OpenFile(destPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
 		return "", err
 	}

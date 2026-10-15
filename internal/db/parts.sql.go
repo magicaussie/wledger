@@ -947,8 +947,8 @@ FROM matched_parts fts
 JOIN parts p ON fts.rowid = p.id
 LEFT JOIN part_assignments pa ON p.id = pa.part_id
 WHERE (?1 IS NULL OR pa.bin_id = ?1)
-GROUP BY p.id, fts.rank
-ORDER BY fts.rank
+GROUP BY p.id
+ORDER BY MIN(fts.rank)
 LIMIT ?3 OFFSET ?2
 `
 
@@ -1130,17 +1130,28 @@ func (q *Queries) UpdatePartAssignmentQuantityByID(ctx context.Context, arg Upda
 	return err
 }
 
-const updatePartLink = `-- name: UpdatePartLink :exec
-UPDATE part_links SET url = ?, label = ? WHERE id = ?
+const updatePartLink = `-- name: UpdatePartLink :execrows
+UPDATE part_links
+SET url = ?, label = ?
+WHERE id = ? AND part_id = ?
 `
 
 type UpdatePartLinkParams struct {
-	Url   string         `json:"url"`
-	Label sql.NullString `json:"label"`
-	ID    int64          `json:"id"`
+	Url    string         `json:"url"`
+	Label  sql.NullString `json:"label"`
+	ID     int64          `json:"id"`
+	PartID int64          `json:"part_id"`
 }
 
-func (q *Queries) UpdatePartLink(ctx context.Context, arg UpdatePartLinkParams) error {
-	_, err := q.exec(ctx, q.updatePartLinkStmt, updatePartLink, arg.Url, arg.Label, arg.ID)
-	return err
+func (q *Queries) UpdatePartLink(ctx context.Context, arg UpdatePartLinkParams) (int64, error) {
+	result, err := q.exec(ctx, q.updatePartLinkStmt, updatePartLink,
+		arg.Url,
+		arg.Label,
+		arg.ID,
+		arg.PartID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

@@ -127,6 +127,14 @@ func (s *LayoutService) SaveCabinetWiring(ctx context.Context, cabinetID int64, 
 				if !exists || old.ControllerID != item.ControllerID || seenStrings[item.ID] {
 					return fmt.Errorf("%w: string %d is unknown, duplicated, or moved between controllers", ErrLayoutInvalid, item.ID)
 				}
+				// A string projected from a controller output must keep that
+				// output's order and length. Changing them here would persist a
+				// topology that the next Load rejects, and it could not then be
+				// repaired through the output editor because that path also loads
+				// the current topology before changing it.
+				if old.ControllerOutputID.Valid && (item.DisplayOrder != old.DisplayOrder || item.PixelCount != old.PixelCount) {
+					return fmt.Errorf("%w: string %q is linked to a controller output; change its length or order in the controller output settings instead", ErrUnsafeLayout, item.Name)
+				}
 				seenStrings[item.ID] = true
 			}
 			orderKey := [2]int64{item.ControllerID, item.DisplayOrder}
@@ -345,6 +353,18 @@ func topologyWithProposedStrings(current cabinetpixels.Topology, input CabinetWi
 	for _, item := range input.Strings {
 		byID[item.ControllerID] = append(byID[item.ControllerID], item)
 	}
+	// The current topology already carries each linked string's resolved
+	// direction/pattern transforms (loaded from its controller output). Reuse
+	// them for proposed strings so an unchanged save compares equal to the
+	// current mapping instead of appearing to be forward/linear. Without this,
+	// any reverse/serpentine/custom output looked like it changed on every
+	// save and the impact confirmation was meaningless.
+	currentStringByID := make(map[int64]cabinetpixels.String)
+	for _, c := range current.Controllers {
+		for _, str := range c.Strings {
+			currentStringByID[str.Record.ID] = str
+		}
+	}
 	for _, oldController := range current.Controllers {
 		controller := cabinetpixels.Controller{Record: oldController.Record, Span: spanByID[oldController.Record.ID]}
 		if !configured[oldController.Record.ID] {
@@ -365,10 +385,19 @@ func topologyWithProposedStrings(current cabinetpixels.Topology, input CabinetWi
 				points, _ := json.Marshal(section.Points)
 				sections = append(sections, db.CabinetLedPathSection{ID: section.ID, StringID: stringID, DisplayOrder: int64(index), PixelCount: section.PixelCount, PointsJson: string(points)})
 			}
-			controller.Strings = append(controller.Strings, cabinetpixels.String{
+			proposed := cabinetpixels.String{
 				Record:          db.CabinetLedString{ID: stringID, CabinetID: current.CabinetID, ControllerID: oldController.Record.ID, Name: item.Name, DisplayOrder: item.DisplayOrder, PixelCount: item.PixelCount, LayoutComplete: boolInt64(item.LayoutComplete)},
 				ControllerStart: localOffset + 1, CabinetStart: controller.Start + localOffset, Sections: sections,
-			})
+				Direction: "forward", Pattern: "linear", Rows: 1, Columns: 1,
+			}
+			if existing, ok := currentStringByID[item.ID]; ok && item.ID > 0 {
+				proposed.Direction = existing.Direction
+				proposed.Pattern = existing.Pattern
+				proposed.Rows = existing.Rows
+				proposed.Columns = existing.Columns
+				proposed.CustomOrder = existing.CustomOrder
+			}
+			controller.Strings = append(controller.Strings, proposed)
 			localOffset += item.PixelCount
 		}
 		out.Controllers = append(out.Controllers, controller)

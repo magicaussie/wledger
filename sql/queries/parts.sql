@@ -53,8 +53,8 @@ FROM matched_parts fts
 JOIN parts p ON fts.rowid = p.id
 LEFT JOIN part_assignments pa ON p.id = pa.part_id
 WHERE (sqlc.narg('bin_id') IS NULL OR pa.bin_id = sqlc.narg('bin_id'))
-GROUP BY p.id, fts.rank
-ORDER BY fts.rank
+GROUP BY p.id
+ORDER BY MIN(fts.rank)
 LIMIT sqlc.arg('limit') OFFSET sqlc.arg('offset');
 
 -- name: ListLowStockParts :many
@@ -164,8 +164,10 @@ DELETE FROM parts WHERE id = ?;
 -- name: CreatePartLink :exec
 INSERT INTO part_links (part_id, url, label) VALUES (?, ?, ?);
 
--- name: UpdatePartLink :exec
-UPDATE part_links SET url = ?, label = ? WHERE id = ?;
+-- name: UpdatePartLink :execrows
+UPDATE part_links
+SET url = ?, label = ?
+WHERE id = ? AND part_id = ?;
 
 -- name: GetPartLinks :many
 SELECT * FROM part_links WHERE part_id = ?;

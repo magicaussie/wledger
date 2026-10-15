@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
+	"net/url"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -182,15 +182,8 @@ func (c *controller) listControllers(ctx context.Context, _ mcp.CallToolRequest)
 }
 
 func urlEscape(s string) string {
-	// Simple percent-encoding for query values.
-	var b strings.Builder
-	for _, r := range s {
-		switch {
-		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '-', r == '_', r == '.':
-			b.WriteRune(r)
-		default:
-			b.WriteString(fmt.Sprintf("%%%02X", r))
-		}
-	}
-	return b.String()
+	// Percent-encode query values as UTF-8 bytes. The previous hand-rolled
+	// encoder emitted one code point per byte ("é" -> "%E9", "中" -> "%4E2D"),
+	// so the server decoded different, corrupted text for any non-ASCII search.
+	return url.QueryEscape(s)
 }

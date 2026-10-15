@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/alexedwards/scs/v2"
@@ -230,13 +231,17 @@ func main() {
 	}()
 	startupUnlock()
 
-	// Graceful Shutdown
+	// Graceful Shutdown. SIGTERM is what most supervisors and container
+	// runtimes send on stop, so it must be handled alongside SIGINT; otherwise
+	// active requests are not drained before the process exits.
 	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	<-c
 
 	log.Info("Shutting down...")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	srv.Shutdown(ctx)
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Error("graceful shutdown did not complete", "error", err)
+	}
 }

@@ -356,7 +356,7 @@ type Querier interface {
 	// can be adjusted. `bin_id = NULL` never matches in SQL, so the part/bin
 	// keyed variant above silently updates zero rows for orphaned assignments.
 	UpdatePartAssignmentQuantityByID(ctx context.Context, arg UpdatePartAssignmentQuantityByIDParams) error
-	UpdatePartLink(ctx context.Context, arg UpdatePartLinkParams) error
+	UpdatePartLink(ctx context.Context, arg UpdatePartLinkParams) (int64, error)
 	UpdatePhysicalLocateSessionCAS(ctx context.Context, arg UpdatePhysicalLocateSessionCASParams) (int64, error)
 	UpdatePhysicalLocateSessionTargetOwnership(ctx context.Context, arg UpdatePhysicalLocateSessionTargetOwnershipParams) (int64, error)
 	UpdateSupplierCredentialToken(ctx context.Context, arg UpdateSupplierCredentialTokenParams) error

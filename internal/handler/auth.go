@@ -114,6 +114,14 @@ func (h *Handler) HandleSetupPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The initial administrator password must satisfy the same policy as every
+	// other password-setting path. Previously an empty or trivially short
+	// password was accepted here because only bcrypt was invoked.
+	if err := auth.ValidatePassword(password); err != nil {
+		h.UIError.Respond(w, r, err, err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	// Hash password
 	hash, err := auth.HashPassword(password)
 	if err != nil {
@@ -175,6 +183,12 @@ func (h *Handler) HandleForceResetPost(w http.ResponseWriter, r *http.Request) {
 	if newPw != confirmPw {
 		h.Logger.Warn("forced password reset failed: mismatch", "user_id", userID)
 		pages.ForceReset().Render(r.Context(), w)
+		return
+	}
+
+	if err := auth.ValidatePassword(newPw); err != nil {
+		h.Logger.Warn("forced password reset failed: policy", "user_id", userID, "err", err)
+		h.UIError.Respond(w, r, err, err.Error(), http.StatusBadRequest)
 		return
 	}
 

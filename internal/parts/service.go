@@ -438,13 +438,20 @@ func (s *service) UpdatePart(ctx context.Context, req UpdatePartRequest) error {
 				continue
 			}
 			s.logger.Debug("updating existing link", "id", req.ID, "link_id", l.ID, "url", l.URL)
-			err = q.UpdatePartLink(ctx, db.UpdatePartLinkParams{
-				Url:   l.URL,
-				Label: sql.NullString{String: l.Label, Valid: l.Label != ""},
-				ID:    l.ID,
+			rows, err := q.UpdatePartLink(ctx, db.UpdatePartLinkParams{
+				Url:    l.URL,
+				Label:  sql.NullString{String: l.Label, Valid: l.Label != ""},
+				ID:     l.ID,
+				PartID: req.ID,
 			})
 			if err != nil {
 				return fmt.Errorf("failed to update link: %w", err)
+			}
+			// The link id must belong to this part. Without the ownership
+			// predicate a crafted update could rewrite another part's link while
+			// the surrounding operation targets this one.
+			if rows != 1 {
+				return fmt.Errorf("failed to update link: link %d does not belong to part %d", l.ID, req.ID)
 			}
 		}
 
@@ -548,18 +555,14 @@ func (s *service) DeletePart(ctx context.Context, id int64) error {
 		return err
 	}
 
+	imagePath := ""
 	if p.ImagePath.Valid {
-		images.DeleteByWebPath(p.ImagePath.String)
+		imagePath = p.ImagePath.String
 	}
-
-	docs, err := s.store.GetPartDocs(ctx, id)
-	if err == nil {
+	var docPaths []string
+	if docs, err := s.store.GetPartDocs(ctx, id); err == nil {
 		for _, doc := range docs {
-			if strings.HasPrefix(doc.FilePath, config.UrlPrefixUploads) {
-				relPath := strings.TrimPrefix(doc.FilePath, config.UrlPrefixUploads)
-				diskPath := filepath.Join(config.DirUploads, relPath)
-				os.Remove(diskPath)
-			}
+			docPaths = append(docPaths, doc.FilePath)
 		}
 	}
 
@@ -569,29 +572,56 @@ func (s *service) DeletePart(ctx context.Context, id int64) error {
 		"part_number": p.PartNumber.String,
 	}
 	audit.Log(ctx, s.store, "DELETE", "PART", id, "Deleted part", summary, nil)
-	return s.store.DeletePart(ctx, id)
+	if err := s.store.DeletePart(ctx, id); err != nil {
+		return err
+	}
+
+	// Asset files are removed only after the database delete has committed.
+	// Removing them first meant a failed delete could erase files while the
+	// rows (and their references) remained, leaving unrecoverable dangling
+	// records and breaking restore asset validation.
+	if imagePath != "" {
+		images.DeleteByWebPath(imagePath)
+	}
+	for _, docPath := range docPaths {
+		s.removeUploadedFile(docPath)
+	}
+	return nil
+}
+
+// removeUploadedFile best-effort deletes a stored upload referenced by its web
+// path (e.g. "/uploads/docs/report_ab12cd.pdf"). It is called only after the
+// owning database change has committed, so a failure here leaves an orphaned
+// file rather than a dangling reference; that trade-off is always preferable.
+func (s *service) removeUploadedFile(webPath string) {
+	if !strings.HasPrefix(webPath, config.UrlPrefixUploads) {
+		return
+	}
+	relPath := strings.TrimPrefix(webPath, config.UrlPrefixUploads)
+	diskPath := filepath.Join(config.DirUploads, relPath)
+	if err := os.Remove(diskPath); err != nil && !os.IsNotExist(err) {
+		s.logger.Warn("failed to remove uploaded file", "path", diskPath, "err", err)
+	}
 }
 
 func (s *service) DeleteParts(ctx context.Context, ids []int64) error {
-	return s.store.ExecTx(ctx, func(q db.Querier) error {
+	var imagePaths []string
+	var docPaths []string
+
+	err := s.store.ExecTx(ctx, func(q db.Querier) error {
 		for _, id := range ids {
-			// Get part for audit and cleanup
+			// Get part for audit and asset collection
 			p, err := q.GetPart(ctx, id)
 			if err != nil {
 				return err
 			}
 
-			// Delete files (non-transactional, but better than leaving them)
 			if p.ImagePath.Valid {
-				images.DeleteByWebPath(p.ImagePath.String)
+				imagePaths = append(imagePaths, p.ImagePath.String)
 			}
 			docs, _ := q.GetPartDocs(ctx, id)
 			for _, doc := range docs {
-				if strings.HasPrefix(doc.FilePath, config.UrlPrefixUploads) {
-					relPath := strings.TrimPrefix(doc.FilePath, config.UrlPrefixUploads)
-					diskPath := filepath.Join(config.DirUploads, relPath)
-					os.Remove(diskPath)
-				}
+				docPaths = append(docPaths, doc.FilePath)
 			}
 
 			summary := map[string]any{
@@ -607,6 +637,21 @@ func (s *service) DeleteParts(ctx context.Context, ids []int64) error {
 		}
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+
+	// Files are removed only after the transaction commits. Previously they
+	// were deleted inside the loop, so a later failing id (for example a
+	// duplicate or missing id) rolled the rows back but left the earlier parts'
+	// attachments permanently erased.
+	for _, imagePath := range imagePaths {
+		images.DeleteByWebPath(imagePath)
+	}
+	for _, docPath := range docPaths {
+		s.removeUploadedFile(docPath)
+	}
+	return nil
 }
 
 // cleanupFiles removes files that were created by a failed operation.

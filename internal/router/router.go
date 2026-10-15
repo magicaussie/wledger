@@ -35,8 +35,14 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 	filesDir := http.Dir(config.DirStatic)
 	r.Handle(config.UrlPrefixStatic+"*", http.StripPrefix(config.UrlPrefixStatic, http.FileServer(filesDir)))
 
-	uploadsDir := http.Dir(config.DirUploads)
-	r.Handle(config.UrlPrefixUploads+"*", http.StripPrefix(config.UrlPrefixUploads, http.FileServer(uploadsDir)))
+	// Uploaded assets (part images and documents). These are gated by the same
+	// read authorization as the rest of the application and served through a
+	// handler that never lists directories and never renders uploaded document
+	// types inline. See Handler.HandleUploads.
+	r.Group(func(r chi.Router) {
+		r.Use(mw.RequireReadAuth)
+		r.Handle(config.UrlPrefixUploads+"*", http.HandlerFunc(h.HandleUploads))
+	})
 
 	// -------------------------------------------------------------------------
 	// PUBLIC ROUTES

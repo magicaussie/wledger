@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 
 	"github.com/tuxedocurly/wledger/internal/audit"
 	"github.com/tuxedocurly/wledger/internal/db"
@@ -22,6 +23,20 @@ var (
 	// ErrInvalidStockRequest indicates an invalid identifier, quantity, or adjustment.
 	ErrInvalidStockRequest = errors.New("invalid stock request")
 )
+
+// addQuantities returns a+b while rejecting signed overflow. Without this a
+// positive adjustment applied to a near-maximum quantity wrapped to a large
+// negative value that AdjustStock then clamped to zero, silently destroying the
+// recorded quantity.
+func addQuantities(a, b int64) (int64, error) {
+	if b > 0 && a > math.MaxInt64-b {
+		return 0, fmt.Errorf("%w: quantity overflow", ErrInvalidStockRequest)
+	}
+	if b < 0 && a < math.MinInt64-b {
+		return 0, fmt.Errorf("%w: quantity overflow", ErrInvalidStockRequest)
+	}
+	return a + b, nil
+}
 
 type Service interface {
 	AssignStock(ctx context.Context, req AssignStockRequest) error
@@ -87,7 +102,10 @@ func (s *service) AssignStock(ctx context.Context, req AssignStockRequest) error
 				return fmt.Errorf("failed to fetch existing assignment: %w", err)
 			}
 
-			newQty := existing.Quantity + int64(req.Quantity)
+			newQty, err := addQuantities(existing.Quantity, int64(req.Quantity))
+			if err != nil {
+				return err
+			}
 			err = q.UpdatePartAssignmentQuantity(ctx, db.UpdatePartAssignmentQuantityParams{
 				Quantity: newQty,
 				PartID:   req.PartID,
@@ -141,7 +159,10 @@ func (s *service) AdjustStock(ctx context.Context, req AdjustStockRequest) error
 				ErrAssignmentOwnership, req.AssignmentID, assignment.PartID, req.PartID)
 		}
 
-		newQty := assignment.Quantity + int64(req.Delta)
+		newQty, err := addQuantities(assignment.Quantity, int64(req.Delta))
+		if err != nil {
+			return err
+		}
 		if newQty < 0 {
 			newQty = 0
 		}
@@ -215,7 +236,10 @@ func (s *service) MoveStock(ctx context.Context, req MoveStockRequest) error {
 				return fmt.Errorf("failed to fetch target for merge: %w", err)
 			}
 
-			newQty := target.Quantity + source.Quantity
+			newQty, err := addQuantities(target.Quantity, source.Quantity)
+			if err != nil {
+				return fmt.Errorf("failed to merge target stock: %w", err)
+			}
 
 			err = q.UpdatePartAssignmentQuantityByID(ctx, db.UpdatePartAssignmentQuantityByIDParams{
 				Quantity: newQty,

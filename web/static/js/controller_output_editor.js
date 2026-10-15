@@ -69,6 +69,13 @@ window.controllerOutputEditor = function (initialJSON) {
         if (sequence !== this.previewSequence) return;
         if (!response.ok) throw new Error(data.error || `Pixel preview failed (${response.status}).`);
         this.serverPreview = data;
+        // The server always returns page 0 for every non-selected output, so
+        // reset their retained page offsets to match. Otherwise an output that
+        // was paged earlier keeps its "41-80 / 100" label while the pixel list
+        // beneath it shows page-0 entries.
+        for (const output of this.outputs) {
+          if (Number(output.display_order) !== Number(this.previewOrder)) output.preview_start = 0;
+        }
       } catch (error) {
         if (sequence === this.previewSequence) this.previewError = error?.message || "Canonical pixel preview is unavailable.";
       } finally {
