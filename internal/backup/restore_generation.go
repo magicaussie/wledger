@@ -17,7 +17,7 @@ import (
 	"github.com/tuxedocurly/wledger/internal/maintenance"
 )
 
-const restoreJournalName = ".wledger-restore-journal.json"
+const restoreJournalName = maintenance.JournalName
 
 type restoreJournal struct {
 	Version    int    `json:"version"`
@@ -32,6 +32,21 @@ func generationPaths(uploadsDir, id string) (parent, candidate, previous, journa
 	previous = filepath.Join(control, id+".previous")
 	journal = filepath.Join(control, restoreJournalName)
 	return
+}
+
+// journalPath returns the durable location of the restore journal for this
+// uploads directory. When the uploads path is a mount point the journal lives
+// inside the mount (in the hidden control directory), so it survives container
+// recreation; otherwise it lives in the sibling control directory beside the
+// uploads directory. The sibling control directory is on the container
+// filesystem, so a journal written there is lost when the container is
+// recreated — which is exactly why the mount-aware protocol keeps it in the
+// mount.
+func journalPath(uploadsDir string) string {
+	if uploadsDirIsMountPoint(uploadsDir) {
+		return filepath.Join(maintenance.InMountControlDir(uploadsDir), restoreJournalName)
+	}
+	return filepath.Join(maintenance.ControlDir(uploadsDir), restoreJournalName)
 }
 
 func syncDirectory(dir string) error {
@@ -73,9 +88,12 @@ func syncTree(root string) error {
 }
 
 func writeRestoreJournal(uploadsDir string, record restoreJournal) error {
-	parent, _, _, journal := generationPaths(uploadsDir, record.ID)
 	if record.Version != 1 || len(record.ID) != 32 || strings.Trim(record.ID, "0123456789abcdef") != "" {
 		return errors.New("refusing to write an invalid restore journal")
+	}
+	journal := journalPath(uploadsDir)
+	if err := os.MkdirAll(filepath.Dir(journal), 0755); err != nil {
+		return fmt.Errorf("create restore journal directory: %w", err)
 	}
 	data, err := json.Marshal(record)
 	if err != nil {
@@ -103,14 +121,35 @@ func writeRestoreJournal(uploadsDir string, record restoreJournal) error {
 	if err := syncDirectory(filepath.Dir(journal)); err != nil {
 		return fmt.Errorf("sync restore journal directory: %w", err)
 	}
-	if err := syncDirectory(parent); err != nil {
+	if err := syncDirectory(filepath.Dir(filepath.Dir(journal))); err != nil {
 		return fmt.Errorf("sync restore journal parent directory: %w", err)
 	}
 	return nil
 }
 
+// readRestoreJournal reads the pending restore journal from every durable
+// location it may occupy. A journal present in more than one location must
+// describe the same generation; otherwise the state is contradictory and
+// recovery fails closed.
 func readRestoreJournal(uploadsDir string) (*restoreJournal, error) {
-	_, _, _, journal := generationPaths(uploadsDir, strings.Repeat("0", 32))
+	var found *restoreJournal
+	for _, path := range maintenance.JournalPaths(uploadsDir) {
+		record, err := readJournalFile(path)
+		if err != nil {
+			return nil, err
+		}
+		if record == nil {
+			continue
+		}
+		if found != nil && found.ID != record.ID {
+			return nil, fmt.Errorf("contradictory restore journals: generation %s and %s disagree", found.ID, record.ID)
+		}
+		found = record
+	}
+	return found, nil
+}
+
+func readJournalFile(journal string) (*restoreJournal, error) {
 	info, err := os.Lstat(journal)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
@@ -141,14 +180,15 @@ func readRestoreJournal(uploadsDir string) (*restoreJournal, error) {
 }
 
 func retireRestoreJournal(uploadsDir, id string) error {
-	parent, _, _, journal := generationPaths(uploadsDir, id)
-	if err := os.Remove(journal); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("remove completed restore journal: %w", err)
+	for _, journal := range maintenance.JournalPaths(uploadsDir) {
+		if err := os.Remove(journal); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("remove completed restore journal: %w", err)
+		}
+		if err := syncDirectory(filepath.Dir(journal)); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
 	}
-	if err := syncDirectory(filepath.Dir(journal)); err != nil {
-		return err
-	}
-	return syncDirectory(parent)
+	return nil
 }
 
 func pathExists(path string) (bool, error) {
@@ -276,8 +316,27 @@ func rollbackGeneration(uploadsDir string, record restoreJournal) error {
 
 func recoverPendingRestore(ctx context.Context, database *sql.DB, uploadsDir string, logger *slog.Logger) error {
 	record, err := readRestoreJournal(uploadsDir)
-	if err != nil || record == nil {
+	if err != nil {
 		return err
+	}
+	// When the journal is missing, the durable generation staging directories
+	// inside a mounted uploads directory may still describe an interrupted
+	// restore (for example after the container was recreated and the journal was
+	// lost, or if an operator removed it). Reconstruct the pending generation from
+	// them, and fail closed if the on-disk state is ambiguous.
+	diskID, err := mountGenerationID(uploadsDir)
+	if err != nil {
+		return err
+	}
+	if record != nil && diskID != "" && record.ID != diskID {
+		return fmt.Errorf("restore journal generation %s contradicts the on-disk generation %s", record.ID, diskID)
+	}
+	if record == nil && diskID != "" {
+		logger.Warn("restore journal is missing; reconstructing it from the durable in-mount generation", "generation", diskID)
+		record = &restoreJournal{Version: 1, ID: diskID}
+	}
+	if record == nil {
+		return nil
 	}
 	generation, err := db.NewStore(database).GetRestoreGeneration(ctx)
 	if err != nil {
@@ -296,6 +355,7 @@ func recoverPendingRestore(ctx context.Context, database *sql.DB, uploadsDir str
 		if uploadsDirIsMountPoint(uploadsDir) {
 			_, _, previous := mountGenerationPaths(uploadsDir, record.ID)
 			cleanupMountGeneration(uploadsDir, previous, logger)
+			removeEmptyMountControlDir(uploadsDir, logger)
 		} else if record.HadUploads {
 			_, _, previous, _ := generationPaths(uploadsDir, record.ID)
 			preserve, err := containsRecoveryDirectory(previous)
@@ -322,8 +382,74 @@ func recoverPendingRestore(ctx context.Context, database *sql.DB, uploadsDir str
 	if err := retireRestoreJournal(uploadsDir, record.ID); err != nil {
 		return err
 	}
+	if uploadsDirIsMountPoint(uploadsDir) {
+		removeEmptyMountControlDir(uploadsDir, logger)
+	}
 	logger.Warn("rolled back interrupted restore", "candidate_generation", record.ID, "active_generation", generation)
 	return nil
+}
+
+// removeEmptyMountControlDir removes the in-mount restore control directory once
+// it holds neither a journal nor a generation staging directory. It is a no-op
+// when the directory is absent or still holds another generation, so it never
+// discards recovery data.
+func removeEmptyMountControlDir(uploadsDir string, logger *slog.Logger) {
+	control := maintenance.InMountControlDir(uploadsDir)
+	if err := os.Remove(control); err != nil && !errors.Is(err, os.ErrNotExist) {
+		logger.Debug("in-mount restore control directory not removed", "path", control, "err", err)
+	}
+}
+
+// mountGenerationID returns the single generation ID described by the durable
+// generation staging directories inside a mounted uploads directory, or "" when
+// none are present. It returns an error when the on-disk state is ambiguous
+// (more than one generation ID, or an unrecognised or non-directory entry), so
+// recovery fails closed rather than guessing which restore is pending. It only
+// inspects the in-mount control directory: for an ordinary uploads directory the
+// journal and staging share the container filesystem and are lost together, so
+// reconstruction is neither possible nor needed there.
+func mountGenerationID(uploadsDir string) (string, error) {
+	if !uploadsDirIsMountPoint(uploadsDir) {
+		return "", nil
+	}
+	control := maintenance.InMountControlDir(uploadsDir)
+	entries, err := os.ReadDir(control)
+	if errors.Is(err, os.ErrNotExist) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("inspect in-mount restore control directory: %w", err)
+	}
+	ids := map[string]struct{}{}
+	for _, entry := range entries {
+		name := entry.Name()
+		var id string
+		switch {
+		case strings.HasSuffix(name, ".candidate"):
+			id = strings.TrimSuffix(name, ".candidate")
+		case strings.HasSuffix(name, ".previous"):
+			id = strings.TrimSuffix(name, ".previous")
+		default:
+			continue
+		}
+		if len(id) != 32 || strings.Trim(id, "0123456789abcdef") != "" {
+			return "", fmt.Errorf("in-mount restore control directory holds an unrecognised generation entry %q", name)
+		}
+		if !entry.IsDir() {
+			return "", fmt.Errorf("in-mount restore generation %q is not a directory", name)
+		}
+		ids[id] = struct{}{}
+	}
+	if len(ids) == 0 {
+		return "", nil
+	}
+	if len(ids) > 1 {
+		return "", errors.New("in-mount restore control directory holds multiple generation IDs; refusing to guess which restore is pending")
+	}
+	for id := range ids {
+		return id, nil
+	}
+	return "", nil
 }
 
 func containsRecoveryDirectory(root string) (bool, error) {

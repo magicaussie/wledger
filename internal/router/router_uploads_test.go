@@ -69,6 +69,42 @@ func TestUploadsRequireReadAuth(t *testing.T) {
 	}
 }
 
+// TestUploadsHandlerRefusesHiddenControlPlane verifies that the hidden restore
+// control plane inside the uploads tree (the in-mount generation staging
+// directory and the durable restore journal) is never reachable over HTTP, even
+// for an authenticated administrator.
+func TestUploadsHandlerRefusesHiddenControlPlane(t *testing.T) {
+	env := newAuthTestEnv(t)
+	defer env.conn.Close()
+	t.Chdir(t.TempDir())
+
+	control := filepath.Join("app", "uploads", ".wledger-restore")
+	if err := os.MkdirAll(control, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(control, ".wledger-restore-journal.json"), []byte(`{"version":1}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	env.createUser(t, "hidden-admin@test.com", "admin")
+	cookies := env.login(t, "hidden-admin@test.com")
+
+	for _, path := range []string{
+		"/uploads/.wledger-restore/.wledger-restore-journal.json",
+		"/uploads/.wledger-restore",
+	} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		for _, c := range cookies {
+			req.AddCookie(c)
+		}
+		rec := httptest.NewRecorder()
+		env.router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("hidden control-plane GET %s = %d, want 404", path, rec.Code)
+		}
+	}
+}
+
 // TestSetupRejectsWeakPassword verifies that the initial administrator setup
 // enforces the shared password policy. Previously only bcrypt was invoked, so an
 // empty or trivially short password created a working administrator account.

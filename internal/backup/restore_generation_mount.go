@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/tuxedocurly/wledger/internal/maintenance"
 )
 
 // Mount-aware upload generation activation.
@@ -48,14 +50,19 @@ import (
 // (undo the fill by moving them back into "candidate", then restore "previous").
 const (
 	// mountControlDirName is the hidden directory, created inside the mounted
-	// uploads directory, that holds the generation staging directories. It begins
-	// with "." so it is never served, never exported and never treated as an
-	// uploads asset.
-	mountControlDirName = ".wledger-restore"
+	// uploads directory, that holds the generation staging directories. It is the
+	// same directory the maintenance gate uses for the durable journal, so the name
+	// is defined once in the maintenance package.
+	mountControlDirName = maintenance.InMountControlDirName
 	// mountDrainedMarker is written inside the previous generation once phase 1
 	// (draining the live directory) has completed durably.
 	mountDrainedMarker = ".drained"
 )
+
+// mountActivationFailpoint, when non-nil, is invoked after each individual mount
+// activation rename and after the durable drain marker is written, so tests can
+// simulate a process termination at a precise point. It is nil in production.
+var mountActivationFailpoint func(phase string)
 
 // uploadsDirIsMountPoint is a test seam over isMountPoint so the mount-aware
 // protocol can be exercised deterministically without creating a real mount.
@@ -112,7 +119,7 @@ func decodeMountInfoPath(field string) string {
 // mountGenerationPaths returns the in-mount control directory and the candidate
 // and previous generation directories it holds.
 func mountGenerationPaths(uploadsDir, id string) (control, candidate, previous string) {
-	control = filepath.Join(uploadsDir, mountControlDirName)
+	control = maintenance.InMountControlDir(uploadsDir)
 	candidate = filepath.Join(control, id+".candidate")
 	previous = filepath.Join(control, id+".previous")
 	return
@@ -139,8 +146,10 @@ func assetEntries(dir string) ([]string, error) {
 }
 
 // moveAssets renames every non-hidden top-level entry of from into to. Callers
-// guarantee by construction that the moved names do not already exist in to.
-func moveAssets(from, to string) error {
+// guarantee by construction that the moved names do not already exist in to. The
+// phase is passed to the activation failpoint (nil in production) after each
+// rename so a test can terminate the process at a precise point.
+func moveAssets(from, to, phase string) error {
 	names, err := assetEntries(from)
 	if err != nil {
 		return err
@@ -148,6 +157,9 @@ func moveAssets(from, to string) error {
 	for _, name := range names {
 		if err := renameSynced(filepath.Join(from, name), filepath.Join(to, name)); err != nil {
 			return err
+		}
+		if mountActivationFailpoint != nil {
+			mountActivationFailpoint(phase)
 		}
 	}
 	return nil
@@ -234,14 +246,17 @@ func finishGenerationMount(uploadsDir string, record restoreJournal) error {
 		return err
 	}
 	if !drained {
-		if err := moveAssets(uploadsDir, previous); err != nil {
+		if err := moveAssets(uploadsDir, previous, "drain"); err != nil {
 			return fmt.Errorf("preserve previous uploads generation: %w", err)
 		}
 		if err := writeMountDrainedMarker(previous); err != nil {
 			return err
 		}
+		if mountActivationFailpoint != nil {
+			mountActivationFailpoint("drain-marker")
+		}
 	}
-	if err := moveAssets(candidate, uploadsDir); err != nil {
+	if err := moveAssets(candidate, uploadsDir, "fill"); err != nil {
 		return fmt.Errorf("activate candidate uploads generation: %w", err)
 	}
 	if err := os.RemoveAll(candidate); err != nil {
@@ -274,11 +289,11 @@ func rollbackGenerationMount(uploadsDir string, record restoreJournal) error {
 			if err := os.MkdirAll(candidate, 0755); err != nil {
 				return fmt.Errorf("recreate candidate uploads generation for rollback: %w", err)
 			}
-			if err := moveAssets(uploadsDir, candidate); err != nil {
+			if err := moveAssets(uploadsDir, candidate, "rollback-fill"); err != nil {
 				return fmt.Errorf("preserve uncommitted candidate uploads: %w", err)
 			}
 		}
-		if err := moveAssets(previous, uploadsDir); err != nil {
+		if err := moveAssets(previous, uploadsDir, "rollback-drain"); err != nil {
 			return fmt.Errorf("restore previous uploads generation: %w", err)
 		}
 		if err := os.RemoveAll(previous); err != nil {

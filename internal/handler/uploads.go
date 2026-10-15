@@ -36,6 +36,18 @@ func (h *Handler) HandleUploads(w http.ResponseWriter, r *http.Request) {
 	}
 
 	diskPath := filepath.Join(config.DirUploads, filepath.FromSlash(cleaned))
+
+	// Never serve a hidden entry. The uploads tree holds a hidden restore control
+	// plane (the in-mount generation staging directory and the durable restore
+	// journal) that must never be reachable over HTTP, and no legitimate uploaded
+	// asset begins with a dot.
+	for _, segment := range strings.Split(strings.TrimPrefix(cleaned, "/"), "/") {
+		if strings.HasPrefix(segment, ".") {
+			http.NotFound(w, r)
+			return
+		}
+	}
+
 	info, err := os.Stat(diskPath)
 	if err != nil || info.IsDir() {
 		http.NotFound(w, r)

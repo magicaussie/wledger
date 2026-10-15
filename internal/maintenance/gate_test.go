@@ -61,7 +61,7 @@ func TestGateMiddlewareFailsClosedForPendingJournal(t *testing.T) {
 	if err := os.MkdirAll(control, 0700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(control, ".wledger-restore-journal.json"), []byte("pending"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(control, JournalName), []byte("pending"), 0600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -71,5 +71,31 @@ func TestGateMiddlewareFailsClosedForPendingJournal(t *testing.T) {
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
 	if rec.Code != http.StatusServiceUnavailable || called {
 		t.Fatalf("pending restore response = %d, handler called = %v; want 503 without serving", rec.Code, called)
+	}
+}
+
+// TestGateMiddlewareFailsClosedForInMountJournal verifies the fail-closed check
+// also covers the durable in-mount journal, which lives inside the persistent
+// uploads mount rather than the container filesystem.
+func TestGateMiddlewareFailsClosedForInMountJournal(t *testing.T) {
+	uploads := filepath.Join(t.TempDir(), "uploads")
+	if err := os.Mkdir(uploads, 0755); err != nil {
+		t.Fatal(err)
+	}
+	gate := New(uploads)
+	inMount := InMountControlDir(uploads)
+	if err := os.MkdirAll(inMount, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(inMount, JournalName), []byte("pending"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	called := false
+	h := gate.Middleware(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { called = true }))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	if rec.Code != http.StatusServiceUnavailable || called {
+		t.Fatalf("in-mount pending restore response = %d, handler called = %v; want 503 without serving", rec.Code, called)
 	}
 }

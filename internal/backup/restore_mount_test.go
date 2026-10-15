@@ -35,16 +35,26 @@ func mountPaths(uploadsDir, id string) (control, candidate, previous string) {
 	return mountGenerationPaths(uploadsDir, id)
 }
 
-// writeJournal durably writes a restore journal, creating its control directory
-// first (in production the control directory is created before extraction).
+// writeJournal durably writes a restore journal to the location the protocol
+// selects for this uploads directory (inside the mount in mount mode), creating
+// its control directory first (in production the control directory is created
+// before extraction).
 func writeJournal(t *testing.T, uploadsDir string, record restoreJournal) {
 	t.Helper()
-	_, _, _, journal := generationPaths(uploadsDir, record.ID)
+	journal := journalPath(uploadsDir)
 	if err := os.MkdirAll(filepath.Dir(journal), 0755); err != nil {
 		t.Fatalf("create journal control directory: %v", err)
 	}
 	if err := writeRestoreJournal(uploadsDir, record); err != nil {
 		t.Fatalf("write restore journal: %v", err)
+	}
+}
+
+// mustNoJournal asserts that no restore journal remains in any durable location.
+func mustNoJournal(t *testing.T, uploadsDir string) {
+	t.Helper()
+	for _, path := range maintenance.JournalPaths(uploadsDir) {
+		mustNotExist(t, path)
 	}
 }
 
@@ -99,8 +109,7 @@ func TestRestore_MountModeSuccessSwapsContentsWithoutRenamingMountPoint(t *testi
 	mustNotExist(t, filepath.Join(uploadsDir, "images", "old.png"))
 	mustNotExist(t, filepath.Join(uploadsDir, mountControlDirName))
 
-	_, _, _, journal := generationPaths(uploadsDir, strings.Repeat("0", 32))
-	mustNotExist(t, journal)
+	mustNoJournal(t, uploadsDir)
 }
 
 // TestRestore_MountModeInvalidBackupLeavesUploadsUntouched verifies an archive
@@ -236,8 +245,7 @@ func TestRestore_MountModeRecoversInterruptedDrain(t *testing.T) {
 	mustNotExist(t, filepath.Join(uploadsDir, "images", "new.png"))
 	mustNotExist(t, filepath.Join(control, id+".candidate"))
 	mustNotExist(t, filepath.Join(control, id+".previous"))
-	_, _, _, journal := generationPaths(uploadsDir, id)
-	mustNotExist(t, journal)
+	mustNoJournal(t, uploadsDir)
 }
 
 // TestRestore_MountModeRecoversInterruptedFill reconstructs a process killed
@@ -314,8 +322,7 @@ func TestRestore_MountModeRollsForwardCommittedRestore(t *testing.T) {
 		t.Errorf("committed generation lost: %q err=%v", got, err)
 	}
 	mustNotExist(t, filepath.Join(previous, "old.txt"))
-	_, _, _, journal := generationPaths(uploadsDir, id)
-	mustNotExist(t, journal)
+	mustNoJournal(t, uploadsDir)
 	mustNotExist(t, control)
 }
 
