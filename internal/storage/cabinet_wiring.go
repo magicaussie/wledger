@@ -217,6 +217,7 @@ func (s *LayoutService) SaveCabinetWiring(ctx context.Context, cabinetID int64, 
 				stringID, err = q.CreateCabinetLEDString(ctx, db.CreateCabinetLEDStringParams{
 					CabinetID: cabinetID, ControllerID: item.ControllerID, Name: strings.TrimSpace(item.Name),
 					DisplayOrder: item.DisplayOrder, PixelCount: item.PixelCount, LayoutComplete: boolInt64(item.LayoutComplete),
+					ControllerOutputID: sql.NullInt64{},
 				})
 				if err != nil {
 					return err
@@ -227,7 +228,7 @@ func (s *LayoutService) SaveCabinetWiring(ctx context.Context, cabinetID int64, 
 				if err := q.RestoreCabinetLEDString(ctx, db.RestoreCabinetLEDStringParams{
 					ID: old.ID, CabinetID: cabinetID, ControllerID: item.ControllerID, Name: strings.TrimSpace(item.Name),
 					DisplayOrder: item.DisplayOrder, PixelCount: item.PixelCount, LayoutComplete: boolInt64(item.LayoutComplete),
-					CreatedAt: old.CreatedAt, UpdatedAt: now,
+					CreatedAt: old.CreatedAt, UpdatedAt: now, ControllerOutputID: old.ControllerOutputID,
 				}); err != nil {
 					return err
 				}

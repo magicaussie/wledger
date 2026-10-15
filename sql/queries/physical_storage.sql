@@ -238,17 +238,20 @@ WHERE cabinet_id = ? AND controller_id = ?
 ORDER BY display_order ASC, id ASC;
 
 -- name: CreateCabinetLEDString :one
-INSERT INTO cabinet_led_strings (cabinet_id, controller_id, name, display_order, pixel_count, layout_complete)
-VALUES (?, ?, ?, ?, ?, ?)
+INSERT INTO cabinet_led_strings (cabinet_id, controller_id, name, display_order, pixel_count, layout_complete, controller_output_id)
+VALUES (?, ?, ?, ?, ?, ?, ?)
 RETURNING id;
 
 -- name: UpdateCabinetLEDString :execrows
 UPDATE cabinet_led_strings
-SET name = ?, display_order = ?, pixel_count = ?, layout_complete = ?, updated_at = CURRENT_TIMESTAMP
+SET name = ?, display_order = ?, pixel_count = ?, layout_complete = ?, controller_output_id = ?, updated_at = CURRENT_TIMESTAMP
 WHERE id = ? AND cabinet_id = ? AND controller_id = ?;
 
 -- name: DeleteCabinetLEDString :execrows
 DELETE FROM cabinet_led_strings WHERE id = ? AND cabinet_id = ? AND controller_id = ?;
+
+-- name: UpdateCabinetLEDStringOutput :execrows
+UPDATE cabinet_led_strings SET controller_output_id = ? WHERE id = ? AND controller_id = ?;
 
 -- name: ListCabinetLEDPathSections :many
 SELECT p.* FROM cabinet_led_path_sections p
@@ -275,8 +278,8 @@ WHERE id = ? AND string_id = ?;
 DELETE FROM cabinet_led_path_sections WHERE string_id = ?;
 
 -- name: RestoreCabinetLEDString :exec
-INSERT INTO cabinet_led_strings (id, cabinet_id, controller_id, name, display_order, pixel_count, layout_complete, created_at, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+INSERT INTO cabinet_led_strings (id, cabinet_id, controller_id, name, display_order, pixel_count, layout_complete, created_at, updated_at, controller_output_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: RestoreCabinetLEDPathSection :exec
 INSERT INTO cabinet_led_path_sections (id, string_id, display_order, pixel_count, points_json, created_at, updated_at)

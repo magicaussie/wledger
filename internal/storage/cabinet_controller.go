@@ -3,12 +3,14 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
 	"reflect"
 
 	"github.com/tuxedocurly/wledger/internal/cabinetpixels"
+	"github.com/tuxedocurly/wledger/internal/controllerconfig"
 	"github.com/tuxedocurly/wledger/internal/db"
 )
 
@@ -231,6 +233,15 @@ func (s *LayoutService) SaveCabinetControllersConfirmed(ctx context.Context, cab
 		if _, err := q.UpdateCabinetController(ctx, db.UpdateCabinetControllerParams{ControllerID: legacyPrimary, ID: cabinetID}); err != nil {
 			return err
 		}
+		for _, controllerID := range controllerIDs {
+			if _, existed := currentByID[controllerID]; existed {
+				continue
+			}
+			controller := controllers[controllerID]
+			if err := initializeCabinetControllerOutputs(ctx, q, cabinetID, controller); err != nil {
+				return err
+			}
+		}
 		rows, err := q.AdvanceCabinetElectricalRevision(ctx, db.AdvanceCabinetElectricalRevisionParams{ID: cabinetID, ElectricalRevision: electricalRevision})
 		if err != nil {
 			return err
@@ -240,6 +251,63 @@ func (s *LayoutService) SaveCabinetControllersConfirmed(ctx context.Context, cab
 		}
 		return nil
 	})
+}
+
+func initializeCabinetControllerOutputs(ctx context.Context, q db.Querier, cabinetID int64, controller db.Controller) error {
+	outputs, err := q.GetControllerOutputs(ctx, controller.ID)
+	if err != nil {
+		return err
+	}
+	if len(outputs) == 0 && controller.LedCount > 0 {
+		if _, err := q.CreateControllerOutput(ctx, db.CreateControllerOutputParams{
+			ControllerID: controller.ID, DisplayOrder: 0, Name: "Output 1", PixelCount: controller.LedCount,
+			Direction: "forward", Pattern: "linear", Rows: 1, Columns: 1, CustomOrderJson: "[]",
+		}); err != nil {
+			return fmt.Errorf("initialize legacy output for controller #%d: %w", controller.ID, err)
+		}
+		outputs, err = q.GetControllerOutputs(ctx, controller.ID)
+		if err != nil {
+			return err
+		}
+	}
+	if len(outputs) == 0 {
+		return nil
+	}
+	settings := controllerconfig.Settings{ControllerType: controller.ControllerType, ConnectionTimeoutMS: controller.ConnectionTimeoutMs}
+	for _, output := range outputs {
+		var customOrder []int64
+		if err := json.Unmarshal([]byte(output.CustomOrderJson), &customOrder); err != nil {
+			return fmt.Errorf("controller #%d output #%d has invalid custom mapping: %w", controller.ID, output.ID, err)
+		}
+		settings.Outputs = append(settings.Outputs, controllerconfig.Output{
+			ID: output.ID, DisplayOrder: output.DisplayOrder, Name: output.Name, PixelCount: output.PixelCount,
+			Direction: output.Direction, Pattern: output.Pattern, Rows: output.Rows, Columns: output.Columns,
+			CustomOrder: customOrder,
+		})
+	}
+	total, err := settings.NormalizeAndValidate()
+	if err != nil || total != controller.LedCount {
+		return fmt.Errorf("%w: controller #%d outputs do not match its configured total pixel capacity", ErrLEDControllerConfiguration, controller.ID)
+	}
+	for _, output := range outputs {
+		if _, err := q.CreateCabinetLEDString(ctx, db.CreateCabinetLEDStringParams{
+			CabinetID: cabinetID, ControllerID: controller.ID, Name: output.Name,
+			DisplayOrder: output.DisplayOrder, PixelCount: output.PixelCount, LayoutComplete: 0,
+			ControllerOutputID: sql.NullInt64{Int64: output.ID, Valid: true},
+		}); err != nil {
+			return fmt.Errorf("create cabinet path projection for controller #%d output #%d: %w", controller.ID, output.ID, err)
+		}
+	}
+	rows, err := q.UpdateCabinetControllerStringsConfigured(ctx, db.UpdateCabinetControllerStringsConfiguredParams{
+		StringsConfigured: 1, CabinetID: cabinetID, ControllerID: controller.ID,
+	})
+	if err != nil {
+		return err
+	}
+	if rows != 1 {
+		return ErrCabinetControllerInvalid
+	}
+	return nil
 }
 
 func uniqueIDs(values []int64) []int64 {

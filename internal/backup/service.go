@@ -220,6 +220,9 @@ func (s *service) snapshotStorageManifest(ctx context.Context) (StorageManifest,
 		if m.Controllers, err = q.GetControllers(ctx); err != nil {
 			return fmt.Errorf("failed to fetch controllers: %w", err)
 		}
+		if m.ControllerOutputs, err = q.GetAllControllerOutputs(ctx); err != nil {
+			return fmt.Errorf("failed to fetch controller outputs: %w", err)
+		}
 		if m.Containers, err = q.GetAllContainers(ctx); err != nil {
 			return fmt.Errorf("failed to fetch containers: %w", err)
 		}
@@ -334,6 +337,9 @@ func (s *service) snapshotStorageManifest(ctx context.Context) (StorageManifest,
 		}
 		if m.PartDetails == nil {
 			m.PartDetails = []db.PartDetail{}
+		}
+		if m.ControllerOutputs == nil {
+			m.ControllerOutputs = []db.ControllerOutput{}
 		}
 
 		// Export the actual coordinate space of the stored bin LED indices so a
@@ -1083,12 +1089,30 @@ func (s *service) restoreData(ctx context.Context, qtx db.Querier, manifest Mani
 		}
 	}
 	for _, c := range manifest.Controllers {
+		controllerType := c.ControllerType
+		if controllerType == "" {
+			controllerType = "wled"
+		}
+		connectionTimeout := c.ConnectionTimeoutMs
+		if connectionTimeout == 0 {
+			connectionTimeout = 2000
+		}
 		if err := qtx.RestoreController(ctx, db.RestoreControllerParams{
 			ID: c.ID, Name: c.Name, IpAddress: c.IpAddress, Port: c.Port,
 			MacAddress: c.MacAddress, IsOnline: c.IsOnline, LedCount: c.LedCount,
-			CreatedAt: c.CreatedAt,
+			CreatedAt: c.CreatedAt, ControllerType: controllerType, ConnectionTimeoutMs: connectionTimeout,
 		}); err != nil {
 			return fmt.Errorf("controller restore: %w", err)
+		}
+	}
+	for _, output := range manifest.ControllerOutputs {
+		if err := qtx.RestoreControllerOutput(ctx, db.RestoreControllerOutputParams{
+			ID: output.ID, ControllerID: output.ControllerID, DisplayOrder: output.DisplayOrder, Name: output.Name,
+			PixelCount: output.PixelCount, Direction: output.Direction, Pattern: output.Pattern,
+			Rows: output.Rows, Columns: output.Columns, CustomOrderJson: output.CustomOrderJson,
+			CreatedAt: output.CreatedAt, UpdatedAt: output.UpdatedAt,
+		}); err != nil {
+			return fmt.Errorf("controller output restore: %w", err)
 		}
 	}
 	for _, c := range manifest.Containers {

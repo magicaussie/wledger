@@ -22,8 +22,59 @@ import (
 	"github.com/tuxedocurly/wledger/internal/ledspace"
 )
 
+func TestControllerOutputGraphValidation(t *testing.T) {
+	baseLegacy := Manifest{
+		Controllers: []db.Controller{{ID: 1, LedCount: 6, ControllerType: "wled", ConnectionTimeoutMs: 2000}},
+		ControllerOutputs: []db.ControllerOutput{{
+			ID: 1, ControllerID: 1, DisplayOrder: 0, Name: "Output 1", PixelCount: 6,
+			Direction: "forward", Pattern: "linear", Rows: 1, Columns: 1, CustomOrderJson: "[]",
+		}},
+	}
+	cases := []struct {
+		name   string
+		mutate func(*Manifest, *PhysicalStorageSnapshot)
+	}{
+		{name: "valid output", mutate: func(*Manifest, *PhysicalStorageSnapshot) {}},
+		{name: "capacity mismatch", mutate: func(manifest *Manifest, _ *PhysicalStorageSnapshot) { manifest.ControllerOutputs[0].PixelCount = 5 }},
+		{name: "duplicate output identity", mutate: func(manifest *Manifest, _ *PhysicalStorageSnapshot) {
+			manifest.ControllerOutputs = append(manifest.ControllerOutputs, manifest.ControllerOutputs[0])
+		}},
+		{name: "non-contiguous output order", mutate: func(manifest *Manifest, _ *PhysicalStorageSnapshot) { manifest.ControllerOutputs[0].DisplayOrder = 1 }},
+		{name: "invalid custom pixel permutation", mutate: func(manifest *Manifest, _ *PhysicalStorageSnapshot) {
+			manifest.ControllerOutputs[0].Pattern = "custom"
+			manifest.ControllerOutputs[0].CustomOrderJson = "[0,0,2,3,4,5]"
+		}},
+		{name: "invalid cabinet projection reference", mutate: func(_ *Manifest, snapshot *PhysicalStorageSnapshot) {
+			snapshot.CabinetLEDStrings = []db.CabinetLedString{{
+				ID: 10, CabinetID: 1, ControllerID: 1, DisplayOrder: 0, PixelCount: 6,
+				ControllerOutputID: sql.NullInt64{Int64: 99, Valid: true},
+			}}
+		}},
+	}
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			legacy := baseLegacy
+			legacy.Controllers = append([]db.Controller(nil), baseLegacy.Controllers...)
+			legacy.ControllerOutputs = append([]db.ControllerOutput(nil), baseLegacy.ControllerOutputs...)
+			var physical PhysicalStorageSnapshot
+			test.mutate(&legacy, &physical)
+			err := validateControllerOutputGraph(legacy, physical)
+			if test.name == "valid output" {
+				if err != nil {
+					t.Fatalf("valid controller output graph rejected: %v", err)
+				}
+				return
+			}
+			var formatErr *BackupFormatError
+			if !errors.As(err, &formatErr) || formatErr.Code != FormatInvalidPhysicalGraph {
+				t.Fatalf("error = %v, want invalid physical graph backup error", err)
+			}
+		})
+	}
+}
+
 // These tests cover the completeness contract of the current storage envelope:
-// a current (2.2) archive must declare every member of the envelope, the
+// a current (2.3) archive must declare every member of the envelope, the
 // physical storage section and the embedded legacy manifest that its format
 // requires, plus a coordinate space consistent with the captured flag. An
 // incomplete archive must be rejected before any cleanup or mutation, because
@@ -87,6 +138,7 @@ func (f *smvFixture) seed() {
 	}
 	for _, stmt := range []string{
 		`INSERT INTO controllers (id, name, ip_address, port, led_count) VALUES (1, 'Ctrl', '10.0.0.1', 80, 32)`,
+		`INSERT INTO controller_outputs (controller_id, display_order, name, pixel_count) VALUES (1, 0, 'Output 1', 32)`,
 		`INSERT INTO containers (id, name, controller_id, segment_id, led_start, led_count) VALUES (1, 'String', 1, 0, 0, 16)`,
 		`INSERT INTO bins (id, name, container_id, led_index, width, grid_x, grid_y) VALUES (1, 'bin1', 1, 0, 1, 0, 0)`,
 		`INSERT INTO parts (id, name) VALUES (1, 'part1')`,

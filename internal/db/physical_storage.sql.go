@@ -263,18 +263,19 @@ func (q *Queries) CreateCabinetLEDPathSection(ctx context.Context, arg CreateCab
 }
 
 const createCabinetLEDString = `-- name: CreateCabinetLEDString :one
-INSERT INTO cabinet_led_strings (cabinet_id, controller_id, name, display_order, pixel_count, layout_complete)
-VALUES (?, ?, ?, ?, ?, ?)
+INSERT INTO cabinet_led_strings (cabinet_id, controller_id, name, display_order, pixel_count, layout_complete, controller_output_id)
+VALUES (?, ?, ?, ?, ?, ?, ?)
 RETURNING id
 `
 
 type CreateCabinetLEDStringParams struct {
-	CabinetID      int64  `json:"cabinet_id"`
-	ControllerID   int64  `json:"controller_id"`
-	Name           string `json:"name"`
-	DisplayOrder   int64  `json:"display_order"`
-	PixelCount     int64  `json:"pixel_count"`
-	LayoutComplete int64  `json:"layout_complete"`
+	CabinetID          int64         `json:"cabinet_id"`
+	ControllerID       int64         `json:"controller_id"`
+	Name               string        `json:"name"`
+	DisplayOrder       int64         `json:"display_order"`
+	PixelCount         int64         `json:"pixel_count"`
+	LayoutComplete     int64         `json:"layout_complete"`
+	ControllerOutputID sql.NullInt64 `json:"controller_output_id"`
 }
 
 func (q *Queries) CreateCabinetLEDString(ctx context.Context, arg CreateCabinetLEDStringParams) (int64, error) {
@@ -285,6 +286,7 @@ func (q *Queries) CreateCabinetLEDString(ctx context.Context, arg CreateCabinetL
 		arg.DisplayOrder,
 		arg.PixelCount,
 		arg.LayoutComplete,
+		arg.ControllerOutputID,
 	)
 	var id int64
 	err := row.Scan(&id)
@@ -605,7 +607,7 @@ func (q *Queries) ListAllCabinetLEDPathSections(ctx context.Context) ([]CabinetL
 }
 
 const listAllCabinetLEDStrings = `-- name: ListAllCabinetLEDStrings :many
-SELECT id, cabinet_id, controller_id, name, display_order, pixel_count, layout_complete, created_at, updated_at FROM cabinet_led_strings
+SELECT id, cabinet_id, controller_id, name, display_order, pixel_count, layout_complete, created_at, updated_at, controller_output_id FROM cabinet_led_strings
 ORDER BY cabinet_id ASC, controller_id ASC, display_order ASC, id ASC
 `
 
@@ -628,6 +630,7 @@ func (q *Queries) ListAllCabinetLEDStrings(ctx context.Context) ([]CabinetLedStr
 			&i.LayoutComplete,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ControllerOutputID,
 		); err != nil {
 			return nil, err
 		}
@@ -874,7 +877,7 @@ func (q *Queries) ListCabinetLEDPathSectionsByString(ctx context.Context, string
 }
 
 const listCabinetLEDStrings = `-- name: ListCabinetLEDStrings :many
-SELECT s.id, s.cabinet_id, s.controller_id, s.name, s.display_order, s.pixel_count, s.layout_complete, s.created_at, s.updated_at FROM cabinet_led_strings s
+SELECT s.id, s.cabinet_id, s.controller_id, s.name, s.display_order, s.pixel_count, s.layout_complete, s.created_at, s.updated_at, s.controller_output_id FROM cabinet_led_strings s
 JOIN cabinet_controllers cc ON cc.cabinet_id = s.cabinet_id AND cc.controller_id = s.controller_id
 WHERE s.cabinet_id = ?
 ORDER BY cc.slot ASC, s.display_order ASC, s.id ASC
@@ -899,6 +902,7 @@ func (q *Queries) ListCabinetLEDStrings(ctx context.Context, cabinetID int64) ([
 			&i.LayoutComplete,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ControllerOutputID,
 		); err != nil {
 			return nil, err
 		}
@@ -914,7 +918,7 @@ func (q *Queries) ListCabinetLEDStrings(ctx context.Context, cabinetID int64) ([
 }
 
 const listCabinetLEDStringsByController = `-- name: ListCabinetLEDStringsByController :many
-SELECT id, cabinet_id, controller_id, name, display_order, pixel_count, layout_complete, created_at, updated_at FROM cabinet_led_strings
+SELECT id, cabinet_id, controller_id, name, display_order, pixel_count, layout_complete, created_at, updated_at, controller_output_id FROM cabinet_led_strings
 WHERE cabinet_id = ? AND controller_id = ?
 ORDER BY display_order ASC, id ASC
 `
@@ -943,6 +947,7 @@ func (q *Queries) ListCabinetLEDStringsByController(ctx context.Context, arg Lis
 			&i.LayoutComplete,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ControllerOutputID,
 		); err != nil {
 			return nil, err
 		}
@@ -1328,20 +1333,21 @@ func (q *Queries) RestoreCabinetLEDPathSection(ctx context.Context, arg RestoreC
 }
 
 const restoreCabinetLEDString = `-- name: RestoreCabinetLEDString :exec
-INSERT INTO cabinet_led_strings (id, cabinet_id, controller_id, name, display_order, pixel_count, layout_complete, created_at, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO cabinet_led_strings (id, cabinet_id, controller_id, name, display_order, pixel_count, layout_complete, created_at, updated_at, controller_output_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type RestoreCabinetLEDStringParams struct {
-	ID             int64     `json:"id"`
-	CabinetID      int64     `json:"cabinet_id"`
-	ControllerID   int64     `json:"controller_id"`
-	Name           string    `json:"name"`
-	DisplayOrder   int64     `json:"display_order"`
-	PixelCount     int64     `json:"pixel_count"`
-	LayoutComplete int64     `json:"layout_complete"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	ID                 int64         `json:"id"`
+	CabinetID          int64         `json:"cabinet_id"`
+	ControllerID       int64         `json:"controller_id"`
+	Name               string        `json:"name"`
+	DisplayOrder       int64         `json:"display_order"`
+	PixelCount         int64         `json:"pixel_count"`
+	LayoutComplete     int64         `json:"layout_complete"`
+	CreatedAt          time.Time     `json:"created_at"`
+	UpdatedAt          time.Time     `json:"updated_at"`
+	ControllerOutputID sql.NullInt64 `json:"controller_output_id"`
 }
 
 func (q *Queries) RestoreCabinetLEDString(ctx context.Context, arg RestoreCabinetLEDStringParams) error {
@@ -1355,6 +1361,7 @@ func (q *Queries) RestoreCabinetLEDString(ctx context.Context, arg RestoreCabine
 		arg.LayoutComplete,
 		arg.CreatedAt,
 		arg.UpdatedAt,
+		arg.ControllerOutputID,
 	)
 	return err
 }
@@ -1674,18 +1681,19 @@ func (q *Queries) UpdateCabinetLEDPathSection(ctx context.Context, arg UpdateCab
 
 const updateCabinetLEDString = `-- name: UpdateCabinetLEDString :execrows
 UPDATE cabinet_led_strings
-SET name = ?, display_order = ?, pixel_count = ?, layout_complete = ?, updated_at = CURRENT_TIMESTAMP
+SET name = ?, display_order = ?, pixel_count = ?, layout_complete = ?, controller_output_id = ?, updated_at = CURRENT_TIMESTAMP
 WHERE id = ? AND cabinet_id = ? AND controller_id = ?
 `
 
 type UpdateCabinetLEDStringParams struct {
-	Name           string `json:"name"`
-	DisplayOrder   int64  `json:"display_order"`
-	PixelCount     int64  `json:"pixel_count"`
-	LayoutComplete int64  `json:"layout_complete"`
-	ID             int64  `json:"id"`
-	CabinetID      int64  `json:"cabinet_id"`
-	ControllerID   int64  `json:"controller_id"`
+	Name               string        `json:"name"`
+	DisplayOrder       int64         `json:"display_order"`
+	PixelCount         int64         `json:"pixel_count"`
+	LayoutComplete     int64         `json:"layout_complete"`
+	ControllerOutputID sql.NullInt64 `json:"controller_output_id"`
+	ID                 int64         `json:"id"`
+	CabinetID          int64         `json:"cabinet_id"`
+	ControllerID       int64         `json:"controller_id"`
 }
 
 func (q *Queries) UpdateCabinetLEDString(ctx context.Context, arg UpdateCabinetLEDStringParams) (int64, error) {
@@ -1694,10 +1702,29 @@ func (q *Queries) UpdateCabinetLEDString(ctx context.Context, arg UpdateCabinetL
 		arg.DisplayOrder,
 		arg.PixelCount,
 		arg.LayoutComplete,
+		arg.ControllerOutputID,
 		arg.ID,
 		arg.CabinetID,
 		arg.ControllerID,
 	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const updateCabinetLEDStringOutput = `-- name: UpdateCabinetLEDStringOutput :execrows
+UPDATE cabinet_led_strings SET controller_output_id = ? WHERE id = ? AND controller_id = ?
+`
+
+type UpdateCabinetLEDStringOutputParams struct {
+	ControllerOutputID sql.NullInt64 `json:"controller_output_id"`
+	ID                 int64         `json:"id"`
+	ControllerID       int64         `json:"controller_id"`
+}
+
+func (q *Queries) UpdateCabinetLEDStringOutput(ctx context.Context, arg UpdateCabinetLEDStringOutputParams) (int64, error) {
+	result, err := q.exec(ctx, q.updateCabinetLEDStringOutputStmt, updateCabinetLEDStringOutput, arg.ControllerOutputID, arg.ID, arg.ControllerID)
 	if err != nil {
 		return 0, err
 	}

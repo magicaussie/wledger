@@ -11,15 +11,17 @@ import (
 )
 
 const createController = `-- name: CreateController :one
-INSERT INTO controllers (name, ip_address, port)
-VALUES (?, ?, ?)
+INSERT INTO controllers (name, ip_address, port, controller_type, connection_timeout_ms)
+VALUES (?, ?, ?, COALESCE(?4, 'wled'), COALESCE(?5, 2000))
 RETURNING id, name, ip_address, is_online, created_at
 `
 
 type CreateControllerParams struct {
-	Name      string        `json:"name"`
-	IpAddress string        `json:"ip_address"`
-	Port      sql.NullInt64 `json:"port"`
+	Name                string        `json:"name"`
+	IpAddress           string        `json:"ip_address"`
+	Port                sql.NullInt64 `json:"port"`
+	ControllerType      interface{}   `json:"controller_type"`
+	ConnectionTimeoutMs interface{}   `json:"connection_timeout_ms"`
 }
 
 type CreateControllerRow struct {
@@ -31,7 +33,13 @@ type CreateControllerRow struct {
 }
 
 func (q *Queries) CreateController(ctx context.Context, arg CreateControllerParams) (CreateControllerRow, error) {
-	row := q.queryRow(ctx, q.createControllerStmt, createController, arg.Name, arg.IpAddress, arg.Port)
+	row := q.queryRow(ctx, q.createControllerStmt, createController,
+		arg.Name,
+		arg.IpAddress,
+		arg.Port,
+		arg.ControllerType,
+		arg.ConnectionTimeoutMs,
+	)
 	var i CreateControllerRow
 	err := row.Scan(
 		&i.ID,
@@ -53,7 +61,7 @@ func (q *Queries) DeleteController(ctx context.Context, id int64) error {
 }
 
 const getController = `-- name: GetController :one
-SELECT id, name, ip_address, port, mac_address, is_online, led_count, created_at, locate_mapping_verified, locate_mapping_fingerprint FROM controllers WHERE id = ?
+SELECT id, name, ip_address, port, mac_address, is_online, led_count, created_at, locate_mapping_verified, locate_mapping_fingerprint, controller_type, connection_timeout_ms FROM controllers WHERE id = ?
 `
 
 func (q *Queries) GetController(ctx context.Context, id int64) (Controller, error) {
@@ -70,12 +78,14 @@ func (q *Queries) GetController(ctx context.Context, id int64) (Controller, erro
 		&i.CreatedAt,
 		&i.LocateMappingVerified,
 		&i.LocateMappingFingerprint,
+		&i.ControllerType,
+		&i.ConnectionTimeoutMs,
 	)
 	return i, err
 }
 
 const getControllerByIP = `-- name: GetControllerByIP :one
-SELECT id, name, ip_address, port, mac_address, is_online, led_count, created_at, locate_mapping_verified, locate_mapping_fingerprint FROM controllers WHERE ip_address = ?
+SELECT id, name, ip_address, port, mac_address, is_online, led_count, created_at, locate_mapping_verified, locate_mapping_fingerprint, controller_type, connection_timeout_ms FROM controllers WHERE ip_address = ?
 `
 
 func (q *Queries) GetControllerByIP(ctx context.Context, ipAddress string) (Controller, error) {
@@ -92,12 +102,14 @@ func (q *Queries) GetControllerByIP(ctx context.Context, ipAddress string) (Cont
 		&i.CreatedAt,
 		&i.LocateMappingVerified,
 		&i.LocateMappingFingerprint,
+		&i.ControllerType,
+		&i.ConnectionTimeoutMs,
 	)
 	return i, err
 }
 
 const getControllers = `-- name: GetControllers :many
-SELECT id, name, ip_address, port, mac_address, is_online, led_count, created_at, locate_mapping_verified, locate_mapping_fingerprint FROM controllers ORDER BY name
+SELECT id, name, ip_address, port, mac_address, is_online, led_count, created_at, locate_mapping_verified, locate_mapping_fingerprint, controller_type, connection_timeout_ms FROM controllers ORDER BY name
 `
 
 func (q *Queries) GetControllers(ctx context.Context) ([]Controller, error) {
@@ -120,6 +132,8 @@ func (q *Queries) GetControllers(ctx context.Context) ([]Controller, error) {
 			&i.CreatedAt,
 			&i.LocateMappingVerified,
 			&i.LocateMappingFingerprint,
+			&i.ControllerType,
+			&i.ConnectionTimeoutMs,
 		); err != nil {
 			return nil, err
 		}
@@ -183,19 +197,21 @@ func (q *Queries) GetControllersForCompatibility(ctx context.Context) ([]GetCont
 }
 
 const restoreController = `-- name: RestoreController :exec
-INSERT INTO controllers (id, name, ip_address, port, mac_address, is_online, led_count, created_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO controllers (id, name, ip_address, port, mac_address, is_online, led_count, created_at, controller_type, connection_timeout_ms)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type RestoreControllerParams struct {
-	ID         int64          `json:"id"`
-	Name       string         `json:"name"`
-	IpAddress  string         `json:"ip_address"`
-	Port       sql.NullInt64  `json:"port"`
-	MacAddress sql.NullString `json:"mac_address"`
-	IsOnline   sql.NullBool   `json:"is_online"`
-	LedCount   int64          `json:"led_count"`
-	CreatedAt  sql.NullTime   `json:"created_at"`
+	ID                  int64          `json:"id"`
+	Name                string         `json:"name"`
+	IpAddress           string         `json:"ip_address"`
+	Port                sql.NullInt64  `json:"port"`
+	MacAddress          sql.NullString `json:"mac_address"`
+	IsOnline            sql.NullBool   `json:"is_online"`
+	LedCount            int64          `json:"led_count"`
+	CreatedAt           sql.NullTime   `json:"created_at"`
+	ControllerType      string         `json:"controller_type"`
+	ConnectionTimeoutMs int64          `json:"connection_timeout_ms"`
 }
 
 func (q *Queries) RestoreController(ctx context.Context, arg RestoreControllerParams) error {
@@ -208,6 +224,8 @@ func (q *Queries) RestoreController(ctx context.Context, arg RestoreControllerPa
 		arg.IsOnline,
 		arg.LedCount,
 		arg.CreatedAt,
+		arg.ControllerType,
+		arg.ConnectionTimeoutMs,
 	)
 	return err
 }
@@ -226,6 +244,26 @@ type SetControllerOnlineStatusParams struct {
 func (q *Queries) SetControllerOnlineStatus(ctx context.Context, arg SetControllerOnlineStatusParams) error {
 	_, err := q.exec(ctx, q.setControllerOnlineStatusStmt, setControllerOnlineStatus, arg.IsOnline, arg.ID)
 	return err
+}
+
+const updateControllerHardwareSettings = `-- name: UpdateControllerHardwareSettings :execrows
+UPDATE controllers
+SET controller_type = ?, connection_timeout_ms = ?
+WHERE id = ?
+`
+
+type UpdateControllerHardwareSettingsParams struct {
+	ControllerType      string `json:"controller_type"`
+	ConnectionTimeoutMs int64  `json:"connection_timeout_ms"`
+	ID                  int64  `json:"id"`
+}
+
+func (q *Queries) UpdateControllerHardwareSettings(ctx context.Context, arg UpdateControllerHardwareSettingsParams) (int64, error) {
+	result, err := q.exec(ctx, q.updateControllerHardwareSettingsStmt, updateControllerHardwareSettings, arg.ControllerType, arg.ConnectionTimeoutMs, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const updateControllerLedCount = `-- name: UpdateControllerLedCount :execrows
@@ -270,15 +308,17 @@ func (q *Queries) UpdateControllerLocateMappingVerification(ctx context.Context,
 
 const updateControllerSettings = `-- name: UpdateControllerSettings :execrows
 UPDATE controllers
-SET name = ?, ip_address = ?, port = ?
+SET name = ?, ip_address = ?, port = ?, controller_type = ?, connection_timeout_ms = ?
 WHERE id = ?
 `
 
 type UpdateControllerSettingsParams struct {
-	Name      string        `json:"name"`
-	IpAddress string        `json:"ip_address"`
-	Port      sql.NullInt64 `json:"port"`
-	ID        int64         `json:"id"`
+	Name                string        `json:"name"`
+	IpAddress           string        `json:"ip_address"`
+	Port                sql.NullInt64 `json:"port"`
+	ControllerType      string        `json:"controller_type"`
+	ConnectionTimeoutMs int64         `json:"connection_timeout_ms"`
+	ID                  int64         `json:"id"`
 }
 
 func (q *Queries) UpdateControllerSettings(ctx context.Context, arg UpdateControllerSettingsParams) (int64, error) {
@@ -286,6 +326,8 @@ func (q *Queries) UpdateControllerSettings(ctx context.Context, arg UpdateContro
 		arg.Name,
 		arg.IpAddress,
 		arg.Port,
+		arg.ControllerType,
+		arg.ConnectionTimeoutMs,
 		arg.ID,
 	)
 	if err != nil {

@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"sort"
 	"strings"
 	"time"
 
+	"github.com/tuxedocurly/wledger/internal/controllerconfig"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/ledspace"
 )
@@ -24,7 +26,7 @@ const (
 	binIndexSpaceField              = "bin_index_space"
 )
 
-// StorageManifest is the complete current (version 2.2) backup envelope.
+// StorageManifest is the complete current (version 2.3) backup envelope.
 // the only manifest the current export writes, so one archive entry carries the
 // whole installation: the historical manifest plus the physical storage graph
 // and every system flag, all read in one transaction.
@@ -57,8 +59,11 @@ func (m StorageManifest) MarshalJSON() ([]byte, error) {
 			m.Legacy.PartAttributeValues = []db.PartAttributeValue{}
 		}
 	}
-	if m.Version == supportedCurrentManifestVersion && m.Legacy.PartDetails == nil {
+	if (m.Version == supportedProductDetailsManifestVersion || m.Version == supportedCurrentManifestVersion) && m.Legacy.PartDetails == nil {
 		m.Legacy.PartDetails = []db.PartDetail{}
+	}
+	if m.Version == supportedCurrentManifestVersion && m.Legacy.ControllerOutputs == nil {
+		m.Legacy.ControllerOutputs = []db.ControllerOutput{}
 	}
 	return json.Marshal(storageManifestAlias(m))
 }
@@ -158,7 +163,7 @@ func requireJSONArray(raw json.RawMessage, where string) error {
 }
 
 // decodeCurrentStorageManifest decodes and validates the current
-// (version 2.2) manifest and compatible 2.0/2.1 archives. It rejects malformed JSON, trailing content, duplicate
+// (version 2.3) manifest and compatible 2.0/2.1/2.2 archives. It rejects malformed JSON, trailing content, duplicate
 // or unknown members at every level, a member the format requires being absent or
 // of the wrong shape, an unsupported envelope or embedded legacy version, a
 // coordinate marker that contradicts the captured coordinate flag, and a physical
@@ -189,13 +194,12 @@ func decodeCurrentStorageManifest(f *zip.File) (StorageManifest, error) {
 	if err := json.Unmarshal(members["version"], &envelopeVersion); err != nil {
 		return StorageManifest{}, malformedManifest("current backup version must be a string")
 	}
-	if envelopeVersion != supportedCurrentManifestVersion && envelopeVersion != supportedCategoryManifestVersion && envelopeVersion != supportedPreviousManifestVersion {
+	if envelopeVersion != supportedCurrentManifestVersion && envelopeVersion != supportedProductDetailsManifestVersion && envelopeVersion != supportedCategoryManifestVersion && envelopeVersion != supportedPreviousManifestVersion {
 		return StorageManifest{}, &BackupFormatError{Code: FormatUnsupportedManifestVersion, Reason: fmt.Sprintf("unsupported backup manifest version %q", envelopeVersion)}
 	}
 
 	// The embedded legacy manifest gets strict boundary validation. Category lists
-	// became required in 2.1; extended product details became required in 2.2.
-	// Earlier current archives remain readable without those later fields.
+	// became required in 2.1, product details in 2.2, and controller outputs in 2.3.
 	legacyMembers, err := requireObjectMember(members, storageManifestLegacyField, manifestTopLevelFields(), currentStorageManifestName)
 	if err != nil {
 		return StorageManifest{}, err
@@ -207,13 +211,16 @@ func decodeCurrentStorageManifest(f *zip.File) (StorageManifest, error) {
 			legacyRequired[name] = struct{}{}
 		}
 	}
-	if envelopeVersion == supportedCurrentManifestVersion {
+	if envelopeVersion == supportedProductDetailsManifestVersion || envelopeVersion == supportedCurrentManifestVersion {
 		legacyRequired["part_details"] = struct{}{}
+	}
+	if envelopeVersion == supportedCurrentManifestVersion {
+		legacyRequired["controller_outputs"] = struct{}{}
 	}
 	if err := requireMembers(legacyMembers, legacyRequired, storageManifestLegacyField); err != nil {
 		return StorageManifest{}, err
 	}
-	for _, name := range append(categoryFields, "part_details") {
+	for _, name := range []string{"categories", "part_categories", "category_attributes", "part_attribute_values", "part_details", "controller_outputs"} {
 		if raw, ok := legacyMembers[name]; ok {
 			if err := requireJSONArray(raw, storageManifestLegacyField+"."+name); err != nil {
 				return StorageManifest{}, err
@@ -270,10 +277,10 @@ func decodeCurrentStorageManifest(f *zip.File) (StorageManifest, error) {
 	}
 	env.PhysicalStorage.CabinetWiringDeclared = stringsDeclared && sectionsDeclared
 
-	if env.Version != supportedCurrentManifestVersion && env.Version != supportedCategoryManifestVersion && env.Version != supportedPreviousManifestVersion {
+	if env.Version != supportedCurrentManifestVersion && env.Version != supportedProductDetailsManifestVersion && env.Version != supportedCategoryManifestVersion && env.Version != supportedPreviousManifestVersion {
 		return StorageManifest{}, &BackupFormatError{
 			Code:   FormatUnsupportedManifestVersion,
-			Reason: fmt.Sprintf("unsupported backup manifest version %q (supported: %q, %q and %q)", env.Version, supportedPreviousManifestVersion, supportedCategoryManifestVersion, supportedCurrentManifestVersion),
+			Reason: fmt.Sprintf("unsupported backup manifest version %q (supported: %q, %q, %q and %q)", env.Version, supportedPreviousManifestVersion, supportedCategoryManifestVersion, supportedProductDetailsManifestVersion, supportedCurrentManifestVersion),
 		}
 	}
 	if env.Legacy.Version != supportedLegacyManifestVersion {
@@ -287,6 +294,11 @@ func decodeCurrentStorageManifest(f *zip.File) (StorageManifest, error) {
 	}
 	if err := validateStorageGraph(env.Legacy, env.PhysicalStorage, env.SystemFlags); err != nil {
 		return StorageManifest{}, err
+	}
+	if env.Version == supportedCurrentManifestVersion || len(env.Legacy.ControllerOutputs) > 0 {
+		if err := validateControllerOutputGraph(env.Legacy, env.PhysicalStorage); err != nil {
+			return StorageManifest{}, err
+		}
 	}
 	if err := validateCoordinateSpaceConsistency(env.Legacy, env.SystemFlags); err != nil {
 		return StorageManifest{}, err
@@ -434,6 +446,84 @@ func coordinateSpaceValue(value, where string) (string, error) {
 			Reason: fmt.Sprintf("unsupported coordinate space %q in %s", value, where),
 		}
 	}
+}
+
+// validateControllerOutputGraph validates version 2.3 hardware configuration and
+// any controller outputs carried by compatible older envelopes before restore.
+func validateControllerOutputGraph(legacy Manifest, snap PhysicalStorageSnapshot) error {
+	invalid := func(reason string, args ...any) error {
+		return &BackupFormatError{Code: FormatInvalidPhysicalGraph, Reason: fmt.Sprintf(reason, args...)}
+	}
+	controllers := make(map[int64]db.Controller, len(legacy.Controllers))
+	for _, controller := range legacy.Controllers {
+		if controller.ID <= 0 {
+			return invalid("controller has a non-positive id %d", controller.ID)
+		}
+		if _, duplicate := controllers[controller.ID]; duplicate {
+			return invalid("duplicate controller id %d", controller.ID)
+		}
+		controllers[controller.ID] = controller
+	}
+
+	outputsByID := make(map[int64]db.ControllerOutput, len(legacy.ControllerOutputs))
+	outputsByController := make(map[int64][]db.ControllerOutput, len(controllers))
+	for _, output := range legacy.ControllerOutputs {
+		if output.ID <= 0 || output.ControllerID <= 0 || output.DisplayOrder < 0 {
+			return invalid("controller output has a non-positive id/owner or negative order")
+		}
+		if _, exists := controllers[output.ControllerID]; !exists {
+			return invalid("controller output %d references unknown controller %d", output.ID, output.ControllerID)
+		}
+		if _, duplicate := outputsByID[output.ID]; duplicate {
+			return invalid("duplicate controller output id %d", output.ID)
+		}
+		outputsByID[output.ID] = output
+		outputsByController[output.ControllerID] = append(outputsByController[output.ControllerID], output)
+	}
+
+	for controllerID, controller := range controllers {
+		outputs := outputsByController[controllerID]
+		sort.Slice(outputs, func(i, j int) bool { return outputs[i].DisplayOrder < outputs[j].DisplayOrder })
+		settings := controllerconfig.Settings{ControllerType: controller.ControllerType, ConnectionTimeoutMS: controller.ConnectionTimeoutMs}
+		for index, output := range outputs {
+			if output.DisplayOrder != int64(index) {
+				return invalid("controller %d output order is not contiguous at %d", controllerID, index)
+			}
+			var customOrder []int64
+			if err := json.Unmarshal([]byte(output.CustomOrderJson), &customOrder); err != nil {
+				return invalid("controller output %d has invalid custom pixel order: %v", output.ID, err)
+			}
+			settings.Outputs = append(settings.Outputs, controllerconfig.Output{
+				ID: output.ID, DisplayOrder: output.DisplayOrder, Name: output.Name, PixelCount: output.PixelCount,
+				Direction: output.Direction, Pattern: output.Pattern, Rows: output.Rows, Columns: output.Columns,
+				CustomOrder: customOrder,
+			})
+		}
+		total, err := settings.NormalizeAndValidate()
+		if err != nil {
+			return invalid("controller %d has invalid hardware configuration: %v", controllerID, err)
+		}
+		if total != controller.LedCount {
+			return invalid("controller %d capacity %d does not match output total %d", controllerID, controller.LedCount, total)
+		}
+	}
+
+	usedProjections := make(map[int64]int64, len(snap.CabinetLEDStrings))
+	for _, stringRecord := range snap.CabinetLEDStrings {
+		if !stringRecord.ControllerOutputID.Valid {
+			continue
+		}
+		outputID := stringRecord.ControllerOutputID.Int64
+		output, exists := outputsByID[outputID]
+		if !exists || output.ControllerID != stringRecord.ControllerID || output.DisplayOrder != stringRecord.DisplayOrder || output.PixelCount != stringRecord.PixelCount {
+			return invalid("cabinet string %d does not match its controller output %d", stringRecord.ID, outputID)
+		}
+		if priorStringID, duplicate := usedProjections[outputID]; duplicate {
+			return invalid("controller output %d is projected by cabinet strings %d and %d", outputID, priorStringID, stringRecord.ID)
+		}
+		usedProjections[outputID] = stringRecord.ID
+	}
+	return nil
 }
 
 // validateStorageGraph rejects a current snapshot whose physical storage rows are

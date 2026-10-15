@@ -38,6 +38,7 @@ const path = require('node:path');
     fs.symlinkSync(path.join(repoRoot, 'locales'), path.join(scratchDir, 'locales'));
 
     const capacities = [200, 250, 150, 300, 100];
+    const outputCounts = [2, 1, 1, 1, 1];
     const controllerEndpoints = [];
     const mockBehaviors = capacities.map(() => ({ dropNextPostResponse: false, onDropAccepted: null }));
     const mockPixels = capacities.map((capacity, index) => Array.from({ length: capacity }, () => [20 + index, 30 + index, 40 + index]));
@@ -264,7 +265,7 @@ const path = require('node:path');
     assert.equal(deleteProductStatus, 200, 'temporary category acceptance product should be removable');
 
     const emptyCounts = readOnlyCounts(databasePath);
-    for (const table of ['controllers', 'cabinets', 'drawers', 'bins', 'containers', 'cabinet_controllers', 'bin_drawer_attachments', 'parts', 'part_assignments', 'categories', 'part_categories', 'category_attributes', 'part_attribute_values', 'cabinet_led_strings', 'cabinet_led_path_sections', 'drawer_led_allocations']) {
+    for (const table of ['controllers', 'controller_outputs', 'cabinets', 'drawers', 'bins', 'containers', 'cabinet_controllers', 'bin_drawer_attachments', 'parts', 'part_assignments', 'categories', 'part_categories', 'category_attributes', 'part_attribute_values', 'cabinet_led_strings', 'cabinet_led_path_sections', 'drawer_led_allocations']) {
       assert.equal(emptyCounts[table], 0, `new-install table ${table} must begin empty`);
     }
     const migrationVersions = fs.readdirSync(path.join(repoRoot, 'sql/schema'))
@@ -285,10 +286,33 @@ const path = require('node:path');
       await form.locator('input[name="name"]').fill(`UI Controller ${index + 1}`);
       await form.locator('input[name="ip_address"]').fill(controllerEndpoints[index].host);
       await form.locator('input[name="port"]').fill(String(controllerEndpoints[index].port));
+      await form.locator('select[name="controller_type"]').selectOption(index === 0 ? 'wled-esp32' : 'wled');
+      await form.locator('input[name="connection_timeout_ms"]').fill(index === 0 ? '5500' : '2000');
+      const outputEditor = form.locator('[x-data^="controllerOutputEditor"]');
+      await outputEditor.getByRole('button', { name: 'Add output' }).click();
+      await outputEditor.locator('input[x-model="output.name"]').nth(0).fill(`Physical string ${index + 1}`);
+      await outputEditor.locator('input[x-model\\.number="output.pixel_count"]').nth(0).fill(String(index === 0 ? 80 : capacities[index]));
+      if (index === 0) {
+        await outputEditor.getByRole('button', { name: 'Add output' }).click();
+        await outputEditor.locator('input[x-model="output.name"]').nth(1).fill('Physical string 2');
+        await outputEditor.locator('input[x-model\\.number="output.pixel_count"]').nth(1).fill('120');
+        await outputEditor.locator('select[x-model="output.direction"]').nth(1).selectOption('reverse');
+        await outputEditor.locator('select[x-model="output.pattern"]').nth(1).selectOption('serpentine_rows');
+        await outputEditor.locator('input[x-model\\.number="output.rows"]').nth(1).fill('12');
+        await outputEditor.locator('input[x-model\\.number="output.columns"]').nth(1).fill('10');
+      }
       await form.locator('button.btn-primary').click();
       await page.waitForURL(`${baseURL}/hardware`);
-      const rows = readOnlyRows(databasePath, 'SELECT id, name, ip_address, port, led_count FROM controllers WHERE name = ? ORDER BY id', [`UI Controller ${index + 1}`]);
+      const rows = readOnlyRows(databasePath, 'SELECT id, name, ip_address, port, led_count, controller_type, connection_timeout_ms FROM controllers WHERE name = ? ORDER BY id', [`UI Controller ${index + 1}`]);
       assert.equal(rows.length, 1, `controller ${index + 1} should be created through its browser form`);
+      assert.deepEqual([Number(rows[0][4]), rows[0][5], Number(rows[0][6])], [capacities[index], index === 0 ? 'wled-esp32' : 'wled', index === 0 ? 5500 : 2000], 'controller type, connection timeout and total output capacity should persist');
+      const outputRows = readOnlyRows(databasePath, 'SELECT display_order,name,pixel_count,direction,pattern,rows,columns FROM controller_outputs WHERE controller_id=? ORDER BY display_order', [Number(rows[0][0])]);
+      assert.equal(outputRows.length, outputCounts[index], 'configured output count should persist');
+      if (index === 0) {
+        assert.deepEqual(outputRows, [[0, 'Physical string 1', 80, 'forward', 'linear', 1, 1], [1, 'Physical string 2', 120, 'reverse', 'serpentine_rows', 12, 10]], 'controller outputs with differing lengths, direction and serpentine rows should persist in order');
+      } else {
+        assert.deepEqual(outputRows, [[0, `Physical string ${index + 1}`, capacities[index], 'forward', 'linear', 1, 1]], 'single-output controller definitions should persist');
+      }
       controllers.push({ id: Number(rows[0][0]), name: rows[0][1], ip: rows[0][2], port: Number(rows[0][3]), capacity: Number(rows[0][4]) });
     }
 
@@ -296,11 +320,22 @@ const path = require('node:path');
     await page.goto(`${baseURL}/hardware/${controllers[0].id}/edit`);
     const editForm = page.locator(`form[action="/hardware/${controllers[0].id}/update"]`);
     await editForm.locator('input[name="name"]').fill('UI Controller A Edited');
+    const editedOutput = editForm.locator('[x-data^="controllerOutputEditor"]');
+    await editedOutput.locator('select[x-model="output.pattern"]').nth(1).selectOption('serpentine_columns');
+    await editedOutput.locator('input[x-model\\.number="output.rows"]').nth(1).fill('10');
+    await editedOutput.locator('input[x-model\\.number="output.columns"]').nth(1).fill('12');
     await editForm.locator('button[type="submit"]').click();
     await page.waitForURL(/controller_saved=1/);
     const editedController = readOnlyRows(databasePath, 'SELECT id,name,ip_address,port FROM controllers WHERE id=?', [controllers[0].id]);
     assert.deepEqual(editedController[0].map((value, index) => index === 0 || index === 3 ? Number(value) : value), [controllers[0].id, 'UI Controller A Edited', controllers[0].ip, controllers[0].port], 'controller edit must preserve its ID and endpoint');
     controllers[0].name = 'UI Controller A Edited';
+    const editedOutputRows = readOnlyRows(databasePath, 'SELECT display_order,name,pixel_count,direction,pattern,rows,columns FROM controller_outputs WHERE controller_id=? ORDER BY display_order', [controllers[0].id]);
+    assert.deepEqual(editedOutputRows, [[0, 'Physical string 1', 80, 'forward', 'linear', 1, 1], [1, 'Physical string 2', 120, 'reverse', 'serpentine_columns', 10, 12]], 'controller edit should persist output direction and serpentine configuration');
+    await page.goto(`${baseURL}/hardware/${controllers[0].id}/edit`);
+    const restoreDirectionForm = page.locator(`form[action="/hardware/${controllers[0].id}/update"]`);
+    await restoreDirectionForm.locator('select[x-model="output.direction"]').nth(1).selectOption('forward');
+    await restoreDirectionForm.locator('button[type="submit"]').click();
+    await page.waitForURL(/controller_saved=1/);
 
     const controllerCountBeforeInvalid = Number(readOnlyRows(databasePath, 'SELECT COUNT(*) FROM controllers')[0][0]);
     await page.goto(`${baseURL}/hardware`);
@@ -405,24 +440,24 @@ const path = require('node:path');
     assert.deepEqual(reordered, controllers.map(controller => controller.id), 'controller order should be restored through the UI');
 
     await page.goto(`${baseURL}/storage/cabinets/${cabinetID}/edit`);
-    const configureButtons = page.getByRole('button', { name: 'Configure physical strings' });
-    for (let index = 0; index < controllers.length; index++) {
-      await configureButtons.first().click();
-      const panel = page.locator('div.rounded.bg-base-100.p-2.space-y-2').filter({ hasText: `Controller ${index + 1}: ${controllers[index].name}` }).first();
-      await panel.getByRole('button', { name: '＋ Add string' }).click();
-      const stringName = `Physical string ${index + 1}`;
-      const capacity = capacities[index];
-      await panel.locator('input[x-model="string.name"]').fill(stringName);
-      await panel.locator('input[x-model="string.pixel_count"]').fill(String(capacity));
-      await panel.getByRole('button', { name: '＋ Add path section' }).click();
-      await panel.getByRole('button', { name: '＋ Add path section' }).click();
-      const sections = panel.locator('input[x-model="section.pixel_count"]');
-      await sections.nth(0).fill(String(capacity / 2));
-      await sections.nth(1).fill(String(capacity / 2));
+    const cabinetOutputs = readOnlyRows(databasePath, 'SELECT controller_id,id,name,pixel_count,display_order FROM cabinet_led_strings WHERE cabinet_id=? ORDER BY controller_id,display_order', [cabinetID]);
+    assert.equal(cabinetOutputs.length, outputCounts.reduce((sum, count) => sum + count, 0), 'cabinet assignment should project configured controller outputs as path rows');
+    for (let index = 0; index < cabinetOutputs.length; index++) {
+      const [controllerID, outputID, outputName, pixelCount] = cabinetOutputs[index];
+      const controllerIndex = controllers.findIndex(controller => controller.id === controllerID);
+      const controller = controllers[controllerIndex];
+      const panel = page.locator('div.rounded.bg-base-100.p-2.space-y-2').filter({ hasText: `Controller ${controllerIndex + 1}: ${controller.name}` }).first();
+      const outputPanel = panel.locator('div.rounded.border.border-base-300.p-2.space-y-2').filter({ hasText: outputName }).first();
+      assert.ok(await outputPanel.count(), `output ${outputID} should be shown as a cabinet path target`);
+      await outputPanel.getByRole('button', { name: '＋ Add path section' }).click();
+      await outputPanel.getByRole('button', { name: '＋ Add path section' }).click();
+      const sections = outputPanel.locator('input[x-model="section.pixel_count"]');
+      await sections.nth(0).fill(String(pixelCount / 2));
+      await sections.nth(1).fill(String(pixelCount / 2));
       for (let sectionIndex = 0; sectionIndex < 2; sectionIndex++) {
-        await panel.getByRole('button', { name: 'Draw path' }).nth(sectionIndex).click();
+        await outputPanel.getByRole('button', { name: 'Draw path' }).nth(sectionIndex).click();
         await canvas.scrollIntoViewIfNeeded();
-        const y = 20 + index * 18 + sectionIndex * 5;
+        const y = 20 + index * 10 + sectionIndex * 5;
         if (sectionIndex === 0) {
           const start = await screenPoint(10, y); const end = await screenPoint(190, y);
           await page.mouse.click(start.x, start.y); await page.mouse.click(end.x, end.y);
@@ -432,18 +467,18 @@ const path = require('node:path');
         }
         await canvas.evaluate(svg => svg.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
       }
-      await panel.locator('input[x-model="string.layout_complete"]').check();
+      await outputPanel.locator('input[x-model="string.layout_complete"]').check();
     }
-    await page.getByRole('button', { name: 'Save strings and wiring paths' }).click();
+    await page.getByRole('button', { name: 'Save output paths' }).click();
     try {
       await page.waitForURL(/wiring_saved=1/, { timeout: 5000 });
     } catch (error) {
       throw new Error(`wiring save did not complete: url=${page.url()} body=${(await page.locator('body').innerText()).slice(-5000)} cause=${error.message}`);
     }
     const stringRows = readOnlyRows(databasePath, 'SELECT controller_id, pixel_count FROM cabinet_led_strings WHERE cabinet_id = ? ORDER BY controller_id, display_order', [cabinetID]);
-    assert.deepEqual(stringRows.map(row => [Number(row[0]), Number(row[1])]), controllers.map((controller, index) => [controller.id, capacities[index]]));
+    assert.deepEqual(stringRows.map(row => [Number(row[0]), Number(row[1])]), cabinetOutputs.map(row => [Number(row[0]), Number(row[3])]));
     const sectionRows = readOnlyRows(databasePath, 'SELECT string_id, display_order, pixel_count, points_json FROM cabinet_led_path_sections WHERE string_id IN (SELECT id FROM cabinet_led_strings WHERE cabinet_id = ?) ORDER BY string_id, display_order', [cabinetID]);
-    assert.equal(sectionRows.length, 10, 'each of the five UI-configured strings should have two directed path sections');
+    assert.equal(sectionRows.length, outputCounts.reduce((sum, count) => sum + count, 0) * 2, 'each hardware-configured output should have two directed cabinet path sections');
     assert.equal(sectionRows.reduce((total, row) => total + Number(row[2]), 0), 1000);
 
     const allocationInputs = [
@@ -1380,8 +1415,8 @@ const path = require('node:path');
     }
 
     console.log(JSON.stringify({
-      result: inventoryOnly ? 'PASS' : mappingAttestationsPassed === controllers.length && locateEvidence.status === 'PASS' ? 'PARTIAL' : 'BLOCKED',
-      reason: inventoryOnly ? 'Inventory-only acceptance used a fresh disposable app with WLED output explicitly disabled; part image lifecycle, physical-bin stock lifecycle, search, restart persistence and separate-app backup/restore were exercised. Locate/Stop was intentionally skipped.' : 'Fresh setup, five controllers, cabinet/drawers, UI-created bins/placements, five-controller 1000-pixel wiring, reference allocations, ten parts, stock assignment/adjustment/move and restart persistence were browser-tested. Locate/Stop is reported separately based on mock-controller attestation and payload results.',
+      result: inventoryOnly ? 'PASS' : mappingAttestationsPassed !== controllers.length || locateEvidence.status !== 'PASS' ? 'BLOCKED' : task067Enabled && crashRecoveryEvidence.status === 'PASS' && restoreEvidence.status === 'PASS' && multiProcessEvidence.status === 'PASS' ? 'PASS' : 'PARTIAL',
+      reason: inventoryOnly ? 'Inventory-only acceptance used a fresh disposable app with WLED output explicitly disabled; part image lifecycle, physical-bin stock lifecycle, search, restart persistence and separate-app backup/restore were exercised. Locate/Stop was intentionally skipped.' : task067Enabled ? 'Fresh setup, controller outputs, physical mappings, category/product lifecycle, five-controller Locate/Stop, SIGKILL recovery, backup/restore compatibility, independent process fencing and unrelated-pixel preservation all passed against isolated loopback simulators.' : 'Fresh setup, five controllers, cabinet/drawers, UI-created bins/placements, five-controller 1000-pixel wiring, reference allocations, ten parts, stock assignment/adjustment/move and restart persistence were browser-tested. Extended crash recovery, restore and multi-process cases run with test:task067-locate.',
       databasePath,
       initialEmptyCounts: emptyCounts,
       appliedMigrationVersions,
@@ -1523,7 +1558,7 @@ function readOnlyRows(databasePath, sql, parameters = []) {
 
 function readOnlyCounts(databasePath) {
   const result = {};
-  for (const table of ['controllers', 'cabinets', 'drawers', 'bins', 'containers', 'cabinet_controllers', 'bin_drawer_attachments', 'parts', 'part_assignments', 'categories', 'part_categories', 'category_attributes', 'part_attribute_values', 'cabinet_led_strings', 'cabinet_led_path_sections', 'drawer_led_allocations']) {
+  for (const table of ['controllers', 'controller_outputs', 'cabinets', 'drawers', 'bins', 'containers', 'cabinet_controllers', 'bin_drawer_attachments', 'parts', 'part_assignments', 'categories', 'part_categories', 'category_attributes', 'part_attribute_values', 'cabinet_led_strings', 'cabinet_led_path_sections', 'drawer_led_allocations']) {
     result[table] = Number(readOnlyRows(databasePath, `SELECT COUNT(*) FROM ${table}`)[0][0]);
   }
   return result;
@@ -1550,13 +1585,14 @@ function findUploadByName(root, fileName) {
 
 function installationSnapshot(databasePath, cabinetID) {
   return {
-    controllers: readOnlyRows(databasePath, 'SELECT id, name, ip_address, port, led_count FROM controllers ORDER BY id'),
+    controllers: readOnlyRows(databasePath, 'SELECT id, name, ip_address, port, led_count, controller_type, connection_timeout_ms FROM controllers ORDER BY id'),
+        outputs: readOnlyRows(databasePath, 'SELECT id,controller_id,display_order,name,pixel_count,direction,pattern,rows,columns,custom_order_json FROM controller_outputs ORDER BY controller_id,display_order'),
     cabinet: readOnlyRows(databasePath, 'SELECT id, name, layout_width, layout_height FROM cabinets WHERE id = ?', [cabinetID]),
     memberships: readOnlyRows(databasePath, 'SELECT controller_id, slot FROM cabinet_controllers WHERE cabinet_id = ? ORDER BY slot', [cabinetID]),
     drawers: readOnlyRows(databasePath, 'SELECT id, label, x, y, width, height FROM drawers WHERE cabinet_id = ? ORDER BY display_order, id', [cabinetID]),
     bins: readOnlyRows(databasePath, 'SELECT id, name, container_id, led_index FROM bins ORDER BY id'),
     attachments: readOnlyRows(databasePath, 'SELECT bin_id, drawer_id, x, y, width, height FROM bin_drawer_attachments ORDER BY bin_id'),
-    strings: readOnlyRows(databasePath, 'SELECT id, controller_id, name, display_order, pixel_count, layout_complete FROM cabinet_led_strings WHERE cabinet_id = ? ORDER BY controller_id, display_order', [cabinetID]),
+    strings: readOnlyRows(databasePath, 'SELECT id, controller_id, controller_output_id, name, display_order, pixel_count, layout_complete FROM cabinet_led_strings WHERE cabinet_id = ? ORDER BY controller_id, display_order', [cabinetID]),
     sections: readOnlyRows(databasePath, 'SELECT string_id, display_order, pixel_count, points_json FROM cabinet_led_path_sections WHERE string_id IN (SELECT id FROM cabinet_led_strings WHERE cabinet_id = ?) ORDER BY string_id, display_order', [cabinetID]),
     allocations: readOnlyRows(databasePath, 'SELECT drawer_id, start_pixel, pixel_count, display_order FROM drawer_led_allocations WHERE cabinet_id = ? ORDER BY drawer_id, display_order', [cabinetID]),
     parts: readOnlyRows(databasePath, 'SELECT id, name, part_number, image_path FROM parts ORDER BY id'),
@@ -1567,7 +1603,7 @@ function installationSnapshot(databasePath, cabinetID) {
 async function exerciseMockLocate(page, baseURL, firstPartID, bins, mockWrites, mockRequests) {
   const testCases = [
     { partID: firstPartID + 1, binID: Number(bins[1][0]), drawerID: 1, expected: [[1, 10, 24, 34], [1, 10, 49, 54]] },
-    { partID: firstPartID + 2, binID: Number(bins[2][0]), drawerID: 2, expected: [[1, 20, 94, 100], [2, 10, 0, 10]] },
+    { partID: firstPartID + 2, binID: Number(bins[2][0]), drawerID: 2, expected: [[1, 20, 49, 51], [1, 20, 69, 71], [1, 20, 89, 91], [2, 10, 0, 10]] },
     { partID: firstPartID + 4, binID: Number(bins[4][0]), drawerID: 3, expected: [[2, 10, 24, 34]] },
     { partID: firstPartID + 6, binID: Number(bins[6][0]), drawerID: 4, expected: [[2, 20, 119, 125], [3, 10, 0, 10]] },
     { partID: firstPartID + 8, binID: Number(bins[8][0]), drawerID: 5, expected: [[4, 20, 144, 150], [5, 10, 0, 10]] },

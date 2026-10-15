@@ -145,9 +145,7 @@ type cachedResult struct {
 
 func NewClient(stores ...db.Store) *Client {
 	client := &Client{
-		httpClient: &http.Client{
-			Timeout: 2 * time.Second,
-		},
+		httpClient: &http.Client{},
 	}
 	if len(stores) != 0 {
 		client.store = stores[0]
@@ -180,36 +178,49 @@ func (c *Client) withOperationClaim(ctx context.Context, action func() error) er
 	})
 }
 
-// Ping checks if a controller is online
+// Ping checks a legacy endpoint with the historical two-second timeout.
 func (c *Client) Ping(ctx context.Context, ip string) (bool, error) {
-	if val, ok := c.cache.Load(ip); ok {
+	bounded, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	return c.pingURL(bounded, ip, fmt.Sprintf("http://%s/json/info", ip))
+}
+
+// PingController checks the configured controller endpoint using its saved timeout.
+func (c *Client) PingController(ctx context.Context, controller db.Controller) (bool, error) {
+	bounded, cancel := controllerRequestContext(ctx, controller)
+	defer cancel()
+	port := controllerPort(controller)
+	cacheKey := controllerURLForAddress(controller.IpAddress, port, "")
+	return c.pingURL(bounded, cacheKey, controllerURLForAddress(controller.IpAddress, port, "/json/info"))
+}
+
+func (c *Client) pingURL(ctx context.Context, cacheKey, url string) (bool, error) {
+	if val, ok := c.cache.Load(cacheKey); ok {
 		entry := val.(cachedResult)
 		if time.Since(entry.timestamp) < CacheDuration {
 			return entry.online, nil
 		}
 	}
-
-	url := fmt.Sprintf("http://%s/json/info", ip)
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return false, err
 	}
-
 	resp, err := c.httpClient.Do(req)
 	isOnline := false
 	if err == nil {
 		defer resp.Body.Close()
-		if resp.StatusCode == 200 {
-			isOnline = true
-		}
+		isOnline = resp.StatusCode == http.StatusOK
 	}
-
-	c.cache.Store(ip, cachedResult{
-		online:    isOnline,
-		timestamp: time.Now(),
-	})
-
+	c.cache.Store(cacheKey, cachedResult{online: isOnline, timestamp: time.Now()})
 	return isOnline, nil
+}
+
+func controllerRequestContext(ctx context.Context, controller db.Controller) (context.Context, context.CancelFunc) {
+	timeout := controller.ConnectionTimeoutMs
+	if timeout < 100 || timeout > 30000 {
+		timeout = 2000
+	}
+	return context.WithTimeout(ctx, time.Duration(timeout)*time.Millisecond)
 }
 
 // SetState updates the WLED state with a custom payload
@@ -218,17 +229,21 @@ func (c *Client) SetState(ctx context.Context, ip string, payload map[string]any
 }
 
 func (c *Client) setStateAt(ctx context.Context, address string, port int64, payload map[string]any) error {
+	bounded, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
 	return withLegacyWrite(address, port, func() error {
-		return c.withOperationClaim(ctx, func() error {
-			return c.postStateAt(ctx, address, port, payload)
+		return c.withOperationClaim(bounded, func() error {
+			return c.postStateAt(bounded, address, port, payload)
 		})
 	})
 }
 
 func (c *Client) setControllerState(ctx context.Context, controller db.Controller, payload map[string]any) error {
+	bounded, cancel := controllerRequestContext(ctx, controller)
+	defer cancel()
 	return withLegacyController(controller, func() error {
-		return c.withOperationClaim(ctx, func() error {
-			return c.postStateAt(ctx, controller.IpAddress, controllerPort(controller), payload)
+		return c.withOperationClaim(bounded, func() error {
+			return c.postStateAt(bounded, controller.IpAddress, controllerPort(controller), payload)
 		})
 	})
 }
@@ -338,17 +353,21 @@ func (c *Client) Apply(ctx context.Context, ip string, segmentID, index, count i
 }
 
 func (c *Client) ApplyController(ctx context.Context, controller db.Controller, segmentID, index, count int, state State) error {
+	bounded, cancel := controllerRequestContext(ctx, controller)
+	defer cancel()
 	return withLegacyController(controller, func() error {
-		return c.withOperationClaim(ctx, func() error {
-			return c.applyUnlocked(ctx, controller.IpAddress, controllerPort(controller), segmentID, index, count, state)
+		return c.withOperationClaim(bounded, func() error {
+			return c.applyUnlocked(bounded, controller.IpAddress, controllerPort(controller), segmentID, index, count, state)
 		})
 	})
 }
 
 func (c *Client) applyAt(ctx context.Context, address string, port int64, segmentID, index, count int, state State) error {
+	bounded, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
 	return withLegacyWrite(address, port, func() error {
-		return c.withOperationClaim(ctx, func() error {
-			return c.applyUnlocked(ctx, address, port, segmentID, index, count, state)
+		return c.withOperationClaim(bounded, func() error {
+			return c.applyUnlocked(bounded, address, port, segmentID, index, count, state)
 		})
 	})
 }
@@ -361,9 +380,11 @@ func (c *Client) applyUnlocked(ctx context.Context, address string, port int64, 
 }
 
 func (c *Client) lightUpController(ctx context.Context, controller db.Controller, segmentID, index, count int, color string) error {
+	bounded, cancel := controllerRequestContext(ctx, controller)
+	defer cancel()
 	return withLegacyController(controller, func() error {
-		return c.withOperationClaim(ctx, func() error {
-			return c.lightUpUnlocked(ctx, controller.IpAddress, controllerPort(controller), segmentID, index, count, color)
+		return c.withOperationClaim(bounded, func() error {
+			return c.lightUpUnlocked(bounded, controller.IpAddress, controllerPort(controller), segmentID, index, count, color)
 		})
 	})
 }

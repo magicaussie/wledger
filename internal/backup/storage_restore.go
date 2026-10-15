@@ -2,7 +2,9 @@ package backup
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"sort"
 
 	"github.com/tuxedocurly/wledger/internal/db"
 )
@@ -231,6 +233,55 @@ func restorePhysicalStorage(ctx context.Context, q db.Querier, snap PhysicalStor
 	for _, allocation := range snap.LEDAllocations {
 		if err := q.RestoreDrawerLEDAllocation(ctx, db.RestoreDrawerLEDAllocationParams(allocation)); err != nil {
 			return fmt.Errorf("drawer LED allocation restore: %w", err)
+		}
+	}
+	return nil
+}
+
+func synthesizeLegacyControllerOutputs(ctx context.Context, q db.Querier) error {
+	outputs, err := q.GetAllControllerOutputs(ctx)
+	if err != nil {
+		return fmt.Errorf("read restored controller outputs: %w", err)
+	}
+	if len(outputs) != 0 {
+		return nil
+	}
+	controllers, err := q.GetControllers(ctx)
+	if err != nil {
+		return fmt.Errorf("read restored controllers: %w", err)
+	}
+	stringsByController := make(map[int64][]db.CabinetLedString)
+	strings, err := q.ListAllCabinetLEDStrings(ctx)
+	if err != nil {
+		return fmt.Errorf("read restored cabinet strings: %w", err)
+	}
+	for _, stringRecord := range strings {
+		stringsByController[stringRecord.ControllerID] = append(stringsByController[stringRecord.ControllerID], stringRecord)
+	}
+	for controllerID, rows := range stringsByController {
+		sort.Slice(rows, func(i, j int) bool { return rows[i].DisplayOrder < rows[j].DisplayOrder })
+		stringsByController[controllerID] = rows
+	}
+	for _, controller := range controllers {
+		rows := stringsByController[controller.ID]
+		if len(rows) == 0 && controller.LedCount > 0 {
+			rows = []db.CabinetLedString{{ControllerID: controller.ID, DisplayOrder: 0, Name: "Output 1", PixelCount: controller.LedCount}}
+		}
+		for _, stringRecord := range rows {
+			outputID, err := q.CreateControllerOutput(ctx, db.CreateControllerOutputParams{
+				ControllerID: controller.ID, DisplayOrder: stringRecord.DisplayOrder, Name: stringRecord.Name,
+				PixelCount: stringRecord.PixelCount, Direction: "forward", Pattern: "linear", Rows: 1, Columns: 1, CustomOrderJson: "[]",
+			})
+			if err != nil {
+				return fmt.Errorf("synthesize controller output for controller #%d: %w", controller.ID, err)
+			}
+			if stringRecord.ID > 0 {
+				if _, err := q.UpdateCabinetLEDStringOutput(ctx, db.UpdateCabinetLEDStringOutputParams{
+					ControllerOutputID: sql.NullInt64{Int64: outputID, Valid: true}, ID: stringRecord.ID, ControllerID: controller.ID,
+				}); err != nil {
+					return fmt.Errorf("link legacy cabinet string #%d to controller output: %w", stringRecord.ID, err)
+				}
+			}
 		}
 	}
 	return nil

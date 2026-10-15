@@ -19,19 +19,20 @@ import (
 //
 // Historical (legacy) backups use the restore_data.json entry holding a manifest
 // whose version is 1.0, and they keep restoring unchanged. Current backups use
-// the storage_data.json entry holding a complete version 2.2 storage manifest
+// the storage_data.json entry holding a complete version 2.3 storage manifest
 // that embeds the historical manifest plus the physical storage rows and every
 // system flag. Exactly one of the two entries must be present: a mixture is
 // rejected as ambiguous rather than resolved by ZIP entry order, a duplicate is
 // rejected rather than silently resolved, and a missing manifest is rejected
 // rather than read as an empty backup.
 const (
-	legacyManifestName               = "restore_data.json"
-	currentStorageManifestName       = "storage_data.json"
-	supportedLegacyManifestVersion   = "1.0"
-	supportedPreviousManifestVersion = "2.0"
-	supportedCategoryManifestVersion = "2.1"
-	supportedCurrentManifestVersion  = "2.2"
+	legacyManifestName                     = "restore_data.json"
+	currentStorageManifestName             = "storage_data.json"
+	supportedLegacyManifestVersion         = "1.0"
+	supportedPreviousManifestVersion       = "2.0"
+	supportedCategoryManifestVersion       = "2.1"
+	supportedProductDetailsManifestVersion = "2.2"
+	supportedCurrentManifestVersion        = "2.3"
 )
 
 // BackupFormatCode is a machine-readable classification of an unsupported
@@ -109,7 +110,7 @@ func (e *BackupFormatError) Error() string {
 // restoreEnvelope is the manifest a restore archive carries, discriminated by
 // format. Legacy always holds the complete historical manifest: the whole
 // archive for a 1.0 backup, or the embedded legacy member of a current envelope.
-// Current is non-nil only for a version 2.0, 2.1 or 2.2 archive.
+// Current is non-nil only for a supported 2.x archive.
 type restoreEnvelope struct {
 	Legacy  Manifest
 	Current *StorageManifest
@@ -300,7 +301,7 @@ func manifestRequiredFields() map[string]struct{} {
 	fields := requiredTopLevelJSONFields(reflect.TypeOf(Manifest{}))
 	// Category and extended product data are additive versioned fields. Keep them
 	// optional when decoding historical 1.0 and earlier current envelopes.
-	for _, name := range []string{"categories", "part_categories", "category_attributes", "part_attribute_values", "part_details"} {
+	for _, name := range []string{"categories", "part_categories", "category_attributes", "part_attribute_values", "part_details", "controller_outputs"} {
 		delete(fields, name)
 	}
 	return fields
@@ -424,6 +425,7 @@ type Manifest struct {
 	CategoryAttributes  []db.CategoryAttribute  `json:"category_attributes,omitempty"`
 	PartAttributeValues []db.PartAttributeValue `json:"part_attribute_values,omitempty"`
 	PartDetails         []db.PartDetail         `json:"part_details,omitempty"`
+	ControllerOutputs   []db.ControllerOutput   `json:"controller_outputs,omitempty"`
 	SupplierRefs        []db.SupplierReference  `json:"supplier_references,omitempty"`
 	PartParameters      []db.PartParameter      `json:"part_parameters,omitempty"`
 	PartPricing         []db.PartPricing        `json:"part_pricing,omitempty"`
@@ -454,6 +456,9 @@ func (m Manifest) MarshalJSON() ([]byte, error) {
 		return nil, err
 	}
 	if err := addOptionalList(fields, "part_details", m.PartDetails); err != nil {
+		return nil, err
+	}
+	if err := addOptionalList(fields, "controller_outputs", m.ControllerOutputs); err != nil {
 		return nil, err
 	}
 	return json.Marshal(fields)

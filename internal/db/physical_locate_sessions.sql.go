@@ -132,7 +132,6 @@ func (q *Queries) SavePhysicalLocateSession(ctx context.Context, arg SavePhysica
 	return result.RowsAffected()
 }
 
-
 const updatePhysicalLocateSessionCAS = `-- name: UpdatePhysicalLocateSessionCAS :execrows
 UPDATE physical_locate_sessions
 SET state = ?, ranges_json = ?, commands_json = ?, fingerprint = ?, color = ?, brightness = ?,

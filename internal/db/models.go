@@ -83,15 +83,16 @@ type CabinetLedPathSection struct {
 }
 
 type CabinetLedString struct {
-	ID             int64     `json:"id"`
-	CabinetID      int64     `json:"cabinet_id"`
-	ControllerID   int64     `json:"controller_id"`
-	Name           string    `json:"name"`
-	DisplayOrder   int64     `json:"display_order"`
-	PixelCount     int64     `json:"pixel_count"`
-	LayoutComplete int64     `json:"layout_complete"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	ID                 int64         `json:"id"`
+	CabinetID          int64         `json:"cabinet_id"`
+	ControllerID       int64         `json:"controller_id"`
+	Name               string        `json:"name"`
+	DisplayOrder       int64         `json:"display_order"`
+	PixelCount         int64         `json:"pixel_count"`
+	LayoutComplete     int64         `json:"layout_complete"`
+	CreatedAt          time.Time     `json:"created_at"`
+	UpdatedAt          time.Time     `json:"updated_at"`
+	ControllerOutputID sql.NullInt64 `json:"controller_output_id"`
 }
 
 type Category struct {
@@ -143,6 +144,23 @@ type Controller struct {
 	CreatedAt                sql.NullTime   `json:"created_at"`
 	LocateMappingVerified    bool           `json:"locate_mapping_verified"`
 	LocateMappingFingerprint string         `json:"locate_mapping_fingerprint"`
+	ControllerType           string         `json:"controller_type"`
+	ConnectionTimeoutMs      int64          `json:"connection_timeout_ms"`
+}
+
+type ControllerOutput struct {
+	ID              int64     `json:"id"`
+	ControllerID    int64     `json:"controller_id"`
+	DisplayOrder    int64     `json:"display_order"`
+	Name            string    `json:"name"`
+	PixelCount      int64     `json:"pixel_count"`
+	Direction       string    `json:"direction"`
+	Pattern         string    `json:"pattern"`
+	Rows            int64     `json:"rows"`
+	Columns         int64     `json:"columns"`
+	CustomOrderJson string    `json:"custom_order_json"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 type Drawer struct {

@@ -54,10 +54,18 @@ func (s *service) applyRestoredDatabase(ctx context.Context, qtx db.Querier, man
 		if err := restorePhysicalStorage(ctx, qtx, envelope.Current.PhysicalStorage); err != nil {
 			return err
 		}
+		if envelope.Current.Version != supportedCurrentManifestVersion {
+			if err := synthesizeLegacyControllerOutputs(ctx, qtx); err != nil {
+				return fmt.Errorf("legacy controller output migration during restore: %w", err)
+			}
+		}
 		if err := restoreSystemFlags(ctx, qtx, envelope.Current.SystemFlags); err != nil {
 			return err
 		}
 	} else {
+		if err := synthesizeLegacyControllerOutputs(ctx, qtx); err != nil {
+			return fmt.Errorf("legacy controller output migration during restore: %w", err)
+		}
 		if err := ledspace.Set(ctx, qtx, space); err != nil {
 			return err
 		}

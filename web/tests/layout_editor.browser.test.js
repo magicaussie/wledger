@@ -17,6 +17,8 @@ const executablePath = process.env.CHROMIUM_PATH || '/bin/chromium';
   if (process.env.WLEDGER_START_SERVER === '0') throw new Error('physical Locate acceptance requires the disposable app database and local mock WLED server; external controllers are not supported');
   let server;
   let mockController;
+  const mockControllers = [];
+  let mockPorts = [];
   const referenceMockControllers = [];
   const referenceControllerWrites = [];
   let mockHost;
@@ -28,7 +30,7 @@ const executablePath = process.env.CHROMIUM_PATH || '/bin/chromium';
   const mockControllerWrites = [];
   try {
     if (process.env.WLEDGER_START_SERVER !== '0') {
-      mockController = http.createServer(async (request, response) => {
+      const mockControllerHandler = async (request, response) => {
         mockControllerRequests.push(`${request.method} ${request.url}`);
         response.setHeader('Content-Type', 'application/json');
         if (request.method === 'GET' && request.url === '/json/info') {
@@ -58,10 +60,14 @@ const executablePath = process.env.CHROMIUM_PATH || '/bin/chromium';
         }
         response.statusCode = 404;
         response.end(JSON.stringify({ error: 'not found' }));
-      });
-      await new Promise((resolve, reject) => mockController.once('error', reject).listen(0, '127.0.0.1', resolve));
-      mockPort = mockController.address().port;
-      mockHost = '127.0.0.1';
+      };
+      for (let index = 0; index < 6; index++) {
+        const mock = http.createServer(mockControllerHandler);
+        await new Promise((resolve, reject) => mock.once('error', reject).listen(0, '127.0.0.1', resolve));
+        mockControllers.push(mock);
+      }
+      mockController = mockControllers[0];
+      mockPorts = mockControllers.map(mock => mock.address().port);
       const repoRoot = path.resolve(__dirname, '../..');
       let serverCwd;
       let serverBinary;
@@ -148,12 +154,12 @@ const executablePath = process.env.CHROMIUM_PATH || '/bin/chromium';
     await page.getByRole('button', { name: 'Create cabinet' }).click();
     await page.waitForURL(/\/storage\/cabinets\/\d+\/edit$/);
     const cabinetID = page.url().match(/cabinets\/(\d+)\/edit$/)[1];
-    const controllerSeed = spawnSync('python3', ['-c', `import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); c.executemany("INSERT INTO controllers(id,name,ip_address,port,led_count) VALUES(?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,ip_address=excluded.ip_address,port=excluded.port,led_count=excluded.led_count", [(99003+i, f"Persistent Mapping Test Controller {99003+i}", sys.argv[3], int(sys.argv[4]), 0) for i in range(6)]); c.execute("INSERT INTO containers(id,name,controller_id,segment_id,led_start,led_count) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET led_start=excluded.led_start,led_count=excluded.led_count", (99004, "Test electrical string", 99003, 0, 0, 64)); c.commit(); c.close()`, databasePath, cabinetID, mockHost, mockPort], { encoding: 'utf8' });
+    const controllerSeed = spawnSync('python3', ['-c', `import json,sqlite3,sys; c=sqlite3.connect(sys.argv[1]); ports=json.loads(sys.argv[3]); c.executemany("INSERT INTO controllers(id,name,ip_address,port,led_count) VALUES(?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,ip_address=excluded.ip_address,port=excluded.port,led_count=excluded.led_count", [(99003+i, f"Persistent Mapping Test Controller {99003+i}", '127.0.0.1', ports[i], 0) for i in range(6)]); c.execute("INSERT INTO containers(id,name,controller_id,segment_id,led_start,led_count) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET led_start=excluded.led_start,led_count=excluded.led_count", (99004, "Test electrical string", 99003, 0, 0, 64)); c.commit(); c.close()`, databasePath, cabinetID, JSON.stringify(mockPorts)], { encoding: 'utf8' });
     assert.equal(controllerSeed.status, 0, controllerSeed.stderr);
     await page.goto(`${baseURL}/hardware`);
     await page.waitForLoadState('networkidle');
     assert.equal(await page.getByRole('link', { name: 'Edit controller' }).count(), 6, 'normal controller editing must be visible without expanding legacy tools');
-    assert.equal(await page.locator(`a[href="http://${mockHost}:${mockPort}"]`).count(), 6, 'controller links must include the configured HTTP port');
+    for (const port of mockPorts) assert.equal(await page.locator(`a[href="http://127.0.0.1:${port}"]`).count(), 1, 'controller links must include each unique configured HTTP port');
     const advancedGridLink = page.locator('details').filter({ hasText: 'Advanced legacy electrical tools' }).locator('a[href="/hardware/99003/grid"]');
     assert.equal(await advancedGridLink.count(), 1);
     assert.equal(await advancedGridLink.isVisible(), false, 'legacy grid tools should remain collapsed by default');
@@ -286,19 +292,39 @@ assert.equal(Number(await drawerX.inputValue()), 10);
     assert.ok(await page.getByRole('button', { name: 'Drawer', exact: true }).isVisible());
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= 390));
     await page.setViewportSize({ width: 1440, height: 1000 });
+    const configureControllerOutputs = async (controllerID, outputs) => {
+      await page.goto(`${baseURL}/hardware/${controllerID}/edit`);
+      const form = page.locator(`form[action="/hardware/${controllerID}/update"]`);
+      const editor = form.locator('[x-data^="controllerOutputEditor"]');
+      for (let index = 0; index < outputs.length; index++) {
+        const output = outputs[index];
+        await editor.getByRole('button', { name: 'Add output' }).click();
+        await editor.locator('input[x-model="output.name"]').nth(index).fill(output.name);
+        await editor.locator('input[x-model\\.number="output.pixel_count"]').nth(index).fill(String(output.pixels));
+        if (output.pattern) {
+          await editor.locator('select[x-model="output.pattern"]').nth(index).selectOption(output.pattern);
+          await editor.locator('input[x-model\\.number="output.rows"]').nth(index).fill(String(output.rows));
+          await editor.locator('input[x-model\\.number="output.columns"]').nth(index).fill(String(output.columns));
+        }
+      }
+      const saveResponse = page.waitForResponse(response => response.request().method() === 'POST' && new URL(response.url()).pathname === `/hardware/${controllerID}/update`);
+      await form.locator('button[type="submit"]').click();
+      const response = await saveResponse;
+      if (response.status() !== 303) throw new Error(`controller ${controllerID} output setup failed (${response.status()}): ${await page.locator('body').innerText()}`);
+      await page.waitForURL(/controller_saved=1/);
+    };
+    await configureControllerOutputs(99003, [
+      { name: 'Serpentine four-row string', pixels: 100, pattern: 'serpentine_rows', rows: 4, columns: 25 },
+      { name: 'Cabinet return string', pixels: 100 },
+    ]);
+    await configureControllerOutputs(99004, [
+      { name: 'Controller two string one', pixels: 100 },
+      { name: 'Controller two string two', pixels: 100 },
+    ]);
+
     await page.goto(`${baseURL}/storage/cabinets/${cabinetID}/edit`);
     await page.waitForSelector('svg g[role="button"][data-layout-entity="true"]');
-    const configureButtons = () => page.getByRole('button', { name: 'Configure physical strings' });
-    await configureButtons().first().click();
-    const stringNames = () => page.locator('input[x-model="string.name"]');
-    const stringPixels = () => page.locator('input[x-model="string.pixel_count"]');
-    const addStringButtons = () => page.getByRole('button', { name: '＋ Add string', exact: true });
-    await addStringButtons().nth(0).click();
-    await stringNames().nth(0).fill('Serpentine four-row string');
-    await stringPixels().nth(0).fill('100');
-    await addStringButtons().nth(0).click();
-    await stringNames().nth(1).fill('Cabinet return string');
-    await stringPixels().nth(1).fill('100');
+    assert.equal(await page.locator('input[x-model="string.pixel_count"]').count(), 0, 'cabinet layout must not duplicate controller output capacity settings');
     const addPathButtons = () => page.getByRole('button', { name: '＋ Add path section', exact: true });
     const sectionPixels = () => page.locator('input[x-model="section.pixel_count"]');
     const clickPathPoints = async points => {
@@ -314,19 +340,10 @@ assert.equal(Number(await drawerX.inputValue()), 10);
       await sectionPixels().last().fill('25');
       assert.equal(await page.getByText('Wiring path drawing').count(), 1, 'adding a path section should activate path drawing mode');
       await clickPathPoints(serpentineRows[index]);
-
-
       assert.equal(await page.getByText(new RegExp(`Section ${index + 1} · 25 pixels · 2 path points`)).count(), 1, `section ${index + 1} should retain its ordered path points`);
     }
     await page.locator('input[x-model="string.layout_complete"]').first().check();
-    await configureButtons().first().click();
-    await addStringButtons().nth(1).click();
-    await stringNames().nth(2).fill('Controller two string one');
-    await stringPixels().nth(2).fill('100');
-    await addStringButtons().nth(1).click();
-    await stringNames().nth(3).fill('Controller two string two');
-    await stringPixels().nth(3).fill('100');
-    await page.getByRole('button', { name: 'Save strings and wiring paths' }).click();
+    await page.getByRole('button', { name: 'Save output paths' }).click();
     await page.waitForURL(/wiring_(saved=1|error=)/);
     assert.equal(new URL(page.url()).searchParams.get('wiring_saved'), '1', await page.locator('body').innerText());
     assert.equal(wiringPosts.length, 1);
@@ -434,45 +451,43 @@ assert.equal(Number(await drawerX.inputValue()), 10);
     assert.equal(unchangedOrder.stdout.trim(), '[(99003,), (99004,), (99005,), (99006,), (99007,)]', 'a stale electrical revision must leave the saved controller order unchanged');
 
     await page.goto(`${baseURL}/storage/cabinets/${cabinetID}/edit`);
-    await page.locator('input[x-model="string.pixel_count"]').nth(0).fill('90');
-    await page.locator('input[x-model="string.pixel_count"]').nth(1).fill('105');
-    for (const [index, value] of [22, 23, 22, 23].entries()) await page.locator('input[x-model="section.pixel_count"]').nth(index).fill(String(value));
-    const lengthImpact = await page.locator('body').innerText();
-    assert.match(lengthImpact, /Before:[\s\S]*Controller 99003 local 195–200 · Cabinet return string pixels 95–100 \+ Persistent Mapping Test Controller 99004 local 1–10/);
-    assert.match(lengthImpact, /After:[\s\S]*Controller 99003 local 195–195 · Cabinet return string pixels 105–105 \+ Persistent Mapping Test Controller 99004 local 1–15/);
-    assert.match(lengthImpact, /Before:[\s\S]*Controller 99004 local 25–34/);
-    assert.match(lengthImpact, /After:[\s\S]*Controller 99004 local 30–39/);
-    const wiringConfirmation = page.locator('input[x-model="wiringMappingImpactConfirmed"]');
-    await page.getByRole('button', { name: 'Save strings and wiring paths' }).click();
-    assert.match(await page.locator('p[role=alert]').filter({ hasText: /Review the before\/after drawer pixel destinations/ }).innerText(), /confirm this wiring change/);
-    assert.equal(wiringPosts.length, 1, 'wiring changes affecting saved mappings must not submit without confirmation');
-    await wiringConfirmation.check();
-    await page.locator('input[x-model="string.pixel_count"]').nth(0).fill('91');
-    await page.locator('input[x-model="section.pixel_count"]').nth(0).fill('23');
-    await page.waitForFunction(() => !document.querySelector('input[x-model="wiringMappingImpactConfirmed"]')?.checked, null);
-    await page.locator('input[x-model="string.pixel_count"]').nth(0).fill('90');
-    await page.locator('input[x-model="section.pixel_count"]').nth(0).fill('22');
-    assert.match(await page.locator('body').innerText(), /After:[\s\S]*Controller 99003 local 195–195 · Cabinet return string pixels 105–105 \+ Persistent Mapping Test Controller 99004 local 1–15/);
-    await page.getByRole('button', { name: 'Save strings and wiring paths' }).click();
-    assert.match(await page.locator('p[role=alert]').filter({ hasText: /Review the before\/after drawer pixel destinations/ }).innerText(), /confirm this wiring change/);
-    assert.equal(wiringPosts.length, 1, 'editing after checking confirmation must reset it and prevent submission');
-    await wiringConfirmation.check();
-    await page.getByRole('button', { name: 'Save strings and wiring paths' }).click();
-    await page.waitForURL(/wiring_saved=1/);
-    assert.equal(wiringPosts.length, 2);
-    assert.equal(new URLSearchParams(wiringPosts.at(-1).body).get('confirm_mapping_impact'), 'confirm');
+    assert.equal(await page.locator('input[x-model="string.pixel_count"]').count(), 0, 'cabinet layout must not duplicate controller output capacity settings');
+    const outputRowsBeforeReorder = readOnlyRows(databasePath, 'SELECT display_order,name,pixel_count FROM controller_outputs WHERE controller_id=99003 ORDER BY display_order');
+    await page.goto(`${baseURL}/hardware/99003/edit`);
+    let outputEditor = page.locator('[x-data^="controllerOutputEditor"]');
+    await outputEditor.getByRole('button', { name: 'Move output later' }).first().click();
+    const reorderResponse = page.waitForResponse(response => response.request().method() === 'POST' && new URL(response.url()).pathname === '/hardware/99003/update');
+    await page.getByRole('button', { name: 'Save controller' }).click();
+    assert.equal((await reorderResponse).status(), 409, 'output order changes affecting saved drawers must require explicit confirmation');
+    assert.match(await page.locator('[role=alert]').innerText(), /saved drawer pixel destinations/);
+    assert.deepEqual(readOnlyRows(databasePath, 'SELECT display_order,name,pixel_count FROM controller_outputs WHERE controller_id=99003 ORDER BY display_order'), outputRowsBeforeReorder, 'an unconfirmed output reorder must not mutate controller hardware settings');
+    assert.equal(wiringPosts.length, 1, 'output settings must not be submitted through the cabinet wiring endpoint');
+    await page.locator('input[name="confirm_mapping_impact"]').check();
+    await page.getByRole('button', { name: 'Save controller' }).click();
+    await page.waitForURL(/controller_saved=1/);
+    assert.deepEqual(readOnlyRows(databasePath, 'SELECT display_order,name,pixel_count FROM controller_outputs WHERE controller_id=99003 ORDER BY display_order'), [[0, 'Cabinet return string', 100], [1, 'Serpentine four-row string', 100]]);
+    assert.deepEqual(readOnlyRows(databasePath, 'SELECT start_pixel,pixel_count,display_order FROM drawer_led_allocations WHERE cabinet_id=? ORDER BY drawer_id,display_order', [cabinetID]).map(row => row.map(Number)), [[195, 16, 0], [95, 11, 1], [225, 10, 0]], 'confirming a wiring change must preserve the saved drawer range identities and quantities');
 
-    await page.getByRole('button', { name: 'Move string down' }).first().click();
-    const stringOrderImpact = await page.locator('body').innerText();
-    assert.match(stringOrderImpact, /Before:[\s\S]*Controller 99003 local 195–195 · Cabinet return string pixels 105–105/);
-    assert.match(stringOrderImpact, /After:[\s\S]*Controller 99003 local 195–195 · Serpentine four-row string pixels 90–90/);
-    await page.getByRole('button', { name: 'Save strings and wiring paths' }).click();
-    assert.match(await page.locator('p[role=alert]').filter({ hasText: /Review the before\/after drawer pixel destinations/ }).innerText(), /confirm this wiring change/);
-    assert.equal(wiringPosts.length, 2, 'string order changes affecting saved mappings require explicit confirmation');
-    await wiringConfirmation.check();
-    await page.getByRole('button', { name: 'Save strings and wiring paths' }).click();
-    await page.waitForURL(/wiring_saved=1/);
-    assert.equal(wiringPosts.length, 3);
+    await page.goto(`${baseURL}/hardware/99003/edit`);
+    outputEditor = page.locator('[x-data^="controllerOutputEditor"]');
+    await outputEditor.getByRole('button', { name: 'Move output earlier' }).nth(1).click();
+    await page.locator('input[name="confirm_mapping_impact"]').check();
+    await page.getByRole('button', { name: 'Save controller' }).click();
+    await page.waitForURL(/controller_saved=1/);
+    assert.deepEqual(readOnlyRows(databasePath, 'SELECT display_order,name,pixel_count FROM controller_outputs WHERE controller_id=99003 ORDER BY display_order'), outputRowsBeforeReorder, 'controller output order should be restorable in Hardware without changing drawer allocation records');
+
+    await page.goto(`${baseURL}/hardware/99003/edit`);
+    outputEditor = page.locator('[x-data^="controllerOutputEditor"]');
+    await outputEditor.locator('select[x-model="output.pattern"]').first().selectOption('custom');
+    await outputEditor.locator('textarea[x-model="output.custom_order_text"]').first().fill('0, 0');
+    const invalidPatternResponse = page.waitForResponse(response => response.request().method() === 'POST' && new URL(response.url()).pathname === '/hardware/99003/update');
+    await page.getByRole('button', { name: 'Save controller' }).click();
+    assert.equal((await invalidPatternResponse).status(), 400, 'invalid custom output permutations must be rejected by server-side capability validation');
+    assert.match(await page.locator('[role=alert]').innerText(), /invalid controller hardware configuration/);
+    assert.deepEqual(readOnlyRows(databasePath, 'SELECT display_order,name,pixel_count FROM controller_outputs WHERE controller_id=99003 ORDER BY display_order'), outputRowsBeforeReorder);
+
+    await page.goto(`${baseURL}/storage/cabinets/${cabinetID}/edit`);
+    const wiringConfirmation = page.locator('input[x-model="wiringMappingImpactConfirmed"]');
 
     await page.getByRole('button', { name: 'Draw path' }).first().click();
     await canvas.scrollIntoViewIfNeeded();
@@ -482,37 +497,41 @@ assert.equal(Number(await drawerX.inputValue()), 10);
     const pathImpact = await page.locator('body').innerText();
     assert.match(pathImpact, /Before:[\s\S]*existing physical path/);
     assert.match(pathImpact, /After:[\s\S]*draft physical path/);
-    await page.getByRole('button', { name: 'Save strings and wiring paths' }).click();
+    await page.getByRole('button', { name: 'Save output paths' }).click();
     assert.match(await page.locator('p[role=alert]').filter({ hasText: /Review the before\/after drawer pixel destinations/ }).innerText(), /confirm this wiring change/);
-    assert.equal(wiringPosts.length, 3, 'physical path edits affecting saved mappings require explicit confirmation');
+    assert.equal(wiringPosts.length, 1, 'physical path edits should remain a cabinet wiring save and require explicit review');
     await wiringConfirmation.check();
-    await page.getByRole('button', { name: 'Save strings and wiring paths' }).click();
+    await page.getByRole('button', { name: 'Save output paths' }).click();
     await page.waitForURL(/wiring_saved=1/);
-    assert.equal(wiringPosts.length, 4);
+    assert.equal(wiringPosts.length, 2);
+
+    await page.goto(`${baseURL}/hardware/99003/edit`);
+    let hardwareOutputEditor = page.locator('[x-data^="controllerOutputEditor"]');
+    await hardwareOutputEditor.locator('input[x-model\\.number="output.pixel_count"]').first().fill('110');
+    await hardwareOutputEditor.locator('input[x-model\\.number="output.rows"]').first().fill('5');
+    await hardwareOutputEditor.locator('input[x-model\\.number="output.columns"]').first().fill('22');
+    await page.getByText('210 total pixels', { exact: true }).waitFor();
+    const capacityResponse = page.waitForResponse(response => response.request().method() === 'POST' && new URL(response.url()).pathname === '/hardware/99003/update');
+    await page.getByRole('button', { name: 'Save controller' }).click();
+    assert.equal((await capacityResponse).status(), 409, 'controller capacity changes that remap drawers must require explicit confirmation');
+    assert.match(await page.locator('[role=alert]').innerText(), /saved drawer pixel destinations/);
+    assert.equal(Number(readOnlyRows(databasePath, 'SELECT led_count FROM controllers WHERE id=99003')[0][0]), 200, 'unconfirmed controller capacity changes must not persist');
+    await page.locator('input[name="confirm_mapping_impact"]').check();
+    await page.getByRole('button', { name: 'Save controller' }).click();
+    await page.waitForURL(/controller_saved=1/);
+    assert.equal(Number(readOnlyRows(databasePath, 'SELECT led_count FROM controllers WHERE id=99003')[0][0]), 210);
+
+    await page.goto(`${baseURL}/hardware/99003/edit`);
+    hardwareOutputEditor = page.locator('[x-data^="controllerOutputEditor"]');
+    await hardwareOutputEditor.locator('input[x-model\\.number="output.pixel_count"]').first().fill('100');
+    await hardwareOutputEditor.locator('input[x-model\\.number="output.rows"]').first().fill('4');
+    await hardwareOutputEditor.locator('input[x-model\\.number="output.columns"]').first().fill('25');
+    await page.locator('input[name="confirm_mapping_impact"]').check();
+    await page.getByRole('button', { name: 'Save controller' }).click();
+    await page.waitForURL(/controller_saved=1/);
+    assert.equal(Number(readOnlyRows(databasePath, 'SELECT led_count FROM controllers WHERE id=99003')[0][0]), 200, 'restoring configured output length must restore total cabinet capacity');
 
     await page.goto(`${baseURL}/storage/cabinets/${cabinetID}/edit`);
-    await page.locator('input[x-model="string.pixel_count"]').nth(2).fill('5');
-    await page.locator('input[x-model="string.pixel_count"]').nth(3).fill('5');
-    assert.match(await page.locator('body').innerText(), /After:[\s\S]*Invalid or incomplete destination/);
-    await page.locator('input[x-model="wiringMappingImpactConfirmed"]').check();
-    await page.getByRole('button', { name: 'Save strings and wiring paths' }).click();
-    assert.match(await page.locator('p[role=alert]').filter({ hasText: /Correct invalid or incomplete drawer destinations/ }).innerText(), /Correct invalid or incomplete/);
-    assert.equal(wiringPosts.length, 4, 'an invalid destination preview cannot be confirmed or submitted');
-    await page.locator('input[x-model="string.pixel_count"]').nth(2).fill('100');
-    await page.locator('input[x-model="string.pixel_count"]').nth(3).fill('100');
-    await page.waitForFunction(() => !document.querySelector('input[x-model="wiringMappingImpactConfirmed"]')?.checked, null);
-    await page.locator('input[x-model="string.pixel_count"]').nth(0).fill('110');
-    const capacityImpact = await page.locator('body').innerText();
-    assert.match(capacityImpact, /Before:[\s\S]*Controller 99003 local 195–195 · Serpentine four-row string pixels 90–90 \+ Persistent Mapping Test Controller 99004 local 1–15/);
-    assert.match(capacityImpact, /After:[\s\S]*Controller 99003 local 195–200 · Serpentine four-row string pixels 85–90 \+ Persistent Mapping Test Controller 99004 local 1–10/);
-    await page.getByRole('button', { name: 'Save strings and wiring paths' }).click();
-    assert.match(await page.locator('p[role=alert]').filter({ hasText: /Review the before\/after drawer pixel destinations/ }).innerText(), /confirm this wiring change/);
-    assert.equal(wiringPosts.length, 4, 'controller capacity changes require an impact preview and explicit confirmation');
-    await page.locator('input[x-model="wiringMappingImpactConfirmed"]').check();
-    await page.getByRole('button', { name: 'Save strings and wiring paths' }).click();
-    await page.waitForURL(/wiring_saved=1/);
-    assert.equal(wiringPosts.length, 5);
-
     await page.getByRole('button', { name: 'Save layout' }).click();
     await page.waitForURL(`${baseURL}/storage/cabinets/${cabinetID}`);
     const savedPhysicalLayout = JSON.parse(new URLSearchParams(layoutPosts.at(-1).body).get('layout'));
@@ -605,7 +624,9 @@ assert.equal(Number(await drawerX.inputValue()), 10);
     await page.getByRole('button', { name: 'Archive cabinet' }).click();
     await page.waitForURL(`${baseURL}/storage/cabinets`);
 
-    assert.deepEqual(mockControllerRequests, ['GET /json/info', 'GET /json/cfg'], 'ordinary editing must not contact WLED; the explicit output discovery above is the only allowed read');
+    assert.equal(mockControllerRequests.filter(path => path === 'GET /json/cfg').length, 1, 'read-only output discovery should be the only configuration inspection');
+    assert.equal(mockControllerRequests.filter(path => path === 'GET /json/info').length, 7, 'controller health badges may ping each configured endpoint, in addition to the explicit topology discovery');
+    assert.ok(mockControllerRequests.every(path => path === 'GET /json/info' || path === 'GET /json/cfg'), 'editing controller/output/path configuration must never issue a WLED state request');
     assert.deepEqual(mockControllerWrites, [], 'configuration edits and output discovery must never write WLED');
     assert.deepEqual(hardwareRequests, [], 'ordinary cabinet editing must not issue a hardware action request');
 
@@ -613,6 +634,7 @@ assert.equal(Number(await drawerX.inputValue()), 10);
     assert.equal(physicalSeed.status, 0, physicalSeed.stderr);
     const physicalDrawers = JSON.parse(physicalSeed.stdout.trim());
 
+    mockControllerRequests.length = 0;
     await page.goto(`${baseURL}/hardware/99003/grid`);
     await page.locator('input[name="locate_mapping_verified"]').check();
     await page.locator('input[name="locate_ranges_reserved"]').check();
@@ -625,7 +647,7 @@ assert.equal(Number(await drawerX.inputValue()), 10);
     await page.getByRole('button', { name: 'Save Locate safety setting' }).click();
     await page.waitForURL(`${baseURL}/hardware/99004/grid`);
     assert.match(await page.locator('body').innerText(), /Output configuration snapshot saved/);
-    assert.deepEqual(mockControllerRequests.slice(2, 6), ['GET /json/info', 'GET /json/cfg', 'GET /json/info', 'GET /json/cfg'], 'each assigned WLED controller must be attested independently');
+    assert.deepEqual(mockControllerRequests.slice(0, 4), ['GET /json/info', 'GET /json/cfg', 'GET /json/info', 'GET /json/cfg'], 'each assigned WLED controller must be attested independently');
 
     await page.goto(`${baseURL}/parts/99002`);
 
@@ -642,7 +664,7 @@ assert.equal(Number(await drawerX.inputValue()), 10);
       const segment = payload.seg[0];
       return [segment.id, segment.i[0], segment.i[1]];
     });
-    assert.deepEqual(firstLocateCommands, [[10, 94, 100], [20, 0, 5], [20, 94, 100], [10, 0, 10]]);
+    assert.deepEqual(firstLocateCommands, [[10, 75, 81], [20, 0, 5], [20, 94, 100], [10, 0, 10]], 'serpentine output settings must map drawer logical pixels to exact controller-local WLED ranges');
     await page.getByRole('button', { name: 'Stop Locate / Turn Off Allocated LEDs' }).click();
     await page.waitForURL(`${baseURL}/storage/drawers/${physicalDrawers.drawer1}?stopped=1`);
     assert.equal(mockControllerWrites.slice(writeStart + 4, writeStart + 8).every(payload => payload.seg[0].i[2].every(channel => channel === 0)), true, 'Stop must black only the allocated ranges on every affected controller');
@@ -768,8 +790,8 @@ c.commit(); c.close()`, databasePath, JSON.stringify(referenceControllerIDs.map(
     }
     assert.equal(referenceControllerWrites.length, 16, 'five Locate activations and their scoped Stops should be recorded by local mock WLED controllers');
 
-    const lifecycleSeed = spawnSync('python3', ['-c', `import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); c.execute("PRAGMA foreign_keys=ON"); controllers=[(99201,'Lifecycle Controller 1',100),(99202,'Lifecycle Controller 2',100),(99203,'Lifecycle Controller 3',50)];
-for cid,name,capacity in controllers: c.execute("INSERT INTO controllers(id,name,ip_address,port,led_count) VALUES(?,?, '127.0.0.1',80,?)", (cid,name,capacity));
+    const lifecycleSeed = spawnSync('python3', ['-c', `import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); c.execute("PRAGMA foreign_keys=ON"); controllers=[(99201,'Lifecycle Controller 1',100,8000),(99202,'Lifecycle Controller 2',100,8001),(99203,'Lifecycle Controller 3',50,8002)];
+for cid,name,capacity,port in controllers: c.execute("INSERT INTO controllers(id,name,ip_address,port,led_count) VALUES(?,?, '127.0.0.1',?,?)", (cid,name,port,capacity));
 c.execute("INSERT INTO cabinets(id,name,controller_id,coordinate_system,electrical_revision,display_order,layout_width,layout_height) VALUES(99200,'Controller lifecycle cabinet',99201,'grid',5,2,100,100)");
 for slot,cid in enumerate([99201,99202]):
  c.execute("INSERT INTO cabinet_controllers(cabinet_id,controller_id,slot,strings_configured) VALUES(99200,?,?,1)", (cid,slot)); cur=c.execute("INSERT INTO cabinet_led_strings(cabinet_id,controller_id,name,display_order,pixel_count,layout_complete) VALUES(99200,?,?,0,100,1)", (cid,f'Lifecycle string {slot+1}')); sid=cur.lastrowid;
@@ -817,28 +839,35 @@ c.execute("INSERT INTO drawers(id,cabinet_id,label,display_order,x,y,width,heigh
     await page.waitForURL(/controller_saved=1/);
     const afterLifecycleAddition = lifecycleSnapshot();
     assert.match(afterLifecycleAddition, /revision=6/);
-    assert.match(afterLifecycleAddition, /members=\[\(99201, 0, 1\), \(99203, 1, 0\), \(99202, 2, 1\)\]/);
+    assert.match(afterLifecycleAddition, /members=\[\(99201, 0, 1\), \(99203, 1, 1\), \(99202, 2, 1\)\]/);
+        assert.match(afterLifecycleAddition, /strings=\[\(99201, 'Lifecycle string 1', 0, 100\), \(99202, 'Lifecycle string 2', 0, 100\), \(99203, 'Output 1', 0, 50\)\]/, 'assigning a legacy-capacity controller should project its output to cabinet path configuration');
     assert.match(afterLifecycleAddition, /allocations=\[\(99210, 95, 11, 0\)\]/);
 
-    await page.getByRole('button', { name: 'Move controller down' }).nth(1).click();
+    await page.goto(`${baseURL}/hardware/99203/edit`);
+    const lifecycleOutputEditor = page.locator('[x-data^="controllerOutputEditor"]');
+    await lifecycleOutputEditor.getByRole('button', { name: 'Remove output' }).click();
+    const removeOutputResponse = page.waitForResponse(response => response.request().method() === 'POST' && new URL(response.url()).pathname === '/hardware/99203/update');
+    await page.getByRole('button', { name: 'Save controller' }).click();
+    assert.equal((await removeOutputResponse).status(), 409, 'removing an assigned output that changes a saved drawer destination must require confirmation');
+    assert.match(await page.locator('[role=alert]').innerText(), /saved drawer pixel destinations/);
+    assert.equal(lifecycleSnapshot(), afterLifecycleAddition, 'unconfirmed output removal must preserve controller membership, wiring and allocations');
+    await page.locator('input[name="confirm_mapping_impact"]').check();
+    await page.getByRole('button', { name: 'Save controller' }).click();
+    await page.waitForURL(/controller_saved=1/);
+    assert.equal(Number(readOnlyRows(databasePath, 'SELECT led_count FROM controllers WHERE id=99203')[0][0]), 0);
+    assert.equal(readOnlyRows(databasePath, 'SELECT id FROM cabinet_led_strings WHERE cabinet_id=99200 AND controller_id=99203').length, 0, 'removing the hardware output must remove its cabinet path projection');
+
+    await page.goto(`${baseURL}/storage/cabinets/99200/edit`);
     await (await selectLifecycleController()).uncheck();
     const removalPreview = await page.locator('[x-data="physicalLayoutEditor()"]')
       .evaluate(element => window.Alpine.$data(element).controllerMappingPreview());
-    assert.deepEqual(removalPreview, [{
-      drawer: 'Lifecycle drawer', start: '95', count: '11', valid: true,
-      before: ['Lifecycle Controller 1 local 95–100 · Lifecycle string 1 pixels 95–100', 'Lifecycle Controller 3 local 1–5'],
-      after: ['Lifecycle Controller 1 local 95–100 · Lifecycle string 1 pixels 95–100', 'Lifecycle Controller 2 local 1–5 · Lifecycle string 2 pixels 1–5'],
-    }]);
+    assert.deepEqual(removalPreview, [], 'a zero-capacity output-free controller can be unassigned without moving the remaining ranges');
     const removePostStart = controllerAssignmentPosts.length;
     await page.getByRole('button', { name: 'Save controller order' }).click();
-    assert.match(await page.locator('p[role=alert]').filter({ hasText: /explicit confirmation/ }).innerText(), /explicit confirmation/);
-    assert.equal(controllerAssignmentPosts.length, removePostStart, 'removal with saved allocations must not submit before confirmation');
-    assert.equal(lifecycleSnapshot(), afterLifecycleAddition, 'unconfirmed controller removal must preserve all persistent rows');
-    await page.locator('input[x-model="controllerMappingImpactConfirmed"]').check();
-    await page.getByRole('button', { name: 'Save controller order' }).click();
     await page.waitForURL(/controller_saved=1/);
+    assert.equal(controllerAssignmentPosts.length, removePostStart + 1, 'the output-free controller should be removable after its hardware paths are cleared');
     const afterLifecycleRemoval = lifecycleSnapshot();
-    assert.match(afterLifecycleRemoval, /revision=7/);
+    assert.match(afterLifecycleRemoval, /revision=8/);
     assert.match(afterLifecycleRemoval, /members=\[\(99201, 0, 1\), \(99202, 1, 1\)\]/);
     assert.match(afterLifecycleRemoval, /strings=\[\(99201, 'Lifecycle string 1', 0, 100\), \(99202, 'Lifecycle string 2', 0, 100\)\]/);
     assert.match(afterLifecycleRemoval, /allocations=\[\(99210, 95, 11, 0\)\]/);
@@ -851,16 +880,24 @@ c.execute("INSERT INTO drawers(id,cabinet_id,label,display_order,x,y,width,heigh
     assert.ok(lifecyclePaths.every(url => !url.includes('undefined')));
     assert.deepEqual(pageErrors, [], JSON.stringify(pageErrors));
     const validationResponseErrors = consoleErrors.filter(message => message.includes('409 (Conflict)'));
-    assert.ok(validationResponseErrors.length <= 1, 'only the expected unassociated-bin HTTP 409 may be logged');
-    const runtimeConsoleErrors = consoleErrors.filter(message => !message.includes("Blocked attempt to show a 'beforeunload' confirmation panel") && !message.includes('409 (Conflict)'));
+    assert.equal(validationResponseErrors.length, 4, `only deliberate output-order, path, capacity and output-removal confirmation conflicts should be logged; got ${JSON.stringify(validationResponseErrors)}`);
+    const invalidConfigurationResponses = consoleErrors.filter(message => message.includes('400 (Bad Request)'));
+    assert.equal(invalidConfigurationResponses.length, 1, 'only the deliberately invalid custom output permutation should be logged as a bad request');
+    const runtimeConsoleErrors = consoleErrors.filter(message => !message.includes("Blocked attempt to show a 'beforeunload' confirmation panel") && !message.includes('409 (Conflict)') && !message.includes('400 (Bad Request)'));
     assert.deepEqual(runtimeConsoleErrors, []);
     assert.equal(hardwareRequests.length, 15, 'only the expected Locate/Stop actions should reach hardware routes');
     console.log(JSON.stringify({ result: 'PASS', cabinetID, emptyID, archiveID, layoutSaves: layoutPosts.length, LEDMappingSaves: ledMappingPosts.length, hardwareRequests, lifecyclePaths, pageErrors, runtimeConsoleErrors, browserWarnings: consoleErrors.length - runtimeConsoleErrors.length }));
   } finally {
     if (browser) await browser.close();
     if (server) { server.kill('SIGTERM'); await new Promise(resolve => server.once('exit', resolve)); }
-    if (mockController) await new Promise(resolve => mockController.close(resolve));
+    for (const controller of mockControllers) if (controller.listening) await new Promise(resolve => controller.close(resolve));
     for (const controller of referenceMockControllers) await new Promise(resolve => controller.close(resolve));
     if (scratchDir) fs.rmSync(scratchDir, { recursive: true, force: true });
   }
 })().catch(error => { console.error(error); process.exit(1); });
+
+function readOnlyRows(databasePath, query, params = []) {
+  const result = spawnSync('python3', ['-c', 'import json,sqlite3,sys; c=sqlite3.connect(sys.argv[1]); rows=c.execute(sys.argv[2],json.loads(sys.argv[3])).fetchall(); print(json.dumps(rows)); c.close()', databasePath, query, JSON.stringify(params)], { encoding: 'utf8' });
+  if (result.status !== 0) throw new Error(`database read failed: ${result.stderr}`);
+  return JSON.parse(result.stdout.trim());
+}

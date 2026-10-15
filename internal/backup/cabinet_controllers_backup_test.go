@@ -30,6 +30,7 @@ func ccSeedMultiController(t *testing.T, conn *sql.DB) {
 	exec := func(query string, args ...any) { physExec(t, conn, query, args...) }
 
 	exec(`INSERT INTO controllers (id, name, ip_address, port, led_count) VALUES (3, 'Legacy C', '192.168.1.12', 80, 300)`)
+	exec(`INSERT INTO controller_outputs (controller_id, display_order, name, pixel_count) VALUES (3, 0, 'Output 1', 300)`)
 
 	exec(`INSERT INTO cabinets (id, name, controller_id, coordinate_system, layout_revision, electrical_revision, display_order, archived, created_at, updated_at)
 		VALUES (1, 'Cab Multi', 1, 'grid', 3, 5, 0, 0, '2024-01-02 03:04:05', '2024-02-03 04:05:06')`)

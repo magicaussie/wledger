@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -234,6 +235,83 @@ func TestService_GlobalOff(t *testing.T) {
 	}
 	if strings.Contains(okBody, "5000") {
 		t.Errorf("GlobalOff must not contain the hardcoded 5000-pixel wipe, got %s", okBody)
+	}
+}
+
+func TestService_GlobalOffTurnsOffEverySimulatedControllerFramebuffer(t *testing.T) {
+	type simulatedController struct {
+		mu           sync.Mutex
+		framebuffer  [12][3]int
+		requestCount int
+		payload      map[string]any
+	}
+	controllers := []*simulatedController{{}, {}}
+	servers := make([]*httptest.Server, 0, len(controllers))
+	for index, controller := range controllers {
+		for pixel := range controller.framebuffer {
+			controller.framebuffer[pixel] = [3]int{index + 10, pixel + 20, pixel + 30}
+		}
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodPost || r.URL.Path != "/json/state" {
+				http.Error(w, "unexpected WLED request", http.StatusNotFound)
+				return
+			}
+			var payload map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			controller.mu.Lock()
+			controller.requestCount++
+			controller.payload = payload
+			if payload["on"] == false {
+				for pixel := range controller.framebuffer {
+					controller.framebuffer[pixel] = [3]int{0, 0, 0}
+				}
+			}
+			controller.mu.Unlock()
+			w.WriteHeader(http.StatusOK)
+		}))
+		servers = append(servers, server)
+		t.Cleanup(server.Close)
+	}
+
+	conn, err := db.Open("file:globaloff_framebuffer_" + strings.ReplaceAll(t.Name(), "/", "-") + "?mode=memory&cache=shared")
+	if err != nil {
+		t.Fatalf("open GlobalOff test database: %v", err)
+	}
+	defer conn.Close()
+	if err := db.Migrate(conn); err != nil {
+		t.Fatalf("migrate GlobalOff test database: %v", err)
+	}
+	store := db.NewStore(conn)
+	for index, server := range servers {
+		if _, err := store.CreateController(context.Background(), db.CreateControllerParams{
+			Name: fmt.Sprintf("Simulated WLED %d", index+1), IpAddress: server.URL[7:],
+		}); err != nil {
+			t.Fatalf("create simulated controller %d: %v", index+1, err)
+		}
+	}
+
+	service := NewService(store, NewClient(), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err := service.GlobalOff(context.Background()); err != nil {
+		t.Fatalf("GlobalOff: %v", err)
+	}
+	for index, controller := range controllers {
+		controller.mu.Lock()
+		if controller.requestCount != 1 {
+			t.Errorf("controller %d received %d state commands, want one", index+1, controller.requestCount)
+		}
+		payload := controller.payload
+		if len(payload) != 3 || payload["on"] != false || payload["live"] != false || payload["tt"] != float64(0) {
+			t.Errorf("controller %d GlobalOff payload = %#v, want exactly on:false, live:false, tt:0", index+1, payload)
+		}
+		for pixel, rgb := range controller.framebuffer {
+			if rgb != [3]int{0, 0, 0} {
+				t.Errorf("controller %d pixel %d remains %v after GlobalOff", index+1, pixel, rgb)
+			}
+		}
+		controller.mu.Unlock()
 	}
 }
 

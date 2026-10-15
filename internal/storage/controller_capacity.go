@@ -61,9 +61,17 @@ func (s *LayoutService) SaveControllerLEDCapacityConfirmed(ctx context.Context, 
 				return err
 			}
 			for _, member := range members {
-				if member.ControllerID == controllerID && member.StringsConfigured == 1 {
-					return fmt.Errorf("%w: controller #%d capacity is calculated from its configured physical strings", ErrLEDControllerCapacityInvalid, controllerID)
+				if member.ControllerID != controllerID || member.StringsConfigured != 1 {
+					continue
 				}
+				allocations, err := q.ListDrawerLEDAllocationsByCabinet(ctx, cabinet.ID)
+				if err != nil {
+					return err
+				}
+				if len(allocations) > 0 {
+					return fmt.Errorf("%w: controller #%d output capacity is hardware-owned; review the output configuration in Hardware", ErrUnsafeLayout, controllerID)
+				}
+				return fmt.Errorf("%w: controller #%d capacity is calculated from its configured outputs", ErrLEDControllerCapacityInvalid, controllerID)
 			}
 			topology, err := cabinetpixels.Load(ctx, q, cabinet.ID)
 			if err != nil {

@@ -78,6 +78,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.clearContainersStmt, err = db.PrepareContext(ctx, clearContainers); err != nil {
 		return nil, fmt.Errorf("error preparing query ClearContainers: %w", err)
 	}
+	if q.clearControllerOutputsStmt, err = db.PrepareContext(ctx, clearControllerOutputs); err != nil {
+		return nil, fmt.Errorf("error preparing query ClearControllerOutputs: %w", err)
+	}
 	if q.clearControllersStmt, err = db.PrepareContext(ctx, clearControllers); err != nil {
 		return nil, fmt.Errorf("error preparing query ClearControllers: %w", err)
 	}
@@ -186,6 +189,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.createControllerStmt, err = db.PrepareContext(ctx, createController); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateController: %w", err)
 	}
+	if q.createControllerOutputStmt, err = db.PrepareContext(ctx, createControllerOutput); err != nil {
+		return nil, fmt.Errorf("error preparing query CreateControllerOutput: %w", err)
+	}
 	if q.createDrawerStmt, err = db.PrepareContext(ctx, createDrawer); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateDrawer: %w", err)
 	}
@@ -279,6 +285,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.deleteControllerStmt, err = db.PrepareContext(ctx, deleteController); err != nil {
 		return nil, fmt.Errorf("error preparing query DeleteController: %w", err)
 	}
+	if q.deleteControllerOutputStmt, err = db.PrepareContext(ctx, deleteControllerOutput); err != nil {
+		return nil, fmt.Errorf("error preparing query DeleteControllerOutput: %w", err)
+	}
 	if q.deleteDrawerStmt, err = db.PrepareContext(ctx, deleteDrawer); err != nil {
 		return nil, fmt.Errorf("error preparing query DeleteDrawer: %w", err)
 	}
@@ -365,6 +374,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.getAllContainersStmt, err = db.PrepareContext(ctx, getAllContainers); err != nil {
 		return nil, fmt.Errorf("error preparing query GetAllContainers: %w", err)
+	}
+	if q.getAllControllerOutputsStmt, err = db.PrepareContext(ctx, getAllControllerOutputs); err != nil {
+		return nil, fmt.Errorf("error preparing query GetAllControllerOutputs: %w", err)
 	}
 	if q.getAllInspirationTemplatesStmt, err = db.PrepareContext(ctx, getAllInspirationTemplates); err != nil {
 		return nil, fmt.Errorf("error preparing query GetAllInspirationTemplates: %w", err)
@@ -470,6 +482,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.getControllerByIPStmt, err = db.PrepareContext(ctx, getControllerByIP); err != nil {
 		return nil, fmt.Errorf("error preparing query GetControllerByIP: %w", err)
+	}
+	if q.getControllerOutputsStmt, err = db.PrepareContext(ctx, getControllerOutputs); err != nil {
+		return nil, fmt.Errorf("error preparing query GetControllerOutputs: %w", err)
 	}
 	if q.getControllersStmt, err = db.PrepareContext(ctx, getControllers); err != nil {
 		return nil, fmt.Errorf("error preparing query GetControllers: %w", err)
@@ -720,6 +735,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.restoreControllerStmt, err = db.PrepareContext(ctx, restoreController); err != nil {
 		return nil, fmt.Errorf("error preparing query RestoreController: %w", err)
 	}
+	if q.restoreControllerOutputStmt, err = db.PrepareContext(ctx, restoreControllerOutput); err != nil {
+		return nil, fmt.Errorf("error preparing query RestoreControllerOutput: %w", err)
+	}
 	if q.restoreDrawerStmt, err = db.PrepareContext(ctx, restoreDrawer); err != nil {
 		return nil, fmt.Errorf("error preparing query RestoreDrawer: %w", err)
 	}
@@ -855,6 +873,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.updateCabinetLEDStringStmt, err = db.PrepareContext(ctx, updateCabinetLEDString); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateCabinetLEDString: %w", err)
 	}
+	if q.updateCabinetLEDStringOutputStmt, err = db.PrepareContext(ctx, updateCabinetLEDStringOutput); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateCabinetLEDStringOutput: %w", err)
+	}
 	if q.updateCabinetLayoutRevisionStmt, err = db.PrepareContext(ctx, updateCabinetLayoutRevision); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateCabinetLayoutRevision: %w", err)
 	}
@@ -870,11 +891,17 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.updateContainerConfigStmt, err = db.PrepareContext(ctx, updateContainerConfig); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateContainerConfig: %w", err)
 	}
+	if q.updateControllerHardwareSettingsStmt, err = db.PrepareContext(ctx, updateControllerHardwareSettings); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateControllerHardwareSettings: %w", err)
+	}
 	if q.updateControllerLedCountStmt, err = db.PrepareContext(ctx, updateControllerLedCount); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateControllerLedCount: %w", err)
 	}
 	if q.updateControllerLocateMappingVerificationStmt, err = db.PrepareContext(ctx, updateControllerLocateMappingVerification); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateControllerLocateMappingVerification: %w", err)
+	}
+	if q.updateControllerOutputStmt, err = db.PrepareContext(ctx, updateControllerOutput); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateControllerOutput: %w", err)
 	}
 	if q.updateControllerSettingsStmt, err = db.PrepareContext(ctx, updateControllerSettings); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateControllerSettings: %w", err)
@@ -1032,6 +1059,11 @@ func (q *Queries) Close() error {
 	if q.clearContainersStmt != nil {
 		if cerr := q.clearContainersStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing clearContainersStmt: %w", cerr)
+		}
+	}
+	if q.clearControllerOutputsStmt != nil {
+		if cerr := q.clearControllerOutputsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing clearControllerOutputsStmt: %w", cerr)
 		}
 	}
 	if q.clearControllersStmt != nil {
@@ -1214,6 +1246,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing createControllerStmt: %w", cerr)
 		}
 	}
+	if q.createControllerOutputStmt != nil {
+		if cerr := q.createControllerOutputStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing createControllerOutputStmt: %w", cerr)
+		}
+	}
 	if q.createDrawerStmt != nil {
 		if cerr := q.createDrawerStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing createDrawerStmt: %w", cerr)
@@ -1369,6 +1406,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing deleteControllerStmt: %w", cerr)
 		}
 	}
+	if q.deleteControllerOutputStmt != nil {
+		if cerr := q.deleteControllerOutputStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing deleteControllerOutputStmt: %w", cerr)
+		}
+	}
 	if q.deleteDrawerStmt != nil {
 		if cerr := q.deleteDrawerStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing deleteDrawerStmt: %w", cerr)
@@ -1512,6 +1554,11 @@ func (q *Queries) Close() error {
 	if q.getAllContainersStmt != nil {
 		if cerr := q.getAllContainersStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getAllContainersStmt: %w", cerr)
+		}
+	}
+	if q.getAllControllerOutputsStmt != nil {
+		if cerr := q.getAllControllerOutputsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getAllControllerOutputsStmt: %w", cerr)
 		}
 	}
 	if q.getAllInspirationTemplatesStmt != nil {
@@ -1687,6 +1734,11 @@ func (q *Queries) Close() error {
 	if q.getControllerByIPStmt != nil {
 		if cerr := q.getControllerByIPStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getControllerByIPStmt: %w", cerr)
+		}
+	}
+	if q.getControllerOutputsStmt != nil {
+		if cerr := q.getControllerOutputsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getControllerOutputsStmt: %w", cerr)
 		}
 	}
 	if q.getControllersStmt != nil {
@@ -2104,6 +2156,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing restoreControllerStmt: %w", cerr)
 		}
 	}
+	if q.restoreControllerOutputStmt != nil {
+		if cerr := q.restoreControllerOutputStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing restoreControllerOutputStmt: %w", cerr)
+		}
+	}
 	if q.restoreDrawerStmt != nil {
 		if cerr := q.restoreDrawerStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing restoreDrawerStmt: %w", cerr)
@@ -2329,6 +2386,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing updateCabinetLEDStringStmt: %w", cerr)
 		}
 	}
+	if q.updateCabinetLEDStringOutputStmt != nil {
+		if cerr := q.updateCabinetLEDStringOutputStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateCabinetLEDStringOutputStmt: %w", cerr)
+		}
+	}
 	if q.updateCabinetLayoutRevisionStmt != nil {
 		if cerr := q.updateCabinetLayoutRevisionStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing updateCabinetLayoutRevisionStmt: %w", cerr)
@@ -2354,6 +2416,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing updateContainerConfigStmt: %w", cerr)
 		}
 	}
+	if q.updateControllerHardwareSettingsStmt != nil {
+		if cerr := q.updateControllerHardwareSettingsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateControllerHardwareSettingsStmt: %w", cerr)
+		}
+	}
 	if q.updateControllerLedCountStmt != nil {
 		if cerr := q.updateControllerLedCountStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing updateControllerLedCountStmt: %w", cerr)
@@ -2362,6 +2429,11 @@ func (q *Queries) Close() error {
 	if q.updateControllerLocateMappingVerificationStmt != nil {
 		if cerr := q.updateControllerLocateMappingVerificationStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing updateControllerLocateMappingVerificationStmt: %w", cerr)
+		}
+	}
+	if q.updateControllerOutputStmt != nil {
+		if cerr := q.updateControllerOutputStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateControllerOutputStmt: %w", cerr)
 		}
 	}
 	if q.updateControllerSettingsStmt != nil {
@@ -2526,6 +2598,7 @@ type Queries struct {
 	clearCategoryAttributesStmt                               *sql.Stmt
 	clearContainerBinLedIndicesStmt                           *sql.Stmt
 	clearContainersStmt                                       *sql.Stmt
+	clearControllerOutputsStmt                                *sql.Stmt
 	clearControllersStmt                                      *sql.Stmt
 	clearDrawerLEDAllocationsStmt                             *sql.Stmt
 	clearDrawersStmt                                          *sql.Stmt
@@ -2562,6 +2635,7 @@ type Queries struct {
 	createCabinetLEDStringStmt                                *sql.Stmt
 	createContainerStmt                                       *sql.Stmt
 	createControllerStmt                                      *sql.Stmt
+	createControllerOutputStmt                                *sql.Stmt
 	createDrawerStmt                                          *sql.Stmt
 	createDrawerLEDAllocationStmt                             *sql.Stmt
 	createInspirationTemplateStmt                             *sql.Stmt
@@ -2593,6 +2667,7 @@ type Queries struct {
 	deleteCabinetLEDStringStmt                                *sql.Stmt
 	deleteContainerStmt                                       *sql.Stmt
 	deleteControllerStmt                                      *sql.Stmt
+	deleteControllerOutputStmt                                *sql.Stmt
 	deleteDrawerStmt                                          *sql.Stmt
 	deleteDrawerLEDAllocationStmt                             *sql.Stmt
 	deleteExpiredSupplierCacheStmt                            *sql.Stmt
@@ -2622,6 +2697,7 @@ type Queries struct {
 	getAllCategoriesStmt                                      *sql.Stmt
 	getAllCategoryAttributesStmt                              *sql.Stmt
 	getAllContainersStmt                                      *sql.Stmt
+	getAllControllerOutputsStmt                               *sql.Stmt
 	getAllInspirationTemplatesStmt                            *sql.Stmt
 	getAllPartAiPromptsStmt                                   *sql.Stmt
 	getAllPartAssignmentsStmt                                 *sql.Stmt
@@ -2657,6 +2733,7 @@ type Queries struct {
 	getContainersByControllerStmt                             *sql.Stmt
 	getControllerStmt                                         *sql.Stmt
 	getControllerByIPStmt                                     *sql.Stmt
+	getControllerOutputsStmt                                  *sql.Stmt
 	getControllersStmt                                        *sql.Stmt
 	getControllersForCompatibilityStmt                        *sql.Stmt
 	getDashboardGridStmt                                      *sql.Stmt
@@ -2740,6 +2817,7 @@ type Queries struct {
 	restoreCategoryParentStmt                                 *sql.Stmt
 	restoreContainerStmt                                      *sql.Stmt
 	restoreControllerStmt                                     *sql.Stmt
+	restoreControllerOutputStmt                               *sql.Stmt
 	restoreDrawerStmt                                         *sql.Stmt
 	restoreDrawerLEDAllocationStmt                            *sql.Stmt
 	restorePartStmt                                           *sql.Stmt
@@ -2785,13 +2863,16 @@ type Queries struct {
 	updateCabinetElectricalRevisionStmt                       *sql.Stmt
 	updateCabinetLEDPathSectionStmt                           *sql.Stmt
 	updateCabinetLEDStringStmt                                *sql.Stmt
+	updateCabinetLEDStringOutputStmt                          *sql.Stmt
 	updateCabinetLayoutRevisionStmt                           *sql.Stmt
 	updateCabinetLayoutSettingsStmt                           *sql.Stmt
 	updateColorsStmt                                          *sql.Stmt
 	updateContainerAllocationStmt                             *sql.Stmt
 	updateContainerConfigStmt                                 *sql.Stmt
+	updateControllerHardwareSettingsStmt                      *sql.Stmt
 	updateControllerLedCountStmt                              *sql.Stmt
 	updateControllerLocateMappingVerificationStmt             *sql.Stmt
+	updateControllerOutputStmt                                *sql.Stmt
 	updateControllerSettingsStmt                              *sql.Stmt
 	updateControllerStatusStmt                                *sql.Stmt
 	updateDrawerStmt                                          *sql.Stmt
@@ -2837,6 +2918,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		clearCategoryAttributesStmt:           q.clearCategoryAttributesStmt,
 		clearContainerBinLedIndicesStmt:       q.clearContainerBinLedIndicesStmt,
 		clearContainersStmt:                   q.clearContainersStmt,
+		clearControllerOutputsStmt:            q.clearControllerOutputsStmt,
 		clearControllersStmt:                  q.clearControllersStmt,
 		clearDrawerLEDAllocationsStmt:         q.clearDrawerLEDAllocationsStmt,
 		clearDrawersStmt:                      q.clearDrawersStmt,
@@ -2873,6 +2955,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		createCabinetLEDStringStmt:                     q.createCabinetLEDStringStmt,
 		createContainerStmt:                            q.createContainerStmt,
 		createControllerStmt:                           q.createControllerStmt,
+		createControllerOutputStmt:                     q.createControllerOutputStmt,
 		createDrawerStmt:                               q.createDrawerStmt,
 		createDrawerLEDAllocationStmt:                  q.createDrawerLEDAllocationStmt,
 		createInspirationTemplateStmt:                  q.createInspirationTemplateStmt,
@@ -2904,6 +2987,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		deleteCabinetLEDStringStmt:                     q.deleteCabinetLEDStringStmt,
 		deleteContainerStmt:                            q.deleteContainerStmt,
 		deleteControllerStmt:                           q.deleteControllerStmt,
+		deleteControllerOutputStmt:                     q.deleteControllerOutputStmt,
 		deleteDrawerStmt:                               q.deleteDrawerStmt,
 		deleteDrawerLEDAllocationStmt:                  q.deleteDrawerLEDAllocationStmt,
 		deleteExpiredSupplierCacheStmt:                 q.deleteExpiredSupplierCacheStmt,
@@ -2933,6 +3017,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		getAllCategoriesStmt:                           q.getAllCategoriesStmt,
 		getAllCategoryAttributesStmt:                   q.getAllCategoryAttributesStmt,
 		getAllContainersStmt:                           q.getAllContainersStmt,
+		getAllControllerOutputsStmt:                    q.getAllControllerOutputsStmt,
 		getAllInspirationTemplatesStmt:                 q.getAllInspirationTemplatesStmt,
 		getAllPartAiPromptsStmt:                        q.getAllPartAiPromptsStmt,
 		getAllPartAssignmentsStmt:                      q.getAllPartAssignmentsStmt,
@@ -2968,6 +3053,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		getContainersByControllerStmt:                  q.getContainersByControllerStmt,
 		getControllerStmt:                              q.getControllerStmt,
 		getControllerByIPStmt:                          q.getControllerByIPStmt,
+		getControllerOutputsStmt:                       q.getControllerOutputsStmt,
 		getControllersStmt:                             q.getControllersStmt,
 		getControllersForCompatibilityStmt:             q.getControllersForCompatibilityStmt,
 		getDashboardGridStmt:                           q.getDashboardGridStmt,
@@ -3051,6 +3137,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		restoreCategoryParentStmt:                      q.restoreCategoryParentStmt,
 		restoreContainerStmt:                           q.restoreContainerStmt,
 		restoreControllerStmt:                          q.restoreControllerStmt,
+		restoreControllerOutputStmt:                    q.restoreControllerOutputStmt,
 		restoreDrawerStmt:                              q.restoreDrawerStmt,
 		restoreDrawerLEDAllocationStmt:                 q.restoreDrawerLEDAllocationStmt,
 		restorePartStmt:                                q.restorePartStmt,
@@ -3096,13 +3183,16 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		updateCabinetElectricalRevisionStmt:            q.updateCabinetElectricalRevisionStmt,
 		updateCabinetLEDPathSectionStmt:                q.updateCabinetLEDPathSectionStmt,
 		updateCabinetLEDStringStmt:                     q.updateCabinetLEDStringStmt,
+		updateCabinetLEDStringOutputStmt:               q.updateCabinetLEDStringOutputStmt,
 		updateCabinetLayoutRevisionStmt:                q.updateCabinetLayoutRevisionStmt,
 		updateCabinetLayoutSettingsStmt:                q.updateCabinetLayoutSettingsStmt,
 		updateColorsStmt:                               q.updateColorsStmt,
 		updateContainerAllocationStmt:                  q.updateContainerAllocationStmt,
 		updateContainerConfigStmt:                      q.updateContainerConfigStmt,
+		updateControllerHardwareSettingsStmt:           q.updateControllerHardwareSettingsStmt,
 		updateControllerLedCountStmt:                   q.updateControllerLedCountStmt,
 		updateControllerLocateMappingVerificationStmt:  q.updateControllerLocateMappingVerificationStmt,
+		updateControllerOutputStmt:                     q.updateControllerOutputStmt,
 		updateControllerSettingsStmt:                   q.updateControllerSettingsStmt,
 		updateControllerStatusStmt:                     q.updateControllerStatusStmt,
 		updateDrawerStmt:                               q.updateDrawerStmt,

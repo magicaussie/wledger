@@ -32,6 +32,7 @@ type Querier interface {
 	ClearCategoryAttributes(ctx context.Context) error
 	ClearContainerBinLedIndices(ctx context.Context, containerID sql.NullInt64) error
 	ClearContainers(ctx context.Context) error
+	ClearControllerOutputs(ctx context.Context) error
 	ClearControllers(ctx context.Context) error
 	ClearDrawerLEDAllocations(ctx context.Context) error
 	// ClearDrawers empties the drawer table. It must run before any legacy cabinet
@@ -70,6 +71,7 @@ type Querier interface {
 	CreateCabinetLEDString(ctx context.Context, arg CreateCabinetLEDStringParams) (int64, error)
 	CreateContainer(ctx context.Context, arg CreateContainerParams) (int64, error)
 	CreateController(ctx context.Context, arg CreateControllerParams) (CreateControllerRow, error)
+	CreateControllerOutput(ctx context.Context, arg CreateControllerOutputParams) (int64, error)
 	CreateDrawer(ctx context.Context, arg CreateDrawerParams) (int64, error)
 	CreateDrawerLEDAllocation(ctx context.Context, arg CreateDrawerLEDAllocationParams) (int64, error)
 	CreateInspirationTemplate(ctx context.Context, arg CreateInspirationTemplateParams) (InspirationTemplate, error)
@@ -105,6 +107,7 @@ type Querier interface {
 	DeleteCabinetLEDString(ctx context.Context, arg DeleteCabinetLEDStringParams) (int64, error)
 	DeleteContainer(ctx context.Context, id int64) error
 	DeleteController(ctx context.Context, id int64) error
+	DeleteControllerOutput(ctx context.Context, arg DeleteControllerOutputParams) (int64, error)
 	DeleteDrawer(ctx context.Context, id int64) (int64, error)
 	DeleteDrawerLEDAllocation(ctx context.Context, arg DeleteDrawerLEDAllocationParams) (int64, error)
 	DeleteExpiredSupplierCache(ctx context.Context) error
@@ -138,6 +141,7 @@ type Querier interface {
 	GetAllCategories(ctx context.Context) ([]Category, error)
 	GetAllCategoryAttributes(ctx context.Context) ([]CategoryAttribute, error)
 	GetAllContainers(ctx context.Context) ([]Container, error)
+	GetAllControllerOutputs(ctx context.Context) ([]ControllerOutput, error)
 	GetAllInspirationTemplates(ctx context.Context) ([]InspirationTemplate, error)
 	GetAllPartAiPrompts(ctx context.Context) ([]PartAiPrompt, error)
 	// STOCK ASSIGNMENTS
@@ -177,6 +181,7 @@ type Querier interface {
 	GetContainersByController(ctx context.Context, controllerID int64) ([]Container, error)
 	GetController(ctx context.Context, id int64) (Controller, error)
 	GetControllerByIP(ctx context.Context, ipAddress string) (Controller, error)
+	GetControllerOutputs(ctx context.Context, controllerID int64) ([]ControllerOutput, error)
 	GetControllers(ctx context.Context) ([]Controller, error)
 	GetControllersForCompatibility(ctx context.Context) ([]GetControllersForCompatibilityRow, error)
 	// Drive from controllers so a controller with no containers (or a container with
@@ -278,6 +283,7 @@ type Querier interface {
 	RestoreCategoryParent(ctx context.Context, arg RestoreCategoryParentParams) error
 	RestoreContainer(ctx context.Context, arg RestoreContainerParams) error
 	RestoreController(ctx context.Context, arg RestoreControllerParams) error
+	RestoreControllerOutput(ctx context.Context, arg RestoreControllerOutputParams) error
 	// RestoreDrawer re-inserts a captured drawer with its exact id, geometry,
 	// archived state and timestamps.
 	RestoreDrawer(ctx context.Context, arg RestoreDrawerParams) error
@@ -327,13 +333,16 @@ type Querier interface {
 	UpdateCabinetElectricalRevision(ctx context.Context, arg UpdateCabinetElectricalRevisionParams) (int64, error)
 	UpdateCabinetLEDPathSection(ctx context.Context, arg UpdateCabinetLEDPathSectionParams) (int64, error)
 	UpdateCabinetLEDString(ctx context.Context, arg UpdateCabinetLEDStringParams) (int64, error)
+	UpdateCabinetLEDStringOutput(ctx context.Context, arg UpdateCabinetLEDStringOutputParams) (int64, error)
 	UpdateCabinetLayoutRevision(ctx context.Context, arg UpdateCabinetLayoutRevisionParams) (int64, error)
 	UpdateCabinetLayoutSettings(ctx context.Context, arg UpdateCabinetLayoutSettingsParams) (int64, error)
 	UpdateColors(ctx context.Context, arg UpdateColorsParams) error
 	UpdateContainerAllocation(ctx context.Context, arg UpdateContainerAllocationParams) error
 	UpdateContainerConfig(ctx context.Context, arg UpdateContainerConfigParams) error
+	UpdateControllerHardwareSettings(ctx context.Context, arg UpdateControllerHardwareSettingsParams) (int64, error)
 	UpdateControllerLedCount(ctx context.Context, arg UpdateControllerLedCountParams) (int64, error)
 	UpdateControllerLocateMappingVerification(ctx context.Context, arg UpdateControllerLocateMappingVerificationParams) (int64, error)
+	UpdateControllerOutput(ctx context.Context, arg UpdateControllerOutputParams) (int64, error)
 	UpdateControllerSettings(ctx context.Context, arg UpdateControllerSettingsParams) (int64, error)
 	UpdateControllerStatus(ctx context.Context, arg UpdateControllerStatusParams) error
 	UpdateDrawer(ctx context.Context, arg UpdateDrawerParams) (int64, error)

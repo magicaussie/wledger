@@ -2,6 +2,7 @@ package handler
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -14,6 +15,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/internal/config"
+	"github.com/tuxedocurly/wledger/internal/controllerconfig"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/hardware"
 	"github.com/tuxedocurly/wledger/internal/ledspace"
@@ -44,17 +46,27 @@ func (h *Handler) HandleHardwareList(w http.ResponseWriter, r *http.Request) {
 
 // POST /hardware
 func (h *Handler) HandleHardwareCreate(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 4<<20)
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "controller configuration form is too large or malformed", http.StatusRequestEntityTooLarge)
+		return
+	}
 	port, err := parseControllerPort(r.FormValue("port"))
 	if err != nil {
 		h.UIError.Respond(w, r, err, "Controller settings are invalid: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	_, err = h.Hardware.CreateController(r.Context(), db.CreateControllerParams{
+	settings, err := parseControllerHardwareSettings(r, nil)
+	if err != nil {
+		h.UIError.Respond(w, r, err, "Controller hardware configuration is invalid: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	_, err = h.Hardware.CreateControllerConfigured(r.Context(), db.CreateControllerParams{
 		Name:      r.FormValue("name"),
 		IpAddress: r.FormValue("ip_address"),
 		Port:      sql.NullInt64{Int64: port, Valid: true},
-	})
+	}, settings)
 	if err != nil {
 		status := controllerSettingsStatus(err)
 		h.UIError.Respond(w, r, err, "Controller was not created: "+err.Error(), status)
@@ -80,7 +92,12 @@ func (h *Handler) HandleHardwareEdit(w http.ResponseWriter, r *http.Request) {
 	if !controller.Port.Valid || port < 1 {
 		port = 80
 	}
-	pages.HardwareControllerEdit(auth.GetUserFromRequest(r), controller, "", controller.Name, controller.IpAddress, strconv.FormatInt(port, 10)).Render(r.Context(), w)
+	settings, err := h.Hardware.GetControllerSettings(r.Context(), id)
+	if err != nil {
+		h.UIError.Respond(w, r, err, "Failed to load controller output configuration", http.StatusInternalServerError)
+		return
+	}
+	pages.HardwareControllerEdit(auth.GetUserFromRequest(r), controller, "", controller.Name, controller.IpAddress, strconv.FormatInt(port, 10), settings).Render(r.Context(), w)
 }
 
 // POST /hardware/{id}/update
@@ -90,35 +107,81 @@ func (h *Handler) HandleHardwareUpdate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid controller ID", http.StatusBadRequest)
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, 4<<20)
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "controller configuration form is too large or malformed", http.StatusRequestEntityTooLarge)
+		return
+	}
 	name, address, portText := r.FormValue("name"), r.FormValue("ip_address"), r.FormValue("port")
 	port, err := parseControllerPort(portText)
 	if err != nil {
-		h.renderControllerEditError(w, r, id, name, address, portText, err.Error(), http.StatusBadRequest)
+		current, _ := h.Hardware.GetControllerSettings(r.Context(), id)
+		h.renderControllerEditError(w, r, id, name, address, portText, err.Error(), http.StatusBadRequest, current)
 		return
 	}
-	err = h.Hardware.UpdateController(r.Context(), id, db.CreateControllerParams{
+	currentSettings, err := h.Hardware.GetControllerSettings(r.Context(), id)
+	if err != nil {
+		h.UIError.Respond(w, r, err, "Failed to load controller output configuration", http.StatusInternalServerError)
+		return
+	}
+	settings, err := parseControllerHardwareSettings(r, &currentSettings)
+	if err != nil {
+		h.renderControllerEditError(w, r, id, name, address, portText, err.Error(), http.StatusBadRequest, currentSettings)
+		return
+	}
+	err = h.Hardware.UpdateControllerConfigured(r.Context(), id, db.CreateControllerParams{
 		Name: name, IpAddress: address, Port: sql.NullInt64{Int64: port, Valid: true},
-	})
+	}, settings, r.FormValue("confirm_mapping_impact") == "confirm")
 	if err != nil {
 		status := controllerSettingsStatus(err)
 		if status == http.StatusInternalServerError {
 			h.UIError.Respond(w, r, err, "Controller settings were not saved", status)
 			return
 		}
-		h.renderControllerEditError(w, r, id, name, address, portText, err.Error(), status)
+		h.renderControllerEditError(w, r, id, name, address, portText, err.Error(), status, settings)
 		return
 	}
 	http.Redirect(w, r, "/hardware?controller_saved=1", http.StatusSeeOther)
 }
 
-func (h *Handler) renderControllerEditError(w http.ResponseWriter, r *http.Request, id int64, name, address, port, message string, status int) {
+func (h *Handler) renderControllerEditError(w http.ResponseWriter, r *http.Request, id int64, name, address, port, message string, status int, settings controllerconfig.Settings) {
 	controller, err := h.Hardware.GetController(r.Context(), id)
 	if err != nil {
 		h.UIError.Respond(w, r, err, "Controller not found", http.StatusNotFound)
 		return
 	}
 	w.WriteHeader(status)
-	pages.HardwareControllerEdit(auth.GetUserFromRequest(r), controller, message, name, address, port).Render(r.Context(), w)
+	pages.HardwareControllerEdit(auth.GetUserFromRequest(r), controller, message, name, address, port, settings).Render(r.Context(), w)
+}
+
+func parseControllerHardwareSettings(r *http.Request, current *controllerconfig.Settings) (controllerconfig.Settings, error) {
+	settings := controllerconfig.Settings{}
+	if current != nil {
+		settings = *current
+		settings.Outputs = append([]controllerconfig.Output(nil), current.Outputs...)
+	}
+	if controllerType := strings.TrimSpace(r.FormValue("controller_type")); controllerType != "" {
+		settings.ControllerType = controllerType
+	}
+	if timeoutText := strings.TrimSpace(r.FormValue("connection_timeout_ms")); timeoutText != "" {
+		timeout, err := strconv.ParseInt(timeoutText, 10, 64)
+		if err != nil {
+			return controllerconfig.Settings{}, fmt.Errorf("connection timeout must be an integer from 100 to 30000 ms")
+		}
+		settings.ConnectionTimeoutMS = timeout
+	}
+	if r.Form.Has("outputs_json") {
+		if err := json.Unmarshal([]byte(r.FormValue("outputs_json")), &settings.Outputs); err != nil {
+			return controllerconfig.Settings{}, fmt.Errorf("output configuration must be a JSON array")
+		}
+		if settings.Outputs == nil {
+			return controllerconfig.Settings{}, fmt.Errorf("output configuration must be a JSON array")
+		}
+	}
+	if _, err := settings.NormalizeAndValidate(); err != nil {
+		return controllerconfig.Settings{}, err
+	}
+	return settings, nil
 }
 
 func parseControllerPort(raw string) (int64, error) {
@@ -133,13 +196,13 @@ func parseControllerPort(raw string) (int64, error) {
 }
 
 func controllerSettingsStatus(err error) int {
-	if errors.Is(err, db.ErrPhysicalLocateActive) {
+	if errors.Is(err, db.ErrPhysicalLocateActive) || errors.Is(err, storage.ErrUnsafeLayout) || errors.Is(err, storage.ErrLEDAllocationStale) || errors.Is(err, storage.ErrLEDControllerCapacityStale) {
 		return http.StatusConflict
 	}
 	if errors.Is(err, sql.ErrNoRows) {
 		return http.StatusNotFound
 	}
-	if errors.Is(err, hardware.ErrInvalidControllerSettings) || errors.Is(err, hardware.ErrDuplicateController) {
+	if errors.Is(err, hardware.ErrInvalidControllerSettings) || errors.Is(err, hardware.ErrDuplicateController) || errors.Is(err, storage.ErrLayoutInvalid) || errors.Is(err, storage.ErrLEDControllerCapacityInvalid) || errors.Is(err, storage.ErrLEDControllerConfiguration) {
 		return http.StatusBadRequest
 	}
 	return http.StatusInternalServerError

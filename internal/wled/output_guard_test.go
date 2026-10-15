@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
+	"log/slog"
 	"os"
 	"testing"
 
@@ -68,6 +70,25 @@ func TestInventoryOnlyRejectsAllNewWLEDWritesWithoutCreatingLocateOwnership(t *t
 	}
 	if owners := currentPhysicalReservationOwnerIDs(); len(owners) != 0 {
 		t.Fatalf("blocked activation left process-local ownership: %v", owners)
+	}
+}
+
+func TestGlobalOffIsRejectedWhilePhysicalLocateOwnsPixels(t *testing.T) {
+	fixture := newPhysicalFixture(t)
+	ctx := context.Background()
+	if _, err := fixture.service.LocateDrawerBin(ctx, fixture.drawer1, fixture.bin1, 7); err != nil {
+		t.Fatalf("start simulated physical Locate: %v", err)
+	}
+	writesBefore := outputGuardPostCount(fixture.mock)
+	service := NewService(fixture.store, NewClient(), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err := service.GlobalOff(ctx); !errors.Is(err, ErrHardwareBusy) {
+		t.Fatalf("GlobalOff error = %v, want ErrHardwareBusy while Locate owns pixels", err)
+	}
+	if writesAfter := outputGuardPostCount(fixture.mock); writesAfter != writesBefore {
+		t.Fatalf("GlobalOff sent %d state writes while Locate owns pixels; before=%d", writesAfter-writesBefore, writesBefore)
+	}
+	if err := fixture.service.StopDrawer(ctx, fixture.drawer1, 7); err != nil {
+		t.Fatalf("stop simulated physical Locate: %v", err)
 	}
 }
 

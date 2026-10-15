@@ -23,7 +23,7 @@ import (
 
 // This file tests the forthcoming M3 physical-storage backup format: the default
 // export writes exactly one current-format storage manifest and a restore
-// accepts either a legacy 1.0 manifest or a current 2.2 manifest, never a mixed,
+// accepts either a legacy 1.0 manifest or a current 2.3 manifest, never a mixed,
 // duplicate, unknown or malformed envelope. It exercises the real public surface
 // (default Export, Restore, the exported StorageManifest) and the M2 physical
 // tables (cabinets, drawers, bin_drawer_attachments) plus M1 compatibility
@@ -51,7 +51,7 @@ var (
 
 // physCurrentVersion is the default storage-manifest format version a default
 // export must carry.
-const physCurrentVersion = "2.2"
+const physCurrentVersion = "2.3"
 
 // physCustomFlagKey / physCustomFlagValue are a flag outside the three the M1
 // baseline tracks. A complete current backup must preserve it, so a restore
@@ -136,6 +136,8 @@ func physSeedLegacy(t *testing.T, conn *sql.DB) {
 
 	exec(`INSERT INTO controllers (id, name, ip_address, port, led_count) VALUES (1, 'Legacy A', '192.168.1.10', 80, 300)`)
 	exec(`INSERT INTO controllers (id, name, ip_address, port, led_count) VALUES (2, 'Legacy B', '192.168.1.11', 80, 150)`)
+	exec(`INSERT INTO controller_outputs (controller_id, display_order, name, pixel_count) VALUES (1, 0, 'Output 1', 300)`)
+	exec(`INSERT INTO controller_outputs (controller_id, display_order, name, pixel_count) VALUES (2, 0, 'Output 1', 150)`)
 	exec(`INSERT INTO containers (id, name, controller_id, segment_id, led_start, led_count) VALUES (1, 'String 1', 1, 0, 0, 300)`)
 	exec(`INSERT INTO containers (id, name, controller_id, segment_id, led_start, led_count) VALUES (2, 'String 2', 2, 0, 0, 150)`)
 	exec(`INSERT INTO bins (id, name, container_id, led_index, width, grid_x, grid_y) VALUES (1, 'Bin Mapped', 1, 0, 4, 0, 0)`)
@@ -359,7 +361,7 @@ func physLegacyManifest() Manifest {
 	}
 }
 
-// physBaseStorageManifest is a valid current 2.2 manifest consistent with the
+// physBaseStorageManifest is a valid current 2.3 manifest consistent with the
 // seeded legacy and physical graph. Defect cases mutate one aspect of it.
 func physBaseStorageManifest() StorageManifest {
 	now := physTime()
@@ -372,6 +374,9 @@ func physBaseStorageManifest() StorageManifest {
 		Settings:      minimalSettings(),
 		Controllers: []db.Controller{
 			{ID: 1, Name: "Ctrl", IpAddress: "10.0.0.1", LedCount: 300, CreatedAt: now},
+		},
+		ControllerOutputs: []db.ControllerOutput{
+			{ID: 1, ControllerID: 1, DisplayOrder: 0, Name: "Output 1", PixelCount: 300, Direction: "forward", Pattern: "linear", Rows: 1, Columns: 1, CustomOrderJson: "[]", CreatedAt: now.Time, UpdatedAt: now.Time},
 		},
 		Containers: []db.Container{
 			{ID: 1, Name: "S1", ControllerID: 1, SegmentID: 0, LedStart: 0, LedCount: 16,
@@ -813,7 +818,7 @@ func TestPhysicalBackup_RoundTripsLegacyAndPhysicalGraph(t *testing.T) {
 }
 
 // TestPhysicalBackup_CurrentEmptyPhysicalGraphRoundTrips verifies that a current
-// 2.2 archive whose physical graph is complete but empty is still authoritative:
+// 2.3 archive whose physical graph is complete but empty is still authoritative:
 // restoring it into a populated installation replaces the physical graph and
 // leaves it empty.
 func TestPhysicalBackup_CurrentEmptyPhysicalGraphRoundTrips(t *testing.T) {

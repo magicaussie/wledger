@@ -1691,8 +1691,10 @@ func hasNonDefaultConfig(raw json.RawMessage) bool {
 }
 
 func (c *Client) getControllerJSON(ctx context.Context, controller db.Controller, path string, target any) error {
+	bounded, cancel := controllerRequestContext(ctx, controller)
+	defer cancel()
 	url := controllerURL(controller, path)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(bounded, http.MethodGet, url, nil)
 	if err != nil {
 		return err
 	}
@@ -1784,6 +1786,8 @@ func mapPhysicalRanges(ranges []ControllerRange, controller db.Controller, capac
 }
 
 func (c *Client) setPhysicalPixels(ctx context.Context, controller db.Controller, segmentID int, start, stop int64, rgb []int) error {
+	bounded, cancel := controllerRequestContext(ctx, controller)
+	defer cancel()
 	if segmentID < 0 || start < 0 || stop <= start || len(rgb) < 3 {
 		return errors.New("invalid WLED pixel command")
 	}
@@ -1800,7 +1804,7 @@ func (c *Client) setPhysicalPixels(ctx context.Context, controller db.Controller
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, controllerURL(controller, "/json/state"), strings.NewReader(string(data)))
+	req, err := http.NewRequestWithContext(bounded, http.MethodPost, controllerURL(controller, "/json/state"), strings.NewReader(string(data)))
 	if err != nil {
 		return err
 	}

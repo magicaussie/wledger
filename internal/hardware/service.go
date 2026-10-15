@@ -7,19 +7,27 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"reflect"
+	"strings"
 
 	"github.com/tuxedocurly/wledger/internal/audit"
+	"github.com/tuxedocurly/wledger/internal/controllerconfig"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/hardware/mapper"
 	"github.com/tuxedocurly/wledger/internal/ledspace"
+	"github.com/tuxedocurly/wledger/internal/storage"
 	"github.com/tuxedocurly/wledger/internal/wled"
 )
 
 type Service interface {
 	ListControllers(ctx context.Context) ([]db.Controller, error)
 	GetController(ctx context.Context, id int64) (db.Controller, error)
+	GetControllerSettings(ctx context.Context, id int64) (controllerconfig.Settings, error)
 	CreateController(ctx context.Context, params db.CreateControllerParams) (db.CreateControllerRow, error)
+	CreateControllerConfigured(ctx context.Context, params db.CreateControllerParams, settings controllerconfig.Settings) (db.CreateControllerRow, error)
 	UpdateController(ctx context.Context, id int64, params db.CreateControllerParams) error
+	UpdateControllerConfigured(ctx context.Context, id int64, params db.CreateControllerParams, settings controllerconfig.Settings, confirmMappingImpact bool) error
+	GetControllerOutputs(ctx context.Context, id int64) ([]db.ControllerOutput, error)
 	DeleteController(ctx context.Context, id int64) error
 	UpdateStatus(ctx context.Context, id int64) (bool, error)
 	GetBinsByController(ctx context.Context, id int64) ([]db.Bin, error)
@@ -83,6 +91,14 @@ func (s *service) GetController(ctx context.Context, id int64) (db.Controller, e
 }
 
 func (s *service) CreateController(ctx context.Context, params db.CreateControllerParams) (db.CreateControllerRow, error) {
+	if err := normalizeControllerHardwareParams(&params, nil); err != nil {
+		return db.CreateControllerRow{}, err
+	}
+	settings := controllerconfig.Settings{ControllerType: params.ControllerType.(string), ConnectionTimeoutMS: params.ConnectionTimeoutMs.(int64)}
+	return s.CreateControllerConfigured(ctx, params, settings)
+}
+
+func (s *service) CreateControllerConfigured(ctx context.Context, params db.CreateControllerParams, settings controllerconfig.Settings) (db.CreateControllerRow, error) {
 	if !params.Port.Valid {
 		return db.CreateControllerRow{}, fmt.Errorf("%w: port is required", ErrInvalidControllerSettings)
 	}
@@ -90,7 +106,18 @@ func (s *service) CreateController(ctx context.Context, params db.CreateControll
 	if err != nil {
 		return db.CreateControllerRow{}, err
 	}
+	if settings.ControllerType == "" {
+		settings.ControllerType = "wled"
+	}
+	if settings.ConnectionTimeoutMS == 0 {
+		settings.ConnectionTimeoutMS = controllerconfig.DefaultConnectionTimeoutMS
+	}
+	_, err = settings.NormalizeAndValidate()
+	if err != nil {
+		return db.CreateControllerRow{}, fmt.Errorf("%w: %v", ErrInvalidControllerSettings, err)
+	}
 	params.Name, params.IpAddress = name, address
+	params.ControllerType, params.ConnectionTimeoutMs = settings.ControllerType, settings.ConnectionTimeoutMS
 
 	var row db.CreateControllerRow
 	var containerErr error
@@ -109,15 +136,17 @@ func (s *service) CreateController(ctx context.Context, params db.CreateControll
 		if err != nil {
 			return err
 		}
+		if err := storage.SaveControllerOutputSettingsTx(ctx, q, row.ID, 0, settings, false); err != nil {
+			return err
+		}
 
-		// Create Default Container for the new controller in the same claim.
 		_, containerErr = q.CreateContainer(ctx, db.CreateContainerParams{
 			Name:          row.Name + " (Main)",
 			ControllerID:  row.ID,
 			SegmentID:     0,
 			PositionIndex: 0,
 			LedStart:      0,
-			LedCount:      64, // matches the default 8x8 layout below
+			LedCount:      64,
 			ConfigJson:    sql.NullString{String: `{"type":"grid","rows":8,"cols":8}`, Valid: true},
 		})
 		return nil
@@ -128,18 +157,67 @@ func (s *service) CreateController(ctx context.Context, params db.CreateControll
 	if containerErr != nil {
 		s.logger.Error("failed to create default container for new controller", "err", containerErr)
 	}
-
 	summary := map[string]any{
-		"id":         row.ID,
-		"name":       row.Name,
-		"ip_address": row.IpAddress,
+		"id": row.ID, "name": row.Name, "ip_address": row.IpAddress,
+		"controller_type": settings.ControllerType, "output_count": len(settings.Outputs),
 	}
 	audit.Log(ctx, s.store, "CREATE", "HARDWARE", row.ID, "Added controller "+row.Name, nil, summary)
-
 	return row, nil
 }
 
+func (s *service) GetControllerSettings(ctx context.Context, id int64) (controllerconfig.Settings, error) {
+	controller, err := s.store.GetController(ctx, id)
+	if err != nil {
+		return controllerconfig.Settings{}, err
+	}
+	return controllerSettingsFromQuerier(ctx, s.store, controller)
+}
+
+func (s *service) GetControllerOutputs(ctx context.Context, id int64) ([]db.ControllerOutput, error) {
+	if id <= 0 {
+		return nil, fmt.Errorf("%w: controller ID must be positive", ErrInvalidControllerSettings)
+	}
+	return s.store.GetControllerOutputs(ctx, id)
+}
+
+func controllerSettingsFromQuerier(ctx context.Context, q db.Querier, controller db.Controller) (controllerconfig.Settings, error) {
+	outputs, err := q.GetControllerOutputs(ctx, controller.ID)
+	if err != nil {
+		return controllerconfig.Settings{}, err
+	}
+	settings := controllerconfig.Settings{ControllerType: controller.ControllerType, ConnectionTimeoutMS: controller.ConnectionTimeoutMs}
+	for _, output := range outputs {
+		var customOrder []int64
+		if err := json.Unmarshal([]byte(output.CustomOrderJson), &customOrder); err != nil {
+			return controllerconfig.Settings{}, fmt.Errorf("controller #%d output #%d custom pattern: %w", controller.ID, output.ID, err)
+		}
+		settings.Outputs = append(settings.Outputs, controllerconfig.Output{
+			ID: output.ID, DisplayOrder: output.DisplayOrder, Name: output.Name, PixelCount: output.PixelCount,
+			Direction: output.Direction, Pattern: output.Pattern, Rows: output.Rows, Columns: output.Columns,
+			CustomOrder: customOrder,
+		})
+	}
+	if _, err := settings.NormalizeAndValidate(); err != nil {
+		return controllerconfig.Settings{}, fmt.Errorf("controller #%d stored hardware configuration is invalid: %w", controller.ID, err)
+	}
+	return settings, nil
+}
+
 func (s *service) UpdateController(ctx context.Context, id int64, params db.CreateControllerParams) error {
+	previous, err := s.GetController(ctx, id)
+	if err != nil {
+		return err
+	}
+	settings, err := controllerSettingsFromQuerier(ctx, s.store, previous)
+	if err != nil {
+		return err
+	}
+	params.ControllerType = settings.ControllerType
+	params.ConnectionTimeoutMs = settings.ConnectionTimeoutMS
+	return s.UpdateControllerConfigured(ctx, id, params, settings, false)
+}
+
+func (s *service) UpdateControllerConfigured(ctx context.Context, id int64, params db.CreateControllerParams, settings controllerconfig.Settings, confirmMappingImpact bool) error {
 	if id <= 0 {
 		return fmt.Errorf("%w: controller ID must be positive", ErrInvalidControllerSettings)
 	}
@@ -151,8 +229,24 @@ func (s *service) UpdateController(ctx context.Context, id int64, params db.Crea
 		return err
 	}
 	params.Name, params.IpAddress = name, address
+	if settings.ControllerType == "" {
+		if err := normalizeControllerHardwareParams(&params, nil); err != nil {
+			return err
+		}
+		settings.ControllerType = params.ControllerType.(string)
+	}
+	if settings.ConnectionTimeoutMS == 0 {
+		if timeout, ok := params.ConnectionTimeoutMs.(int64); ok {
+			settings.ConnectionTimeoutMS = timeout
+		}
+	}
+	if _, err := settings.NormalizeAndValidate(); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidControllerSettings, err)
+	}
+	params.ControllerType, params.ConnectionTimeoutMs = settings.ControllerType, settings.ConnectionTimeoutMS
 
 	var previous db.Controller
+	var previousSettings controllerconfig.Settings
 	err = db.WithOperationClaim(ctx, s.store, func(q db.Querier) error {
 		var err error
 		previous, err = q.GetController(ctx, id)
@@ -163,10 +257,13 @@ func (s *service) UpdateController(ctx context.Context, id int64, params db.Crea
 		if !previous.Port.Valid || oldPort < 1 {
 			oldPort = defaultControllerPort
 		}
-		// Recovery compares the persisted address snapshot exactly. While a
-		// Locate owns this controller, even a case/format-only address rewrite
-		// could make cleanup appear stale, so permit only an exact address match
-		// with the same effective endpoint.
+		oldSettings, err := controllerSettingsFromQuerier(ctx, q, previous)
+		if err != nil {
+			return err
+		}
+		previousSettings = oldSettings
+		outputsChanged := !reflect.DeepEqual(oldSettings.Outputs, settings.Outputs)
+		configChanged := oldSettings.ControllerType != settings.ControllerType || oldSettings.ConnectionTimeoutMS != settings.ConnectionTimeoutMS || outputsChanged
 		endpointChanged := previous.IpAddress != params.IpAddress || controllerEndpointKey(previous.IpAddress, oldPort) != controllerEndpointKey(params.IpAddress, params.Port.Int64)
 		if endpointChanged {
 			owned, err := db.HasControllerPhysicalLocateOwnership(ctx, q, id)
@@ -177,11 +274,21 @@ func (s *service) UpdateController(ctx context.Context, id int64, params db.Crea
 				return db.ErrPhysicalLocateActive
 			}
 		}
+		if configChanged {
+			owned, err := db.HasControllerPhysicalLocateOwnership(ctx, q, id)
+			if err != nil {
+				return fmt.Errorf("check controller output Locate ownership: %w", err)
+			}
+			if owned {
+				return db.ErrPhysicalLocateActive
+			}
+		}
 		if err := ensureUniqueControllerEndpoint(ctx, q, id, params.IpAddress, params.Port.Int64); err != nil {
 			return err
 		}
 		rows, err := q.UpdateControllerSettings(ctx, db.UpdateControllerSettingsParams{
 			ID: id, Name: params.Name, IpAddress: params.IpAddress, Port: params.Port,
+			ControllerType: settings.ControllerType, ConnectionTimeoutMs: settings.ConnectionTimeoutMS,
 		})
 		if err != nil {
 			return err
@@ -189,15 +296,56 @@ func (s *service) UpdateController(ctx context.Context, id int64, params db.Crea
 		if rows != 1 {
 			return fmt.Errorf("controller %d was not updated", id)
 		}
+		if outputsChanged {
+			return storage.SaveControllerOutputSettingsTx(ctx, q, id, previous.LedCount, settings, confirmMappingImpact)
+		}
 		return nil
 	})
 	if err != nil {
 		return err
 	}
 
-	oldValue := map[string]any{"name": previous.Name, "ip_address": previous.IpAddress, "port": previous.Port.Int64}
-	newValue := map[string]any{"name": params.Name, "ip_address": params.IpAddress, "port": params.Port.Int64}
-	audit.Log(ctx, s.store, "UPDATE", "HARDWARE", id, "Updated controller settings", oldValue, newValue)
+	oldValue := map[string]any{"name": previous.Name, "ip_address": previous.IpAddress, "port": previous.Port.Int64, "controller_type": previousSettings.ControllerType, "connection_timeout_ms": previousSettings.ConnectionTimeoutMS}
+	newValue := map[string]any{"name": params.Name, "ip_address": params.IpAddress, "port": params.Port.Int64, "controller_type": settings.ControllerType, "connection_timeout_ms": settings.ConnectionTimeoutMS, "output_count": len(settings.Outputs)}
+	audit.Log(ctx, s.store, "UPDATE", "HARDWARE", id, "Updated controller configuration", oldValue, newValue)
+	return nil
+}
+
+func normalizeControllerHardwareParams(params *db.CreateControllerParams, previous *db.Controller) error {
+	controllerType := ""
+	switch value := params.ControllerType.(type) {
+	case string:
+		controllerType = value
+	case nil:
+	default:
+		return fmt.Errorf("%w: controller type must be a string", ErrInvalidControllerSettings)
+	}
+	if strings.TrimSpace(controllerType) == "" && previous != nil {
+		controllerType = previous.ControllerType
+	}
+	if strings.TrimSpace(controllerType) == "" {
+		controllerType = "wled"
+	}
+
+	timeout := int64(0)
+	switch value := params.ConnectionTimeoutMs.(type) {
+	case int64:
+		timeout = value
+	case int:
+		timeout = int64(value)
+	case nil:
+	default:
+		return fmt.Errorf("%w: connection timeout must be an integer", ErrInvalidControllerSettings)
+	}
+	if timeout == 0 && previous != nil {
+		timeout = previous.ConnectionTimeoutMs
+	}
+	settings := controllerconfig.Settings{ControllerType: controllerType, ConnectionTimeoutMS: timeout}
+	if _, err := settings.NormalizeAndValidate(); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidControllerSettings, err)
+	}
+	params.ControllerType = settings.ControllerType
+	params.ConnectionTimeoutMs = settings.ConnectionTimeoutMS
 	return nil
 }
 
@@ -257,7 +405,7 @@ func (s *service) UpdateStatus(ctx context.Context, id int64) (bool, error) {
 		return false, err
 	}
 
-	online, _ := s.wled.Ping(ctx, c.IpAddress)
+	online, _ := s.wled.PingController(ctx, c)
 
 	if online != c.IsOnline.Bool {
 		err := s.store.SetControllerOnlineStatus(ctx, db.SetControllerOnlineStatusParams{
