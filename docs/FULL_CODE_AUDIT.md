@@ -27,15 +27,15 @@ Every Go result below was produced with `go test -tags fts5`; a response that a 
 | H3 | High | Files deleted before the database change commits (dangling rows / lost attachments) | Fixed |
 | H4 | High | Positive stock adjustment overflows and silently resets quantity to zero | Fixed |
 | H5 | High | Wiring save can commit a topology the next `Load` rejects (linked string resized) | Fixed |
-| H6 | High | A stale Locate writer can resurrect a superseded session | Open |
-| M1 | Medium | First-run setup allows more than one initial administrator (race) | Open |
+| H6 | High | A stale Locate writer can resurrect a superseded session | Fixed `fb88bcb` |
+| M1 | Medium | First-run setup allows more than one initial administrator (race) | Fixed `76b52e7` |
 | M2 | Medium | Empty/short password accepted at setup and forced reset | Fixed |
 | M3 | Medium | `UpdatePartLink` not constrained to the owning part | Fixed |
 | M4 | Medium | `SearchParts` returns a part more than once | Fixed |
 | M5 | Medium | Proposed wiring dropped reverse/serpentine/custom transforms | Fixed |
-| M6 | Medium | Multipart bodies parsed before CSRF/authorization | Open |
-| M7 | Medium | Restore accepts semantically invalid category graphs/specifications | Open |
-| M8 | Medium | Category images excluded from restore/startup asset validation | Open |
+| M6 | Medium | Multipart bodies parsed before CSRF/authorization | Fixed `463997f` |
+| M7 | Medium | Restore accepts semantically invalid category graphs/specifications | Fixed `2a23a17` |
+| M8 | Medium | Category images excluded from restore/startup asset validation | Fixed `2a23a17` |
 | M9 | Medium | Multi-output preview labels the wrong page | Fixed |
 | M10 | Medium | SIGTERM not handled → no graceful drain on container stop | Fixed |
 | L1 | Low | MCP corrupts non-ASCII search queries | Fixed |
@@ -44,6 +44,89 @@ Every Go result below was produced with `go test -tags fts5`; a response that a 
 | — | — | WLED segment `frz`/runtime `ledmap` not modeled in fixtures | Limitation |
 
 No confirmed **Critical** defect was found. The two strongest issues (H1/H2, H3/H4) are corrected.
+
+---
+
+## Follow-up audit — 2026-10-16 (Priority 1–4)
+
+This section records the outcome of the follow-up stabilisation pass. Commit
+references are on `development/chatgpt-m6-m7`; nothing was pushed.
+
+### Identifier mapping
+
+The owner's request used a slightly different grouping. Per its instruction to
+treat this document as authoritative, the identifiers are:
+
+| This document | Owner's reference | Subject |
+|---|---|---|
+| M6 | M6 | Multipart parsed before CSRF/authorization |
+| M7 | M7 | Restore accepts semantically invalid category graphs/specifications |
+| M8 | M7/M8 or M9 | Category images excluded from asset validation |
+| M9 | — | Multi-output preview labelled the wrong page (already fixed earlier) |
+
+### Fixed in this pass
+
+| Finding | Fix | Commit | Regression test |
+|---|---|---|---|
+| H6 | `persistSession` now requires an existing durable row with the same session id; only the reservation path may establish ownership | `fb88bcb` | `internal/wled/physical_locate_supersession_test.go` |
+| M1 | Guarded atomic `CreateFirstUser` inside an immediate transaction; `CountUsers` errors surfaced | `76b52e7` | `internal/router/router_setup_test.go` |
+| M6 | Multipart body bounded before parsing (CSRF middleware and part create/update) | `463997f` | `internal/middleware/csrf_multipart_test.go`, `internal/handler/parts_request_limit_test.go` |
+| M7 | Manifest category/specification semantic validation before any restore insert | `2a23a17` | `internal/backup/restore_category_validation_test.go` |
+| M8 | Category image references validated during candidate and active-generation checks | `2a23a17` | `internal/backup/restore_category_validation_test.go` |
+
+**H6 — reproduction and fix.** A deterministic test was written first and
+confirmed to fail against the pre-fix code (`stale activating snapshot
+resurrected a superseded Locate session`). It drives a genuinely superseded
+session (S1 stopped, replacement S2 completed on the same controller) and
+replays the stale `activating` snapshot: pre-fix, `persistSession` re-created
+the S1 durable row and re-established ownership; post-fix it is refused, no
+obsolete WLED write is sent, and a direct command claim for the superseded
+session id is rejected. The full `wled` package (including all existing
+coordination, crash, recovery, timeout and multi-controller tests) passes under
+both the normal and race-enabled suites.
+
+### Unconfirmed hypotheses (no behaviour changed)
+
+The owner asked to reproduce before changing behaviour. The following were
+investigated; no deterministic reproduction was achievable without adding test
+hooks, so behaviour was **not** changed. Each remains a recommendation.
+
+1. **Backup snapshot skew.** `Export` (`internal/backup/service.go:119`) takes the
+   database snapshot in one transaction, then walks the uploads directory outside
+   it. Ordinary requests hold only the shared maintenance lock
+   (`internal/maintenance/gate.go:108`) and `Export` acquires no gate lock, so a
+   concurrent delete/add of an upload between the two steps can leave the archive
+   inconsistent (manifest references a file that is absent, or vice versa).
+   *Not reproduced:* requires interleaving between the snapshot and the walk, which
+   needs an injected hook. *Recommended, low-risk:* have `Export` hold
+   `gate.ReadLock()`, which excludes a concurrent restore (which swaps the uploads
+   directory) without blocking ordinary requests. Full database/uploads
+   consistency would require the exclusive lock (blocking writers) and owner
+   sign-off.
+2. **Category assignment/attribute race.** `SetProductCategory`
+   (`internal/categories/service.go:523`) validates specifications, then opens a
+   deferred transaction. A concurrent attribute edit could invalidate the earlier
+   validation. *Not reproduced:* normal writes do not use immediate
+   transactions, so serializing this needs both paths migrated to
+   `BEGIN IMMEDIATE` — a broader change than this pass. Low blast radius
+   (concurrent admin edits only).
+3. **Image decode resource exhaustion.** `internal/images/processor.go` decodes
+   before resizing with no pixel-dimension cap. *Not reproduced:* no decoder-level
+   failure was demonstrated. *Recommended:* reject images above a pixel-count
+   threshold before resizing.
+4. **WLED protocol fidelity.** The loopback framebuffer fixture encodes the same
+   segment/output reversal assumptions as production and does not model segment
+   `frz` or a top-level runtime `ledmap`. `physicalState` decodes only `on`/`seg`.
+   *Not reproduced:* requires real firmware. Remains an owner-verified
+   commissioning item and a documented limitation (L2).
+
+### Verification for this pass
+
+`go build -tags fts5 ./...`, `go vet -tags fts5 ./...`,
+`go test -tags fts5 -count=1 ./...`, `go test -race -tags fts5 -count=1 ./...`
+and `npm test` all pass with the fixes and new regression tests in place.
+Browser acceptance suites were not run (they require launching the full server
+and a browser) and no hardware was contacted.
 
 ---
 
