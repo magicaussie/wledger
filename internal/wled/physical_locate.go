@@ -31,6 +31,12 @@ var (
 	ErrLocateTopology          = errors.New("WLED segment or output topology is not safe for physical Locate")
 	ErrLocateSessionStale      = errors.New("WLED configuration changed during the Locate session; cleanup was withheld to avoid writing to a different mapping")
 	ErrHardwareBusy            = errors.New("controller is reserved by an active physical Locate session")
+
+	// ErrLocateSessionSuperseded indicates that an ordinary persistence attempt
+	// referenced a session id that no longer owns the controller. Only the
+	// reservation path may establish durable ownership, so a stale writer can
+	// never recreate or replace a newer session.
+	ErrLocateSessionSuperseded = errors.New("physical Locate session was superseded by a newer durable reservation")
 )
 
 const locateBrightness = 128
@@ -1342,24 +1348,7 @@ func (s *PhysicalLocateService) persistSession(ctx context.Context, session *phy
 	for _, target := range session.targets {
 		session.AffectedControllerIDs = append(session.AffectedControllerIDs, target.ControllerID)
 	}
-	ranges, err := json.Marshal(session.Ranges)
-	if err != nil {
-		return err
-	}
-	commands, err := json.Marshal(primary.Commands)
-	if err != nil {
-		return err
-	}
-	args := db.SavePhysicalLocateSessionParams{
-		ControllerID: session.ControllerID, ControllerAddress: session.ControllerAddress,
-		ControllerPort: session.ControllerPort, SessionID: session.ID, DrawerID: session.DrawerID,
-		BinID: session.BinID, OwnerID: session.OwnerID, State: session.State,
-		RangesJson: string(ranges), CommandsJson: string(commands), Fingerprint: primary.Fingerprint,
-		Color: session.Color, Brightness: int64(session.Brightness), LastOperation: session.LastOperation,
-		LastOperationAt: session.LastOperationAt, LastSuccessfulOperation: session.LastSuccessfulOperation,
-		LastSuccessfulAt: session.LastSuccessfulAt, LastError: session.LastError,
-	}
-	err = db.WithOperationClaim(ctx, s.store, func(q db.Querier) error {
+	err := db.WithOperationClaim(ctx, s.store, func(q db.Querier) error {
 		rows, err := q.ListPhysicalLocateSessions(ctx)
 		if err != nil {
 			return err
@@ -1371,44 +1360,15 @@ func (s *PhysicalLocateService) persistSession(ctx context.Context, session *phy
 				break
 			}
 		}
-		newSession := current == nil || current.SessionID != session.ID
-		if newSession {
-			if current != nil && current.State != "stopped" && current.State != "failed" {
-				return errors.New("another Locate session owns this controller")
-			}
-			if err := q.ClearPhysicalLocateSessionTargetsForPrimaryController(ctx, session.ControllerID); err != nil {
-				return err
-			}
-			rowsAffected, err := q.SavePhysicalLocateSession(ctx, args)
-			if err != nil {
-				return err
-			}
-			if rowsAffected != 1 {
-				return errors.New("another Locate session owns this controller")
-			}
-			if err := q.ClearPhysicalLocateSessionTargets(ctx, session.ID); err != nil {
-				return err
-			}
-			for _, target := range session.targets {
-				targetRanges, err := json.Marshal(target.Ranges)
-				if err != nil {
-					return err
-				}
-				targetCommands, err := json.Marshal(target.Commands)
-				if err != nil {
-					return err
-				}
-				if err := q.SavePhysicalLocateSessionTarget(ctx, db.SavePhysicalLocateSessionTargetParams{
-					SessionID: session.ID, ControllerID: target.ControllerID, ControllerAddress: target.ControllerAddress,
-					ControllerPort: target.ControllerPort, RangesJson: string(targetRanges), CommandsJson: string(targetCommands),
-					Fingerprint: target.Fingerprint, MayHaveReceived: boolToInt64(target.MayHaveReceived), LastError: target.LastError,
-				}); err != nil {
-					return err
-				}
-			}
-			return nil
+		// Ordinary persistence must never create or replace a *different*
+		// durable session. Only the reservation path (insertSessionWithQuerier)
+		// may establish ownership. Without this fence a stale in-memory snapshot
+		// (for example one paused before persisting its activation marker) could
+		// replace a newer terminal session and re-establish durable ownership,
+		// allowing an obsolete activation to be sent.
+		if current == nil || current.SessionID != session.ID {
+			return ErrLocateSessionSuperseded
 		}
-
 		if !physicalLocateTransitionAllowed(current.State, session.State) {
 			return fmt.Errorf("refusing stale physical Locate transition %q to %q", current.State, session.State)
 		}
