@@ -1681,3 +1681,17 @@ M6/handover working-tree changes remain uncommitted and excluded from this task.
   migration 27, one administrator, no parts or controllers at capture. Operational
   validation stays outside Git. Copied-data image acceptance and refreshed cutover
   backup remain mandatory before replacing only `wledger-rc-8094`.
+- **Completed:** application commit `fa16a5316f075688c14249d7b9f9059c1fe18f5e`
+  (parent `15a8207`) published normally, and complete image
+  `wledger:guided-8094-fa16a53` built from its clean archive. Backup recovery boot,
+  candidate copied-data actual guided Add/Edit flow and application backup/restore
+  passed. A fresh final-cutover backup matched the tested protected data.
+- **Live verification:** only 8094 now runs the candidate, healthy and physical-output
+  disabled. Actual Add link → details → unsaved multiple-output irregular layout →
+  combined save → Edit Wiring/reopen passed in its browser with no page errors.
+  Temporary preview records/flags and maintenance sessions were removed. All 49
+  protected application tables, including administrator/password hash/settings,
+  matched the final-cutover baseline exactly. No real controller contact occurred.
+- Other WLEDger containers retained IDs, images, config, volumes and start times.
+  Deployment evidence: `docs/GUIDED_CONTROLLER_SETUP_8094_RELEASE.md`. No deployment
+  blocker remains; physical commissioning and independent source review stay separate.
