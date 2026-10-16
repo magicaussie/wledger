@@ -18,6 +18,7 @@ templ StorageLayoutEditor(layout storage.CabinetLayout, user auth.User) {
 				<input type="hidden" name="csrf_token" value={csrf.TokenFromContext(ctx)} x-ref="csrf"/>
 				<input type="hidden" name="layout" x-ref="layout"/>
 				<div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-base-300 bg-base-200 p-3">
+					<div class="flex gap-2" role="group" aria-label="Designer mode"><button type="button" class="btn btn-sm" x-bind:class="mode === 'cabinet' ? 'btn-primary' : 'btn-outline'" x-on:click="enterArrangeMode()">Arrange</button><button type="button" class="btn btn-sm" x-bind:class="mode === 'wiring' ? 'btn-secondary' : 'btn-outline'" x-on:click="enterWiringMode()">Edit Wiring</button><span class="badge badge-warning" x-show="mode === 'wiring'">Electrical configuration · review required</span></div>
 					<div class="flex flex-wrap gap-2 items-center">
 						<strong class="mr-2" x-text="mode === 'bins' ? activeDrawer()?.label : state.name"></strong>
 						<button type="button" class="btn btn-sm btn-ghost" x-on:click="undo()" x-bind:disabled="!undoStack.length" aria-label="Undo">↶ Undo</button>
@@ -47,9 +48,10 @@ templ StorageLayoutEditor(layout storage.CabinetLayout, user auth.User) {
 							</section>
 							<section x-show="mode === 'wiring'" class="rounded border border-secondary/40 p-2 space-y-2">
 								<h2 class="font-bold text-sm">Wiring path drawing</h2>
-								<p class="text-xs">Click ordered path points on the cabinet canvas. Double-click to finish the current section.</p>
+								<p class="text-xs">Click ordered path points on the cabinet canvas. Double-click to finish the current section. Arrangement edits do not change wiring or drawer pixel allocations.</p>
+								<fieldset class="rounded border p-2 space-y-2"><legend class="text-xs font-semibold">Generate serpentine path</legend><label class="form-control"><span class="label-text text-xs">Pixels in each row (comma-separated; unequal lengths allowed)</span><input class="input input-bordered input-sm" x-model="serpentineRows" placeholder="8, 8, 5, 7"/></label><div class="flex gap-2"><label class="label cursor-pointer gap-1"><input type="radio" class="radio radio-xs" value="rows" x-model="serpentineAxis"/><span class="label-text text-xs">Rows</span></label><label class="label cursor-pointer gap-1"><input type="radio" class="radio radio-xs" value="columns" x-model="serpentineAxis"/><span class="label-text text-xs">Columns</span></label></div><button type="button" class="btn btn-xs btn-outline" x-on:click="generateSerpentinePath()">Generate section geometry</button></fieldset>
 								<button type="button" class="btn btn-sm btn-secondary w-full" x-on:click="finishPathSection()">Finish path section</button>
-								<button type="button" class="btn btn-sm btn-ghost w-full" x-on:click="mode='cabinet';tool='select';activePathSectionKey='';renderCanvas()">Cancel path drawing</button>
+								<button type="button" class="btn btn-sm btn-ghost w-full" x-on:click="cancelWiringEdit()">Cancel wiring edit</button>
 							</section>
 							<section x-show="mode === 'bins'">
 								<div class="flex justify-between items-center mb-2"><h2 class="font-bold text-sm">Physical bins</h2><button type="button" class="btn btn-xs btn-ghost" x-on:click="closeDrawer()">Back to drawers</button></div>

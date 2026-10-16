@@ -153,6 +153,14 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 		r.Group(func(r chi.Router) {
 			r.Use(mw.RequireRole("editor", "admin"))
 
+			r.Get("/hardware/{id}/wiring-designer", h.HandleWiringDesigner)
+			r.Post("/hardware/{id}/wiring-designer", h.HandleWiringDesignerSave)
+			r.Get("/hardware/{id}/wiring-designer/pixel", h.HandleWiringDesignerPixel)
+			r.Group(func(r chi.Router) {
+				r.Use(mw.RequireRole("admin"))
+				r.Post("/hardware/{id}/wiring-designer/review", h.HandleWiringDesignerElectricalReview)
+				r.Post("/hardware/{id}/wiring-designer/apply", h.HandleWiringDesignerElectricalApply)
+			})
 			r.Get("/hardware/led-test-centre", h.HandleLEDTestCentre)
 			r.Get("/hardware/led-test-centre/data", h.HandleLEDTestCentreData)
 			r.Post("/hardware/led-test-centre/inspect", h.HandleLEDInspect)

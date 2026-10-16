@@ -88,7 +88,16 @@
       get drawer() { return this.drawers.find(d => String(d.id) === String(this.drawerID)); },
       get operations() { return (this.data.operations || []).map(operation); },
       get context() { return JSON.stringify([this.controllerID, this.outputOrder, this.cabinetID, this.drawerID]); },
-      async init() { await this.refresh(); this.applyStyle('test_pixel'); },
+      async init() {
+        await this.refresh(); this.applyStyle('test_pixel');
+        const query = new URLSearchParams(typeof window === 'undefined' ? '' : window.location.search);
+        const requestedController = query.get('controller_id');
+        if (requestedController && this.data.controllers.some(item => String(item.id) === requestedController)) {
+          this.controllerID = requestedController; this.controllerChanged();
+          const requestedPixel = Number(query.get('pixel'));
+          if (Number.isSafeInteger(requestedPixel) && requestedPixel >= 0 && requestedPixel < Number(this.controller?.led_count || 0)) { this.pixel = requestedPixel; this.tab = 'pixel'; }
+        }
+      },
       async request(path, body) {
         const options = { credentials: 'same-origin', headers: { Accept: 'application/json' } };
         if (body !== undefined) {

@@ -1541,3 +1541,91 @@ M6/handover working-tree changes remain uncommitted and excluded from this task.
   the authorized development branch) needs explicit owner approval before a commit/push to
   `origin/development/chatgpt-m6-m7`. No merge to `main`, release, deployment or physical
   WLED operation was performed.
+
+## Graphical LED Wiring Designer — approved implementation, not deployed — 2026-10-17
+
+- **Authorization:** owner approved implementation of the graphical designer and
+  simulator-only automated/browser verification. Do not deploy, modify the running
+  installation, contact physical controllers or enable physical output. This task
+  does not authorize merging to main or publishing from an unapproved branch.
+- **Baseline/worktree:** integrated application at `f546493`, branch
+  `integration/led-into-rc-8094`, worktree `.led-8094-integration`. The existing
+  untracked `.live-e2e/` and `compose.led-8094.yaml` are preserved. Changes remain
+  uncommitted/unpushed; current publication branch is not the authorized development
+  branch. The running 8094 image and its data were not changed for this task.
+- **Implementation:** controller-level SVG designer with straight, rectangular,
+  irregular row/column and custom-pixel layouts; independent output groups; split
+  strip sections with independent offsets/rotation; output/pixel dragging; zoom,
+  pan and focus controls; physical numbering, traversal arrows and endpoint labels;
+  zero-pixel jumpers; bounded raster background placement; save/reopen. Cabinet
+  path editing additionally has explicit Arrange/Edit Wiring modes and a variable
+  row-length path generator.
+- **Preservation architecture:** graphical metadata is an additive versioned system
+  flag, not controller output configuration. Visual revisions and transactional
+  topology signatures reject stale saves. Stable output IDs reference electrical
+  configuration. Existing topology resolution, drawer allocations and bin overrides
+  remain authoritative. No migration or automatic conversion is introduced.
+- **Electrical changes:** separate administrator-only review/apply endpoints with
+  exact `APPLY WIRING` confirmation, repeated validation, known/unique output IDs,
+  topology signature and operation-claim serialization. Existing cabinet membership
+  (including legacy cabinet references), mapped bins, active/unresolved ownership
+  and emergency barriers conservatively prevent electrical changes. Eligible
+  unmapped controllers can add/reorder/resize/reverse outputs without replacing
+  retained IDs. Drawing edits remain available for protected installations.
+- **Integration:** Hardware and Test Centre entry points; selected-pixel deep links
+  preselect the Test Centre without inspecting or activating hardware. Canonical
+  output previews and a saved-topology pixel endpoint resolve all cabinet addresses,
+  including unallocated pixels. Drawer-relative offsets use the existing resolver's
+  cumulative range offsets. GPIO/firmware identity is never inferred from drawings.
+- **Persistence/security:** metadata, section transforms, pixel overrides, jumpers
+  and embedded PNG/JPEG backgrounds participate in existing system-flag backup and
+  restore. Strict JSON, bounded counts/coordinates/metadata, raster limits, exact
+  section coverage, unique identities, role checks and CSRF protect writes.
+- **Delegation/review:** bounded backend, interface and test work was delegated to
+  GPT-6 Luna as requested. Worker reports were not acceptance. Lead review corrected
+  incomplete section persistence/rendering, missing electrical route registration,
+  ownership/dependency checks, incorrect column defaults, drawer-relative offsets,
+  physical direction/numbering, custom dragging transforms and test harness issues.
+- **Verification:** full Go tests and race suite, build/vet, JS tests, sqlc regeneration,
+  templ generation, CSS generation, dedicated designer browser, LED Test Centre
+  browser, CSRF, layout/physical-first/barcode browsers and inventory-lifecycle plus
+  separate-app restore browser passed. Designer acceptance blocks external browser
+  traffic, supplies local Alpine, and asserts zero controller requests/writes for
+  drawing/selection. It covers pixel dragging, section transforms, rows/columns,
+  raster/jumper reopening, mapping/ID preservation, stale saves, protected electrical
+  edits, required confirmation, successful unmapped reversal and adding a second
+  independent output. Initial race fixture collision and stale copied test selectors
+  were corrected before passing reruns.
+- **Operator guide:** `docs/LED_WIRING_DESIGNER.md`. Backgrounds support PNG/JPEG
+  only (1 MiB, 4096px per dimension, 16MP). Large output drawings sample displayed
+  pixels. Electrical remapping of already-mapped installations is deliberately
+  blocked rather than inventing an automatic migration. Physical commissioning and
+  independent published-source review remain separate future gates.
+
+## Wiring Designer release candidate publication and isolated 8094 upgrade — 2026-10-17
+
+- Owner accepts the verified implementation and explicitly authorizes a scoped commit
+  in the isolated integration worktree, normal fast-forward publication to
+  `origin/development/chatgpt-m6-m7`, complete image build, recoverable backup,
+  copied-data acceptance and upgrade of only the isolated port-8094 installation.
+  This supersedes this task's earlier no-commit/no-deployment restriction and permits
+  the integration-branch source commit; no main merge or other deployment is authorized.
+- Before publication, fetch verified that the remote development tip `b235bfd` is
+  an ancestor of integration baseline `f546493`, with zero remote-only commits.
+  Existing untracked `.live-e2e/`, `compose.led-8094.yaml`, generated test debris and
+  private backup/operational files remain excluded from the feature commit.
+- Fresh release gates passed: build/vet, complete race suite, JavaScript tests and
+  the dedicated isolated designer browser acceptance. Previously recorded complete
+  test and browser results remain applicable to the accepted source.
+- Consistent pre-upgrade backup was taken with only 8094 briefly stopped, including
+  SQLite/WAL consolidation, uploads, logs, previous Compose and container configuration.
+  Integrity and foreign-key checks passed at migration 27; the current install has
+  one account, no inventory parts and no controllers. Private recovery material is
+  in `.8094-backups/20261017-pre-wiring-designer/`, outside the committed source.
+- Deployment gates: prove that backup starts, test the published candidate image on
+  a separate data copy, verify existing account/password/settings fingerprints,
+  graphical save/reopen and app backup/restore, then refresh the live backup before
+  the in-place swap. Preserve the same 8094 volumes and physical-output=false.
+  Live UI validation may use a short-lived maintenance session for the existing admin
+  (no password reset) and temporary offline loopback-only test records, removed after
+  checking. No real controller contact is authorized. Ports 8090–8093 remain untouched.

@@ -3864,6 +3864,9 @@
   .h-\[60vh\] {
     height: 60vh;
   }
+  .h-\[70vh\] {
+    height: 70vh;
+  }
   .h-\[112px\] {
     height: 112px;
   }
@@ -3935,6 +3938,9 @@
   }
   .min-h-\[420px\] {
     min-height: 420px;
+  }
+  .min-h-\[480px\] {
+    min-height: 480px;
   }
   .min-h-screen {
     min-height: 100vh;
@@ -4117,6 +4123,9 @@
   }
   .min-w-\[220px\] {
     min-width: 220px;
+  }
+  .min-w-\[760px\] {
+    min-width: 760px;
   }
   .flex-1 {
     flex: 1;
@@ -5021,6 +5030,14 @@
       --size: calc(var(--size-selector, 0.25rem) * 4);
     }
   }
+  .radio-xs {
+    @layer daisyui.l1.l2 {
+      padding: 0.125rem;
+      &:is([type="radio"]) {
+        --size: calc(var(--size-selector, 0.25rem) * 4);
+      }
+    }
+  }
   .p-0 {
     padding: calc(var(--spacing) * 0);
   }
@@ -5387,6 +5404,11 @@
   .textarea-sm {
     @layer daisyui.l1.l2 {
       font-size: max(var(--font-size, 0.75rem), 0.75rem);
+    }
+  }
+  .textarea-xs {
+    @layer daisyui.l1.l2 {
+      font-size: max(var(--font-size, 0.6875rem), 0.6875rem);
     }
   }
   .leading-5 {
@@ -7465,6 +7487,11 @@
   .xl\:grid-cols-\[190px_minmax\(0\,1fr\)_300px\] {
     @media (width >= 80rem) {
       grid-template-columns: 190px minmax(0,1fr) 300px;
+    }
+  }
+  .xl\:grid-cols-\[minmax\(0\,1fr\)_320px\] {
+    @media (width >= 80rem) {
+      grid-template-columns: minmax(0,1fr) 320px;
     }
   }
   .xl\:gap-x-14 {

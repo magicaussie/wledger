@@ -27,6 +27,8 @@ type Service interface {
 	CreateControllerConfigured(ctx context.Context, params db.CreateControllerParams, settings controllerconfig.Settings) (db.CreateControllerRow, error)
 	UpdateController(ctx context.Context, id int64, params db.CreateControllerParams) error
 	UpdateControllerConfigured(ctx context.Context, id int64, params db.CreateControllerParams, settings controllerconfig.Settings, confirmMappingImpact bool) error
+	ReviewWiringDesigner(ctx context.Context, id int64, settings controllerconfig.Settings) (ElectricalReview, error)
+	ApplyWiringDesigner(ctx context.Context, id int64, settings controllerconfig.Settings, expectedSignature string) error
 	GetControllerOutputs(ctx context.Context, id int64) ([]db.ControllerOutput, error)
 	DeleteController(ctx context.Context, id int64) error
 	UpdateStatus(ctx context.Context, id int64) (bool, error)

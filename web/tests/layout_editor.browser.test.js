@@ -345,6 +345,8 @@ assert.equal(Number(await drawerX.inputValue()), 10);
       for (const [x, y] of points) { const screen = await point(x, y); await page.mouse.click(screen.x, screen.y); }
       await canvas.evaluate(svg => svg.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
     };
+    await page.getByRole('button', { name: 'Edit Wiring' }).click();
+    assert.equal(await page.locator('input[x-model="string.pixel_count"]').count(), 0, 'Edit Wiring must not introduce duplicate electrical output settings');
     const serpentineRows = [
       [[60, 10], [70, 10]], [[70, 15], [60, 15]], [[60, 20], [70, 20]], [[70, 25], [60, 25]],
     ];
@@ -352,8 +354,15 @@ assert.equal(Number(await drawerX.inputValue()), 10);
       await addPathButtons().first().click();
       await sectionPixels().last().fill('25');
       assert.equal(await page.getByText('Wiring path drawing').count(), 1, 'adding a path section should activate path drawing mode');
-      await clickPathPoints(serpentineRows[index]);
-      assert.equal(await page.getByText(new RegExp(`Section ${index + 1} · 25 pixels · 2 path points`)).count(), 1, `section ${index + 1} should retain its ordered path points`);
+      if (index === 0) {
+        await page.locator('input[x-model="serpentineRows"]').fill('12, 13');
+        await page.getByRole('button', { name: 'Generate section geometry' }).click();
+        assert.equal(await sectionPixels().last().inputValue(), '25', 'variable row counts should preserve total output pixel accounting');
+      } else {
+        await clickPathPoints(serpentineRows[index]);
+      }
+      const expectedPoints = index === 0 ? 26 : 2;
+      assert.equal(await page.getByText(new RegExp(`Section ${index + 1} · 25 pixels · ${expectedPoints} path points`)).count(), 1, `section ${index + 1} should retain its ordered path points`);
     }
     await page.locator('input[x-model="string.layout_complete"]').first().check();
     await page.getByRole('button', { name: 'Save output paths' }).click();

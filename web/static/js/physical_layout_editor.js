@@ -35,6 +35,8 @@ function physicalLayoutEditor() {
     legacyLedDraftNotice: '',
     mode: 'cabinet',
     tool: 'select',
+    serpentineRows: '',
+    serpentineAxis: 'rows',
     selection: { kind: '', key: '' },
     activeDrawerKey: '',
     selectedAvailableBin: '',
@@ -271,6 +273,43 @@ function physicalLayoutEditor() {
       this.dirty = false;
     },
     setTool(tool) { this.tool = tool; this.pointerOp = null; },
+    enterArrangeMode() {
+      if (this.mode === 'wiring' && this.activePathSectionKey && !window.confirm('Leave the current path section unfinished? Its draft points will remain unsaved.')) return;
+      this.mode = 'cabinet'; this.tool = 'select'; this.activePathSectionKey = ''; this.renderCanvas();
+    },
+    enterWiringMode() {
+      if (this.dirty) { this.error = 'Save or cancel physical arrangement changes before entering Edit Wiring.'; return; }
+      this.error = ''; this.mode = 'wiring'; this.tool = 'select'; this.renderCanvas();
+    },
+    cancelWiringEdit() {
+      if (this.hasUnsavedElectricalChanges() && !window.confirm('Discard unsaved electrical wiring edits? Saved drawer allocations and output identities will not be changed.')) return;
+      window.location.reload();
+    },
+    generateSerpentinePath() {
+      const string = this.wiringStrings.find(item => item.key === this.selectedStringKey);
+      const section = this.currentPathSection();
+      if (!string || !section) { this.wiringSaveError = 'Select an output and start or select a path section first.'; return; }
+      const lengths = this.serpentineRows.split(',').map(value => Number(value.trim()));
+      if (!lengths.length || lengths.some(value => !Number.isSafeInteger(value) || value < 1) || lengths.reduce((sum, value) => sum + value, 0) > 100000) {
+        this.wiringSaveError = 'Enter positive whole-pixel row lengths (maximum 100,000 pixels total).'; return;
+      }
+      const width = Math.max(1, this.state.width), height = Math.max(1, this.state.height);
+      const points = [];
+      lengths.forEach((count, row) => {
+        const y = height * ((row + 0.5) / lengths.length);
+        const left = width * 0.05, right = width * 0.95;
+        const first = row % 2 === 0 ? left : right, last = row % 2 === 0 ? right : left;
+        if (row) points.push({ x: first, y: height * ((row - 0.5) / lengths.length) });
+        for (let pixel = 0; pixel < count; pixel++) {
+          const fraction = count === 1 ? 0.5 : pixel / (count - 1);
+          points.push({ x: Number((first + (last - first) * fraction).toFixed(3)), y: Number(y.toFixed(3)) });
+        }
+      });
+      if (this.serpentineAxis === 'columns') points.forEach(point => { [point.x, point.y] = [Number((point.y * width / height).toFixed(3)), Number((point.x * height / width).toFixed(3))]; });
+      section.pixel_count = String(lengths.reduce((sum, value) => sum + value, 0));
+      section.points = points; string.layout_complete = false;
+      this.wiringSaveError = ''; this.wiringMappingImpactConfirmed = false; this.renderCanvas();
+    },
     canvasWidth() { return this.mode === 'bins' ? (this.activeDrawer()?.width || 1) : this.state.width; },
     canvasHeight() { return this.mode === 'bins' ? (this.activeDrawer()?.height || 1) : this.state.height; },
     canvasViewBox() {
