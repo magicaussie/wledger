@@ -220,7 +220,7 @@ func TestPhysicalLocateStopRacingActivationCompletesTargetedCleanupInOrder(t *te
 	}
 }
 
-func TestPhysicalLocateTwoConnectionsConcurrentLocateHasOneDurableOwner(t *testing.T) {
+func TestPhysicalLocateTwoConnectionsConcurrentLocateHasDisjointDurableOwners(t *testing.T) {
 	fixture := newPhysicalFixture(t)
 	store2, _ := secondPhysicalStore(t, fixture)
 	service2 := NewPhysicalLocateService(store2, NewClient())
@@ -263,7 +263,7 @@ func TestPhysicalLocateTwoConnectionsConcurrentLocateHasOneDurableOwner(t *testi
 			active++
 		}
 	}
-	if active != 1 {
+	if active != 2 {
 		t.Fatalf("durable active session count = %d, sessions=%+v", active, sessions)
 	}
 	targets, err := store2.ListPhysicalLocateSessionTargets(context.Background(), sessions[0].SessionID)

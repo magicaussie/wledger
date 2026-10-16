@@ -896,7 +896,7 @@ const path = require('node:path');
       const crashWrites = [];
       const stopPageForDrawer = async () => {
         await page.goto(`${baseURL}/storage/drawers/1?bin_id=2`);
-        const stopButton = page.getByRole('button', { name: 'Stop Locate / Turn Off Allocated LEDs' });
+        const stopButton = page.getByRole('button', { name: 'Stop This LED Operation' });
         if (await stopButton.count() !== 1) {
           throw new Error(`recovered Locate Stop control is missing; url=${page.url()} body=${(await page.locator('body').innerText()).slice(0, 3000)} durable=${JSON.stringify(readOnlyRows(databasePath, 'SELECT session_id,state,drawer_id,bin_id,owner_id FROM physical_locate_sessions'))}`);
         }
@@ -1622,7 +1622,7 @@ async function exerciseMockLocate(page, baseURL, firstPartID, bins, mockWrites, 
     });
     assert.deepEqual(activation, testCase.expected.map(([controller, segment, start, end]) => [controller, segment, start, end, [0, 0, 128]]));
     const stopWriteStart = mockWrites.length;
-    await page.getByRole('button', { name: 'Stop Locate / Turn Off Allocated LEDs' }).click();
+    await page.getByRole('button', { name: 'Stop This LED Operation' }).click();
     await page.waitForURL(`${baseURL}/storage/drawers/${testCase.drawerID}?stopped=1`);
     const stop = mockWrites.slice(stopWriteStart).map(({ controller, payload }) => ({ controller, payload }));
     assert.equal(stop.length, testCase.expected.length);

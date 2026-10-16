@@ -5,12 +5,13 @@ import (
 	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/i18n"
+	"github.com/tuxedocurly/wledger/internal/wled"
 	"github.com/tuxedocurly/wledger/web/components"
 	"github.com/tuxedocurly/wledger/web/icons"
 	"github.com/tuxedocurly/wledger/web/layouts"
 )
 
-templ Settings(user auth.User, s db.Setting, users []db.ListUsersRow) {
+templ Settings(user auth.User, s db.Setting, users []db.ListUsersRow, functions wled.FunctionSettings, functionError string) {
 	@layouts.Base(i18n.T(ctx, "Settings"), user) {
 		<div class="max-w-4xl mx-auto w-full">
 			@components.PageHeader(i18n.T(ctx, "Settings"), i18n.T(ctx, "SettingsDescription"), nil)
@@ -179,11 +180,9 @@ templ Settings(user auth.User, s db.Setting, users []db.ListUsersRow) {
 										{ i18n.T(ctx, "InterfaceColors") }
 									</h3>
 									<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-										@components.ColorPicker(i18n.T(ctx, "LocateAction"), "color_locate", s.ColorLocate.String)
 										@components.ColorPicker(i18n.T(ctx, "StockLevelOK"), "color_ok", s.ColorStockOk.String)
 										@components.ColorPicker(i18n.T(ctx, "StockLevelLow"), "color_low", s.ColorStockLow.String)
 										@components.ColorPicker(i18n.T(ctx, "StockLevelCritical"), "color_critical", s.ColorStockCritical.String)
-										@components.ColorPicker(i18n.T(ctx, "ErrorColor"), "color_error", s.ColorError.String)
 									</div>
 								</div>
 								<div>
@@ -234,6 +233,45 @@ templ Settings(user auth.User, s db.Setting, users []db.ListUsersRow) {
 							</form>
 						</div>
 					</div>
+					<div class="card bg-base-200 shadow-xl border border-base-300">
+						<div class="card-body">
+							<h3 class="font-bold">LED function settings</h3>
+							<p class="text-sm opacity-70">Central LED colors and brightness (0–255). Preview is on-screen only; saving never activates LEDs. Stock interface colors above remain separate. Legacy Locate/flash colors are retained until the first save or reset here.</p>
+							if functionError != "" {
+								<p role="alert" class="text-error">{ functionError }</p>
+							}
+							<form action="/settings" method="POST" class="space-y-4">
+								@components.CSRFInput()
+								for _, name := range wled.FunctionNames() {
+									@LEDStyleEditor(name, functions[name])
+								}
+								<button type="submit" name="led_action" value="save" class="btn btn-primary">Save LED functions</button>
+								<button type="submit" name="led_action" value="reset" formnovalidate class="btn btn-outline" onclick="return confirm('Reset all LED function colors and brightness to defaults?')">Reset LED defaults</button>
+							</form>
+						</div>
+					</div>
+					<script>
+      function updateLEDStyle(row, source) {
+       const text = row.querySelector('[data-led-color]');
+       const picker = row.querySelector('[data-led-picker]');
+       const brightness = row.querySelector('[data-led-brightness]');
+       const preview = row.querySelector('[data-led-preview]');
+       if (source === picker) text.value = picker.value.toUpperCase();
+       const value = text.value.trim();
+       let hex = null;
+       if (/^#?[0-9a-f]{6}$/i.test(value)) hex = '#' + value.replace(/^#/, '').toUpperCase();
+       const rgb = value.match(/^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/i);
+       if (rgb && rgb.slice(1).every(v => Number(v) <= 255)) hex = '#' + rgb.slice(1).map(v => Number(v).toString(16).padStart(2, '0')).join('').toUpperCase();
+       text.setCustomValidity(hex ? '' : 'Enter six-digit HEX or rgb(r,g,b), channels 0–255.');
+       if (!hex) return;
+       picker.value = hex;
+       const level = Number(brightness.value);
+       if (!Number.isInteger(level) || level < 0 || level > 255) return;
+       const channels = [1, 3, 5].map(i => Math.floor(parseInt(hex.slice(i, i + 2), 16) * level / 255));
+       preview.style.backgroundColor = 'rgb(' + channels.join(',') + ')';
+       preview.textContent = hex + ' / ' + level;
+      }
+     </script>
 					@components.BackupRestore()
 					<div class="card bg-base-200 shadow-xl border border-base-300">
 						<div class="card-body">
@@ -310,4 +348,31 @@ templ Settings(user auth.User, s db.Setting, users []db.ListUsersRow) {
 			</div>
 		</div>
 	}
+}
+
+templ LEDStyleEditor(name string, style wled.FunctionStyle) {
+	<fieldset class="border border-base-300 rounded-lg p-4 space-y-2" oninput="updateLEDStyle(this, event.target)">
+		<legend class="font-medium">{ name }</legend>
+		<label class="flex items-center gap-2">
+			<span>Color picker</span>
+			<input type="color" data-led-picker value={ style.Color } aria-label={ name + " color picker" }/>
+		</label>
+		<label class="flex items-center gap-2">
+			<span>HEX / RGB</span>
+			<input type="text" data-led-color name={ "led_color_" + name } value={ style.Color } required class="input input-bordered font-mono" placeholder="#00FF00 or rgb(0,255,0)"/>
+		</label>
+		<label class="flex items-center gap-2">
+			<span>Brightness</span>
+			<input type="number" data-led-brightness name={ "led_brightness_" + name } value={ fmt.Sprint(style.Brightness) } min="0" max="255" step="1" required class="input input-bordered w-24"/>
+		</label>
+		<output data-led-preview class="block rounded p-2 border border-base-300" style={ templ.SafeCSS(fmt.Sprintf("background-color: %s; color: #fff; text-shadow: 0 1px 3px #000", ledStylePreview(style))) }>{ fmt.Sprintf("%s / %d", style.Color, style.Brightness) }</output>
+	</fieldset>
+}
+
+func ledStylePreview(style wled.FunctionStyle) string {
+	rgb, err := style.RGB()
+	if err != nil {
+		return "#000000"
+	}
+	return fmt.Sprintf("#%02X%02X%02X", rgb[0], rgb[1], rgb[2])
 }

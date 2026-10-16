@@ -77,6 +77,9 @@ type PhysicalLocateSession struct {
 	Ranges                  []ControllerRange
 	Color                   string
 	Brightness              int
+	Function                string
+	Duration                time.Duration
+	ExpiresAt               time.Time
 	LastOperation           string
 	LastOperationAt         time.Time
 	LastSuccessfulOperation string
@@ -86,6 +89,7 @@ type PhysicalLocateSession struct {
 }
 
 type physicalControllerTarget struct {
+	ownership         []db.PhysicalOwnershipRange
 	ControllerID      int64
 	ControllerAddress string
 	ControllerPort    int64
@@ -133,7 +137,7 @@ type PhysicalLocateService struct {
 	mu       sync.Mutex
 	retryMu  sync.Mutex
 	locks    map[int64]*sync.Mutex
-	sessions map[int64]*physicalSessionState
+	sessions map[string]*physicalSessionState
 }
 
 func NewPhysicalLocateService(store db.Store, client *Client) *PhysicalLocateService {
@@ -142,7 +146,7 @@ func NewPhysicalLocateService(store db.Store, client *Client) *PhysicalLocateSer
 		store:    store,
 		client:   client,
 		locks:    make(map[int64]*sync.Mutex),
-		sessions: make(map[int64]*physicalSessionState),
+		sessions: make(map[string]*physicalSessionState),
 	}
 	_ = s.ensureLoaded(context.Background())
 	return s
@@ -159,7 +163,7 @@ func (s *PhysicalLocateService) LocateInventoryBin(ctx context.Context, partID, 
 		return PhysicalLocateSession{}, errors.New("part, bin, and authenticated user are required")
 	}
 	var found bool
-	if err := s.store.ExecTx(ctx, func(q db.Querier) error {
+	if err := db.ExecLEDRead(ctx, s.store, func(q db.LEDQuerier) error {
 		_, err := q.GetAssignmentID(ctx, db.GetAssignmentIDParams{PartID: partID, BinID: sql.NullInt64{Int64: binID, Valid: true}})
 		if errors.Is(err, sql.ErrNoRows) {
 			return fmt.Errorf("bin %d is not a current inventory location for part %d", binID, partID)
@@ -175,7 +179,7 @@ func (s *PhysicalLocateService) LocateInventoryBin(ctx context.Context, partID, 
 	if !found {
 		return PhysicalLocateSession{}, fmt.Errorf("bin %d is not a current inventory location for part %d", binID, partID)
 	}
-	return s.locate(ctx, 0, binID, ownerID)
+	return s.locateFunction(ctx, 0, binID, ownerID, "locate_part")
 }
 
 // LocateDrawerBin starts (or switches) the application-owned Locate session for
@@ -192,45 +196,55 @@ func (s *PhysicalLocateService) LocateDrawerBin(ctx context.Context, drawerID, b
 }
 
 func (s *PhysicalLocateService) locate(ctx context.Context, expectedDrawerID, binID, ownerID int64) (PhysicalLocateSession, error) {
+	return s.locateFunction(ctx, expectedDrawerID, binID, ownerID, "locate_bin")
+}
+
+func (s *PhysicalLocateService) locateFunction(ctx context.Context, expectedDrawerID, binID, ownerID int64, function string) (PhysicalLocateSession, error) {
+	return s.startPhysical(ctx, binID, ownerID, function, locateBrightness, locateSessionTimeout, func(q db.LEDQuerier) (resolvedPhysicalLocation, error) {
+		return s.resolveWithQuerier(ctx, q, expectedDrawerID, binID)
+	})
+}
+
+func (s *PhysicalLocateService) startPhysical(ctx context.Context, binID, ownerID int64, function string, brightness int, duration time.Duration, resolve func(db.LEDQuerier) (resolvedPhysicalLocation, error)) (PhysicalLocateSession, error) {
 	if err := requirePhysicalOutput(); err != nil {
 		return PhysicalLocateSession{}, err
 	}
-	physicalLocateCoordinator.Lock()
+	if err := lockPhysicalLocateCoordinator(ctx); err != nil {
+		return PhysicalLocateSession{}, err
+	}
 	defer physicalLocateCoordinator.Unlock()
 	if err := s.ensureLoaded(ctx); err != nil {
 		return PhysicalLocateSession{}, fmt.Errorf("load prior Locate cleanup state: %w", err)
 	}
-	if _, old := s.activeSession(); old != nil {
-		if old.OwnerID != ownerID {
-			return PhysicalLocateSession{}, ErrLocateSessionOwned
-		}
-		unlock := s.lockSessionTargets(old)
-		current := s.getSession(old.ControllerID)
-		if current != nil && current.ID == old.ID && isActivePhysicalSession(current.State) {
-			err := s.restoreSession(ctx, current)
-			unlock()
-			if err != nil {
-				return PhysicalLocateSession{}, fmt.Errorf("could not safely stop the previous drawer Locate: %w", err)
-			}
-		} else {
-			unlock()
-		}
-	}
 
+	if err := db.ExecLEDRead(ctx, s.store, func(q db.LEDQuerier) error {
+		location, err := resolve(q)
+		if err != nil {
+			return err
+		}
+		return rejectKnownPhysicalOverlap(ctx, q, location)
+	}); err != nil {
+		return PhysicalLocateSession{}, err
+	}
 	var location resolvedPhysicalLocation
 	var session *physicalSessionState
 	controllersByID := make(map[int64]db.Controller)
-	err := db.WithOperationClaim(ctx, s.store, func(q db.Querier) error {
-		owned, err := db.HasPhysicalLocateOwnership(ctx, q)
-		if err != nil {
-			return fmt.Errorf("check durable Locate ownership before reservation: %w", err)
-		}
-		if owned {
-			return ErrLocateSessionActive
-		}
-		location, err = s.resolveWithQuerier(ctx, q, expectedDrawerID, binID)
+	err := db.WithLEDOperationClaim(ctx, s.store, func(q db.LEDQuerier) error {
+		var err error
+		location, err = resolve(q)
 		if err != nil {
 			return err
+		}
+		if function == "locate_part" || function == "locate_bin" {
+			if _, settingsErr := q.GetFlag(ctx, FunctionSettingsKey); settingsErr == nil {
+				styles, loadErr := LoadFunctionSettings(ctx, q)
+				if loadErr != nil {
+					return loadErr
+				}
+				location.color, brightness = styles[function].Color, styles[function].Brightness
+			} else if !errors.Is(settingsErr, sql.ErrNoRows) {
+				return settingsErr
+			}
 		}
 		if len(location.targets) == 0 || len(location.ranges) == 0 {
 			return ErrNoDrawerLEDAllocation
@@ -241,18 +255,28 @@ func (s *PhysicalLocateService) locate(ctx context.Context, expectedDrawerID, bi
 			if !controller.LocateMappingVerified || strings.TrimSpace(controller.LocateMappingFingerprint) == "" {
 				return fmt.Errorf("controller #%d: %w", controller.ID, ErrLocateMappingUnverified)
 			}
-			info, cfg, state, mappingFingerprint, err := s.client.inspectPhysicalController(ctx, controller, controller.LedCount)
+			info, cfg, state, mappingFingerprint, err := s.client.inspectPhysicalController(ctx, controller, controller.LedCount, strings.Contains(function, ":") && wholeControllerRange(resolved.ranges, controller.LedCount))
 			if err != nil {
 				return fmt.Errorf("validate controller #%d before multi-controller Locate: %w", controller.ID, err)
 			}
 			if mappingFingerprint != controller.LocateMappingFingerprint {
 				return fmt.Errorf("controller #%d: %w", controller.ID, ErrLocateMappingUnverified)
 			}
-			commands, fingerprint, err := mapPhysicalRanges(resolved.ranges, controller, controller.LedCount, info, cfg, state, location.color, locateBrightness)
+			// Only an explicitly requested test owning the whole controller may
+			// wake it. Partial ranges and ordinary Locate never change global power.
+			if strings.Contains(function, ":") && wholeControllerRange(resolved.ranges, controller.LedCount) {
+				state.On = true
+			}
+			commands, fingerprint, err := mapPhysicalRanges(resolved.ranges, controller, controller.LedCount, info, cfg, state, location.color, brightness)
 			if err != nil {
 				return fmt.Errorf("map controller #%d pixels before activation: %w", controller.ID, err)
 			}
+			claims, err := physicalOwnershipRanges(info, cfg, resolved.ranges, controller.LedCount)
+			if err != nil {
+				return err
+			}
 			prepared = append(prepared, physicalControllerTarget{
+				ownership:    claims,
 				ControllerID: controller.ID, ControllerAddress: controller.IpAddress, ControllerPort: controllerPort(controller),
 				Ranges: append([]ControllerRange(nil), resolved.ranges...), Commands: commands, Fingerprint: fingerprint,
 			})
@@ -273,8 +297,9 @@ func (s *PhysicalLocateService) locate(ctx context.Context, expectedDrawerID, bi
 				ID: id, ControllerID: primary.ControllerID, ControllerAddress: primary.ControllerAddress,
 				ControllerPort: primary.ControllerPort, DrawerID: location.drawer.ID, BinID: binID,
 				CabinetName: location.cabinet.Name, DrawerName: location.drawer.Label, OwnerID: ownerID,
+				Function: function, Duration: duration, ExpiresAt: now.Add(duration),
 				State: "activating", Ranges: append([]ControllerRange(nil), location.ranges...),
-				AffectedControllerIDs: affected, Color: location.color, Brightness: locateBrightness,
+				AffectedControllerIDs: affected, Color: location.color, Brightness: brightness,
 				LastOperation: "multi-controller Locate requested", LastOperationAt: now,
 			},
 			fingerprint: primary.Fingerprint, commands: append([]physicalPixelCommand(nil), primary.Commands...), targets: prepared,
@@ -301,7 +326,11 @@ func (s *PhysicalLocateService) locate(ctx context.Context, expectedDrawerID, bi
 		}
 		controller := controllersByID[target.ControllerID]
 		commandCtx, cancel := context.WithTimeout(ctx, physicalLocateControllerTimeout)
-		_, commandErr := s.withPhysicalCommandClaim(commandCtx, session.ID, target, []string{"activating"}, controller, scaleRGB(colorRGB(location.color), locateBrightness), false)
+		initialRGB := scaleRGB(colorRGB(location.color), brightness)
+		if IsPatternFunction(function) {
+			initialRGB = []int{0, 0, 0}
+		}
+		_, commandErr := s.withPhysicalCommandClaim(commandCtx, session.ID, target, []string{"activating"}, controller, initialRGB, false)
 		cancel()
 		if commandErr != nil {
 			target.LastError = commandErr.Error()
@@ -355,9 +384,7 @@ func (s *PhysicalLocateService) locate(ctx context.Context, expectedDrawerID, bi
 		return PhysicalLocateSession{}, fmt.Errorf("activation was cleaned up because the final session update failed: %w", err)
 	}
 	s.retryMu.Lock()
-	session.timer = time.AfterFunc(locateSessionTimeout, func() {
-		_ = s.runScheduledCleanupRetry(session.ControllerID, ownerID, session.ID)
-	})
+	session.timer = time.AfterFunc(max(time.Duration(0), time.Until(session.ExpiresAt)), s.cleanupRetryCallback(session.ControllerID, ownerID, session.ID))
 	s.retryMu.Unlock()
 	return session.PhysicalLocateSession, nil
 }
@@ -404,7 +431,7 @@ func (s *PhysicalLocateService) SaveControllerMappingVerification(ctx context.Co
 		}
 		fingerprint = verifiedFingerprint
 	}
-	return db.WithOperationClaim(ctx, s.store, func(q db.Querier) error {
+	return db.WithLEDOperationClaim(ctx, s.store, func(q db.LEDQuerier) error {
 		owned, err := db.HasPhysicalLocateOwnership(ctx, q)
 		if err != nil {
 			return err
@@ -544,7 +571,7 @@ func activeOutputPins(output physicalOutput) ([]int64, error) {
 
 func (s *PhysicalLocateService) resolve(ctx context.Context, expectedDrawerID, binID int64) (resolvedPhysicalLocation, error) {
 	var result resolvedPhysicalLocation
-	err := s.store.ExecTx(ctx, func(q db.Querier) error {
+	err := db.ExecLEDRead(ctx, s.store, func(q db.LEDQuerier) error {
 		var err error
 		result, err = s.resolveWithQuerier(ctx, q, expectedDrawerID, binID)
 		return err
@@ -552,7 +579,7 @@ func (s *PhysicalLocateService) resolve(ctx context.Context, expectedDrawerID, b
 	return result, err
 }
 
-func (s *PhysicalLocateService) resolveWithQuerier(ctx context.Context, q db.Querier, expectedDrawerID, binID int64) (resolvedPhysicalLocation, error) {
+func (s *PhysicalLocateService) resolveWithQuerier(ctx context.Context, q db.LEDQuerier, expectedDrawerID, binID int64) (resolvedPhysicalLocation, error) {
 	attachment, err := q.GetBinDrawerAttachment(ctx, binID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return resolvedPhysicalLocation{}, fmt.Errorf("%w: bin %d", ErrPhysicalBinMissing, binID)
@@ -588,6 +615,14 @@ func (s *PhysicalLocateService) resolveWithQuerier(ctx context.Context, q db.Que
 	if err != nil {
 		return resolvedPhysicalLocation{}, fmt.Errorf("resolve cabinet-wide LED numbering: %w", err)
 	}
+	// Explicit bin overrides select one pixel. Only absent overrides use the
+	// historical whole-drawer fallback; stale mappings must fail closed.
+	_, assignedPixel, _, overrideErr := ResolveBinPixelOverride(ctx, q, binID, drawer.ID, topology, allocations)
+	if overrideErr == nil {
+		allocations = []db.DrawerLedAllocation{{CabinetID: cabinet.ID, DrawerID: drawer.ID, StartPixel: assignedPixel, PixelCount: 1}}
+	} else if !IsBinPixelUnconfigured(overrideErr) {
+		return resolvedPhysicalLocation{}, overrideErr
+	}
 	globalRanges := make([]ControllerRange, 0, len(allocations))
 	localRanges := make(map[int64][]ControllerRange)
 	for _, allocation := range allocations {
@@ -613,13 +648,23 @@ func (s *PhysicalLocateService) resolveWithQuerier(ctx context.Context, q db.Que
 	if len(targets) == 0 {
 		return resolvedPhysicalLocation{}, ErrNoDrawerLEDAllocation
 	}
-	settings, err := q.GetSettings(ctx)
-	if err != nil {
-		return resolvedPhysicalLocation{}, fmt.Errorf("read Locate color setting: %w", err)
-	}
-	color := strings.TrimSpace(settings.ColorLocate.String)
-	if color == "" {
-		color = "#0000FF"
+	color := "#0000FF"
+	if _, settingsErr := q.GetFlag(ctx, FunctionSettingsKey); settingsErr == nil {
+		styles, err := LoadFunctionSettings(ctx, q)
+		if err != nil {
+			return resolvedPhysicalLocation{}, err
+		}
+		color = styles["locate_bin"].Color
+	} else if errors.Is(settingsErr, sql.ErrNoRows) {
+		settings, err := q.GetSettings(ctx)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return resolvedPhysicalLocation{}, fmt.Errorf("read Locate color setting: %w", err)
+		}
+		if legacy := strings.TrimSpace(settings.ColorLocate.String); legacy != "" {
+			color = legacy
+		}
+	} else {
+		return resolvedPhysicalLocation{}, settingsErr
 	}
 	if _, err := HexToRGB(color); err != nil {
 		return resolvedPhysicalLocation{}, fmt.Errorf("invalid configured Locate color: %w", err)
@@ -661,17 +706,49 @@ func (s *PhysicalLocateService) StopDrawer(ctx context.Context, drawerID, ownerI
 	if err := s.ensureLoaded(ctx); err != nil {
 		return fmt.Errorf("load prior Locate cleanup state: %w", err)
 	}
-	controllerID, session := s.activeSession()
-	if session == nil || session.DrawerID != drawerID {
+	var selected *physicalSessionState
+	for _, session := range s.sessions {
+		if session.DrawerID == drawerID && isActivePhysicalSession(session.State) {
+			if selected != nil {
+				return fmt.Errorf("%w: select an operation ID to stop; this drawer has several active operations", ErrLocateSessionActive)
+			}
+			selected = session
+		}
+	}
+	if selected == nil {
 		return nil
 	}
-	return s.stopControllerSessionLocked(ctx, controllerID, ownerID, "", drawerID)
+	return s.stopControllerSessionLocked(ctx, selected.ControllerID, ownerID, selected.ID, drawerID)
+}
+
+func (s *PhysicalLocateService) StopDrawerOperation(ctx context.Context, drawerID, ownerID int64, operationID string) error {
+	if operationID == "" {
+		return s.StopDrawer(ctx, drawerID, ownerID)
+	}
+	if drawerID <= 0 || ownerID <= 0 {
+		return errors.New("drawer and authenticated user are required")
+	}
+	if err := lockPhysicalLocateCoordinator(ctx); err != nil {
+		return err
+	}
+	defer physicalLocateCoordinator.Unlock()
+	if err := s.ensureLoaded(ctx); err != nil {
+		return err
+	}
+	session := s.sessionByID(operationID)
+	if session == nil {
+		return nil
+	}
+	if session.DrawerID != drawerID {
+		return ErrPhysicalBinMissing
+	}
+	return s.stopControllerSessionLocked(ctx, session.ControllerID, ownerID, operationID, drawerID)
 }
 
 func (s *PhysicalLocateService) stopControllerSession(ctx context.Context, controllerID, ownerID int64, expectedSessionID string, expectedDrawerID int64) error {
 	if err := lockPhysicalLocateCoordinator(ctx); err != nil {
 		if ctx.Err() != nil && expectedSessionID != "" {
-			if session := s.getSession(controllerID); session != nil && session.ID == expectedSessionID {
+			if session := s.sessionByID(expectedSessionID); session != nil && session.ID == expectedSessionID {
 				s.scheduleCleanupRetry(session)
 			}
 		}
@@ -680,7 +757,7 @@ func (s *PhysicalLocateService) stopControllerSession(ctx context.Context, contr
 	defer physicalLocateCoordinator.Unlock()
 	if err := s.ensureLoaded(ctx); err != nil {
 		if ctx.Err() != nil {
-			if session := s.getSession(controllerID); session != nil && session.ID == expectedSessionID && isActivePhysicalSession(session.State) {
+			if session := s.sessionByID(expectedSessionID); session != nil && session.ID == expectedSessionID && isActivePhysicalSession(session.State) {
 				s.scheduleCleanupRetry(session)
 			}
 		}
@@ -709,6 +786,9 @@ func lockPhysicalLocateCoordinator(ctx context.Context) error {
 
 func (s *PhysicalLocateService) stopControllerSessionLocked(ctx context.Context, controllerID, ownerID int64, expectedSessionID string, expectedDrawerID int64) error {
 	session := s.getSession(controllerID)
+	if expectedSessionID != "" {
+		session = s.sessionByID(expectedSessionID)
+	}
 	if session == nil || !isActivePhysicalSession(session.State) {
 		return nil
 	}
@@ -781,7 +861,7 @@ func (s *PhysicalLocateService) restoreSession(ctx context.Context, session *phy
 			cancel()
 			continue
 		}
-		info, cfg, state, mappingFingerprint, err := s.client.inspectPhysicalController(verifyCtx, controller, controller.LedCount)
+		info, cfg, state, mappingFingerprint, err := s.client.inspectPhysicalController(verifyCtx, controller, controller.LedCount, strings.Contains(session.Function, ":") && wholeControllerRange(target.Ranges, controller.LedCount))
 		if err != nil {
 			recordTargetError(target, fmt.Errorf("cannot verify controller #%d before cleanup: %w", target.ControllerID, err))
 			cancel()
@@ -791,6 +871,9 @@ func (s *PhysicalLocateService) restoreSession(ctx context.Context, session *phy
 			recordTargetError(target, fmt.Errorf("%w: controller #%d output configuration changed", ErrLocateSessionStale, target.ControllerID))
 			cancel()
 			continue
+		}
+		if strings.Contains(session.Function, ":") && wholeControllerRange(target.Ranges, controller.LedCount) {
+			state.On = true
 		}
 		expectedCommands, fingerprint, err := mapPhysicalRanges(target.Ranges, controller, controller.LedCount, info, cfg, state, session.Color, session.Brightness)
 		if err != nil {
@@ -902,7 +985,7 @@ func (s *PhysicalLocateService) withPhysicalCommandClaim(ctx context.Context, se
 		return false, errors.New("physical Locate session and target are required")
 	}
 	cleared := false
-	err := db.WithOperationClaim(ctx, s.store, func(q db.Querier) error {
+	err := db.WithLEDOperationClaim(ctx, s.store, func(q db.LEDQuerier) error {
 		sessions, err := q.ListPhysicalLocateSessions(ctx)
 		if err != nil {
 			return fmt.Errorf("reload durable Locate session before WLED command: %w", err)
@@ -973,6 +1056,18 @@ func (s *PhysicalLocateService) withPhysicalCommandClaim(ctx context.Context, se
 		if err := ctx.Err(); err != nil {
 			return err
 		}
+
+		if !resolveOwnership && wholeControllerRange(savedRanges, controller.LedCount) {
+			metadata, err := q.GetPhysicalOperationMetadata(ctx, sessionID)
+			if err != nil {
+				return err
+			}
+			if strings.Contains(metadata.Function, ":") {
+				if err := s.client.postStateAt(ctx, controller.IpAddress, controllerPort(controller), map[string]any{"on": true, "tt": 0}); err != nil {
+					return err
+				}
+			}
+		}
 		for _, command := range savedCommands {
 			if err := s.client.setPhysicalPixels(ctx, controller, command.SegmentID, command.Start, command.Stop, rgb); err != nil {
 				return fmt.Errorf("controller #%d segment %d pixels %d-%d: %w", target.ControllerID, command.SegmentID, command.Start, command.Stop, err)
@@ -1014,13 +1109,20 @@ func (s *PhysicalLocateService) scheduleCleanupRetry(session *physicalSessionSta
 		session.timer.Stop()
 	}
 	controllerID, ownerID, sessionID := session.ControllerID, session.OwnerID, session.ID
-	session.timer = time.AfterFunc(physicalLocateCleanupRetryDelay, func() {
-		_ = s.runScheduledCleanupRetry(controllerID, ownerID, sessionID)
-	})
+	session.timer = time.AfterFunc(physicalLocateCleanupRetryDelay, s.cleanupRetryCallback(controllerID, ownerID, sessionID))
 }
 
+// Capture the retry budget when scheduling, not in a detached callback. This
+// also keeps a scheduled operation independent of later configuration changes.
+func (s *PhysicalLocateService) cleanupRetryCallback(controllerID, ownerID int64, sessionID string) func() {
+	budget := physicalLocateCleanupRetryTimeout
+	return func() { _ = s.runCleanupRetryWithBudget(controllerID, ownerID, sessionID, budget) }
+}
 func (s *PhysicalLocateService) runScheduledCleanupRetry(controllerID, ownerID int64, sessionID string) error {
-	retryCtx, cancel := context.WithTimeout(context.Background(), physicalLocateCleanupRetryTimeout)
+	return s.runCleanupRetryWithBudget(controllerID, ownerID, sessionID, physicalLocateCleanupRetryTimeout)
+}
+func (s *PhysicalLocateService) runCleanupRetryWithBudget(controllerID, ownerID int64, sessionID string, budget time.Duration) error {
+	retryCtx, cancel := context.WithTimeout(context.Background(), budget)
 	defer cancel()
 	return s.stopControllerSession(retryCtx, controllerID, ownerID, sessionID, 0)
 }
@@ -1037,25 +1139,22 @@ func (s *PhysicalLocateService) SessionStatusForDrawer(ctx context.Context, draw
 		return PhysicalLocateSession{}, false, err
 	}
 	s.mu.Lock()
-	var controllerIDs []int64
-	for id, session := range s.sessions {
-		if session.DrawerID == drawerID {
-			controllerIDs = append(controllerIDs, id)
+	defer s.mu.Unlock()
+	var latest *physicalSessionState
+	for _, session := range s.sessions {
+		if session.DrawerID != drawerID {
+			continue
+		}
+		if latest == nil || (isActivePhysicalSession(session.State) && !isActivePhysicalSession(latest.State)) || (isActivePhysicalSession(session.State) == isActivePhysicalSession(latest.State) && session.LastOperationAt.After(latest.LastOperationAt)) {
+			latest = session
 		}
 	}
-	s.mu.Unlock()
-	for _, id := range controllerIDs {
-		lock := s.controllerLock(id)
-		lock.Lock()
-		session := s.getSession(id)
-		if session != nil && session.DrawerID == drawerID {
-			copy := session.PhysicalLocateSession
-			copy.Ranges = append([]ControllerRange(nil), session.Ranges...)
-			lock.Unlock()
-			return copy, true, nil
-		}
-		lock.Unlock()
+	if latest != nil {
+		copy := latest.PhysicalLocateSession
+		copy.Ranges = append([]ControllerRange(nil), copy.Ranges...)
+		return copy, true, nil
 	}
+
 	return PhysicalLocateSession{}, false, nil
 }
 
@@ -1081,20 +1180,11 @@ func (s *PhysicalLocateService) WithoutActiveSession(ctx context.Context, write 
 
 func (s *PhysicalLocateService) activeSession() (int64, *physicalSessionState) {
 	s.mu.Lock()
-	ids := make([]int64, 0, len(s.sessions))
-	for id := range s.sessions {
-		ids = append(ids, id)
-	}
-	s.mu.Unlock()
-	for _, id := range ids {
-		lock := s.controllerLock(id)
-		lock.Lock()
-		session := s.getSession(id)
-		if session != nil && (session.State == "active" || session.State == "partial" || session.State == "activating" || session.State == "stopping") {
-			lock.Unlock()
-			return id, session
+	defer s.mu.Unlock()
+	for _, session := range s.sessions {
+		if isActivePhysicalSession(session.State) {
+			return session.ControllerID, session
 		}
-		lock.Unlock()
 	}
 	return 0, nil
 }
@@ -1152,7 +1242,7 @@ func (s *PhysicalLocateService) ensureLoaded(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	loaded := make(map[int64]*physicalSessionState, len(rows))
+	loaded := make(map[string]*physicalSessionState, len(rows))
 	for _, row := range rows {
 		var ranges []ControllerRange
 		var commands []physicalPixelCommand
@@ -1198,7 +1288,7 @@ func (s *PhysicalLocateService) ensureLoaded(ctx context.Context) error {
 		for _, target := range targets {
 			affected = append(affected, target.ControllerID)
 		}
-		loaded[row.ControllerID] = &physicalSessionState{
+		loaded[row.SessionID] = &physicalSessionState{
 			PhysicalLocateSession: PhysicalLocateSession{
 				ID: row.SessionID, ControllerID: row.ControllerID, ControllerAddress: row.ControllerAddress,
 				ControllerPort: row.ControllerPort, DrawerID: row.DrawerID, BinID: row.BinID,
@@ -1210,6 +1300,16 @@ func (s *PhysicalLocateService) ensureLoaded(ctx context.Context) error {
 			fingerprint: row.Fingerprint, commands: commands, targets: targets,
 		}
 	}
+	for _, session := range loaded {
+		m, err := s.store.GetPhysicalOperationMetadata(ctx, session.ID)
+		if err != nil {
+			return err
+		}
+		session.Function = m.Function
+		session.Duration = time.Duration(m.DurationNS)
+		session.ExpiresAt = m.ExpiresAt
+	}
+
 	s.loadErr = nil
 	s.mu.Lock()
 	previous := s.sessions
@@ -1250,14 +1350,15 @@ func (s *PhysicalLocateService) ensureLoaded(ctx context.Context) error {
 			continue
 		}
 		if session.timer == nil {
-			remaining := time.Until(session.LastOperationAt.Add(locateSessionTimeout))
+			remaining := time.Until(session.ExpiresAt)
+			if session.ExpiresAt.IsZero() {
+				remaining = time.Until(session.LastOperationAt.Add(locateSessionTimeout))
+			}
 			if remaining < 0 {
 				remaining = 0
 			}
-			controllerID, ownerID, sessionID := id, session.OwnerID, session.ID
-			session.timer = time.AfterFunc(remaining, func() {
-				_ = s.runScheduledCleanupRetry(controllerID, ownerID, sessionID)
-			})
+			controllerID, ownerID, sessionID := session.ControllerID, session.OwnerID, session.ID
+			session.timer = time.AfterFunc(remaining, s.cleanupRetryCallback(controllerID, ownerID, sessionID))
 		}
 		s.retryMu.Unlock()
 		setSessionReservations(session, true)
@@ -1265,7 +1366,7 @@ func (s *PhysicalLocateService) ensureLoaded(ctx context.Context) error {
 	return nil
 }
 
-func (s *PhysicalLocateService) insertSessionWithQuerier(ctx context.Context, q db.Querier, session *physicalSessionState) error {
+func (s *PhysicalLocateService) insertSessionWithQuerier(ctx context.Context, q db.LEDQuerier, session *physicalSessionState) error {
 	if len(session.targets) == 0 {
 		return errors.New("a durable Locate reservation requires at least one target")
 	}
@@ -1284,7 +1385,7 @@ func (s *PhysicalLocateService) insertSessionWithQuerier(ctx context.Context, q 
 	if err != nil {
 		return err
 	}
-	if err := q.ClearPhysicalLocateSessionTargetsForPrimaryController(ctx, session.ControllerID); err != nil {
+	if err := reservePhysicalOwnership(ctx, q, session); err != nil {
 		return err
 	}
 	rows, err := q.SavePhysicalLocateSession(ctx, db.SavePhysicalLocateSessionParams{
@@ -1300,6 +1401,18 @@ func (s *PhysicalLocateService) insertSessionWithQuerier(ctx context.Context, q 
 	}
 	if rows != 1 {
 		return errors.New("another durable Locate session owns the controller")
+	}
+	if err := q.SavePhysicalOperationMetadata(ctx, db.PhysicalOperationMetadata{SessionID: session.ID, Function: session.Function, DurationNS: int64(session.Duration), ExpiresAt: session.ExpiresAt}); err != nil {
+		return err
+	}
+	for _, target := range session.targets {
+		for _, claim := range target.ownership {
+			claim.SessionID = session.ID
+			claim.ControllerID = target.ControllerID
+			if err := q.SavePhysicalOwnershipRange(ctx, claim); err != nil {
+				return err
+			}
+		}
 	}
 	for _, target := range session.targets {
 		targetRanges, err := json.Marshal(target.Ranges)
@@ -1348,14 +1461,14 @@ func (s *PhysicalLocateService) persistSession(ctx context.Context, session *phy
 	for _, target := range session.targets {
 		session.AffectedControllerIDs = append(session.AffectedControllerIDs, target.ControllerID)
 	}
-	err := db.WithOperationClaim(ctx, s.store, func(q db.Querier) error {
+	err := db.WithLEDOperationClaim(ctx, s.store, func(q db.LEDQuerier) error {
 		rows, err := q.ListPhysicalLocateSessions(ctx)
 		if err != nil {
 			return err
 		}
 		var current *db.PhysicalLocateSession
 		for i := range rows {
-			if rows[i].ControllerID == session.ControllerID {
+			if rows[i].SessionID == session.ID {
 				current = &rows[i]
 				break
 			}
@@ -1498,13 +1611,23 @@ func boolToInt64(value bool) int64 {
 func (s *PhysicalLocateService) getSession(controllerID int64) *physicalSessionState {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.sessions[controllerID]
+	for _, session := range s.sessions {
+		if session.ControllerID == controllerID && isActivePhysicalSession(session.State) {
+			return session
+		}
+	}
+	for _, session := range s.sessions {
+		if session.ControllerID == controllerID {
+			return session
+		}
+	}
+	return nil
 }
 
 func (s *PhysicalLocateService) setSession(controllerID int64, session *physicalSessionState) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.sessions[controllerID] = session
+	s.sessions[session.ID] = session
 }
 
 func newLocateSessionID() (string, error) {
@@ -1565,7 +1688,7 @@ type physicalConfig struct {
 	} `json:"hw"`
 }
 
-func (c *Client) inspectPhysicalController(ctx context.Context, controller db.Controller, capacity int64) (physicalInfo, physicalConfig, physicalState, string, error) {
+func (c *Client) inspectPhysicalController(ctx context.Context, controller db.Controller, capacity int64, allowPoweredOff ...bool) (physicalInfo, physicalConfig, physicalState, string, error) {
 	var info physicalInfo
 	var cfg physicalConfig
 	var state physicalState
@@ -1582,7 +1705,7 @@ func (c *Client) inspectPhysicalController(ctx context.Context, controller db.Co
 	if err := c.getControllerJSON(ctx, controller, "/json/state", &state); err != nil {
 		return info, cfg, state, "", fmt.Errorf("read WLED state and segments: %w", err)
 	}
-	if !state.On {
+	if !state.On && !(len(allowPoweredOff) > 0 && allowPoweredOff[0]) {
 		return info, cfg, state, "", fmt.Errorf("%w: controller is off; Locate will not power on unrelated segments", ErrLocateTopology)
 	}
 	return info, cfg, state, mappingFingerprint, nil
@@ -1595,9 +1718,12 @@ func physicalMappingFingerprint(controller db.Controller, info physicalInfo, cfg
 	if info.LEDs.RGBW {
 		return "", fmt.Errorf("%w: RGBW output color semantics are not supported for safe Locate restoration", ErrLocateTopology)
 	}
-	if controller.MacAddress.Valid && strings.TrimSpace(controller.MacAddress.String) != "" &&
-		!strings.EqualFold(strings.TrimSpace(info.MAC), strings.TrimSpace(controller.MacAddress.String)) {
-		return "", fmt.Errorf("%w: WLED-reported MAC does not match the saved controller identity", ErrLocateTopology)
+	if controller.MacAddress.Valid && strings.TrimSpace(controller.MacAddress.String) != "" {
+		reported, reportErr := NormalizeControllerMAC(info.MAC)
+		saved, savedErr := NormalizeControllerMAC(controller.MacAddress.String)
+		if reportErr != nil || savedErr != nil || reported != saved {
+			return "", fmt.Errorf("%w: WLED-reported MAC does not match the saved controller identity", ErrLocateTopology)
+		}
 	}
 	if len(cfg.Hardware.LED.Inputs) == 0 {
 		return "", fmt.Errorf("%w: WLED output configuration is missing or unsupported", ErrLocateTopology)

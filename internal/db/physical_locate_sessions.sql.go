@@ -11,7 +11,7 @@ import (
 )
 
 const listPhysicalLocateSessions = `-- name: ListPhysicalLocateSessions :many
-SELECT controller_id, controller_address, controller_port, session_id, drawer_id, bin_id, owner_id, state, ranges_json, commands_json, fingerprint, color, brightness, last_operation, last_operation_at, last_successful_operation, last_successful_at, last_error FROM physical_locate_sessions ORDER BY controller_id
+SELECT controller_id, controller_address, controller_port, session_id, drawer_id, bin_id, owner_id, state, ranges_json, commands_json, fingerprint, color, brightness, last_operation, last_operation_at, last_successful_operation, last_successful_at, last_error FROM physical_locate_sessions ORDER BY controller_id, last_operation_at DESC, session_id
 `
 
 func (q *Queries) ListPhysicalLocateSessions(ctx context.Context) ([]PhysicalLocateSession, error) {
@@ -62,7 +62,7 @@ INSERT INTO physical_locate_sessions (
     ranges_json, commands_json, fingerprint, color, brightness,
     last_operation, last_operation_at, last_successful_operation, last_successful_at, last_error
 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT(controller_id) DO UPDATE SET
+ON CONFLICT(session_id) DO UPDATE SET
     controller_address = excluded.controller_address,
     controller_port = excluded.controller_port,
     session_id = excluded.session_id,
@@ -81,7 +81,6 @@ ON CONFLICT(controller_id) DO UPDATE SET
     last_successful_at = excluded.last_successful_at,
     last_error = excluded.last_error
 WHERE physical_locate_sessions.session_id = excluded.session_id
-   OR (physical_locate_sessions.state IN ('stopped', 'failed') AND excluded.state = 'activating')
 `
 
 type SavePhysicalLocateSessionParams struct {

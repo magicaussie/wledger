@@ -365,6 +365,14 @@ func (s *service) snapshotStorageManifest(ctx context.Context) (StorageManifest,
 		if err != nil {
 			return fmt.Errorf("failed to fetch bin attachments: %w", err)
 		}
+		led, err := db.RequireLEDQuerier(q)
+		if err != nil {
+			return err
+		}
+		binPixels, err := led.ListPhysicalBinPixels(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to fetch physical bin pixels: %w", err)
+		}
 		ledAllocations, err := q.ListAllDrawerLEDAllocations(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to fetch drawer LED allocations: %w", err)
@@ -418,6 +426,8 @@ func (s *service) snapshotStorageManifest(ctx context.Context) (StorageManifest,
 			ExportedAt: m.ExportedAt,
 			Legacy:     m,
 			PhysicalStorage: PhysicalStorageSnapshot{
+				BinPixels:                  binPixels,
+				BinPixelsDeclared:          true,
 				Cabinets:                   cabinets,
 				Drawers:                    drawers,
 				BinAttachments:             attachments,
@@ -738,6 +748,9 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 			}
 		}
 	}
+	if err := preserveBinPixels(ctx, s.store, envelope.Current); err != nil {
+		return err
+	}
 	activeSession, err := activePhysicalLocateSessionExists(ctx, s.store)
 	if err != nil {
 		return err
@@ -898,6 +911,9 @@ func (s *service) Restore(ctx context.Context, zipReader io.ReaderAt, size int64
 	err = s.store.ExecImmediateTx(ctx, func(qtx db.Querier) error {
 		// Re-check durable Locate ownership under the write reservation. This
 		// protects direct restore callers as well as the handler's in-process lease.
+		if err := preserveBinPixels(ctx, qtx, envelope.Current); err != nil {
+			return err
+		}
 		activeSession, err := activePhysicalLocateSessionExists(ctx, qtx)
 		if err != nil {
 			return err

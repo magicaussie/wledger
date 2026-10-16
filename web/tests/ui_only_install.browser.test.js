@@ -679,7 +679,7 @@ async function exerciseMockLocate(page, baseURL, firstPartID, bins, mockWrites, 
     });
     assert.deepEqual(activation, testCase.expected.map(([controller, segment, start, end]) => [controller, segment, start, end, [0, 0, 128]]));
     const stopWriteStart = mockWrites.length;
-    await page.getByRole('button', { name: 'Stop Locate / Turn Off Allocated LEDs' }).click();
+    await page.getByRole('button', { name: 'Stop This LED Operation' }).click();
     await page.waitForURL(`${baseURL}/storage/drawers/${testCase.drawerID}?stopped=1`);
     const stop = mockWrites.slice(stopWriteStart).map(({ controller, payload }) => ({ controller, payload }));
     assert.equal(stop.length, testCase.expected.length);

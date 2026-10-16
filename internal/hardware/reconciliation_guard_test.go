@@ -362,12 +362,12 @@ type guardFailStore struct {
 
 func (g *guardFailStore) ExecImmediateTx(ctx context.Context, fn func(db.Querier) error) error {
 	return g.Store.ExecImmediateTx(ctx, func(q db.Querier) error {
-		return fn(&guardFailQuerier{Querier: q, err: g.err})
+		return fn(&guardFailQuerier{LEDQuerier: q.(db.LEDQuerier), err: g.err})
 	})
 }
 
 type guardFailQuerier struct {
-	db.Querier
+	db.LEDQuerier
 	err error
 }
 

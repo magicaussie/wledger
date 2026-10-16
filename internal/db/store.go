@@ -9,7 +9,7 @@ import (
 
 // Store defines all functions to execute db queries and transactions
 type Store interface {
-	Querier
+	LEDQuerier
 	ExecTx(ctx context.Context, fn func(Querier) error) error
 	// ExecImmediateTx runs fn inside a transaction that acquires a write
 	// reservation (BEGIN IMMEDIATE) before fn runs.

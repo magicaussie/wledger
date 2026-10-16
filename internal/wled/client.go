@@ -29,6 +29,7 @@ type Client struct {
 type controllerWriteGate struct {
 	mu       sync.Mutex
 	reserved bool
+	owners   map[string]struct{}
 }
 
 var (
@@ -78,7 +79,8 @@ func controllerIDGate(controllerID int64) *controllerWriteGate {
 // setPhysicalReservation is process-local arbitration. Reservations are keyed
 // both by stable database identity and the configured endpoint so legacy routes
 // remain blocked if an administrator changes a controller address mid-session.
-// Separate WLEDger processes must not share a controller while Locate is enabled.
+// Owner sets keep disjoint sessions reserved independently; durable SQLite
+// operation claims provide the corresponding cross-process arbitration.
 func setPhysicalReservation(sessionID string, controllerID int64, address string, port int64, reserved bool) {
 	hardwareWriteLease.mu.Lock()
 	defer hardwareWriteLease.mu.Unlock()
@@ -94,8 +96,17 @@ func setPhysicalReservation(sessionID string, controllerID int64, address string
 	} else {
 		delete(hardwareWriteLease.physicalOwners, sessionID)
 	}
-	idGate.reserved = reserved
-	endpointGate.reserved = reserved
+	for _, gate := range []*controllerWriteGate{idGate, endpointGate} {
+		if gate.owners == nil {
+			gate.owners = make(map[string]struct{})
+		}
+		if reserved {
+			gate.owners[sessionID] = struct{}{}
+		} else {
+			delete(gate.owners, sessionID)
+		}
+		gate.reserved = len(gate.owners) > 0
+	}
 	endpointGate.mu.Unlock()
 	idGate.mu.Unlock()
 }

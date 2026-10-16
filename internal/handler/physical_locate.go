@@ -65,7 +65,7 @@ func (h *Handler) HandlePhysicalDrawerStop(w http.ResponseWriter, r *http.Reques
 		h.UIError.Respond(w, r, nil, "Drawer LED Locate service is unavailable", http.StatusServiceUnavailable)
 		return
 	}
-	if err := h.Locator.StopDrawer(r.Context(), drawerID, user.ID); err != nil {
+	if err := h.Locator.StopDrawerOperation(r.Context(), drawerID, user.ID, r.FormValue("operation_id")); err != nil {
 		physicalLocateError(h, w, r, err)
 		return
 	}

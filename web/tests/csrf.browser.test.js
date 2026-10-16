@@ -135,7 +135,7 @@ const path = require('node:path');
     assert.equal(query(databasePath, 'SELECT quantity FROM part_assignments WHERE part_id=? AND bin_id=?', [partID, binID])[0][0], 3);
 
     await page.goto(`${baseURL}/settings`);
-    const settingsForm = page.locator('form[action="/settings"]');
+    const settingsForm = page.locator('form[action="/settings"]').filter({ has: page.locator('input[name="enable_debug_logs"]') });
     assert.notEqual(await settingsForm.locator('input[name="csrf_token"]').inputValue(), '');
     await settingsForm.locator('input[name="enable_debug_logs"]').check();
     await settingsForm.locator('button').click();

@@ -11,9 +11,11 @@ import (
 	"strings"
 	"testing"
 
+	"fmt"
 	"github.com/alexedwards/scs/v2"
 	"github.com/go-chi/chi/v5"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/tuxedocurly/wledger/internal/auth"
 	"github.com/tuxedocurly/wledger/internal/config"
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/hardware"
@@ -21,6 +23,7 @@ import (
 	"github.com/tuxedocurly/wledger/internal/settings"
 	"github.com/tuxedocurly/wledger/internal/uierror"
 	"github.com/tuxedocurly/wledger/internal/wled"
+	"reflect"
 )
 
 func TestHandleSettingsUpdate(t *testing.T) {
@@ -201,5 +204,102 @@ func TestSettingsAuditLogging(t *testing.T) {
 	json.Unmarshal(userDeleteLog.OldValue, &userDelOld)
 	if userDelOld["email"] != "newuser@test.com" {
 		t.Errorf("expected summary in user delete log")
+	}
+}
+
+func TestSettingsLEDFunctions(t *testing.T) {
+	conn := openTestDB(t)
+	defer conn.Close()
+	setupTestSchema(t, conn)
+	store := db.NewStore(conn)
+	ctx := context.Background()
+	if err := store.InitSettings(ctx); err != nil {
+		t.Fatal(err)
+	}
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	h := &Handler{Queries: store, Settings: settings.NewService(store), Logger: logger, UIError: uierror.New(logger)}
+	before, err := store.GetSettings(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	post := func(role string, form url.Values) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, "/settings", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req = req.WithContext(auth.WithUser(ctx, auth.User{ID: 1, Role: role}))
+		rr := httptest.NewRecorder()
+		h.HandleSettingsUpdate(rr, req)
+		return rr
+	}
+	form := url.Values{"led_action": {"save"}}
+	for _, name := range wled.FunctionNames() {
+		form.Set("led_color_"+name, "rgb(12, 34, 56)")
+		form.Set("led_brightness_"+name, "0")
+	}
+	if rr := post("viewer", form); rr.Code != http.StatusForbidden {
+		t.Fatal(rr.Code)
+	}
+	if rr := post("admin", form); rr.Code != http.StatusSeeOther {
+		t.Fatal(rr.Code, rr.Body.String())
+	}
+	got, err := wled.LoadFunctionSettings(ctx, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, style := range got {
+		if style != (wled.FunctionStyle{Color: "#0C2238", Brightness: 0}) {
+			t.Fatal(style)
+		}
+	}
+	for _, value := range []string{"-1", "256", "1.5", "", "abc"} {
+		form.Set("led_brightness_error", value)
+		if rr := post("admin", form); rr.Code != http.StatusBadRequest {
+			t.Fatal(value, rr.Code)
+		}
+	}
+	form.Set("led_brightness_error", "128")
+	form.Set("led_color_error", "rgb(999,0,0)")
+	if rr := post("admin", form); rr.Code != http.StatusBadRequest {
+		t.Fatal(rr.Code)
+	}
+	unchanged, err := wled.LoadFunctionSettings(ctx, store)
+	if err != nil || !reflect.DeepEqual(unchanged, got) {
+		t.Fatal("failed validation changed persisted functions", err)
+	}
+	if rr := post("admin", url.Values{"led_action": {"reset"}}); rr.Code != http.StatusSeeOther {
+		t.Fatal(rr.Code)
+	}
+	got, err = wled.LoadFunctionSettings(ctx, store)
+	if err != nil || !reflect.DeepEqual(got, wled.DefaultFunctionSettings()) {
+		t.Fatal(got, err)
+	}
+	after, err := store.GetSettings(ctx)
+	if err != nil || !reflect.DeepEqual(before, after) {
+		t.Fatal("LED form changed general or legacy settings", err)
+	}
+	for _, malformed := range []bool{false, true} {
+		if malformed {
+			if err := store.SetFlag(ctx, db.SetFlagParams{Key: wled.FunctionSettingsKey, Value: "null"}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		req := httptest.NewRequest(http.MethodGet, "/settings", nil)
+		req = req.WithContext(auth.WithUser(ctx, auth.User{ID: 1, Role: "admin"}))
+		rr := httptest.NewRecorder()
+		h.HandleSettings(rr, req)
+		body := rr.Body.String()
+		for _, name := range wled.FunctionNames() {
+			if !strings.Contains(body, fmt.Sprintf(`name="led_color_%s"`, name)) {
+				t.Errorf("missing field %s", name)
+			}
+		}
+		if strings.Contains(body, `name="color_locate"`) || strings.Contains(body, `name="color_error"`) {
+			t.Error("duplicate legacy LED controls")
+		}
+		if !strings.Contains(body, `name="color_ok"`) {
+			t.Error("stock colors removed")
+		}
+		if malformed && !strings.Contains(body, "Stored LED function settings are invalid") {
+			t.Error("missing persisted error warning")
+		}
 	}
 }

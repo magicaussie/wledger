@@ -2,6 +2,7 @@ package wled
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -183,9 +184,17 @@ func (s *service) LocatePart(ctx context.Context, partID int64) error {
 		return nil
 	}
 
-	settings, _ := s.store.GetSettings(ctx)
-	if settings.ColorLocate.String == "" {
-		settings.ColorLocate.String = "#0000FF" // Fallback
+	settings, err := s.store.GetSettings(ctx)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	style, err := s.legacyFunctionStyle(ctx, "locate_part", settings.ColorLocate.String)
+	if err != nil {
+		return err
+	}
+	settings.ColorLocate.String, err = style.legacyColor()
+	if err != nil {
+		return err
 	}
 
 	var failures []error
@@ -243,9 +252,17 @@ func (s *service) LocateBin(ctx context.Context, controllerID, binID int64) erro
 		return err
 	}
 
-	settings, _ := s.store.GetSettings(ctx)
-	if settings.ColorLocate.String == "" {
-		settings.ColorLocate.String = "#0000FF"
+	settings, err := s.store.GetSettings(ctx)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	style, err := s.legacyFunctionStyle(ctx, "locate_bin", settings.ColorLocate.String)
+	if err != nil {
+		return err
+	}
+	settings.ColorLocate.String, err = style.legacyColor()
+	if err != nil {
+		return err
 	}
 
 	return s.triggerLocate(ctx, controller, int(segID), int(globalIdx), int(width), settings)
@@ -273,10 +290,17 @@ func (s *service) LocateDrawer(ctx context.Context, controllerID, containerID in
 		return fmt.Errorf("drawer %d has no LED allocation to locate", containerID)
 	}
 
-	settings, _ := s.store.GetSettings(ctx)
-	color := settings.ColorLocate.String
-	if color == "" {
-		color = "#0000FF"
+	settings, err := s.store.GetSettings(ctx)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	style, err := s.legacyFunctionStyle(ctx, "locate_drawer", settings.ColorLocate.String)
+	if err != nil {
+		return err
+	}
+	color, err := style.legacyColor()
+	if err != nil {
+		return err
 	}
 
 	return s.client.ApplyController(ctx, controller, int(container.SegmentID), int(container.LedStart), int(container.LedCount), State{Color: color, Mode: ModeSolid})
@@ -336,13 +360,50 @@ func (s *service) FlashError(ctx context.Context, controllerID, binID int64) err
 		width = 1
 	}
 
-	settings, _ := s.store.GetSettings(ctx)
-	color := settings.ColorError.String
-	if color == "" {
-		color = "#FF0000"
+	settings, err := s.store.GetSettings(ctx)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	style, err := s.legacyFunctionStyle(ctx, "error", settings.ColorError.String)
+	if err != nil {
+		return err
+	}
+	color, err := style.legacyColor()
+	if err != nil {
+		return err
 	}
 
 	return s.client.ApplyController(ctx, controller, int(segID), int(globalIdx), int(width), State{Color: color, Mode: ModeFlash})
+}
+
+// Existing installations retain legacy colors until the operator first saves or
+// resets central settings. Once the flag exists it is authoritative, including
+// errors: malformed central settings must never fall back to legacy colors.
+func (s *service) legacyFunctionStyle(ctx context.Context, name, legacyColor string) (FunctionStyle, error) {
+	_, err := s.store.GetFlag(ctx, FunctionSettingsKey)
+	if errors.Is(err, sql.ErrNoRows) {
+		// A missing legacy settings row (or blank color) historically used blue
+		// for Locate and red for FlashError, with no automatic timeout.
+		if legacyColor == "" {
+			legacyColor = "#0000FF"
+			if name == "error" {
+				legacyColor = "#FF0000"
+			}
+		}
+		color, err := NormalizeFunctionColor(legacyColor)
+		if err != nil {
+			return FunctionStyle{}, err
+		}
+		return FunctionStyle{Color: color, Brightness: 255}, nil
+	}
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return FunctionStyle{}, err
+	}
+	functions, err := LoadFunctionSettings(ctx, s.store)
+	if err != nil {
+		return FunctionStyle{}, err
+	}
+	return functions[name], nil
 }
 
 func (s *service) triggerLocate(ctx context.Context, controller db.Controller, segmentID, index, width int, settings db.Setting) error {

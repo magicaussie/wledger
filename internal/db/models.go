@@ -326,6 +326,33 @@ type PartsFt struct {
 	Rank         sql.NullFloat64 `json:"rank"`
 }
 
+type PhysicalBinPixelRecord struct {
+	BinID               int64  `json:"bin_id"`
+	DrawerID            int64  `json:"drawer_id"`
+	AllocationID        int64  `json:"allocation_id"`
+	PixelOffset         int64  `json:"pixel_offset"`
+	ControllerID        int64  `json:"controller_id"`
+	Pixel               int64  `json:"pixel"`
+	TopologyFingerprint string `json:"topology_fingerprint"`
+}
+
+type PhysicalEmergencyOutcomeRecord struct {
+	ControllerID      int64     `json:"controller_id"`
+	ControllerAddress string    `json:"controller_address"`
+	ControllerPort    int64     `json:"controller_port"`
+	EmergencyID       string    `json:"emergency_id"`
+	Attempted         int64     `json:"attempted"`
+	Acknowledged      int64     `json:"acknowledged"`
+	Error             string    `json:"error"`
+	UpdatedAt         time.Time `json:"updated_at"`
+}
+
+type PhysicalEmergencyState struct {
+	ID          int64  `json:"id"`
+	Active      int64  `json:"active"`
+	EmergencyID string `json:"emergency_id"`
+}
+
 type PhysicalLocateSession struct {
 	ControllerID            int64     `json:"controller_id"`
 	ControllerAddress       string    `json:"controller_address"`
@@ -357,6 +384,22 @@ type PhysicalLocateSessionTarget struct {
 	Fingerprint       string `json:"fingerprint"`
 	MayHaveReceived   int64  `json:"may_have_received"`
 	LastError         string `json:"last_error"`
+}
+
+type PhysicalOperationMetadatum struct {
+	SessionID  string    `json:"session_id"`
+	Function   string    `json:"function"`
+	DurationNs int64     `json:"duration_ns"`
+	ExpiresAt  time.Time `json:"expires_at"`
+}
+
+type PhysicalPixelOwnership struct {
+	SessionID    string `json:"session_id"`
+	ControllerID int64  `json:"controller_id"`
+	Mac          string `json:"mac"`
+	Output       string `json:"output"`
+	StartPixel   int64  `json:"start_pixel"`
+	StopPixel    int64  `json:"stop_pixel"`
 }
 
 type PriceHistory struct {

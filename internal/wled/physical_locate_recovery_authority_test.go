@@ -33,6 +33,9 @@ func TestPhysicalLocateBackgroundRecoveryDoesNotTransferAuthenticatedOwnership(t
 	}
 	original.timer.Stop()
 	locateSessionTimeout = 10 * time.Millisecond
+	if _, err := f.database.ExecContext(ctx, `UPDATE physical_operation_metadata SET expires_at=? WHERE session_id=?`, time.Now().Add(10*time.Millisecond), original.ID); err != nil {
+		t.Fatal(err)
+	}
 
 	f.mock.mu.Lock()
 	f.mock.offline = true
