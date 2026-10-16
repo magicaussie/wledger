@@ -16,10 +16,12 @@ import (
 	"github.com/tuxedocurly/wledger/internal/hardware/mapper"
 	"github.com/tuxedocurly/wledger/internal/ledspace"
 	"github.com/tuxedocurly/wledger/internal/storage"
+	"github.com/tuxedocurly/wledger/internal/wiringdesigner"
 	"github.com/tuxedocurly/wledger/internal/wled"
 )
 
 type Service interface {
+	CreateControllerWithLayout(ctx context.Context, params db.CreateControllerParams, settings controllerconfig.Settings, layout wiringdesigner.Layout) (int64, error)
 	ListControllers(ctx context.Context) ([]db.Controller, error)
 	GetController(ctx context.Context, id int64) (db.Controller, error)
 	GetControllerSettings(ctx context.Context, id int64) (controllerconfig.Settings, error)

@@ -2,9 +2,36 @@
 
 ## Entry points
 
-Hardware → **Graphical Wiring Designer** on a controller card. The selected
-controller in LED Test Centre also has **Open Graphical Wiring Designer**.
-The page is `/hardware/{controllerID}/wiring-designer`.
+Hardware → **Add WLED controller** starts guided setup at `/hardware/new`.
+Existing controller cards use **Edit Wiring**, opening the same designer at
+`/hardware/{controllerID}/wiring-designer`. The selected controller in LED Test
+Centre also has **Open Graphical Wiring Designer**. The old Add Controller modal
+has been removed; its raw configuration form is not the primary setup path.
+
+## Guided controller setup
+
+1. Enter only the controller name, IP address/hostname and port.
+2. Optionally click **Discover Controller**. This explicit administrator action
+   performs bounded `GET /json/info` and `GET /json/cfg` requests, without WLED state
+   writes or controller configuration changes. Redirects are not followed. Output
+   counts, firmware, pins and hardware direction are shown for review; hardware
+   reversal is not silently applied to application addressing.
+3. Choose **Continue to Wiring Designer**, even when discovery is unavailable.
+   This opens an unsaved graphical draft; no controller row is created yet.
+4. Add outputs and set their names/pixel counts directly beside the canvas. Select
+   visual templates and unequal row/column lengths without Rows × Columns arithmetic
+   or electrical permutations. Connection type/timeout are optional Advanced settings.
+5. **Save controller and layout** commits the controller, real output identities and
+   complete drawing atomically. Any validation, duplicate endpoint or storage failure
+   rolls back the whole save and retains the draft for correction/retry.
+
+Draft output identities exist only in browser memory and are remapped to real IDs
+inside the transaction. New outputs retain linear physical addressing; serpentine
+visual placement never rewrites pixel identities. Existing controllers keep the
+previous protected visual-save and explicit electrical-review workflows. Legacy
+technical editing remains available only through the Advanced controller settings
+link. Hardware connection badges no longer poll automatically: status reads require
+an explicit **Check connection** click.
 
 The designer is local application configuration, not WLED firmware configuration.
 Opening it, previewing, arranging or saving drawings never contacts a controller.

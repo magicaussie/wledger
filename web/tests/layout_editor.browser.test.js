@@ -160,7 +160,7 @@ const executablePath = process.env.CHROMIUM_PATH || '/bin/chromium';
     assert.equal(controllerSeed.status, 0, controllerSeed.stderr);
     await page.goto(`${baseURL}/hardware`);
     await page.waitForLoadState('networkidle');
-    assert.equal(await page.getByRole('link', { name: 'Edit controller' }).count(), 6, 'normal controller editing must be visible without expanding legacy tools');
+    assert.equal(await page.getByRole('link', { name: 'Edit Wiring', exact: true }).count(), 6, 'normal controller wiring editing must be visible without expanding legacy tools');
     for (const port of mockPorts) assert.equal(await page.locator(`a[href="http://127.0.0.1:${port}"]`).count(), 1, 'controller links must include each unique configured HTTP port');
     const advancedGridLink = page.locator('details').filter({ hasText: 'Advanced legacy electrical tools' }).locator('a[href="/hardware/99003/grid"]');
     assert.equal(await advancedGridLink.count(), 1);

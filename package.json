@@ -12,6 +12,7 @@
     "test:led-browser": "node web/tests/led_test_centre.browser.test.js",
     "test:layout-browser": "node web/tests/layout_editor.browser.test.js && node web/tests/physical_first.browser.test.js && node web/tests/barcode_scanner.browser.test.js",
     "test:wiring-designer-browser": "node web/tests/wiring_designer.browser.test.js",
+        "test:controller-setup-browser": "node web/tests/controller_setup.browser.test.js",
     "test:csrf-browser": "node web/tests/csrf.browser.test.js",
     "test:fresh-install": "node web/tests/task064_fresh_install.browser.test.js",
     "test:inventory-lifecycle": "WLEDGER_TASK064_INVENTORY_ONLY=1 WLEDGER_TASK065_RESTORE=1 node web/tests/task064_fresh_install.browser.test.js",

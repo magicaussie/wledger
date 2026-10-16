@@ -146,17 +146,18 @@ const path = require('node:path');
 
     const controllers = [];
     for (let index = 0; index < controllerEndpoints.length; index++) {
-      await page.getByRole('button', { name: 'Add WLED Controller' }).click();
-      const form = page.locator('#add_controller_modal form[action="/hardware"]');
-      await form.locator('input[name="name"]').fill(`UI Controller ${index + 1}`);
-      await form.locator('input[name="ip_address"]').fill(controllerEndpoints[index].host);
-      await form.locator('input[name="port"]').fill(String(controllerEndpoints[index].port));
-      const outputEditor = form.locator('[x-data^="controllerOutputEditor"]');
-      await outputEditor.getByRole('button', { name: 'Add output' }).click();
-      await outputEditor.locator('input[x-model="output.name"]').first().fill(`Physical string ${index + 1}`);
-      await outputEditor.locator('input[x-model\\.number="output.pixel_count"]').first().fill(String(capacities[index]));
-      await form.locator('button.btn-primary').click();
-      await page.waitForURL(`${baseURL}/hardware`);
+      await page.getByRole('link', { name: 'Add WLED controller' }).click();
+      await page.getByLabel('Controller name').fill(`UI Controller ${index + 1}`);
+      await page.getByLabel('IP address or host').fill(controllerEndpoints[index].host);
+      await page.getByLabel('HTTP port').fill(String(controllerEndpoints[index].port));
+      await page.getByRole('button', { name: 'Continue to Wiring Designer' }).click();
+      const countInput = page.locator('input[x-model\\.number="output.count"]');
+      await countInput.first().fill(String(capacities[index]));
+      await countInput.first().press('Tab');
+      await page.getByRole('button', { name: 'Save controller and layout' }).first().click();
+      await page.waitForURL(/\/hardware\/\d+\/wiring-designer$/);
+
+      await page.goto(`${baseURL}/hardware`);
       const rows = readOnlyRows(databasePath, 'SELECT id, name, ip_address, port, led_count FROM controllers WHERE name = ? ORDER BY id', [`UI Controller ${index + 1}`]);
       assert.equal(rows.length, 1, `controller ${index + 1} should be created through its browser form`);
       controllers.push({ id: Number(rows[0][0]), name: rows[0][1], ip: rows[0][2], port: Number(rows[0][3]), capacity: Number(rows[0][4]) });
@@ -179,14 +180,16 @@ const path = require('node:path');
       });
     }
 
-    await page.getByRole('button', { name: 'Add WLED Controller' }).click();
-    const invalidForm = page.locator('#add_controller_modal form[action="/hardware"]');
-    await invalidForm.locator('input[name="name"]').fill('UI invalid port probe');
-    await invalidForm.locator('input[name="ip_address"]').fill('127.0.0.1');
-    await invalidForm.locator('input[name="port"]').fill('70000');
-    await invalidForm.locator('button.btn-primary').click();
-    await page.waitForURL(`${baseURL}/hardware`);
+    await page.getByRole('link', { name: 'Add WLED controller' }).click();
+    await page.getByLabel('Controller name').fill('UI invalid port probe');
+    await page.getByLabel('IP address or host').fill('127.0.0.1');
+    await page.getByLabel('HTTP port').fill('70000');
+    const controllerCountBeforeInvalid = readOnlyRows(databasePath, 'SELECT COUNT(*) FROM controllers')[0][0];
+    await page.getByRole('button', { name: 'Continue to Wiring Designer' }).click();
+    assert.equal(await page.getByText('Step 2 of 2 · Wiring').isVisible().catch(() => false), false, 'invalid port must block wizard progress');
     const invalidPortRows = readOnlyRows(databasePath, 'SELECT id, port FROM controllers WHERE name = ?', ['UI invalid port probe']);
+    assert.equal(invalidPortRows.length, 0, 'invalid port must not create a controller');
+    assert.equal(readOnlyRows(databasePath, 'SELECT COUNT(*) FROM controllers')[0][0], controllerCountBeforeInvalid, 'invalid wizard input must not change controller rows');
     if (invalidPortRows.length === 1) {
       findings.push({
         severity: 'P2',
@@ -204,7 +207,7 @@ const path = require('node:path');
       await page.waitForURL(`${baseURL}/hardware`);
       assert.equal(readOnlyRows(databasePath, 'SELECT id FROM controllers WHERE name = ?', ['UI invalid port probe']).length, 0, 'invalid probe should be removed through the browser');
     } else {
-      findings.push({ workflow: 'Reject invalid controller port', status: 'REJECTED', evidence: 'The invalid port was not persisted.' });
+      findings.push({ workflow: 'Reject invalid controller port', status: 'PASS', evidence: 'Wizard validation blocked progress and no controller row was written.' });
     }
 
     await page.goto(`${baseURL}/storage/cabinets`);

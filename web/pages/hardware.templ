@@ -55,7 +55,7 @@ templ Hardware(user auth.User, controllers []db.Controller, cabinets []db.Cabine
 				if user.IsAdmin() {
 					<div class="flex flex-wrap gap-2">
 						<button onclick="import_controller_modal.showModal()" class="btn btn-outline btn-sm">Import controller config</button>
-						<button onclick="add_controller_modal.showModal()" class="btn btn-primary btn-sm">Add WLED controller</button>
+						<a href="/hardware/new" class="btn btn-primary btn-sm">Add WLED controller</a>
 					</div>
 				}
 			</div>
@@ -71,14 +71,15 @@ templ Hardware(user auth.User, controllers []db.Controller, cabinets []db.Cabine
 										<h3 class="card-title text-base truncate">{ c.Name }</h3>
 										<a href={ templ.SafeURL(controllerManagementURL(c)) } target="_blank" rel="noopener noreferrer" class="link link-hover text-xs font-mono break-all">{ c.IpAddress }</a>
 									</div>
-									<div hx-get={ fmt.Sprintf("/hardware/%d/status", c.ID) } hx-trigger="load" class="badge badge-ghost text-xs">{ i18n.T(ctx, "Checking") }</div>
+									<button type="button" hx-get={ fmt.Sprintf("/hardware/%d/status", c.ID) } hx-trigger="click" hx-swap="innerHTML" class="badge badge-ghost text-xs" title="Read controller status only when clicked">Check connection</button>
 								</div>
 								<p class="text-xs opacity-70">HTTP endpoint: <code>{ controllerManagementURL(c) }</code></p>
 																	<p class="text-xs opacity-70">Type: { c.ControllerType } · Capacity: { fmt.Sprintf("%d pixels", c.LedCount) }</p>
-								<div class="card-actions justify-end"><a href={ templ.SafeURL(fmt.Sprintf("/hardware/%d/wiring-designer", c.ID)) } class="btn btn-sm btn-secondary">Graphical Wiring Designer</a></div>
+								<div class="card-actions justify-end"><a href={ templ.SafeURL(fmt.Sprintf("/hardware/%d/wiring-designer", c.ID)) } class="btn btn-sm btn-secondary">Edit Wiring</a></div>
 								if user.IsAdmin() {
 									<div class="card-actions justify-end border-t border-base-content/10 pt-3">
-										<a href={ templ.SafeURL(fmt.Sprintf("/hardware/%d/edit", c.ID)) } class="btn btn-sm btn-outline">Edit controller</a>
+
+																<a href={ templ.SafeURL(fmt.Sprintf("/hardware/%d/edit", c.ID)) } class="btn btn-sm btn-ghost">Advanced controller settings</a>
 										<a href={ templ.SafeURL(fmt.Sprintf("/hardware/%d/export", c.ID)) } class="btn btn-sm btn-ghost">Export config</a>
 										<form action={ templ.SafeURL(fmt.Sprintf("/hardware/%d/delete", c.ID)) } method="POST" { templ.Attributes{"onsubmit": fmt.Sprintf("return confirm('%s');", i18n.T(ctx, "ConfirmDeleteController"))}... }>
 											@components.CSRFInput()
@@ -106,39 +107,10 @@ templ Hardware(user auth.User, controllers []db.Controller, cabinets []db.Cabine
 				}
 			</details>
 		</section>
-		if user.IsAdmin() {
-			@components.Modal(components.ModalProps{
-				ID:    "add_controller_modal",
-			Title: i18n.T(ctx, "AddNewController"),
-		}) {
-			<form action="/hardware" method="POST" class="space-y-4">
-				@components.CSRFInput()
-				<div class="form-control">
-					<label class="label"><span class="label-text">{ i18n.T(ctx, "Name") }</span></label>
-					<input type="text" name="name" placeholder="e.g. Shelf LEDs" class="input input-bordered w-full" required/>
-				</div>
-				<div class="form-control">
-					<label class="label"><span class="label-text">{ i18n.T(ctx, "IPAddress") }</span></label>
-					<input type="text" name="ip_address" placeholder="192.168.1.x" class="input input-bordered w-full font-mono" required/>
-				</div>
-				<div class="form-control">
-					<label class="label"><span class="label-text">{ i18n.T(ctx, "Port") }</span></label>
-					<input type="number" name="port" value="80" min="1" max="65535" step="1" required class="input input-bordered w-full font-mono"/>
-				</div>
-				<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-					<label class="form-control"><span class="label-text mb-2">Controller type</span><select class="select select-bordered" name="controller_type"><option value="wled" selected>WLED (automatic capability)</option><option value="wled-esp8266">WLED ESP8266</option><option value="wled-esp32">WLED ESP32</option><option value="wled-compatible">WLED-compatible controller</option></select></label>
-					<label class="form-control"><span class="label-text mb-2">Connection timeout (ms)</span><input class="input input-bordered" type="number" name="connection_timeout_ms" min="100" max="30000" step="100" value="2000" required/></label>
-				</div>
-				@ControllerOutputEditor(controllerconfig.Settings{ControllerType: "wled", ConnectionTimeoutMS: controllerconfig.DefaultConnectionTimeoutMS, Outputs: []controllerconfig.Output{}})
 
-				<div class="modal-action">
-					<button type="button" class="btn" onclick="add_controller_modal.close()">{ i18n.T(ctx, "Cancel") }</button>
-					<button class="btn btn-primary">{ i18n.T(ctx, "AddController") }</button>
-				</div>
-			</form>
-		}
-			@components.Modal(components.ModalProps{
-				ID:    "import_controller_modal",
+	if user.IsAdmin() {
+		@components.Modal(components.ModalProps{
+			ID:    "import_controller_modal",
 			Title: i18n.T(ctx, "ImportConfig"),
 		}) {
 			<p class="text-sm opacity-70 mb-4">{ i18n.T(ctx, "ImportConfigHelp") }</p>

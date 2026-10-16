@@ -74,4 +74,15 @@ const templates=wiringDesigner();templates.render=()=>{};templates.selected={cou
 assert.equal(new Set(templates.selected.rows).size,1,'rectangle template has equal-length rows');
 assert.equal(templates.selected.rows.reduce((sum,n)=>sum+n,0),24);
 templates.selected={count:1};templates.setTemplate('irregular');assert.deepEqual(templates.selected.rows,[1]);
+
+const setup=wiringDesigner();setup.render=()=>{};setup.data={is_setup:true};setup.layout={width:1200,height:800,outputs:[],jumpers:[]};setup.electricalDraft={controller_type:'wled',connection_timeout_ms:2000,outputs:[]};setup.outputs=[];setup.nextDraftID=-1;setup.addDraftOutput(30);setup.addDraftOutput(18);
+assert.deepEqual(setup.outputs.map(o=>o.id),[-1,-2],'new setup outputs use stable negative draft IDs');
+assert.deepEqual(setup.layout.outputs.map(o=>o.output_id),[-1,-2],'draft IDs are represented in layout references');
+assert.deepEqual(setup.electricalDraft.outputs.map(o=>o.id),[-1,-2],'settings and layout use corresponding draft output IDs');
+setup.outputs[0].name='Shelf';setup.resizeDraftOutput(setup.outputs[0]);
+assert.equal(setup.electricalDraft.outputs[0].pixel_count,30,'electrical output counts follow draft geometry');
+assert.equal(setup.electricalDraft.outputs[0].direction,'forward','hardware reversal is not inferred into electrical settings');
+setup.removeDraftOutput(-2);assert.equal(setup.outputs.length,1);
+setup.outputs.push(setup.makeDraftOutput('Second',18));setup.syncDraftLayout();
+setup.selectPixel(setup.outputs[1],3);assert.equal(setup.pixel.controllerIndex,33,'setup pixel inspection resolves an absolute draft offset locally');
 console.log('wiring designer pure and draft tests passed');

@@ -270,6 +270,9 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 			r.Get("/audit-logs", h.HandleAuditLogs)
 
 			// Hardware Configuration
+			r.Get("/hardware/new", h.HandleControllerSetup)
+			r.Post("/hardware/setup", h.HandleControllerSetupSave)
+			r.Post("/hardware/setup/discover", h.HandleControllerSetupDiscover)
 			r.Post("/hardware", h.HandleHardwareCreate)
 			r.Post("/hardware/import", h.HandleHardwareImport)
 			r.Get("/hardware/{id}/edit", h.HandleHardwareEdit)

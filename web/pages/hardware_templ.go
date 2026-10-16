@@ -132,7 +132,7 @@ func Hardware(user auth.User, controllers []db.Controller, cabinets []db.Cabinet
 				return templ_7745c5c3_Err
 			}
 			if user.IsAdmin() {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "<div class=\"flex flex-wrap gap-2\"><button onclick=\"import_controller_modal.showModal()\" class=\"btn btn-outline btn-sm\">Import controller config</button> <button onclick=\"add_controller_modal.showModal()\" class=\"btn btn-primary btn-sm\">Add WLED controller</button></div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "<div class=\"flex flex-wrap gap-2\"><button onclick=\"import_controller_modal.showModal()\" class=\"btn btn-outline btn-sm\">Import controller config</button> <a href=\"/hardware/new\" class=\"btn btn-primary btn-sm\">Add WLED controller</a></div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -191,129 +191,116 @@ func Hardware(user auth.User, controllers []db.Controller, cabinets []db.Cabinet
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "</a></div><div hx-get=\"")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "</a></div><button type=\"button\" hx-get=\"")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var8 string
 					templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/hardware/%d/status", c.ID))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 74, Col: 63}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 74, Col: 80}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "\" hx-trigger=\"load\" class=\"badge badge-ghost text-xs\">")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "\" hx-trigger=\"click\" hx-swap=\"innerHTML\" class=\"badge badge-ghost text-xs\" title=\"Read controller status only when clicked\">Check connection</button></div><p class=\"text-xs opacity-70\">HTTP endpoint: <code>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var9 string
-					templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Checking"))
+					templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(controllerManagementURL(c))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 74, Col: 143}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 76, Col: 87}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "</div></div><p class=\"text-xs opacity-70\">HTTP endpoint: <code>")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "</code></p><p class=\"text-xs opacity-70\">Type: ")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var10 string
-					templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(controllerManagementURL(c))
+					templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(c.ControllerType)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 76, Col: 87}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 77, Col: 71}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "</code></p><p class=\"text-xs opacity-70\">Type: ")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, " · Capacity: ")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var11 string
-					templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(c.ControllerType)
+					templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d pixels", c.LedCount))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 77, Col: 71}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 77, Col: 125}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, " · Capacity: ")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "</p><div class=\"card-actions justify-end\"><a href=\"")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					var templ_7745c5c3_Var12 string
-					templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d pixels", c.LedCount))
+					var templ_7745c5c3_Var12 templ.SafeURL
+					templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/hardware/%d/wiring-designer", c.ID)))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 77, Col: 125}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 78, Col: 120}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "</p><div class=\"card-actions justify-end\"><a href=\"")
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					var templ_7745c5c3_Var13 templ.SafeURL
-					templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/hardware/%d/wiring-designer", c.ID)))
-					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 78, Col: 120}
-					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "\" class=\"btn btn-sm btn-secondary\">Graphical Wiring Designer</a></div>")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "\" class=\"btn btn-sm btn-secondary\">Edit Wiring</a></div>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					if user.IsAdmin() {
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "<div class=\"card-actions justify-end border-t border-base-content/10 pt-3\"><a href=\"")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "<div class=\"card-actions justify-end border-t border-base-content/10 pt-3\"><a href=\"")
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+						var templ_7745c5c3_Var13 templ.SafeURL
+						templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/hardware/%d/edit", c.ID)))
+						if templ_7745c5c3_Err != nil {
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 82, Col: 79}
+						}
+						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "\" class=\"btn btn-sm btn-ghost\">Advanced controller settings</a> <a href=\"")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var14 templ.SafeURL
-						templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/hardware/%d/edit", c.ID)))
+						templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/hardware/%d/export", c.ID)))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 81, Col: 73}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 83, Col: 75}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "\" class=\"btn btn-sm btn-outline\">Edit controller</a> <a href=\"")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "\" class=\"btn btn-sm btn-ghost\">Export config</a><form action=\"")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var15 templ.SafeURL
-						templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/hardware/%d/export", c.ID)))
+						templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/hardware/%d/delete", c.ID)))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 82, Col: 75}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 84, Col: 80}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "\" class=\"btn btn-sm btn-ghost\">Export config</a><form action=\"")
-						if templ_7745c5c3_Err != nil {
-							return templ_7745c5c3_Err
-						}
-						var templ_7745c5c3_Var16 templ.SafeURL
-						templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/hardware/%d/delete", c.ID)))
-						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 83, Col: 80}
-						}
-						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
-						if templ_7745c5c3_Err != nil {
-							return templ_7745c5c3_Err
-						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "\" method=\"POST\"")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "\" method=\"POST\"")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -321,7 +308,7 @@ func Hardware(user auth.User, controllers []db.Controller, cabinets []db.Cabinet
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, ">")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, ">")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -329,73 +316,73 @@ func Hardware(user auth.User, controllers []db.Controller, cabinets []db.Cabinet
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "<button class=\"btn btn-sm btn-ghost text-error\" type=\"submit\">Delete</button></form></div>")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "<button class=\"btn btn-sm btn-ghost text-error\" type=\"submit\">Delete</button></form></div>")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "</div></article>")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "</div></article>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "</div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "</div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "</section><section aria-labelledby=\"legacy-hardware-heading\" class=\"mb-8\"><details class=\"rounded-lg border border-base-300 p-3\"><summary id=\"legacy-hardware-heading\" class=\"cursor-pointer font-semibold\">Advanced legacy electrical tools</summary><p class=\"text-sm opacity-70 mt-2\">Legacy containers, WLED segments and bin LED indices are not physical drawers or bins. These tools do not create physical storage locations.</p>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "</section><section aria-labelledby=\"legacy-hardware-heading\" class=\"mb-8\"><details class=\"rounded-lg border border-base-300 p-3\"><summary id=\"legacy-hardware-heading\" class=\"cursor-pointer font-semibold\">Advanced legacy electrical tools</summary><p class=\"text-sm opacity-70 mt-2\">Legacy containers, WLED segments and bin LED indices are not physical drawers or bins. These tools do not create physical storage locations.</p>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			if user.IsAdmin() {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "<div class=\"mt-3 flex flex-wrap gap-2\"><a href=\"/hardware/labels\" class=\"btn btn-outline btn-sm\">Legacy electrical bin labels</a> ")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "<div class=\"mt-3 flex flex-wrap gap-2\"><a href=\"/hardware/labels\" class=\"btn btn-outline btn-sm\">Legacy electrical bin labels</a> ")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				for _, c := range controllers {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "<a href=\"")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "<a href=\"")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					var templ_7745c5c3_Var17 templ.SafeURL
-					templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/hardware/%d/grid", c.ID)))
+					var templ_7745c5c3_Var16 templ.SafeURL
+					templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/hardware/%d/grid", c.ID)))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 103, Col: 70}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 104, Col: 70}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "\" class=\"btn btn-ghost btn-sm\">")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var17 string
+					templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(c.Name)
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 104, Col: 110}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "\" class=\"btn btn-ghost btn-sm\">")
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					var templ_7745c5c3_Var18 string
-					templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(c.Name)
-					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 103, Col: 110}
-					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 39, " · Legacy grid</a>")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, " · Legacy grid</a>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "</div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 39, "</div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "</details></section>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "</details></section>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			if user.IsAdmin() {
-				templ_7745c5c3_Var19 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+				templ_7745c5c3_Var18 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 					templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 					templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
 					if !templ_7745c5c3_IsBuffer {
@@ -407,7 +394,20 @@ func Hardware(user auth.User, controllers []db.Controller, cabinets []db.Cabinet
 						}()
 					}
 					ctx = templ.InitializeContext(ctx)
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 42, "<form action=\"/hardware\" method=\"POST\" class=\"space-y-4\">")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "<p class=\"text-sm opacity-70 mb-4\">")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var19 string
+					templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "ImportConfigHelp"))
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 116, Col: 71}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 42, "</p><form action=\"/hardware/import\" method=\"POST\" enctype=\"multipart/form-data\" class=\"space-y-4\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -420,33 +420,33 @@ func Hardware(user auth.User, controllers []db.Controller, cabinets []db.Cabinet
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var20 string
-					templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Name"))
+					templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "ConfigFile"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 117, Col: 72}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 120, Col: 78}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "</span></label> <input type=\"text\" name=\"name\" placeholder=\"e.g. Shelf LEDs\" class=\"input input-bordered w-full\" required></div><div class=\"form-control\"><label class=\"label\"><span class=\"label-text\">")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "</span></label> <input type=\"file\" name=\"config_file\" accept=\".json,application/json\" class=\"file-input file-input-bordered w-full\" required></div><div class=\"divider text-xs opacity-50\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var21 string
-					templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "IPAddress"))
+					templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "OptionalOverrides"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 121, Col: 77}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 123, Col: 78}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 45, "</span></label> <input type=\"text\" name=\"ip_address\" placeholder=\"192.168.1.x\" class=\"input input-bordered w-full font-mono\" required></div><div class=\"form-control\"><label class=\"label\"><span class=\"label-text\">")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 45, "</div><div class=\"form-control\"><label class=\"label\"><span class=\"label-text\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var22 string
-					templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Port"))
+					templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Name"))
 					if templ_7745c5c3_Err != nil {
 						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 125, Col: 72}
 					}
@@ -454,221 +454,98 @@ func Hardware(user auth.User, controllers []db.Controller, cabinets []db.Cabinet
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 46, "</span></label> <input type=\"number\" name=\"port\" value=\"80\" min=\"1\" max=\"65535\" step=\"1\" required class=\"input input-bordered w-full font-mono\"></div><div class=\"grid grid-cols-1 md:grid-cols-2 gap-3\"><label class=\"form-control\"><span class=\"label-text mb-2\">Controller type</span><select class=\"select select-bordered\" name=\"controller_type\"><option value=\"wled\" selected>WLED (automatic capability)</option><option value=\"wled-esp8266\">WLED ESP8266</option><option value=\"wled-esp32\">WLED ESP32</option><option value=\"wled-compatible\">WLED-compatible controller</option></select></label> <label class=\"form-control\"><span class=\"label-text mb-2\">Connection timeout (ms)</span><input class=\"input input-bordered\" type=\"number\" name=\"connection_timeout_ms\" min=\"100\" max=\"30000\" step=\"100\" value=\"2000\" required></label></div>")
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					templ_7745c5c3_Err = ControllerOutputEditor(controllerconfig.Settings{ControllerType: "wled", ConnectionTimeoutMS: controllerconfig.DefaultConnectionTimeoutMS, Outputs: []controllerconfig.Output{}}).Render(ctx, templ_7745c5c3_Buffer)
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 47, "<div class=\"modal-action\"><button type=\"button\" class=\"btn\" onclick=\"add_controller_modal.close()\">")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 46, "</span></label> <input type=\"text\" name=\"name\" placeholder=\"")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var23 string
-					templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Cancel"))
+					templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "LeaveBlankToUseFile"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 135, Col: 101}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 126, Col: 84}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 48, "</button> <button class=\"btn btn-primary\">")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 47, "\" class=\"input input-bordered w-full\"></div><div class=\"form-control\"><label class=\"label\"><span class=\"label-text\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var24 string
-					templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "AddController"))
+					templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "IPAddress"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 136, Col: 67}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 129, Col: 77}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 49, "</button></div></form>")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 48, "</span></label> <input type=\"text\" name=\"ip_address\" placeholder=\"")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					return nil
-				})
-				templ_7745c5c3_Err = components.Modal(components.ModalProps{
-					ID:    "add_controller_modal",
-					Title: i18n.T(ctx, "AddNewController"),
-				}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var19), templ_7745c5c3_Buffer)
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 50, " ")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Var25 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
-					templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
-					templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
-					if !templ_7745c5c3_IsBuffer {
-						defer func() {
-							templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
-							if templ_7745c5c3_Err == nil {
-								templ_7745c5c3_Err = templ_7745c5c3_BufErr
-							}
-						}()
+					var templ_7745c5c3_Var25 string
+					templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "LeaveBlankToUseFile"))
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 130, Col: 90}
 					}
-					ctx = templ.InitializeContext(ctx)
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 51, "<p class=\"text-sm opacity-70 mb-4\">")
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 49, "\" class=\"input input-bordered w-full font-mono\"></div><div class=\"form-control\"><label class=\"label\"><span class=\"label-text\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var26 string
-					templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "ImportConfigHelp"))
+					templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Port"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 144, Col: 71}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 133, Col: 72}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 52, "</p><form action=\"/hardware/import\" method=\"POST\" enctype=\"multipart/form-data\" class=\"space-y-4\">")
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					templ_7745c5c3_Err = components.CSRFInput().Render(ctx, templ_7745c5c3_Buffer)
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 53, "<div class=\"form-control\"><label class=\"label\"><span class=\"label-text\">")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 50, "</span></label> <input type=\"number\" name=\"port\" min=\"1\" max=\"65535\" step=\"1\" placeholder=\"")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var27 string
-					templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "ConfigFile"))
+					templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "LeaveBlankToUseFile"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 148, Col: 78}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 134, Col: 115}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 54, "</span></label> <input type=\"file\" name=\"config_file\" accept=\".json,application/json\" class=\"file-input file-input-bordered w-full\" required></div><div class=\"divider text-xs opacity-50\">")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 51, "\" class=\"input input-bordered w-full font-mono\"></div><div class=\"modal-action\"><button type=\"button\" class=\"btn\" onclick=\"import_controller_modal.close()\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var28 string
-					templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "OptionalOverrides"))
+					templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Cancel"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 151, Col: 78}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 137, Col: 104}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 55, "</div><div class=\"form-control\"><label class=\"label\"><span class=\"label-text\">")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 52, "</button> <button class=\"btn btn-primary\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var29 string
-					templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Name"))
+					templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "ImportConfig"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 153, Col: 72}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 138, Col: 66}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 56, "</span></label> <input type=\"text\" name=\"name\" placeholder=\"")
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					var templ_7745c5c3_Var30 string
-					templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "LeaveBlankToUseFile"))
-					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 154, Col: 84}
-					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 57, "\" class=\"input input-bordered w-full\"></div><div class=\"form-control\"><label class=\"label\"><span class=\"label-text\">")
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					var templ_7745c5c3_Var31 string
-					templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "IPAddress"))
-					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 157, Col: 77}
-					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 58, "</span></label> <input type=\"text\" name=\"ip_address\" placeholder=\"")
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					var templ_7745c5c3_Var32 string
-					templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "LeaveBlankToUseFile"))
-					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 158, Col: 90}
-					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 59, "\" class=\"input input-bordered w-full font-mono\"></div><div class=\"form-control\"><label class=\"label\"><span class=\"label-text\">")
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					var templ_7745c5c3_Var33 string
-					templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Port"))
-					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 161, Col: 72}
-					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 60, "</span></label> <input type=\"number\" name=\"port\" min=\"1\" max=\"65535\" step=\"1\" placeholder=\"")
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					var templ_7745c5c3_Var34 string
-					templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "LeaveBlankToUseFile"))
-					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 162, Col: 115}
-					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 61, "\" class=\"input input-bordered w-full font-mono\"></div><div class=\"modal-action\"><button type=\"button\" class=\"btn\" onclick=\"import_controller_modal.close()\">")
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					var templ_7745c5c3_Var35 string
-					templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "Cancel"))
-					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 165, Col: 104}
-					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 62, "</button> <button class=\"btn btn-primary\">")
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					var templ_7745c5c3_Var36 string
-					templ_7745c5c3_Var36, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "ImportConfig"))
-					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 166, Col: 66}
-					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var36))
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 63, "</button></div></form>")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 53, "</button></div></form>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -677,7 +554,7 @@ func Hardware(user auth.User, controllers []db.Controller, cabinets []db.Cabinet
 				templ_7745c5c3_Err = components.Modal(components.ModalProps{
 					ID:    "import_controller_modal",
 					Title: i18n.T(ctx, "ImportConfig"),
-				}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var25), templ_7745c5c3_Buffer)
+				}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var18), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -708,25 +585,25 @@ func ControllerOutputEditor(settings controllerconfig.Settings) templ.Component 
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var37 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var37 == nil {
-			templ_7745c5c3_Var37 = templ.NopComponent
+		templ_7745c5c3_Var30 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var30 == nil {
+			templ_7745c5c3_Var30 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 64, "<section class=\"rounded-lg border border-secondary/40 bg-secondary/5 p-4 space-y-4\" x-data=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 54, "<section class=\"rounded-lg border border-secondary/40 bg-secondary/5 p-4 space-y-4\" x-data=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var38 string
-		templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("controllerOutputEditor(%q)", controllerOutputsJSON(settings.Outputs)))
+		var templ_7745c5c3_Var31 string
+		templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("controllerOutputEditor(%q)", controllerOutputsJSON(settings.Outputs)))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 175, Col: 176}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 147, Col: 176}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var38))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 65, "\"><input type=\"hidden\" name=\"outputs_json\" x-bind:value=\"JSON.stringify(outputs)\"><div class=\"flex flex-wrap items-start justify-between gap-3\"><div><h3 class=\"font-semibold\">Physical outputs / strings</h3><p class=\"text-xs opacity-70\">Output totals define controller capacity. Set each output's order, pixel length, direction and physical arrangement here.</p></div><div class=\"text-right\"><strong x-text=\"totalPixels() + ' total pixels'\"></strong><button type=\"button\" class=\"btn btn-xs btn-outline ml-2\" x-on:click=\"addOutput()\">Add output</button></div></div><div class=\"flex h-14 w-full overflow-hidden rounded border border-base-content/30 bg-base-100\" role=\"img\" aria-label=\"Proportional controller output preview\"><template x-for=\"(output, index) in outputs\" x-bind:key=\"(output.id || 'new') + '-' + index\"><div class=\"flex min-w-0 items-center justify-center border-r border-base-content/30 bg-secondary/20 px-1 text-center text-[10px]\" x-bind:style=\"'flex-basis:' + previewWidth(output)\" x-bind:title=\"output.name + ': ' + output.pixel_count + ' pixels, ' + output.direction + ', ' + output.pattern\"><span class=\"truncate\" x-text=\"(index + 1) + '. ' + output.name + ' · ' + output.pixel_count\"></span></div></template></div><template x-if=\"outputs.length === 0\"><p class=\"rounded bg-base-100 p-3 text-sm\">No outputs configured. Add at least one output before assigning this controller to an electrically mapped cabinet.</p></template><div class=\"space-y-3\"><template x-for=\"(output, index) in outputs\" x-bind:key=\"'fields-' + (output.id || 'new') + '-' + index\"><fieldset class=\"rounded border border-base-300 bg-base-100 p-3 space-y-3\"><legend class=\"px-1 text-xs font-semibold\" x-text=\"'Output ' + (index + 1)\"></legend><div class=\"grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3\"><label class=\"form-control\"><span class=\"label-text mb-1\">Name</span><input class=\"input input-bordered input-sm\" maxlength=\"120\" x-model=\"output.name\" required></label> <label class=\"form-control\"><span class=\"label-text mb-1\">Pixels</span><input class=\"input input-bordered input-sm\" type=\"number\" min=\"1\" step=\"1\" x-model.number=\"output.pixel_count\" required></label> <label class=\"form-control\"><span class=\"label-text mb-1\">Wiring direction</span><select class=\"select select-bordered select-sm\" x-model=\"output.direction\"><option value=\"forward\">Forward</option><option value=\"reverse\">Reversed</option></select></label> <label class=\"form-control\"><span class=\"label-text mb-1\">Pattern</span><select class=\"select select-bordered select-sm\" x-model=\"output.pattern\"><option value=\"linear\">Linear</option><option value=\"serpentine_rows\">Serpentine rows</option><option value=\"serpentine_columns\">Serpentine columns</option><option value=\"custom\">Custom pixel order</option></select></label></div><div class=\"grid grid-cols-1 md:grid-cols-2 gap-3\" x-show=\"output.pattern === 'serpentine_rows' || output.pattern === 'serpentine_columns' || output.pattern === 'custom'\"><label class=\"form-control\"><span class=\"label-text mb-1\">Rows</span><input class=\"input input-bordered input-sm\" type=\"number\" min=\"1\" step=\"1\" x-model.number=\"output.rows\"></label> <label class=\"form-control\"><span class=\"label-text mb-1\">Columns</span><input class=\"input input-bordered input-sm\" type=\"number\" min=\"1\" step=\"1\" x-model.number=\"output.columns\"></label><p class=\"col-span-full text-xs opacity-70\" x-show=\"output.pattern !== 'custom'\">Rows × columns must equal the output pixel count.</p></div><div class=\"space-y-2\" x-show=\"output.pattern === 'custom'\"><div class=\"flex flex-wrap items-end gap-2\"><label class=\"form-control min-w-56\"><span class=\"label-text mb-1\">Generate custom wiring order</span><select class=\"select select-bordered select-sm\" x-model=\"output.custom_layout\"><option value=\"manual\">Manual permutation</option><option value=\"row-major\">Left-to-right rows</option><option value=\"right-to-left-rows\">Independently reversed rows</option><option value=\"top-to-bottom-columns\">Top-to-bottom columns</option><option value=\"bottom-to-top-columns\">Bottom-to-top columns</option><option value=\"serpentine-rows\">Serpentine rows</option><option value=\"serpentine-columns\">Serpentine columns</option><option value=\"mixed\">Mixed directions (manual permutation)</option></select></label><button type=\"button\" class=\"btn btn-sm btn-outline\" x-on:click=\"generateCustomOrder(output)\" x-bind:disabled=\"output.custom_layout === 'manual' || output.custom_layout === 'mixed'\">Generate order</button></div><label class=\"form-control\"><span class=\"label-text mb-1\">Custom zero-based pixel order</span><textarea class=\"textarea textarea-bordered textarea-sm font-mono\" rows=\"2\" x-model=\"output.custom_order_text\" x-on:input=\"parseCustomOrder(output)\" placeholder=\"0, 1, 2, 5, 4, 3\"></textarea><span class=\"label-text-alt\">Enter each output pixel index once, from 0 to pixel count − 1. Manual permutations support independently reversed rows/columns and arbitrary mixed directions.</span></label><p class=\"text-xs text-error\" x-show=\"output.custom_order_error\" x-text=\"output.custom_order_error\"></p></div><div class=\"rounded border border-base-300 p-2\" aria-label=\"Exact logical to physical pixel preview\"><p class=\"text-[10px] font-semibold\">Exact logical pixel → physical output pixel map</p><div class=\"mt-1 flex flex-wrap gap-1\"><template x-for=\"pixel in previewPixels(output)\" x-bind:key=\"pixel.logical\"><span class=\"badge badge-outline badge-xs font-mono\" x-text=\"pixel.logical + '→' + pixel.physical\"></span></template></div><div class=\"mt-2 flex items-center gap-2\"><button type=\"button\" class=\"btn btn-xs btn-ghost\" x-on:click=\"previewPage(output, -1)\" x-bind:disabled=\"Number(output.preview_start) === 0\">Previous pixels</button><span class=\"text-[10px] font-mono\" x-text=\"previewPageLabel(output)\"></span><button type=\"button\" class=\"btn btn-xs btn-ghost\" x-on:click=\"previewPage(output, 1)\" x-bind:disabled=\"Number(output.preview_start) + 40 >= Number(output.pixel_count)\">Next pixels</button></div><p class=\"mt-1 text-[10px] opacity-70\" x-show=\"previewPending\">Calculating the canonical pixel mapping…</p><p class=\"mt-1 text-[10px] text-error\" x-show=\"previewError\" x-text=\"previewError\"></p></div><div class=\"flex flex-wrap items-center gap-2\"><button type=\"button\" class=\"btn btn-xs btn-ghost\" x-on:click=\"moveOutput(index, -1)\" x-bind:disabled=\"index === 0\" aria-label=\"Move output earlier\">↑ Move earlier</button> <button type=\"button\" class=\"btn btn-xs btn-ghost\" x-on:click=\"moveOutput(index, 1)\" x-bind:disabled=\"index === outputs.length - 1\" aria-label=\"Move output later\">↓ Move later</button> <button type=\"button\" class=\"btn btn-xs btn-ghost text-error\" x-on:click=\"removeOutput(index)\">Remove output</button></div></fieldset></template></div><p class=\"text-xs opacity-70\">This saves WLEDger's output-to-cabinet mapping. It does not write electrical settings to the controller device. Verify firmware and wiring separately before enabling physical output.</p></section>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 55, "\"><input type=\"hidden\" name=\"outputs_json\" x-bind:value=\"JSON.stringify(outputs)\"><div class=\"flex flex-wrap items-start justify-between gap-3\"><div><h3 class=\"font-semibold\">Physical outputs / strings</h3><p class=\"text-xs opacity-70\">Output totals define controller capacity. Set each output's order, pixel length, direction and physical arrangement here.</p></div><div class=\"text-right\"><strong x-text=\"totalPixels() + ' total pixels'\"></strong><button type=\"button\" class=\"btn btn-xs btn-outline ml-2\" x-on:click=\"addOutput()\">Add output</button></div></div><div class=\"flex h-14 w-full overflow-hidden rounded border border-base-content/30 bg-base-100\" role=\"img\" aria-label=\"Proportional controller output preview\"><template x-for=\"(output, index) in outputs\" x-bind:key=\"(output.id || 'new') + '-' + index\"><div class=\"flex min-w-0 items-center justify-center border-r border-base-content/30 bg-secondary/20 px-1 text-center text-[10px]\" x-bind:style=\"'flex-basis:' + previewWidth(output)\" x-bind:title=\"output.name + ': ' + output.pixel_count + ' pixels, ' + output.direction + ', ' + output.pattern\"><span class=\"truncate\" x-text=\"(index + 1) + '. ' + output.name + ' · ' + output.pixel_count\"></span></div></template></div><template x-if=\"outputs.length === 0\"><p class=\"rounded bg-base-100 p-3 text-sm\">No outputs configured. Add at least one output before assigning this controller to an electrically mapped cabinet.</p></template><div class=\"space-y-3\"><template x-for=\"(output, index) in outputs\" x-bind:key=\"'fields-' + (output.id || 'new') + '-' + index\"><fieldset class=\"rounded border border-base-300 bg-base-100 p-3 space-y-3\"><legend class=\"px-1 text-xs font-semibold\" x-text=\"'Output ' + (index + 1)\"></legend><div class=\"grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3\"><label class=\"form-control\"><span class=\"label-text mb-1\">Name</span><input class=\"input input-bordered input-sm\" maxlength=\"120\" x-model=\"output.name\" required></label> <label class=\"form-control\"><span class=\"label-text mb-1\">Pixels</span><input class=\"input input-bordered input-sm\" type=\"number\" min=\"1\" step=\"1\" x-model.number=\"output.pixel_count\" required></label> <label class=\"form-control\"><span class=\"label-text mb-1\">Wiring direction</span><select class=\"select select-bordered select-sm\" x-model=\"output.direction\"><option value=\"forward\">Forward</option><option value=\"reverse\">Reversed</option></select></label> <label class=\"form-control\"><span class=\"label-text mb-1\">Pattern</span><select class=\"select select-bordered select-sm\" x-model=\"output.pattern\"><option value=\"linear\">Linear</option><option value=\"serpentine_rows\">Serpentine rows</option><option value=\"serpentine_columns\">Serpentine columns</option><option value=\"custom\">Custom pixel order</option></select></label></div><div class=\"grid grid-cols-1 md:grid-cols-2 gap-3\" x-show=\"output.pattern === 'serpentine_rows' || output.pattern === 'serpentine_columns' || output.pattern === 'custom'\"><label class=\"form-control\"><span class=\"label-text mb-1\">Rows</span><input class=\"input input-bordered input-sm\" type=\"number\" min=\"1\" step=\"1\" x-model.number=\"output.rows\"></label> <label class=\"form-control\"><span class=\"label-text mb-1\">Columns</span><input class=\"input input-bordered input-sm\" type=\"number\" min=\"1\" step=\"1\" x-model.number=\"output.columns\"></label><p class=\"col-span-full text-xs opacity-70\" x-show=\"output.pattern !== 'custom'\">Rows × columns must equal the output pixel count.</p></div><div class=\"space-y-2\" x-show=\"output.pattern === 'custom'\"><div class=\"flex flex-wrap items-end gap-2\"><label class=\"form-control min-w-56\"><span class=\"label-text mb-1\">Generate custom wiring order</span><select class=\"select select-bordered select-sm\" x-model=\"output.custom_layout\"><option value=\"manual\">Manual permutation</option><option value=\"row-major\">Left-to-right rows</option><option value=\"right-to-left-rows\">Independently reversed rows</option><option value=\"top-to-bottom-columns\">Top-to-bottom columns</option><option value=\"bottom-to-top-columns\">Bottom-to-top columns</option><option value=\"serpentine-rows\">Serpentine rows</option><option value=\"serpentine-columns\">Serpentine columns</option><option value=\"mixed\">Mixed directions (manual permutation)</option></select></label><button type=\"button\" class=\"btn btn-sm btn-outline\" x-on:click=\"generateCustomOrder(output)\" x-bind:disabled=\"output.custom_layout === 'manual' || output.custom_layout === 'mixed'\">Generate order</button></div><label class=\"form-control\"><span class=\"label-text mb-1\">Custom zero-based pixel order</span><textarea class=\"textarea textarea-bordered textarea-sm font-mono\" rows=\"2\" x-model=\"output.custom_order_text\" x-on:input=\"parseCustomOrder(output)\" placeholder=\"0, 1, 2, 5, 4, 3\"></textarea><span class=\"label-text-alt\">Enter each output pixel index once, from 0 to pixel count − 1. Manual permutations support independently reversed rows/columns and arbitrary mixed directions.</span></label><p class=\"text-xs text-error\" x-show=\"output.custom_order_error\" x-text=\"output.custom_order_error\"></p></div><div class=\"rounded border border-base-300 p-2\" aria-label=\"Exact logical to physical pixel preview\"><p class=\"text-[10px] font-semibold\">Exact logical pixel → physical output pixel map</p><div class=\"mt-1 flex flex-wrap gap-1\"><template x-for=\"pixel in previewPixels(output)\" x-bind:key=\"pixel.logical\"><span class=\"badge badge-outline badge-xs font-mono\" x-text=\"pixel.logical + '→' + pixel.physical\"></span></template></div><div class=\"mt-2 flex items-center gap-2\"><button type=\"button\" class=\"btn btn-xs btn-ghost\" x-on:click=\"previewPage(output, -1)\" x-bind:disabled=\"Number(output.preview_start) === 0\">Previous pixels</button><span class=\"text-[10px] font-mono\" x-text=\"previewPageLabel(output)\"></span><button type=\"button\" class=\"btn btn-xs btn-ghost\" x-on:click=\"previewPage(output, 1)\" x-bind:disabled=\"Number(output.preview_start) + 40 >= Number(output.pixel_count)\">Next pixels</button></div><p class=\"mt-1 text-[10px] opacity-70\" x-show=\"previewPending\">Calculating the canonical pixel mapping…</p><p class=\"mt-1 text-[10px] text-error\" x-show=\"previewError\" x-text=\"previewError\"></p></div><div class=\"flex flex-wrap items-center gap-2\"><button type=\"button\" class=\"btn btn-xs btn-ghost\" x-on:click=\"moveOutput(index, -1)\" x-bind:disabled=\"index === 0\" aria-label=\"Move output earlier\">↑ Move earlier</button> <button type=\"button\" class=\"btn btn-xs btn-ghost\" x-on:click=\"moveOutput(index, 1)\" x-bind:disabled=\"index === outputs.length - 1\" aria-label=\"Move output later\">↓ Move later</button> <button type=\"button\" class=\"btn btn-xs btn-ghost text-error\" x-on:click=\"removeOutput(index)\">Remove output</button></div></fieldset></template></div><p class=\"text-xs opacity-70\">This saves WLEDger's output-to-cabinet mapping. It does not write electrical settings to the controller device. Verify firmware and wiring separately before enabling physical output.</p></section>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -750,12 +627,12 @@ func HardwareControllerEdit(user auth.User, controller db.Controller, errorMessa
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var39 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var39 == nil {
-			templ_7745c5c3_Var39 = templ.NopComponent
+		templ_7745c5c3_Var32 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var32 == nil {
+			templ_7745c5c3_Var32 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Var40 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_Var33 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
 			if !templ_7745c5c3_IsBuffer {
@@ -771,69 +648,69 @@ func HardwareControllerEdit(user auth.User, controller db.Controller, errorMessa
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 66, " <div class=\"mx-auto max-w-4xl card bg-base-200 shadow-xl\"><div class=\"card-body\"><p class=\"text-sm opacity-70\">Controller record #")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 56, " <div class=\"mx-auto max-w-4xl card bg-base-200 shadow-xl\"><div class=\"card-body\"><p class=\"text-sm opacity-70\">Controller record #")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var41 string
-			templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.JoinStringErrs(controller.ID)
+			var templ_7745c5c3_Var34 string
+			templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(controller.ID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 229, Col: 68}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 201, Col: 68}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var41))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 67, " · current endpoint <code>")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var42 string
-			templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.JoinStringErrs(controller.IpAddress)
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 229, Col: 119}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var42))
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 57, " · current endpoint <code>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 68, "</code></p>")
+			var templ_7745c5c3_Var35 string
+			templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinStringErrs(controller.IpAddress)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 201, Col: 119}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 58, "</code></p>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			if errorMessage != "" {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 69, "<div role=\"alert\" class=\"alert alert-error\"><span>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 59, "<div role=\"alert\" class=\"alert alert-error\"><span>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				var templ_7745c5c3_Var43 string
-				templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinStringErrs(errorMessage)
+				var templ_7745c5c3_Var36 string
+				templ_7745c5c3_Var36, templ_7745c5c3_Err = templ.JoinStringErrs(errorMessage)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 231, Col: 69}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 203, Col: 69}
 				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var43))
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var36))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 70, "</span></div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 60, "</span></div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 71, "<form action=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 61, "<form action=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var44 templ.SafeURL
-			templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/hardware/%d/update", controller.ID)))
+			var templ_7745c5c3_Var37 templ.SafeURL
+			templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(fmt.Sprintf("/hardware/%d/update", controller.ID)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 233, Col: 83}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 205, Col: 83}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var44))
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var37))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 72, "\" method=\"POST\" class=\"space-y-4\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 62, "\" method=\"POST\" class=\"space-y-4\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -841,99 +718,99 @@ func HardwareControllerEdit(user auth.User, controller db.Controller, errorMessa
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 73, "<div class=\"form-control\"><label class=\"label\" for=\"controller-name\"><span class=\"label-text\">Controller name</span></label> <input id=\"controller-name\" type=\"text\" name=\"name\" value=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 63, "<div class=\"form-control\"><label class=\"label\" for=\"controller-name\"><span class=\"label-text\">Controller name</span></label> <input id=\"controller-name\" type=\"text\" name=\"name\" value=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var45 string
-			templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.JoinStringErrs(name)
+			var templ_7745c5c3_Var38 string
+			templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.JoinStringErrs(name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 237, Col: 70}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 209, Col: 70}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var45))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 74, "\" class=\"input input-bordered w-full\" required></div><div class=\"form-control\"><label class=\"label\" for=\"controller-address\"><span class=\"label-text\">IP address or hostname</span></label> <input id=\"controller-address\" type=\"text\" name=\"ip_address\" value=\"")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var38))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var46 string
-			templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.JoinStringErrs(address)
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 241, Col: 82}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var46))
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 64, "\" class=\"input input-bordered w-full\" required></div><div class=\"form-control\"><label class=\"label\" for=\"controller-address\"><span class=\"label-text\">IP address or hostname</span></label> <input id=\"controller-address\" type=\"text\" name=\"ip_address\" value=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 75, "\" class=\"input input-bordered w-full font-mono\" required autocomplete=\"off\"><p class=\"label-text-alt\">Enter only an IPv4/IPv6 address or DNS hostname. Do not include a scheme, path, credentials, or port.</p></div><div class=\"form-control\"><label class=\"label\" for=\"controller-port\"><span class=\"label-text\">HTTP port</span></label> <input id=\"controller-port\" type=\"number\" name=\"port\" value=\"")
+			var templ_7745c5c3_Var39 string
+			templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.JoinStringErrs(address)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 213, Col: 82}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var39))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var47 string
-			templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.JoinStringErrs(port)
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 246, Col: 72}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var47))
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 65, "\" class=\"input input-bordered w-full font-mono\" required autocomplete=\"off\"><p class=\"label-text-alt\">Enter only an IPv4/IPv6 address or DNS hostname. Do not include a scheme, path, credentials, or port.</p></div><div class=\"form-control\"><label class=\"label\" for=\"controller-port\"><span class=\"label-text\">HTTP port</span></label> <input id=\"controller-port\" type=\"number\" name=\"port\" value=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 76, "\" min=\"1\" max=\"65535\" step=\"1\" class=\"input input-bordered w-full font-mono\" required></div><div class=\"grid grid-cols-1 md:grid-cols-2 gap-3\"><label class=\"form-control\"><span class=\"label-text mb-2\">Controller type</span><select class=\"select select-bordered\" name=\"controller_type\"><option value=\"wled\"")
+			var templ_7745c5c3_Var40 string
+			templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinStringErrs(port)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 218, Col: 72}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var40))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 66, "\" min=\"1\" max=\"65535\" step=\"1\" class=\"input input-bordered w-full font-mono\" required></div><div class=\"grid grid-cols-1 md:grid-cols-2 gap-3\"><label class=\"form-control\"><span class=\"label-text mb-2\">Controller type</span><select class=\"select select-bordered\" name=\"controller_type\"><option value=\"wled\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			if settings.ControllerType == "wled" {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 77, " selected")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 67, " selected")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 78, ">WLED (automatic capability)</option><option value=\"wled-esp8266\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 68, ">WLED (automatic capability)</option><option value=\"wled-esp8266\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			if settings.ControllerType == "wled-esp8266" {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 79, " selected")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 69, " selected")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 80, ">WLED ESP8266</option><option value=\"wled-esp32\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 70, ">WLED ESP8266</option><option value=\"wled-esp32\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			if settings.ControllerType == "wled-esp32" {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 81, " selected")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 71, " selected")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 82, ">WLED ESP32</option><option value=\"wled-compatible\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 72, ">WLED ESP32</option><option value=\"wled-compatible\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			if settings.ControllerType == "wled-compatible" {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 83, " selected")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 73, " selected")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 84, ">WLED-compatible controller</option></select></label> <label class=\"form-control\"><span class=\"label-text mb-2\">Connection timeout (ms)</span><input class=\"input input-bordered\" type=\"number\" name=\"connection_timeout_ms\" min=\"100\" max=\"30000\" step=\"100\" value=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 74, ">WLED-compatible controller</option></select></label> <label class=\"form-control\"><span class=\"label-text mb-2\">Connection timeout (ms)</span><input class=\"input input-bordered\" type=\"number\" name=\"connection_timeout_ms\" min=\"100\" max=\"30000\" step=\"100\" value=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var48 string
-			templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", settings.ConnectionTimeoutMS))
+			var templ_7745c5c3_Var41 string
+			templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", settings.ConnectionTimeoutMS))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 250, Col: 261}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/hardware.templ`, Line: 222, Col: 261}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var48))
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var41))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 85, "\" required></label></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 75, "\" required></label></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -941,13 +818,13 @@ func HardwareControllerEdit(user auth.User, controller db.Controller, errorMessa
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 86, "<label class=\"label cursor-pointer justify-start gap-3 rounded border border-warning/40 p-3\"><input class=\"checkbox checkbox-warning\" type=\"checkbox\" name=\"confirm_mapping_impact\" value=\"confirm\"><span class=\"text-sm\">I reviewed the output order/capacity preview and confirm any displayed drawer mapping impact.</span></label><p class=\"text-sm opacity-70\">Changing the address or port is blocked while a durable physical Locate may still own this controller. Output configuration is saved here; cabinet pages only manage physical path geometry and drawer allocations.</p><div class=\"card-actions justify-end\"><a class=\"btn btn-ghost\" href=\"/hardware\">Cancel</a> <button type=\"submit\" class=\"btn btn-primary\">Save controller</button></div></form></div></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 76, "<label class=\"label cursor-pointer justify-start gap-3 rounded border border-warning/40 p-3\"><input class=\"checkbox checkbox-warning\" type=\"checkbox\" name=\"confirm_mapping_impact\" value=\"confirm\"><span class=\"text-sm\">I reviewed the output order/capacity preview and confirm any displayed drawer mapping impact.</span></label><p class=\"text-sm opacity-70\">Changing the address or port is blocked while a durable physical Locate may still own this controller. Output configuration is saved here; cabinet pages only manage physical path geometry and drawer allocations.</p><div class=\"card-actions justify-end\"><a class=\"btn btn-ghost\" href=\"/hardware\">Cancel</a> <button type=\"submit\" class=\"btn btn-primary\">Save controller</button></div></form></div></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = layouts.Base("Edit WLED Controller", user).Render(templ.WithChildren(ctx, templ_7745c5c3_Var40), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = layouts.Base("Edit WLED Controller", user).Render(templ.WithChildren(ctx, templ_7745c5c3_Var33), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

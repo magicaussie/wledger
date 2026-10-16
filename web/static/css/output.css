@@ -4294,6 +4294,9 @@
   .grid-cols-3 {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+  .grid-cols-\[minmax\(0\,1fr\)_110px_auto\] {
+    grid-template-columns: minmax(0,1fr) 110px auto;
+  }
   .flex-col {
     flex-direction: column;
   }
@@ -4727,6 +4730,12 @@
     border-color: var(--color-secondary);
     @supports (color: color-mix(in lab, red, red)) {
       border-color: color-mix(in oklab, var(--color-secondary) 40%, transparent);
+    }
+  }
+  .border-success\/30 {
+    border-color: var(--color-success);
+    @supports (color: color-mix(in lab, red, red)) {
+      border-color: color-mix(in oklab, var(--color-success) 30%, transparent);
     }
   }
   .border-transparent {

@@ -281,37 +281,31 @@ const path = require('node:path');
 
     const controllers = [];
     for (let index = 0; index < controllerEndpoints.length; index++) {
-      await page.getByRole('button', { name: 'Add WLED Controller' }).click();
-      const form = page.locator('#add_controller_modal form[action="/hardware"]');
-      await form.locator('input[name="name"]').fill(`UI Controller ${index + 1}`);
-      await form.locator('input[name="ip_address"]').fill(controllerEndpoints[index].host);
-      await form.locator('input[name="port"]').fill(String(controllerEndpoints[index].port));
-      await form.locator('select[name="controller_type"]').selectOption(index === 0 ? 'wled-esp32' : 'wled');
-      await form.locator('input[name="connection_timeout_ms"]').fill(index === 0 ? '5500' : '2000');
-      const outputEditor = form.locator('[x-data^="controllerOutputEditor"]');
-      await outputEditor.getByRole('button', { name: 'Add output' }).click();
-      await outputEditor.locator('input[x-model="output.name"]').nth(0).fill(`Physical string ${index + 1}`);
-      await outputEditor.locator('input[x-model\\.number="output.pixel_count"]').nth(0).fill(String(index === 0 ? 80 : capacities[index]));
+      await page.getByRole('link', { name: 'Add WLED controller' }).click();
+      await page.getByLabel('Controller name').fill(`UI Controller ${index + 1}`);
+      await page.getByLabel('IP address or host').fill(controllerEndpoints[index].host);
+      await page.getByLabel('HTTP port').fill(String(controllerEndpoints[index].port));
+      await page.getByRole('button', { name: 'Continue to Wiring Designer' }).click();
+      const counts = page.locator('input[x-model\\.number="output.count"]');
+      await counts.first().fill(String(index === 0 ? 80 : capacities[index]));
+      await counts.first().press('Tab');
       if (index === 0) {
-        await outputEditor.getByRole('button', { name: 'Add output' }).click();
-        await outputEditor.locator('input[x-model="output.name"]').nth(1).fill('Physical string 2');
-        await outputEditor.locator('input[x-model\\.number="output.pixel_count"]').nth(1).fill('120');
-        await outputEditor.locator('select[x-model="output.direction"]').nth(1).selectOption('reverse');
-        await outputEditor.locator('select[x-model="output.pattern"]').nth(1).selectOption('serpentine_rows');
-        await outputEditor.locator('input[x-model\\.number="output.rows"]').nth(1).fill('12');
-        await outputEditor.locator('input[x-model\\.number="output.columns"]').nth(1).fill('10');
+        await page.getByRole('button', { name: '＋ Add output' }).click();
+        await counts.nth(1).fill('120');
+        await counts.nth(1).press('Tab');
       }
-      await form.locator('button.btn-primary').click();
-      await page.waitForURL(`${baseURL}/hardware`);
+      await page.getByRole('button', { name: 'Save controller and layout' }).first().click();
+      await page.waitForURL(/\/hardware\/\d+\/wiring-designer$/);
+      await page.goto(`${baseURL}/hardware`);
       const rows = readOnlyRows(databasePath, 'SELECT id, name, ip_address, port, led_count, controller_type, connection_timeout_ms FROM controllers WHERE name = ? ORDER BY id', [`UI Controller ${index + 1}`]);
       assert.equal(rows.length, 1, `controller ${index + 1} should be created through its browser form`);
-      assert.deepEqual([Number(rows[0][4]), rows[0][5], Number(rows[0][6])], [capacities[index], index === 0 ? 'wled-esp32' : 'wled', index === 0 ? 5500 : 2000], 'controller type, connection timeout and total output capacity should persist');
+      assert.deepEqual([Number(rows[0][4]), rows[0][5], Number(rows[0][6])], [capacities[index], 'wled', 2000], 'wizard-created controller uses its default type and timeout with output-derived capacity');
       const outputRows = readOnlyRows(databasePath, 'SELECT display_order,name,pixel_count,direction,pattern,rows,columns FROM controller_outputs WHERE controller_id=? ORDER BY display_order', [Number(rows[0][0])]);
       assert.equal(outputRows.length, outputCounts[index], 'configured output count should persist');
       if (index === 0) {
-        assert.deepEqual(outputRows, [[0, 'Physical string 1', 80, 'forward', 'linear', 1, 1], [1, 'Physical string 2', 120, 'reverse', 'serpentine_rows', 12, 10]], 'controller outputs with differing lengths, direction and serpentine rows should persist in order');
+        assert.deepEqual(outputRows, [[0, 'Output 1', 80, 'forward', 'linear', 1, 1], [1, 'Output 2', 120, 'forward', 'linear', 1, 1]], 'wiring designer persists both output counts with safe defaults');
       } else {
-        assert.deepEqual(outputRows, [[0, `Physical string ${index + 1}`, capacities[index], 'forward', 'linear', 1, 1]], 'single-output controller definitions should persist');
+        assert.deepEqual(outputRows, [[0, 'Output 1', capacities[index], 'forward', 'linear', 1, 1]], 'single-output controller definitions should persist');
       }
       controllers.push({ id: Number(rows[0][0]), name: rows[0][1], ip: rows[0][2], port: Number(rows[0][3]), capacity: Number(rows[0][4]) });
     }
@@ -321,6 +315,7 @@ const path = require('node:path');
     const editForm = page.locator(`form[action="/hardware/${controllers[0].id}/update"]`);
     await editForm.locator('input[name="name"]').fill('UI Controller A Edited');
     const editedOutput = editForm.locator('[x-data^="controllerOutputEditor"]');
+    await editedOutput.locator('select[x-model="output.direction"]').nth(1).selectOption('reverse');
     await editedOutput.locator('select[x-model="output.pattern"]').nth(1).selectOption('serpentine_columns');
     await editedOutput.locator('input[x-model\\.number="output.rows"]').nth(1).fill('10');
     await editedOutput.locator('input[x-model\\.number="output.columns"]').nth(1).fill('12');
@@ -330,7 +325,7 @@ const path = require('node:path');
     assert.deepEqual(editedController[0].map((value, index) => index === 0 || index === 3 ? Number(value) : value), [controllers[0].id, 'UI Controller A Edited', controllers[0].ip, controllers[0].port], 'controller edit must preserve its ID and endpoint');
     controllers[0].name = 'UI Controller A Edited';
     const editedOutputRows = readOnlyRows(databasePath, 'SELECT display_order,name,pixel_count,direction,pattern,rows,columns FROM controller_outputs WHERE controller_id=? ORDER BY display_order', [controllers[0].id]);
-    assert.deepEqual(editedOutputRows, [[0, 'Physical string 1', 80, 'forward', 'linear', 1, 1], [1, 'Physical string 2', 120, 'reverse', 'serpentine_columns', 10, 12]], 'controller edit should persist output direction and serpentine configuration');
+    assert.deepEqual(editedOutputRows, [[0, 'Output 1', 80, 'forward', 'linear', 1, 1], [1, 'Output 2', 120, 'reverse', 'serpentine_columns', 10, 12]], 'advanced controller edit should persist output direction and serpentine configuration');
     await page.goto(`${baseURL}/hardware/${controllers[0].id}/edit`);
     const restoreDirectionForm = page.locator(`form[action="/hardware/${controllers[0].id}/update"]`);
     await restoreDirectionForm.locator('select[x-model="output.direction"]').nth(1).selectOption('forward');
@@ -339,27 +334,27 @@ const path = require('node:path');
 
     const controllerCountBeforeInvalid = Number(readOnlyRows(databasePath, 'SELECT COUNT(*) FROM controllers')[0][0]);
     await page.goto(`${baseURL}/hardware`);
-    await page.getByRole('button', { name: 'Add WLED Controller' }).click();
-    const invalidForm = page.locator('#add_controller_modal form[action="/hardware"]');
-    await invalidForm.locator('input[name="name"]').fill('UI invalid port probe');
-    await invalidForm.locator('input[name="ip_address"]').fill('127.0.0.1');
-    await invalidForm.locator('input[name="port"]').fill('70000');
-    assert.equal(await invalidForm.evaluate(form => form.checkValidity()), false, 'out-of-range port must fail form validation');
-    const invalidPost = page.waitForResponse(response => response.request().method() === 'POST' && new URL(response.url()).pathname === '/hardware');
-    await invalidForm.evaluate(form => fetch(form.action, { method: 'POST', body: new FormData(form), redirect: 'manual' }));
-    assert.equal((await invalidPost).status(), 400, 'server must reject invalid TCP ports even if browser validation is bypassed');
+    await page.getByRole('link', { name: 'Add WLED controller' }).click();
+    await page.getByLabel('Controller name').fill('UI invalid port probe');
+    await page.getByLabel('IP address or host').fill('127.0.0.1');
+    await page.getByLabel('HTTP port').fill('70000');
+    await page.getByRole('button', { name: 'Continue to Wiring Designer' }).click();
+    assert.equal(await page.getByText('Step 2 of 2 · Wiring').isVisible().catch(() => false), false, 'invalid port must block wizard progress');
     assert.equal(Number(readOnlyRows(databasePath, 'SELECT COUNT(*) FROM controllers')[0][0]), controllerCountBeforeInvalid, 'invalid port must not create a controller');
 
     await page.goto(`${baseURL}/hardware`);
-    await page.getByRole('button', { name: 'Add WLED Controller' }).click();
-    const duplicateForm = page.locator('#add_controller_modal form[action="/hardware"]');
-    await duplicateForm.locator('input[name="name"]').fill('UI duplicate endpoint probe');
-    await duplicateForm.locator('input[name="ip_address"]').fill(controllers[0].ip);
-    await duplicateForm.locator('input[name="port"]').fill(String(controllers[0].port));
-    const duplicateResponse = page.waitForResponse(response => response.request().method() === 'POST' && new URL(response.url()).pathname === '/hardware');
-    await duplicateForm.locator('button.btn-primary').click();
-    assert.equal((await duplicateResponse).status(), 400, 'duplicate controller endpoints must be rejected');
-    assert.equal(readOnlyRows(databasePath, 'SELECT id FROM controllers WHERE name=?', ['UI duplicate endpoint probe']).length, 0);
+    await page.getByRole('link', { name: 'Add WLED controller' }).click();
+    await page.getByLabel('Controller name').fill('UI duplicate endpoint probe');
+    await page.getByLabel('IP address or host').fill(controllers[0].ip);
+    await page.getByLabel('HTTP port').fill(String(controllers[0].port));
+    await page.getByRole('button', { name: 'Continue to Wiring Designer' }).click();
+    const duplicateCountBeforeSave = Number(readOnlyRows(databasePath, 'SELECT COUNT(*) FROM controllers')[0][0]);
+    await page.getByRole('button', { name: 'Save controller and layout' }).first().click();
+    await page.getByText(/already|duplicate/i).waitFor();
+    assert.match(page.url(), /\/hardware\/new$/ , 'duplicate endpoint failure must retain the wizard draft');
+    assert.equal(Number(readOnlyRows(databasePath, 'SELECT COUNT(*) FROM controllers')[0][0]), duplicateCountBeforeSave, 'duplicate endpoint must not persist a controller');
+    assert.equal(await page.locator('[x-data="wiringDesigner()"]')
+      .evaluate(el => Alpine.$data(el).setup.name), 'UI duplicate endpoint probe', 'duplicate endpoint error must retain the controller draft');
 
     await page.goto(`${baseURL}/storage/cabinets`);
     const cabinetName = `UI-only cabinet ${Date.now()}`;
@@ -815,7 +810,7 @@ const path = require('node:path');
     await editorPage.locator('form[action="/parts"] button[type="submit"]').click();
     await editorPage.waitForURL(/\/parts\/\d+$/);
     await editorPage.goto(`${baseURL}/hardware`);
-    assert.equal(await editorPage.getByRole('button', { name: 'Add WLED controller' }).count(), 0, 'editor must not manage controllers');
+    assert.equal(await editorPage.getByRole('link', { name: 'Add WLED controller' }).count(), 0, 'editor must not manage controllers');
     const editorToken = await editorPage.locator('meta[name="csrf-token"]').getAttribute('content');
     const editorControllerPost = await editorPage.evaluate(async token => {
       const body = new URLSearchParams({ csrf_token: token, name: 'Editor forbidden controller', ip_address: '127.0.0.1', port: '80' });
@@ -844,7 +839,7 @@ const path = require('node:path');
     const viewerPartPage = await viewerPage.goto(`${baseURL}/parts/new`);
     assert.equal(viewerPartPage.status(), 403, 'viewer must not enter inventory mutation routes');
     await viewerPage.goto(`${baseURL}/hardware`);
-    assert.equal(await viewerPage.getByRole('button', { name: 'Add WLED controller' }).count(), 0, 'viewer must not manage controllers');
+    assert.equal(await viewerPage.getByRole('link', { name: 'Add WLED controller' }).count(), 0, 'viewer must not manage controllers');
     await viewerContext.close();
 
     await page.setViewportSize({ width: 390, height: 844 });
@@ -1374,8 +1369,8 @@ const path = require('node:path');
     assert.deepEqual(persistedAfterRestart, persistedBeforeRestart, 'all browser-created installation records must persist byte-for-value across app restart');
 
     assert.deepEqual(pageErrors, [], 'fresh installation pages must not raise JavaScript runtime errors');
-    const invalidControllerConsoleErrors = consoleErrors.filter(error => error.url.endsWith('/hardware') && error.message.includes('400 (Bad Request)'));
-    assert.equal(invalidControllerConsoleErrors.length, 2, `expected only the two deliberate invalid-controller responses: ${JSON.stringify(consoleErrors)}`);
+    const invalidControllerConsoleErrors = consoleErrors.filter(error => error.url.endsWith('/hardware/new') && error.message.includes('400 (Bad Request)'));
+    assert.equal(invalidControllerConsoleErrors.length, 1, `expected only the deliberate duplicate-endpoint wizard save response: ${JSON.stringify(consoleErrors)}`);
     const nonValidationConsoleErrors = consoleErrors.filter(error => !invalidControllerConsoleErrors.includes(error));
     if (task067Enabled) {
       const expectedTask067ConsoleErrors = [

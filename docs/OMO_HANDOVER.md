@@ -1648,3 +1648,36 @@ M6/handover working-tree changes remain uncommitted and excluded from this task.
   protection and raster/rendering limits remain documented. Deployment evidence:
   `docs/WIRING_DESIGNER_8094_RELEASE.md`. Independent published-source review remains
   separate from the completed deployment verification.
+
+## Guided controller setup integration correction — 2026-10-17
+
+- Owner reports that the deployed Add Controller modal still exposes raw grid
+  configuration. Authorized correction: make the existing graphical designer the
+  primary Add/Edit workflow, test the complete flow and deploy only 8094 after a
+  recoverable backup. Continue the isolated integration release/publication workflow;
+  no main merge, other port changes, production access or physical WLED output.
+- Baseline `15a8207`; Hardware now links Add to `/hardware/new` and Edit Wiring to the
+  shared designer. The old add modal is removed. Step 1 collects name/host/port and
+  offers explicit read-only discovery or manual continuation. Step 2 is an unsaved
+  graphical draft with output names/counts, multiple outputs and unequal rows/columns.
+- New service creates controller, outputs and layout flag inside one operation-claim
+  transaction, translating unique negative draft IDs to real output IDs. Strict JSON,
+  endpoint uniqueness, graphical coverage and existing configuration validators apply.
+  A forced flag-write failure test proves complete rollback with no orphan output or
+  controller rows. Existing controller mappings/allocations/overrides are untouched.
+- Discovery is administrator/CSRF protected, bounded to GET info/cfg with time/body
+  limits, no proxy or redirect following, and no WLED state writes. No real controller
+  was contacted during implementation. Hardware status no longer polls on page load;
+  connection checks require an explicit click. Physical output stays disabled.
+- Bounded interface and browser-suite updates were delegated to GPT-6 Luna and reviewed
+  by the lead. Lead implemented atomic backend/discovery and corrected draft rendering,
+  error visibility/retry, mode controls and no-implicit-network behaviour.
+- Verification passed: Go build/vet, full race suite, atomic rollback/discovery/CSRF
+  tests, JS tests, guided setup browser, existing designer/layout/physical-first/barcode,
+  CSRF and Test Centre browsers. Extended fresh-install Locate, SIGKILL recovery,
+  restore and multi-process acceptance all PASS with no findings or page errors.
+- Private consistent pre-upgrade database/uploads/logs/configuration backup:
+  `.8094-backups/20261017-pre-guided-controller-setup/`; integrity/FKs/checksums pass,
+  migration 27, one administrator, no parts or controllers at capture. Operational
+  validation stays outside Git. Copied-data image acceptance and refreshed cutover
+  backup remain mandatory before replacing only `wledger-rc-8094`.
