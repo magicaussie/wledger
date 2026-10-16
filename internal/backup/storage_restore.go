@@ -156,6 +156,13 @@ func cabinetWiringExists(ctx context.Context, q db.Querier) (bool, error) {
 // drawers, drawers reference cabinets and cabinets reference controllers, so the
 // restrictive foreign keys would otherwise block the legacy clears.
 func clearPhysicalStorage(ctx context.Context, q db.Querier) error {
+	led, err := db.RequireLEDQuerier(q)
+	if err != nil {
+		return err
+	}
+	if err := led.ClearPhysicalBinPixels(ctx); err != nil {
+		return fmt.Errorf("failed to clear physical bin pixels: %w", err)
+	}
 	if err := q.ClearDrawerLEDAllocations(ctx); err != nil {
 		return fmt.Errorf("failed to clear drawer LED allocations: %w", err)
 	}
@@ -233,6 +240,15 @@ func restorePhysicalStorage(ctx context.Context, q db.Querier, snap PhysicalStor
 	for _, allocation := range snap.LEDAllocations {
 		if err := q.RestoreDrawerLEDAllocation(ctx, db.RestoreDrawerLEDAllocationParams(allocation)); err != nil {
 			return fmt.Errorf("drawer LED allocation restore: %w", err)
+		}
+	}
+	led, err := db.RequireLEDQuerier(q)
+	if err != nil {
+		return err
+	}
+	for _, p := range snap.BinPixels {
+		if err := led.SavePhysicalBinPixel(ctx, p); err != nil {
+			return fmt.Errorf("physical bin pixel restore: %w", err)
 		}
 	}
 	return nil

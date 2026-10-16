@@ -687,7 +687,7 @@ assert.equal(Number(await drawerX.inputValue()), 10);
       return [segment.id, segment.i[0], segment.i[1]];
     });
     assert.deepEqual(firstLocateCommands, [[10, 75, 81], [20, 0, 5], [20, 94, 100], [10, 0, 10]], 'serpentine output settings must map drawer logical pixels to exact controller-local WLED ranges');
-    await page.getByRole('button', { name: 'Stop Locate / Turn Off Allocated LEDs' }).click();
+    await page.getByRole('button', { name: 'Stop This LED Operation' }).click();
     await page.waitForURL(`${baseURL}/storage/drawers/${physicalDrawers.drawer1}?stopped=1`);
     assert.equal(mockControllerWrites.slice(writeStart + 4, writeStart + 8).every(payload => payload.seg[0].i[2].every(channel => channel === 0)), true, 'Stop must black only the allocated ranges on every affected controller');
 
@@ -700,7 +700,7 @@ assert.equal(Number(await drawerX.inputValue()), 10);
     assert.match(await page.locator('.border-4.border-primary').innerText(), /#99005/);
     assert.equal(mockControllerWrites.length - secondWriteStart, 1);
     assert.deepEqual([mockControllerWrites[secondWriteStart].seg[0].id, mockControllerWrites[secondWriteStart].seg[0].i[0], mockControllerWrites[secondWriteStart].seg[0].i[1]], [10, 24, 34]);
-    await page.getByRole('button', { name: 'Stop Locate / Turn Off Allocated LEDs' }).click();
+    await page.getByRole('button', { name: 'Stop This LED Operation' }).click();
     await page.waitForURL(`${baseURL}/storage/drawers/${physicalDrawers.drawer2}?stopped=1`);
 
     await page.goto(`${baseURL}/parts/99002`);
@@ -807,7 +807,7 @@ c.commit(); c.close()`, databasePath, JSON.stringify(referenceControllerIDs.map(
         return [controller, segment.id, segment.i[0], segment.i[1], segment.i[2]];
       });
       assert.deepEqual(activationWrites, referenceExpectedCommands[index].map(([controller, segment, start, stop]) => [controller, segment, start, stop, [0, 0, 128]]), `mock WLED payloads for reference allocation ${index + 1}`);
-      await page.getByRole('button', { name: 'Stop Locate / Turn Off Allocated LEDs' }).click();
+      await page.getByRole('button', { name: 'Stop This LED Operation' }).click();
       await page.waitForURL(`${baseURL}/storage/drawers/${referenceDrawerIDs[index]}?stopped=1`);
     }
     assert.equal(referenceControllerWrites.length, 16, 'five Locate activations and their scoped Stops should be recorded by local mock WLED controllers');

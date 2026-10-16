@@ -10,6 +10,7 @@ import (
 	"github.com/tuxedocurly/wledger/internal/db"
 	"github.com/tuxedocurly/wledger/internal/logger"
 	"github.com/tuxedocurly/wledger/internal/settings"
+	"github.com/tuxedocurly/wledger/internal/wled"
 	"github.com/tuxedocurly/wledger/web/pages"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -22,10 +23,17 @@ func (h *Handler) HandleSettings(w http.ResponseWriter, r *http.Request) {
 	var settings db.Setting
 	var users []db.ListUsersRow
 	var err error
+	functionSettings := wled.DefaultFunctionSettings()
+	functionError := ""
 
 	// Fetch Admin Data (Only if User is Admin)
 	// Viewers/Editors don't need this data since the template hides those sections
 	if user.IsAdmin() {
+		functionSettings, err = wled.LoadFunctionSettings(r.Context(), h.Queries)
+		if err != nil {
+			functionError = "Stored LED function settings are invalid or unavailable. Correct and save them, or reset to defaults. LED operations must not use these values."
+			h.Logger.Error("failed to load LED function settings", "err", err)
+		}
 		settings, err = h.Settings.GetSettings(r.Context())
 		if err != nil {
 			h.Logger.Error("failed to get settings", "err", err)
@@ -42,11 +50,51 @@ func (h *Handler) HandleSettings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Render with User object
-	pages.Settings(user, settings, users).Render(r.Context(), w)
+	pages.Settings(user, settings, users, functionSettings, functionError).Render(r.Context(), w)
 }
 
 // POST /settings
 func (h *Handler) HandleSettingsUpdate(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Invalid settings form", http.StatusBadRequest)
+		return
+	}
+	var functionSettings wled.FunctionSettings
+	if r.FormValue("led_action") != "" {
+		if !auth.GetUserFromRequest(r).IsAdmin() {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+		switch r.FormValue("led_action") {
+		case "reset":
+			functionSettings = wled.DefaultFunctionSettings()
+		case "save":
+			functionSettings = make(wled.FunctionSettings)
+			for _, name := range wled.FunctionNames() {
+				brightness, err := strconv.Atoi(r.FormValue("led_brightness_" + name))
+				if err != nil {
+					http.Error(w, "Invalid brightness for "+name, http.StatusBadRequest)
+					return
+				}
+				functionSettings[name] = wled.FunctionStyle{Color: r.FormValue("led_color_" + name), Brightness: brightness}
+			}
+		default:
+			http.Error(w, "Invalid LED settings action", http.StatusBadRequest)
+			return
+		}
+		normalized, err := wled.NormalizeFunctionSettings(functionSettings)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		// A separate form saves only LED functions, never unrelated settings.
+		if err := wled.SaveFunctionSettings(r.Context(), h.Queries, normalized); err != nil {
+			h.UIError.Respond(w, r, err, "Failed to save LED function settings", http.StatusInternalServerError)
+			return
+		}
+		http.Redirect(w, r, "/settings", http.StatusSeeOther)
+		return
+	}
 	requireAuth := r.FormValue("require_auth") == "on"
 	enableTimeout := r.FormValue("enable_timeout") == "on"
 	enableDebugLogs := r.FormValue("enable_debug_logs") == "on"
@@ -57,6 +105,21 @@ func (h *Handler) HandleSettingsUpdate(w http.ResponseWriter, r *http.Request) {
 	colorLow := r.FormValue("color_low")
 	colorCritical := r.FormValue("color_critical")
 	colorError := r.FormValue("color_error")
+	// These controls now live in the separate LED function form. Saving general
+	// settings must not reset pre-existing legacy colors before central adoption.
+	if !r.PostForm.Has("color_locate") || !r.PostForm.Has("color_error") {
+		current, err := h.Settings.GetSettings(r.Context())
+		if err != nil {
+			h.UIError.Respond(w, r, err, "Failed to preserve existing LED colors", http.StatusInternalServerError)
+			return
+		}
+		if !r.PostForm.Has("color_locate") {
+			colorLocate = current.ColorLocate.String
+		}
+		if !r.PostForm.Has("color_error") {
+			colorError = current.ColorError.String
+		}
+	}
 
 	// Supplier settings
 	supplierCacheTTL := 96

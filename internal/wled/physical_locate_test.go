@@ -103,7 +103,11 @@ func (m *physicalMock) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if count == 0 {
 			count = 200
 		}
-		fmt.Fprintf(w, `{"leds":{"count":%d}}`, count)
+		// Stable per loopback endpoint, including subprocess crash helpers.
+		_, portText, _ := net.SplitHostPort(r.Host)
+		var port int
+		fmt.Sscan(portText, &port)
+		fmt.Fprintf(w, `{"mac":"02:00:00:00:%02x:%02x","leds":{"count":%d}}`, (port>>8)&255, port&255, count)
 	case r.Method == http.MethodGet && r.URL.Path == "/json/cfg":
 		m.mu.Lock()
 		config := m.config
@@ -391,13 +395,13 @@ type failingFinalSessionStore struct {
 }
 
 type failingFinalSessionQuerier struct {
-	db.Querier
+	db.LEDQuerier
 	failFinal bool
 }
 
 func (s *failingFinalSessionStore) ExecImmediateTx(ctx context.Context, fn func(db.Querier) error) error {
 	return s.Store.ExecImmediateTx(ctx, func(q db.Querier) error {
-		return fn(failingFinalSessionQuerier{Querier: q, failFinal: s.failFinal})
+		return fn(failingFinalSessionQuerier{LEDQuerier: q.(db.LEDQuerier), failFinal: s.failFinal})
 	})
 }
 
@@ -405,14 +409,14 @@ func (q failingFinalSessionQuerier) SavePhysicalLocateSession(ctx context.Contex
 	if q.failFinal && arg.State == "stopped" {
 		return 0, errors.New("simulated final session save failure")
 	}
-	return q.Querier.SavePhysicalLocateSession(ctx, arg)
+	return q.LEDQuerier.SavePhysicalLocateSession(ctx, arg)
 }
 
 func (q failingFinalSessionQuerier) UpdatePhysicalLocateSessionCAS(ctx context.Context, arg db.UpdatePhysicalLocateSessionCASParams) (int64, error) {
 	if q.failFinal && arg.State == "stopped" {
 		return 0, errors.New("simulated final session save failure")
 	}
-	return q.Querier.UpdatePhysicalLocateSessionCAS(ctx, arg)
+	return q.LEDQuerier.UpdatePhysicalLocateSessionCAS(ctx, arg)
 }
 
 func currentPhysicalReservationOwnerIDs() []string {
@@ -544,12 +548,7 @@ func newPhysicalFixture(t *testing.T) *physicalFixture {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if session := fixture.service.getSession(controllerID.ID); session != nil {
-			if session.timer != nil {
-				session.timer.Stop()
-			}
-			setSessionReservations(session, false)
-		}
+		stopOwnershipTimers(fixture.service)
 		clearFixturePhysicalReservations(t, fixture)
 		if owners := currentPhysicalReservationOwnerIDs(); len(owners) != 0 {
 			t.Errorf("%s left process-local physical write reservations after fixture cleanup: %v", t.Name(), owners)
@@ -985,7 +984,7 @@ func TestPhysicalLocateSendsExactSegmentRelativeCommandsAndTurnsOffOnlyOwnedRang
 	}
 }
 
-func TestPhysicalLocateSwitchesDrawerAndValidatesSelectedInventoryLocation(t *testing.T) {
+func TestPhysicalLocateKeepsDisjointDrawersAndValidatesSelectedInventoryLocation(t *testing.T) {
 	f := newPhysicalFixture(t)
 	first, err := f.service.LocateInventoryBin(context.Background(), f.partID, f.bin1, 7)
 	if err != nil {
@@ -999,8 +998,8 @@ func TestPhysicalLocateSwitchesDrawerAndValidatesSelectedInventoryLocation(t *te
 		t.Fatalf("did not switch selected physical location: first=%+v second=%+v", first, second)
 	}
 	posts := f.mock.posts()
-	if len(posts) != 7 { // 3 first activation + 3 range-off commands + 1 second activation
-		t.Fatalf("drawer switch issued %d commands, want 7", len(posts))
+	if len(posts) != 4 { // Both disjoint activations remain owned, with no implicit cleanup.
+		t.Fatalf("disjoint activation issued %d commands, want 4", len(posts))
 	}
 	if _, err := f.service.LocateInventoryBin(context.Background(), f.partID, 99999, 7); err == nil {
 		t.Fatal("missing inventory assignment should not locate")
@@ -1373,8 +1372,8 @@ func TestStaleServiceCannotStopReplacementSession(t *testing.T) {
 	if err := staleService.StopDrawer(context.Background(), f.drawer1, 7); err != nil {
 		t.Fatalf("stale Stop should be idempotent after session refresh: %v", err)
 	}
-	if got := len(f.mock.posts()); got != before {
-		t.Fatalf("stale service sent %d writes, want no additional command", got-before)
+	if got := len(f.mock.posts()); got != before+3 {
+		t.Fatalf("exact drawer stop sent %d writes, want 3 targeted cleanup commands", got-before)
 	}
 	if active, ok := f.service.SessionForDrawer(f.drawer2); !ok || active.State != "active" {
 		t.Fatalf("replacement Locate session was disturbed: %+v, %v", active, ok)
@@ -1412,8 +1411,8 @@ func TestPhysicalLocateConcurrentRequestsAreSerialized(t *testing.T) {
 			active++
 		}
 	}
-	if active != 1 {
-		t.Fatalf("got %d active drawers, want exactly one", active)
+	if active != 2 {
+		t.Fatalf("got %d active drawers, want both disjoint drawers", active)
 	}
 }
 

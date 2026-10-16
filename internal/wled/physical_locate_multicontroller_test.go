@@ -229,6 +229,9 @@ func TestPhysicalLocateRestartRecoveryCleanupUsesBoundedRetry(t *testing.T) {
 	physicalLocateCoordinator.Unlock()
 
 	locateSessionTimeout = time.Millisecond
+	if _, err := f.database.ExecContext(ctx, `UPDATE physical_operation_metadata SET expires_at=? WHERE session_id=?`, time.Now().Add(-time.Second), session.ID); err != nil {
+		t.Fatal(err)
+	}
 	time.Sleep(5 * time.Millisecond)
 	blockedStore := &retryDeadlineStore{
 		Store: f.store, lookupStarted: make(chan struct{}, 1), lookupCanceled: make(chan struct{}, 1),

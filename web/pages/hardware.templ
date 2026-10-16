@@ -14,6 +14,7 @@ import (
 templ Hardware(user auth.User, controllers []db.Controller, cabinets []db.Cabinet, controllerSaved bool) {
 	@layouts.Base(i18n.T(ctx, "Hardware"), user) {
 		@components.PageHeader(i18n.T(ctx, "Hardware"), "Create physical storage first. Controller endpoints, LED strings, wiring paths and pixel allocation are optional, separate configuration.", nil)
+		<div class="mb-4"><a class="btn btn-outline" href="/hardware/led-test-centre">LED Test Centre</a></div>
 		<section class="card border border-primary/30 bg-primary/5 shadow-sm mb-8">
 			<div class="card-body gap-4">
 				<div class="flex flex-wrap items-start justify-between gap-4">

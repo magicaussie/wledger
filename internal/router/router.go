@@ -153,6 +153,16 @@ func New(mw *middleware.Manager, sessionManager *scs.SessionManager, h *handler.
 		r.Group(func(r chi.Router) {
 			r.Use(mw.RequireRole("editor", "admin"))
 
+			r.Get("/hardware/led-test-centre", h.HandleLEDTestCentre)
+			r.Get("/hardware/led-test-centre/data", h.HandleLEDTestCentreData)
+			r.Post("/hardware/led-test-centre/inspect", h.HandleLEDInspect)
+			r.Post("/hardware/led-test-centre/start", h.HandleLEDStart)
+			r.Post("/hardware/led-test-centre/stop", h.HandleLEDStop)
+			r.Post("/hardware/led-test-centre/emergency-off", h.HandleLEDEmergencyOff)
+			r.Post("/hardware/led-test-centre/mapping-preview", h.HandleLEDMappingPreview)
+			r.Post("/hardware/led-test-centre/mapping-save", h.HandleLEDMappingSave)
+			r.Post("/hardware/led-test-centre/bin-pixel", h.HandleLEDBinPixel)
+
 			r.Post("/hardware/{id}/locate", h.HandleHardwareLocate)
 			r.Post("/parts/{id}/locate", h.HandlePartLocate)
 			r.Post("/parts/{id}/locate-bin", h.HandlePhysicalPartLocate)

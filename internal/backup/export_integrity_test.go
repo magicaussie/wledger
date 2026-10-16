@@ -44,7 +44,7 @@ func (f *exportStore) CreateAuditLog(ctx context.Context, arg db.CreateAuditLogP
 
 // failingQuerier injects failures into selected export reads.
 type failingQuerier struct {
-	db.Querier
+	db.LEDQuerier
 	usersErr error
 	auditErr error
 	onParts  func()
@@ -54,26 +54,26 @@ func (q *failingQuerier) GetAllUsers(ctx context.Context) ([]db.User, error) {
 	if q.usersErr != nil {
 		return nil, q.usersErr
 	}
-	return q.Querier.GetAllUsers(ctx)
+	return q.LEDQuerier.GetAllUsers(ctx)
 }
 
 func (q *failingQuerier) GetAllAuditLogs(ctx context.Context) ([]db.GetAllAuditLogsRow, error) {
 	if q.auditErr != nil {
 		return nil, q.auditErr
 	}
-	return q.Querier.GetAllAuditLogs(ctx)
+	return q.LEDQuerier.GetAllAuditLogs(ctx)
 }
 
 func (q *failingQuerier) GetAllParts(ctx context.Context) ([]db.Part, error) {
 	if q.onParts != nil {
 		q.onParts()
 	}
-	return q.Querier.GetAllParts(ctx)
+	return q.LEDQuerier.GetAllParts(ctx)
 }
 
 // countingQuerier records which export reads ran through the transaction.
 type countingQuerier struct {
-	db.Querier
+	db.LEDQuerier
 	calls map[string]int
 }
 
@@ -81,42 +81,42 @@ func (q *countingQuerier) record(name string) { q.calls[name]++ }
 
 func (q *countingQuerier) GetSettings(ctx context.Context) (db.Setting, error) {
 	q.record("GetSettings")
-	return q.Querier.GetSettings(ctx)
+	return q.LEDQuerier.GetSettings(ctx)
 }
 
 func (q *countingQuerier) GetAllUsers(ctx context.Context) ([]db.User, error) {
 	q.record("GetAllUsers")
-	return q.Querier.GetAllUsers(ctx)
+	return q.LEDQuerier.GetAllUsers(ctx)
 }
 
 func (q *countingQuerier) GetControllers(ctx context.Context) ([]db.Controller, error) {
 	q.record("GetControllers")
-	return q.Querier.GetControllers(ctx)
+	return q.LEDQuerier.GetControllers(ctx)
 }
 
 func (q *countingQuerier) GetAllContainers(ctx context.Context) ([]db.Container, error) {
 	q.record("GetAllContainers")
-	return q.Querier.GetAllContainers(ctx)
+	return q.LEDQuerier.GetAllContainers(ctx)
 }
 
 func (q *countingQuerier) GetAllBins(ctx context.Context) ([]db.Bin, error) {
 	q.record("GetAllBins")
-	return q.Querier.GetAllBins(ctx)
+	return q.LEDQuerier.GetAllBins(ctx)
 }
 
 func (q *countingQuerier) GetAllParts(ctx context.Context) ([]db.Part, error) {
 	q.record("GetAllParts")
-	return q.Querier.GetAllParts(ctx)
+	return q.LEDQuerier.GetAllParts(ctx)
 }
 
 func (q *countingQuerier) GetAllPartAssignments(ctx context.Context) ([]db.PartAssignment, error) {
 	q.record("GetAllPartAssignments")
-	return q.Querier.GetAllPartAssignments(ctx)
+	return q.LEDQuerier.GetAllPartAssignments(ctx)
 }
 
 func (q *countingQuerier) GetAllAuditLogs(ctx context.Context) ([]db.GetAllAuditLogsRow, error) {
 	q.record("GetAllAuditLogs")
-	return q.Querier.GetAllAuditLogs(ctx)
+	return q.LEDQuerier.GetAllAuditLogs(ctx)
 }
 
 // fakeZipWriter is an injectable zipFileWriter that can fail on Create or Close.
@@ -188,7 +188,7 @@ func decodeManifest(t *testing.T, buf *bytes.Buffer) Manifest {
 
 func TestExport_DatabaseReadFailure(t *testing.T) {
 	store, svc, _, cleanup := newExportHarness(t, func(q db.Querier) db.Querier {
-		return &failingQuerier{Querier: q, usersErr: errors.New("db read boom")}
+		return &failingQuerier{LEDQuerier: q.(db.LEDQuerier), usersErr: errors.New("db read boom")}
 	})
 	defer cleanup()
 
@@ -207,7 +207,7 @@ func TestExport_DatabaseReadFailure(t *testing.T) {
 
 func TestExport_AuditLogQueryFailure(t *testing.T) {
 	store, svc, _, cleanup := newExportHarness(t, func(q db.Querier) db.Querier {
-		return &failingQuerier{Querier: q, auditErr: errors.New("audit read boom")}
+		return &failingQuerier{LEDQuerier: q.(db.LEDQuerier), auditErr: errors.New("audit read boom")}
 	})
 	defer cleanup()
 
@@ -350,7 +350,7 @@ func TestExport_SuccessRecordsAuditAndIsRestorable(t *testing.T) {
 func TestExport_ManifestReadsUseSingleTransaction(t *testing.T) {
 	var counter *countingQuerier
 	_, svc, _, cleanup := newExportHarness(t, func(q db.Querier) db.Querier {
-		counter = &countingQuerier{Querier: q, calls: make(map[string]int)}
+		counter = &countingQuerier{LEDQuerier: q.(db.LEDQuerier), calls: make(map[string]int)}
 		return counter
 	})
 	defer cleanup()
@@ -405,7 +405,7 @@ func TestExport_ConsistentSnapshotUnderConcurrentWrite(t *testing.T) {
 
 	var injected bool
 	store := &exportStore{Store: s, wrap: func(q db.Querier) db.Querier {
-		return &failingQuerier{Querier: q, onParts: func() {
+		return &failingQuerier{LEDQuerier: q.(db.LEDQuerier), onParts: func() {
 			if injected {
 				return
 			}

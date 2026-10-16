@@ -12,3 +12,6 @@ sql:
         emit_json_tags: true
         emit_prepared_queries: true
         emit_interface: true
+        rename:
+          physical_bin_pixel: PhysicalBinPixelRecord
+          physical_emergency_outcome: PhysicalEmergencyOutcomeRecord

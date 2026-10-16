@@ -39,6 +39,14 @@ func WithOperationClaim(ctx context.Context, store Store, fn func(Querier) error
 // this controller. Active session states own all saved targets, while a target's
 // attempt marker remains ownership even after a legacy or stale state transition.
 func HasControllerPhysicalLocateOwnership(ctx context.Context, q Querier, controllerID int64) (bool, error) {
+	led, err := RequireLEDQuerier(q)
+	if err != nil {
+		return false, err
+	}
+	pending, err := led.PhysicalEmergencyPending(ctx)
+	if err != nil || pending {
+		return pending, err
+	}
 	if controllerID <= 0 {
 		return false, nil
 	}
@@ -68,6 +76,14 @@ func HasControllerPhysicalLocateOwnership(ctx context.Context, q Querier, contro
 // states are ownership even when a target's attempt marker is clear; a target
 // marker also remains ownership if a legacy/stale session state is encountered.
 func HasPhysicalLocateOwnership(ctx context.Context, q Querier) (bool, error) {
+	led, err := RequireLEDQuerier(q)
+	if err != nil {
+		return false, err
+	}
+	pending, err := led.PhysicalEmergencyPending(ctx)
+	if err != nil || pending {
+		return pending, err
+	}
 	sessions, err := q.ListPhysicalLocateSessions(ctx)
 	if err != nil {
 		return false, err

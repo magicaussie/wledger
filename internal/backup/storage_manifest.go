@@ -65,6 +65,9 @@ func (m StorageManifest) MarshalJSON() ([]byte, error) {
 	if m.Version == supportedCurrentManifestVersion && m.Legacy.ControllerOutputs == nil {
 		m.Legacy.ControllerOutputs = []db.ControllerOutput{}
 	}
+	if m.PhysicalStorage.BinPixels == nil {
+		m.PhysicalStorage.BinPixels = []db.PhysicalBinPixel{}
+	}
 	return json.Marshal(storageManifestAlias(m))
 }
 
@@ -74,6 +77,8 @@ func (m StorageManifest) MarshalJSON() ([]byte, error) {
 // captured as empty lists so the current format always declares its physical
 // storage explicitly rather than leaving it unknown.
 type PhysicalStorageSnapshot struct {
+	BinPixels                 []db.PhysicalBinPixel      `json:"physical_bin_pixels"`
+	BinPixelsDeclared         bool                       `json:"-"`
 	Cabinets                  []db.Cabinet               `json:"cabinets"`
 	Drawers                   []db.Drawer                `json:"drawers"`
 	BinAttachments            []db.BinDrawerAttachment   `json:"bin_attachments"`
@@ -118,6 +123,7 @@ func physicalStorageRequiredFields() map[string]struct{} {
 	// The LED list and the cabinet controller membership list were added additively
 	// to v2.0. New exports always include them, but older current-format archives
 	// remain readable when the fields are absent.
+	delete(fields, "physical_bin_pixels")
 	delete(fields, "drawer_led_allocations")
 	delete(fields, "cabinet_controllers")
 	delete(fields, "cabinet_led_strings")
@@ -253,7 +259,7 @@ func decodeCurrentStorageManifest(f *zip.File) (StorageManifest, error) {
 			return StorageManifest{}, err
 		}
 	}
-	for _, name := range []string{"cabinet_led_strings", "cabinet_led_path_sections"} {
+	for _, name := range []string{"cabinet_led_strings", "cabinet_led_path_sections", "physical_bin_pixels"} {
 		if raw, ok := physicalMembers[name]; ok {
 			if err := requireJSONArray(raw, storageManifestPhysicalField+"."+name); err != nil {
 				return StorageManifest{}, err
@@ -268,6 +274,7 @@ func decodeCurrentStorageManifest(f *zip.File) (StorageManifest, error) {
 	if err := json.Unmarshal(data, &env); err != nil {
 		return StorageManifest{}, malformedManifest("failed to parse backup JSON: " + err.Error())
 	}
+	_, env.PhysicalStorage.BinPixelsDeclared = physicalMembers["physical_bin_pixels"]
 	_, env.PhysicalStorage.LEDAllocationsDeclared = physicalMembers["drawer_led_allocations"]
 	_, env.PhysicalStorage.CabinetControllersDeclared = physicalMembers["cabinet_controllers"]
 	_, stringsDeclared := physicalMembers["cabinet_led_strings"]
@@ -290,6 +297,9 @@ func decodeCurrentStorageManifest(f *zip.File) (StorageManifest, error) {
 		}
 	}
 	if err := convertLegacyAllocationCoordinates(&env, physicalMembers); err != nil {
+		return StorageManifest{}, err
+	}
+	if err := validateBinPixelGraph(env.Legacy, env.PhysicalStorage); err != nil {
 		return StorageManifest{}, err
 	}
 	if err := validateStorageGraph(env.Legacy, env.PhysicalStorage, env.SystemFlags); err != nil {
