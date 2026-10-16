@@ -1629,3 +1629,22 @@ M6/handover working-tree changes remain uncommitted and excluded from this task.
   Live UI validation may use a short-lived maintenance session for the existing admin
   (no password reset) and temporary offline loopback-only test records, removed after
   checking. No real controller contact is authorized. Ports 8090–8093 remain untouched.
+- **Completed:** published application commit
+  `39f4d1410195dcf99bb3b9514eb22896b91e09b5` (parent `f546493`), normal
+  fast-forward to the development branch; fetch confirmed equality. Built complete
+  image `wledger:designer-8094-39f4d14` from its clean Git archive, with OCI revision
+  label. Old-image recovery boot and new-image copied-data browser acceptance passed,
+  including graphical persistence and application backup/restore. Migration remains 27.
+- **Live result:** 8094 now runs that image, healthy with physical output disabled.
+  Authenticated Hardware → Designer save/reopen passed on the actual container;
+  temporary offline test records/flags and the maintenance session were removed.
+  Integrity/FK checks and all 49 protected application-table fingerprints passed,
+  including exact administrator/password hash and settings preservation. The final
+  pre-swap snapshot is in the backup's `final-cutover/` directory.
+- **Isolation/remaining status:** other WLEDger container IDs, images, mounts,
+  configurations and start times were unchanged. No production/main/physical WLED
+  operation occurred. The installation has no controllers configured; add one in
+  Hardware to begin using the designer. Existing mapped-controller electrical-edit
+  protection and raster/rendering limits remain documented. Deployment evidence:
+  `docs/WIRING_DESIGNER_8094_RELEASE.md`. Independent published-source review remains
+  separate from the completed deployment verification.
