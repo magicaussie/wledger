@@ -1494,3 +1494,50 @@ M6/handover working-tree changes remain uncommitted and excluded from this task.
 - **Verification:** full Go suite and race suite, vet/build, JavaScript tests, sqlc regeneration, new isolated LED browser flows, CSRF browser, layout editor, physical-first QR/bin lifecycle, barcode scanner and extended Task 067 fresh-install/restore/SIGKILL/multi-process acceptance passed during integration. The existing QR browser dependency (Python OpenCV) was installed only inside a disposable validation container. New LED browser tests use loopback mocks with external networking disabled; older acceptance scripts use loopback mocks and CDN UI dependencies. No real controller or production service/database was contacted.
 - **Operator guide:** `docs/WLED_LED_SYSTEM.md`; simulator: `docs/WLED_SIMULATOR.md`. Entry point: Hardware → LED Test Centre. Known limitations include unknown pre-test framebuffer restoration (Stop clears owned ranges only), external WLED writers, supported RGB/solid topology, existing five-controller cabinet membership limit and unverified physical behavior.
 - **Final lead verification/publication gate:** full Go tests, full race tests, vet/build, JavaScript tests, sqlc regeneration and the integrated isolated LED browser test passed again after the final source changes. Compact WLED MAC normalization and legacy-color preservation regressions are covered. CSS production generation passed with the existing `@property --radialprogress` optimizer warning. Publish only this scoped verified checkpoint on the authorized branch; independent published-GitHub source review and separately authorized physical commissioning remain outstanding. No merge or deployment is implied.
+
+## Owner request — integrate the published LED implementation into the port-8094 installation — 2026-10-16
+
+- **Goal/authorization:** integrate the published LED implementation into the existing
+  clean-install release candidate and update the isolated port-8094 installation to one
+  combined application, preserving its administrator, settings and data. Physical WLED
+  output stays disabled; ports 8090–8093 and their data stay untouched; no merge to
+  `main`, no physical controller contact, no deployment beyond the isolated 8094 instance.
+- **Integration branch/commit:** `integration/led-into-rc-8094`, merge commit
+  `55f444e51cf83ac2ddc27638c2e2c8facc70cf1c` (worktree `.led-8094-integration`).
+  Parents: `909d59f` (release-candidate/clean-8094, first parent) and
+  `b235bfd` (development/chatgpt-m6-m7 LED implementation). Merge base `6dc85d3`.
+- **Conflicts resolved (2):** `docs/OMO_HANDOVER.md` (retain both sections) and the
+  generated `web/pages/settings_templ.go` (regenerated with templ v0.3.977 from the
+  cleanly merged `settings.templ`, so the LED function settings and the
+  upload-maintenance link coexist). Migration numbering is compatible: the release
+  candidate tops out at 024; the LED implementation adds 025–027.
+- **Source verification on the merged tree:** `go build -tags fts5 ./...`,
+  `go vet -tags fts5 ./...`, `go test -tags fts5 -count=1 ./...`,
+  `go test -race -tags fts5 -count=1 ./...` (73 packages each), `sqlc generate`
+  (deterministic, no diff) and the JS suites all passed. Browser suites against loopback
+  simulated controllers passed: LED Test Centre (`realLocalAPI` + Emergency Global Off),
+  CSRF, layout editor, physical-first (asserts `physicalOutputEnabled:false`, no WLED
+  requests), barcode scanner, UI-only install, fresh install, inventory lifecycle +
+  restore, restore-only and Locate/multi-process (incl. SIGKILL crash recovery).
+- **Backup and dry-run:** a consistent `sqlite3` backup of the live 8094 database plus
+  uploads/logs archives was taken to `.8094-backups/20261016-pre-led-integration/`
+  (`integrity_check ok`, admin and settings intact) and booted successfully as a scratch
+  instance. A dry run of the new image against a copy of that data migrated to 027 with
+  the administrator and settings preserved before the live swap.
+- **Deployment:** image `wledger:led-8094-55f444e` built from the merge; the existing
+  `wledger-rc-8094` container was recreated in place with the same named volumes
+  (`wledger-rc-8094-{data,uploads,logs}`) and port `8094:8080`,
+  `WLEDGER_PHYSICAL_OUTPUT_ENABLED=false`. It is healthy, migrated to 027, and the
+  administrator `me@mustbemicks.com` and settings
+  (`require_auth_for_read=1`, `locate_timeout_seconds=10`) are preserved.
+- **Live simulated-controller acceptance:** a disposable container from the same image
+  plus the project's `cmd/wled-simulator` in a shared network namespace passed first-run
+  setup, controller save, Test Centre connection/pixel test, Stop, Emergency Global Off
+  (acknowledged), function-colour save and restart persistence, with no page errors.
+  Physical output was enabled only for that disposable simulator instance.
+- **Publication status:** the merge is committed locally on `integration/led-into-rc-8094`
+  and is a clean fast-forward for `development/chatgpt-m6-m7` (`b235bfd` is an ancestor).
+  It was **not** pushed: publication direction (merging the release-candidate lineage into
+  the authorized development branch) needs explicit owner approval before a commit/push to
+  `origin/development/chatgpt-m6-m7`. No merge to `main`, release, deployment or physical
+  WLED operation was performed.
