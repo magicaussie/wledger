@@ -1,9 +1,16 @@
 # AGENTS.md — WLEDger Development Policy
 
-*** IMPORTANT: You are not yo use any other model that the one that has been prest ***
+**Model selection:** Use only the model explicitly selected by the owner for the current task; do not silently switch providers or delegate contrary to owner instructions.
 
 This file records the development, publication and review policy for WLEDger.
 It applies to all contributors and automated agents working in this repository.
+
+## Documentation authority and conflict resolution
+
+1. `docs/PRODUCT_SPEC.md` is the **approved target**; it is not a description of existing code. Inspect source, migrations and tests to determine what is implemented.
+2. Older roadmaps, handovers and design notes are historical evidence, not permission to implement conflicting requirements. In particular: cabinets are separate from controllers; multiple controllers per cabinet; at most five physical strings per controller; exactly **one continuous cabinet-wide pixel range per drawer**; **no bin-owned pixels**.
+3. Stop and report unresolved conflicts rather than choosing an older design. Documentation changes alone do not authorize application changes or physical WLED writes.
+4. Before deleting historical documents, verify unique content and incoming references; never delete migrations, evidence, or operational recovery instructions as mere cleanup.
 
 ## Development-branch publication and independent review
 
@@ -45,9 +52,8 @@ expand the task scope.
 - GPT-6.1 Sol is the lead architect, orchestrator and independent reviewer. Sol
   retains responsibility for architecture, security, data preservation,
   migration contracts and final acceptance.
-- DeepSeek V4.1 Flash is the automatic delegated implementation worker for
-  bounded, routine coding tasks.
-- Sol delegates suitable work automatically through OmO within the approved
+- A delegated implementation worker may be used for bounded, routine coding tasks only when permitted by the owner's currently selected model and delegation settings.
+- Sol may delegate suitable work through OmO within the approved
   task scope, without requesting user approval for each routine delegation.
   Delegation does not authorize a new task or expand the approved scope.
 
@@ -61,7 +67,7 @@ Every delegated task must define:
 4. Required tests and verification commands.
 5. Prohibited operations and the applicable authorization limits.
 
-DeepSeek must return implementation evidence: changed files, a description of
+A delegated worker must return implementation evidence: changed files, a description of
 the changes, tests and commands run with their results, failures, unrun checks,
 uncertainties and any remaining blockers. A worker report is not acceptance.
 
@@ -85,7 +91,7 @@ replace that checkpoint.
   wiring paths. The owner's 69 drawers are one installation, not a schema
   limit or hardcoded topology; the historical 68 mapped bins remain unreconciled.
 - Keep physical drawer/bin geometry, LED mounting and electrical mapping
-  separate. Each drawer must support multiple LED ranges.
+  separate. Each drawer has exactly one continuous cabinet-wide pixel range in the approved target design; see `docs/PRODUCT_SPEC.md`. Existing multi-range implementation remains legacy until a separately approved migration.
 - Preserve stable inventory identities and quantities through layout,
   numbering, mounting and mapping changes.
 
@@ -94,7 +100,7 @@ replace that checkpoint.
 `docs/OMO_HANDOVER.md` is the single active development handover document.
 Record the Git baseline, current authorization, task status, architecture
 invariants, decisions, risks, delegated work and verification evidence there.
-`AGENTS.md` remains development policy and `ROADMAP.md` remains product design.
+`AGENTS.md` remains development policy. `docs/PRODUCT_SPEC.md` is the authoritative owner-approved target product design; `ROADMAP.md` and historical notes are not authoritative when contradictory.
 
 Preserve `experiment/ai-handoff` and Task 044 / Sequence 77 as unapproved
 archival evidence. Do not continue its numbered ChatGPT/DeepSeek exchange or
