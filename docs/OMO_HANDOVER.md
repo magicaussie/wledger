@@ -1,3 +1,5 @@
+> **HISTORICAL TASK RECORD — NOT CURRENT AUTHORIZATION (2026-10-17).** This file contains past task instructions, baselines and deployment evidence. Its former statement that `ROADMAP.md` defines product requirements is superseded: [PRODUCT_SPEC.md](PRODUCT_SPEC.md) is the authoritative *target* design and [../AGENTS.md](../AGENTS.md) is agent policy. Past approvals, including Task 054B, are not permission to resume work or access live WLED hardware. Verify current code and Git branch before acting.
+
 # WLEDger OmO Development Handover
 
 ## Active session and authorization
