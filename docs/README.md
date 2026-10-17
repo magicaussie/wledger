@@ -28,3 +28,13 @@
 - Refresh public README and website guides to distinguish current behavior from future plans.
 
 This is an index and status guide, **not** a claim that the entire documentation tree has already been audited.
+
+## Cleanup progress (2026-10-17)
+
+- Added canonical owner-approved target spec and corrected agent policy precedence.
+- Marked the two old roadmaps, legacy scanning design, and long OmO handover as historical/non-authoritative for target architecture. They retain useful migration, operational and test evidence.
+- Clarified current-versus-target status in root README and website landing page.
+- Removed three unreferenced Docusaurus starter tutorials: `website/docs/intro.md`, `website/docs/tutorial-extras/translate-your-site.md`, and `website/docs/tutorial-extras/manage-docs-versions.md`. The explicit sidebar lists the real `index`, Software and Hardware pages, not these tutorials.
+- Checked the live branch copies of `docs/environment.md` and `docs/api-and-mcp.md`: retain these operational references; do not delete as duplicates of the target product spec.
+
+**Not yet verified:** complete recursive repository tree, all incoming links across every source file, website build, code tests, and exact implementation status for all product features. GitHub code search indexes the default branch and is not an exhaustive listing of the development branch. Do not claim full documentation reconciliation or delete additional historical documents on this evidence alone.
