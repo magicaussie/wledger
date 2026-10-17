@@ -1,3 +1,6 @@
+> **HISTORICAL / IMPLEMENTATION TRACKING — NOT AUTHORITATIVE TARGET DESIGN (2026-10-17).**
+> Owner-approved target requirements are in [docs/PRODUCT_SPEC.md](PRODUCT_SPEC.md). Conflicting statements below (including one-controller cabinets, bin-owned LEDs, multiple drawer pixel ranges, and QR-only label generation) are superseded. Do not use this file as instructions for new architecture. Check source/tests for actual implemented status; older completion claims may refer to a different commit.
+
 # WLEDger Roadmap / Ideas
 
 A working list of functionality gaps and improvements identified during a code
