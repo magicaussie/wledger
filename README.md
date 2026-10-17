@@ -16,6 +16,10 @@
 
 Check out the official WLEDger documentation site [here](https://tuxedocurly.github.io/wledger/)
 
+## Development documentation and feature status
+
+This repository contains both existing functionality and an **owner-approved redesign that is not yet fully implemented**. Coding agents must read [AGENTS.md](AGENTS.md), the [documentation index](docs/README.md), and the [target product specification](docs/PRODUCT_SPEC.md). Older cabinet/controller, LED mapping and barcode-generation descriptions below describe legacy functionality; do **not** treat them as instructions for new architecture. Confirm the current code and deployment before assuming any feature is available.
+
 ## What is WLEDger?
 
 WLEDger (WLED + Ledger) is a modern, high-performance inventory system designed specifically for electronics hobbyists, makers, and labs. It solves the problem of "I know I have this part, but where is it?" by integrating with **WLED** controllers.
