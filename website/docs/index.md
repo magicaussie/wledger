@@ -6,6 +6,9 @@ sidebar_position: 1
 
 # Welcome to WLEDger
 
+> **Current-versus-target note:** This public guide describes features from existing versions and may not match the active redesign. The [owner-approved target specification](https://github.com/magicaussie/wledger/blob/development/chatgpt-m6-m7/docs/PRODUCT_SPEC.md) is not a list of already-shipped features. Legacy Grid Painter/bin-LED instructions must not be used as the new cabinet/drawer wiring design. Verify features against the version actually installed.
+
+
 WLEDger is a high-performance inventory management system for electronics hobbyists, makers, and workshops. It bridges the gap between your digital inventory and physical storage by integrating with [WLED](https://kno.wled.ge/) controllers to physically light up the exact location of your parts.
 
 Built with **Go**, **HTMX**, and **SQLite**, WLEDger is designed to be fast, lightweight, and easy to deploy on anything from a Raspberry Pi to a dedicated server.
